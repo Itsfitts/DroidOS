@@ -7,8 +7,9 @@ This repository is a Monorepo containing two distinct but complementary Android 
 > 
 | Project | Description | Path |
 |---|---|---|
-| CoverScreen Launcher | An advanced tiling window manager and app launcher. Bypasses cover screen restrictions and manages multi-window layouts. | /Cover-Screen-Launcher |
-| CoverScreen Trackpad | A virtual mouse trackpad and custom keyboard overlay. Turns your phone into a precision input device for external displays. | /Cover-Screen-Trackpad |
+| DroidOS Launcher | An advanced tiling window manager and app launcher. Bypasses cover screen restrictions and manages multi-window layouts. | /Cover-Screen-Launcher |
+| DroidOS Trackpad Keyboard | A virtual mouse trackpad and custom keyboard overlay. Turns your phone into a precision input device for external displays. | /Cover-Screen-Trackpad |
+
 ✨ Core Features
 🖥️ Universal Desktop Mode (DeX Replacement)
 Unlike proprietary solutions locked to specific brands, DroidOS provides a desktop-class experience on any Android phone:
@@ -33,9 +34,11 @@ Prerequisites
  * Developer Options: "Force activities to be resizable" and "Enable freeform windows" must be enabled.
 Installation
 You can download the latest APKs for both modules from the Releases page.
- * Install CoverScreen Launcher to manage your apps and windows.
- * Install CoverScreen Trackpad to control the cursor.
+ * Install DroidOS Launcher to manage your apps and windows.
+ * Install DroidOS Trackpad Keyboard to control the cursor.
+ * DroidOS Launcher can be exited by swiping tbr bubble icon away.
  * Grant Shizuku permissions when prompted in each app.
+ * Grant accessibility permissions to the trackpad when prompted.
 🤝 Contributing
 We welcome contributions! Please note that this is a Monorepo.
  * If you are fixing a bug in the Launcher, make your Pull Request against the Cover-Screen-Launcher directory.
