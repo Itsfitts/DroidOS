@@ -47,3 +47,35 @@ We welcome contributions! Please note that this is a Monorepo.
 This project is licensed under the GNU General Public License v3.0 (GPLv3).
 You are free to use, modify, and distribute this software, but all modifications must remain open source. See the LICENSE file for details.
 
+🚀 DroidOS Launcher Usage Guide
+The DroidOS Launcher is designed to manage multi-window tiling and control display resolutions, primarily using Shizuku for elevated permissions.
+1. The Two Operational Modes
+The Launcher operates primarily using an app queue combined with your selected window layout. The core difference lies in how aggressively the launcher manages apps after initialization.
+| Mode | Key Feature | Execution Action | Ideal For |
+|---|---|---|---|
+| Instant Mode | Live, dynamic window management. | Windows are launched/resized automatically every time you adjust the queue (add/remove/hide apps). The Green Play/Execute button is hidden. | Quick adjustments, experimental resizing, or when fine-tuning a small layout. |
+| Launcher Mode | Traditional "batch" execution. | Changes to the queue or layout only take effect when you explicitly press the Green Play/Execute button. | Large, complex setups (3+ apps) where manual timing is better, or minimizing system resource drain. |
+> Switch Mode: Go to the Settings tab (Gear Icon) and toggle "Instant Mode (Live Changes)".
+> 
+2. Managing the App Queue (The Dock)
+The App Queue (the horizontal list of icons at the top of the main drawer) determines which apps are launched and where they are placed in your chosen layout.
+| Action | How To | Result |
+|---|---|---|
+| Adding an App | 1. Navigate to the Search tab. 2. Tap an app listed in the main recycler view. | The app is added to the right end of the App Queue. If in Instant Mode, the layout is applied immediately. |
+| Adding a Spacer | Tap "(Blank Space)" in the search list. | Inserts a blank placeholder into the queue. This ensures an empty tile space in your final layout (e.g., in a 4-Quadrant layout, you can use 2 apps and 2 blanks). |
+| Reordering/Moving | Drag and drop an app icon horizontally within the queue. | Changes the app's position in the queue, which dictates its screen placement (Tiling order). |
+| Toggling Hide/Minimize | Tap an app icon in the App Queue. | The app's icon turns slightly transparent (minimized). The app is moved to the background using its Task ID. The app is skipped during subsequent tiling calculations. |
+| Closing/Killing App | Swipe the app icon up or down in the App Queue. | The app is removed from the queue and a force-stop shell command is executed to kill the app. |
+| Favoriting (Global) | Long-press an app in the main search list or swipe the app left/right in the search list. | Toggles the star icon and adds/removes the app from your global favorites list. |
+3. Tiling Position & Order
+Tiling positions are determined strictly from left-to-right in the App Queue to top-to-bottom, left-to-right in the selected screen layout.
+ * The leftmost app in your queue corresponds to the first defined window tile in your layout.
+ * The second app corresponds to the second tile, and so on.
+Example: 4-Quadrant Layout
+ * Tile 1 (Top-Left): Corresponds to the 1st app in the queue.
+ * Tile 2 (Top-Right): Corresponds to the 2nd app in the queue.
+ * Tile 3 (Bottom-Left): Corresponds to the 3rd app in the queue.
+ * Tile 4 (Bottom-Right): Corresponds to the 4th app in the queue.
+You can ensure an app lands in a specific tile by dragging it to the corresponding position in the App Queue.
+
+
