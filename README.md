@@ -51,6 +51,7 @@ You are free to use, modify, and distribute this software, but all modifications
 The DroidOS Launcher is designed to manage multi-window tiling and control display resolutions, primarily using Shizuku for elevated permissions.
 1. The Two Operational Modes
 The Launcher operates primarily using an app queue combined with your selected window layout. The core difference lies in how aggressively the launcher manages apps after initialization.
+>
 | Mode | Key Feature | Execution Action | Ideal For |
 |---|---|---|---|
 | Instant Mode | Live, dynamic window management. | Windows are launched/resized automatically every time you adjust the queue (add/remove/hide apps). The Green Play/Execute button is hidden. | Quick adjustments, experimental resizing, or when fine-tuning a small layout. |
@@ -59,6 +60,7 @@ The Launcher operates primarily using an app queue combined with your selected w
 > 
 2. Managing the App Queue (The Dock)
 The App Queue (the horizontal list of icons at the top of the main drawer) determines which apps are launched and where they are placed in your chosen layout.
+>
 | Action | How To | Result |
 |---|---|---|
 | Adding an App | 1. Navigate to the Search tab. 2. Tap an app listed in the main recycler view. | The app is added to the right end of the App Queue. If in Instant Mode, the layout is applied immediately. |
