@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="CoverScreen Trackpad"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:id="@+id/text_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Checking Shizuku..."
+            android:textColor="#AAAAAA"
+            android:layout_marginBottom="16dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+            
+            <Button
+                android:id="@+id/btn_toggle"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:text="Start Trackpad"
+                android:backgroundTint="#3DDC84"
+                android:textColor="#000000"
+                android:textStyle="bold"
+                android:layout_marginEnd="4dp"/>
+                
+            <Button
+                android:id="@+id/btn_hide_app"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:text="Hide App"
+                android:backgroundTint="#607D8B"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:layout_marginStart="4dp"/>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_lock"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Position: Unlocked"
+            android:drawableStart="@drawable/ic_lock_open"
+            android:drawablePadding="10dp"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:backgroundTint="#3DDC84"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btn_target_switch"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Target: Switch Local/Remote"
+            android:backgroundTint="#6200EE"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+            
+        <Button
+            android:id="@+id/btn_reset_cursor"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Reset Cursor Position"
+            android:backgroundTint="#D32F2F"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btn_force_keyboard"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Toggle Custom Keyboard"
+            android:backgroundTint="#9C27B0"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btn_profiles"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Layout Profiles (Auto-Resize)"
+            android:backgroundTint="#FF9800"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btn_manual_adjust"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Manual Adjustment (Fine Tune)"
+            android:backgroundTint="#00ACC1"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btn_settings"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Configuration / Settings"
+            android:backgroundTint="#444444"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btn_help"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Help / Instructions"
+            android:backgroundTint="#0066CC"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="24dp"/>
+
+        <Button
+            android:id="@+id/btn_close"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Close App"
+            android:backgroundTint="#990000"
+            android:textColor="#FFFFFF"/>
+
+    </LinearLayout>
+</ScrollView>

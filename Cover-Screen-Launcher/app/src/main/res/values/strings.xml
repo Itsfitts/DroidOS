@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">CoverScreenLauncher</string>
+    <string name="accessibility_service_description">Cover Screen Launcher Service</string>
+</resources>

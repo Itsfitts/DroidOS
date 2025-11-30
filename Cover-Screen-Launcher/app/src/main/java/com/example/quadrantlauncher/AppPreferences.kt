@@ -1,0 +1,308 @@
+package com.example.quadrantlauncher
+
+import android.content.Context
+
+object AppPreferences {
+
+    private const val PREFS_NAME = "AppLauncherPrefs"
+    private const val KEY_FAVORITES = "KEY_FAVORITES"
+    private const val KEY_LAST_LAYOUT = "KEY_LAST_LAYOUT"
+    private const val KEY_LAST_CUSTOM_LAYOUT_NAME = "KEY_LAST_CUSTOM_LAYOUT_NAME"
+    private const val KEY_PROFILES = "KEY_PROFILES"
+    private const val KEY_CUSTOM_LAYOUTS = "KEY_CUSTOM_LAYOUTS"
+    private const val KEY_FONT_SIZE = "KEY_FONT_SIZE"
+    private const val KEY_ICON_URI = "KEY_ICON_URI"
+    
+    // Settings
+    private const val KEY_KILL_ON_EXECUTE = "KEY_KILL_ON_EXECUTE"
+    private const val KEY_TARGET_DISPLAY_INDEX = "KEY_TARGET_DISPLAY_INDEX"
+    private const val KEY_IS_INSTANT_MODE = "KEY_IS_INSTANT_MODE"
+    private const val KEY_LAST_QUEUE = "KEY_LAST_QUEUE"
+    private const val KEY_SHOW_SHIZUKU_WARNING = "KEY_SHOW_SHIZUKU_WARNING"
+    
+    // Drawer Geometry
+    private const val KEY_DRAWER_HEIGHT = "KEY_DRAWER_HEIGHT"
+    private const val KEY_DRAWER_WIDTH = "KEY_DRAWER_WIDTH"
+    private const val KEY_AUTO_RESIZE_KEYBOARD = "KEY_AUTO_RESIZE_KEYBOARD"
+    
+    // Custom Resolutions
+    private const val KEY_CUSTOM_RESOLUTION_NAMES = "KEY_CUSTOM_RESOLUTION_NAMES"
+
+    private fun getPrefs(context: Context) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    fun savePackage(context: Context, key: String, packageName: String) {
+        getPrefs(context).edit().putString(key, packageName).apply()
+    }
+
+    fun loadPackage(context: Context, key: String): String? {
+        return getPrefs(context).getString(key, null)
+    }
+
+    fun getSimpleName(pkg: String?): String {
+        if (pkg == null) return "Select App"
+        val name = pkg.substringAfterLast('.')
+        return if (name.isNotEmpty()) name else pkg
+    }
+
+    fun getFavorites(context: Context): MutableSet<String> {
+        return getPrefs(context).getStringSet(KEY_FAVORITES, mutableSetOf()) ?: mutableSetOf()
+    }
+
+    fun isFavorite(context: Context, packageName: String): Boolean {
+        return getFavorites(context).contains(packageName)
+    }
+
+    fun toggleFavorite(context: Context, packageName: String): Boolean {
+        val favorites = getFavorites(context)
+        val newSet = HashSet(favorites)
+        val isAdded: Boolean
+        if (newSet.contains(packageName)) {
+            newSet.remove(packageName)
+            isAdded = false
+        } else {
+            newSet.add(packageName)
+            isAdded = true
+        }
+        getPrefs(context).edit().putStringSet(KEY_FAVORITES, newSet).apply()
+        return isAdded
+    }
+    
+    // --- GLOBAL LAYOUT PREFS ---
+    fun saveLastLayout(context: Context, layoutId: Int) {
+        getPrefs(context).edit().putInt(KEY_LAST_LAYOUT, layoutId).apply()
+    }
+
+    fun getLastLayout(context: Context): Int {
+        return getPrefs(context).getInt(KEY_LAST_LAYOUT, 2)
+    }
+    
+    fun saveLastCustomLayoutName(context: Context, name: String?) {
+        getPrefs(context).edit().putString(KEY_LAST_CUSTOM_LAYOUT_NAME, name).apply()
+    }
+
+    fun getLastCustomLayoutName(context: Context): String? {
+        return getPrefs(context).getString(KEY_LAST_CUSTOM_LAYOUT_NAME, null)
+    }
+
+    // --- PER-DISPLAY SETTINGS ---
+    
+    fun saveDisplayResolution(context: Context, displayId: Int, resIndex: Int) {
+        getPrefs(context).edit().putInt("RES_D$displayId", resIndex).apply()
+    }
+
+    fun getDisplayResolution(context: Context, displayId: Int): Int {
+        return getPrefs(context).getInt("RES_D$displayId", 0)
+    }
+
+    fun saveDisplayDpi(context: Context, displayId: Int, dpi: Int) {
+        getPrefs(context).edit().putInt("DPI_D$displayId", dpi).apply()
+    }
+
+    fun getDisplayDpi(context: Context, displayId: Int): Int {
+        return getPrefs(context).getInt("DPI_D$displayId", -1)
+    }
+
+    // --- PROFILES ---
+    fun getProfileNames(context: Context): MutableSet<String> {
+        return getPrefs(context).getStringSet(KEY_PROFILES, mutableSetOf()) ?: mutableSetOf()
+    }
+
+    fun saveProfile(context: Context, name: String, layout: Int, resIndex: Int, dpi: Int, apps: List<String>) {
+        val names = getProfileNames(context)
+        val newNames = HashSet(names)
+        newNames.add(name)
+        getPrefs(context).edit().putStringSet(KEY_PROFILES, newNames).apply()
+        val appString = apps.joinToString(",")
+        val data = "$layout|$resIndex|$dpi|$appString"
+        getPrefs(context).edit().putString("PROFILE_$name", data).apply()
+    }
+
+    fun getProfileData(context: Context, name: String): String? {
+        return getPrefs(context).getString("PROFILE_$name", null)
+    }
+
+    fun deleteProfile(context: Context, name: String) {
+        val names = getProfileNames(context)
+        val newNames = HashSet(names)
+        newNames.remove(name)
+        getPrefs(context).edit().putStringSet(KEY_PROFILES, newNames).remove("PROFILE_$name").apply()
+    }
+
+    fun renameProfile(context: Context, oldName: String, newName: String): Boolean {
+        if (oldName == newName) return false
+        if (newName.isEmpty()) return false
+        val names = getProfileNames(context)
+        if (!names.contains(oldName)) return false
+        val data = getProfileData(context, oldName) ?: return false
+        val newNames = HashSet(names)
+        newNames.remove(oldName)
+        newNames.add(newName)
+        getPrefs(context).edit().putStringSet(KEY_PROFILES, newNames).apply()
+        getPrefs(context).edit().putString("PROFILE_$newName", data).remove("PROFILE_$oldName").apply()
+        return true
+    }
+
+    // --- CUSTOM LAYOUTS ---
+    fun getCustomLayoutNames(context: Context): MutableSet<String> {
+        return getPrefs(context).getStringSet(KEY_CUSTOM_LAYOUTS, mutableSetOf()) ?: mutableSetOf()
+    }
+
+    fun saveCustomLayout(context: Context, name: String, rectsData: String) {
+        val names = getCustomLayoutNames(context)
+        val newNames = HashSet(names)
+        newNames.add(name)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_LAYOUTS, newNames).apply()
+        getPrefs(context).edit().putString("LAYOUT_$name", rectsData).apply()
+    }
+
+    fun getCustomLayoutData(context: Context, name: String): String? {
+        return getPrefs(context).getString("LAYOUT_$name", null)
+    }
+    
+    fun deleteCustomLayout(context: Context, name: String) {
+        val names = getCustomLayoutNames(context)
+        val newNames = HashSet(names)
+        newNames.remove(name)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_LAYOUTS, newNames).remove("LAYOUT_$name").apply()
+    }
+    
+    fun renameCustomLayout(context: Context, oldName: String, newName: String): Boolean {
+        if (oldName == newName) return false
+        if (newName.isEmpty()) return false
+        val names = getCustomLayoutNames(context)
+        if (!names.contains(oldName)) return false
+        val data = getCustomLayoutData(context, oldName) ?: return false
+        val newNames = HashSet(names)
+        newNames.remove(oldName)
+        newNames.add(newName)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_LAYOUTS, newNames).apply()
+        getPrefs(context).edit().putString("LAYOUT_$newName", data).remove("LAYOUT_$oldName").apply()
+        return true
+    }
+    
+    // --- CUSTOM RESOLUTIONS ---
+    fun getCustomResolutionNames(context: Context): MutableSet<String> {
+        return getPrefs(context).getStringSet(KEY_CUSTOM_RESOLUTION_NAMES, mutableSetOf()) ?: mutableSetOf()
+    }
+
+    fun saveCustomResolution(context: Context, name: String, value: String) {
+        val names = getCustomResolutionNames(context)
+        val newNames = HashSet(names)
+        newNames.add(name)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_RESOLUTION_NAMES, newNames).apply()
+        getPrefs(context).edit().putString("RES_$name", value).apply()
+    }
+    
+    fun getCustomResolutionValue(context: Context, name: String): String? {
+        return getPrefs(context).getString("RES_$name", null)
+    }
+
+    fun deleteCustomResolution(context: Context, name: String) {
+        val names = getCustomResolutionNames(context)
+        val newNames = HashSet(names)
+        newNames.remove(name)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_RESOLUTION_NAMES, newNames).remove("RES_$name").apply()
+    }
+    
+    fun renameCustomResolution(context: Context, oldName: String, newName: String): Boolean {
+        if (oldName == newName) return false
+        if (newName.isEmpty()) return false
+        val names = getCustomResolutionNames(context)
+        if (!names.contains(oldName)) return false
+        val data = getCustomResolutionValue(context, oldName) ?: return false
+        val newNames = HashSet(names)
+        newNames.remove(oldName)
+        newNames.add(newName)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_RESOLUTION_NAMES, newNames).apply()
+        getPrefs(context).edit().putString("RES_$newName", data).remove("RES_$oldName").apply()
+        return true
+    }
+
+    // --- FONT SIZE & ICONS & DRAWER ---
+    fun saveFontSize(context: Context, size: Float) {
+        getPrefs(context).edit().putFloat(KEY_FONT_SIZE, size).apply()
+    }
+
+    fun getFontSize(context: Context): Float {
+        return getPrefs(context).getFloat(KEY_FONT_SIZE, 16f)
+    }
+
+    fun saveIconUri(context: Context, uri: String) {
+        getPrefs(context).edit().putString(KEY_ICON_URI, uri).apply()
+    }
+
+    fun getIconUri(context: Context): String? {
+        return getPrefs(context).getString(KEY_ICON_URI, null)
+    }
+    
+    fun setDrawerHeightPercent(context: Context, percent: Int) {
+        getPrefs(context).edit().putInt(KEY_DRAWER_HEIGHT, percent).apply()
+    }
+    
+    fun getDrawerHeightPercent(context: Context): Int {
+        return getPrefs(context).getInt(KEY_DRAWER_HEIGHT, 70)
+    }
+    
+    fun setDrawerWidthPercent(context: Context, percent: Int) {
+        getPrefs(context).edit().putInt(KEY_DRAWER_WIDTH, percent).apply()
+    }
+    
+    fun getDrawerWidthPercent(context: Context): Int {
+        return getPrefs(context).getInt(KEY_DRAWER_WIDTH, 90)
+    }
+    
+    fun setAutoResizeKeyboard(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_AUTO_RESIZE_KEYBOARD, enable).apply()
+    }
+    
+    fun getAutoResizeKeyboard(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_AUTO_RESIZE_KEYBOARD, true)
+    }
+
+    // --- SETTINGS ---
+    fun setKillOnExecute(context: Context, kill: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_KILL_ON_EXECUTE, kill).apply()
+    }
+
+    fun getKillOnExecute(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_KILL_ON_EXECUTE, true)
+    }
+
+    fun setTargetDisplayIndex(context: Context, index: Int) {
+        getPrefs(context).edit().putInt(KEY_TARGET_DISPLAY_INDEX, index).apply()
+    }
+
+    fun getTargetDisplayIndex(context: Context): Int {
+        return getPrefs(context).getInt(KEY_TARGET_DISPLAY_INDEX, 1)
+    }
+
+    fun setInstantMode(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_IS_INSTANT_MODE, enable).apply()
+    }
+
+    fun getInstantMode(context: Context): Boolean {
+        // Default is TRUE for Instant Mode
+        return getPrefs(context).getBoolean(KEY_IS_INSTANT_MODE, true)
+    }
+    
+    fun saveLastQueue(context: Context, apps: List<String>) {
+        val str = apps.joinToString(",")
+        getPrefs(context).edit().putString(KEY_LAST_QUEUE, str).apply()
+    }
+    
+    fun getLastQueue(context: Context): List<String> {
+        val str = getPrefs(context).getString(KEY_LAST_QUEUE, "") ?: ""
+        if (str.isEmpty()) return emptyList()
+        return str.split(",").filter { it.isNotEmpty() }
+    }
+    
+    // --- NEW: Shizuku Warning Toggle ---
+    fun setShowShizukuWarning(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_SHOW_SHIZUKU_WARNING, enable).apply()
+    }
+
+    fun getShowShizukuWarning(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_SHOW_SHIZUKU_WARNING, true)
+    }
+}
