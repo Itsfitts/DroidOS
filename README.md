@@ -38,6 +38,7 @@ You can download the latest APKs for both modules from the Releases page.
  * Install DroidOS Trackpad Keyboard to control the cursor.
  * DroidOS Launcher can be exited by swiping tbr bubble icon away.
  * Grant Shizuku permissions when prompted in each app.
+ * I reccomend this fork of shizuku https://github.com/thedjchi/Shizuku once you set it up. It has a watchdog feature to autorestart whenever it gets turned off. Once you turn it on, even if you lose wireless adb you can still turn shizuku back on without it. Also has an auto start on boot feature. Does not require root.
  * Grant accessibility permissions to the trackpad when prompted.
 🤝 Contributing
 We welcome contributions! Please note that this is a Monorepo.
@@ -79,6 +80,8 @@ Example: 4-Quadrant Layout
  * Tile 3 (Bottom-Left): Corresponds to the 3rd app in the queue.
  * Tile 4 (Bottom-Right): Corresponds to the 4th app in the queue.
 You can ensure an app lands in a specific tile by dragging it to the corresponding position in the App Queue.
+
+
 
 ![Screenshot_20251130_130124_Photos](https://github.com/user-attachments/assets/e9449ba4-4ac9-401d-b8b4-74329f948ebf)
 ![Screenshot_20251130_130005_Reddit](https://github.com/user-attachments/assets/24ceaf2f-5212-4fe6-b027-e5941164ca93)
