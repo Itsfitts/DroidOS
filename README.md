@@ -105,6 +105,7 @@ You can ensure an app lands in a specific tile by dragging it to the correspondi
 🕶️ DroidOS Virtual Display Setup
 
 This guide outlines the steps to activate and control a virtual, tiled desktop environment when using AR glasses (such as XREAL) connected to your Android device. This process relies on having Shizuku running with permissions granted to both the CoverScreen Launcher and CoverScreen Trackpad applications.
+
 Part 1: Create and Switch to Virtual Display (Launcher App)
 The goal of this phase is to create a new virtual screen and move the Launcher's target focus from your physical phone screen to that new screen.
  * Set Initial Resolution (Optional but Recommended):
@@ -120,6 +121,7 @@ The goal of this phase is to create a new virtual screen and move the Launcher's
  * Switch Launch Target:
    * Press the "Switch Display (Current [ID])" button immediately below the Virtual Display toggle.
    * Result: Your physical phone screen should become mostly blank, showing only the Launcher bubble (or the main screen if still open). The virtual screen on the glasses should now show the output.
+
 Part 2: Gaining Cursor Control (Trackpad App)
 Now that the system is outputting to the glasses, you must redirect your phone's touch input to control the cursor on the remote screen.
  * Launch Trackpad App:
