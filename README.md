@@ -23,10 +23,12 @@ DroidOS utilizes Shizuku to access elevated system APIs without requiring root a
  * Inject raw input events (Mouse/Keyboard) directly into the system input stream.
  * Manage window sizes, positions, and display power states via hidden Android APIs (Reflection).
  * Launch activities on specific display IDs (Cover screens, Virtual displays).
+
 🚀 Getting Started
 Prerequisites
  * Shizuku: Must be installed and running on your device.
  * Developer Options: "Force activities to be resizable" and "Enable freeform windows" must be enabled.
+
 Installation
 You can download the latest APKs for both modules from the Releases page.
  * Install DroidOS Launcher to manage your apps and windows.
@@ -39,9 +41,7 @@ You can download the latest APKs for both modules from the Releases page.
 We welcome contributions! Please note that this is a Monorepo.
  * If you are fixing a bug in the Launcher, make your Pull Request against the Cover-Screen-Launcher directory.
  * If you are improving the Trackpad, work within the Cover-Screen-Trackpad directory.
-📄 License
-This project is licensed under the GNU General Public License v3.0 (GPLv3).
-You are free to use, modify, and distribute this software, but all modifications must remain open source. See the LICENSE file for details.
+
 
 🚀 DroidOS Launcher Usage Guide
 The DroidOS Launcher is designed to manage multi-window tiling and control display resolutions, primarily using Shizuku for elevated permissions.
@@ -102,3 +102,8 @@ This repository is a Monorepo containing two distinct but complementary Android 
 |---|---|---|
 | DroidOS Launcher | An advanced tiling window manager and app launcher. Bypasses cover screen restrictions and manages multi-window layouts. | /Cover-Screen-Launcher |
 | DroidOS Trackpad Keyboard | A virtual mouse trackpad and custom keyboard overlay. Turns your phone into a precision input device for external displays. | /Cover-Screen-Trackpad |
+
+
+📄 License
+This project is licensed under the GNU General Public License v3.0 (GPLv3).
+You are free to use, modify, and distribute this software, but all modifications must remain open source. See the LICENSE file for details.
