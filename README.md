@@ -1,11 +1,21 @@
 DroidOS 📱🚀
+<br>
+<br>
+
+---
+
 DroidOS is a suite of advanced system tools designed to give "superpowers" to the standard Android experience.
 It functions as a universal Samsung DeX replacement, a tiling window manager, and an unrestricted app launcher that works on any Android device. Whether you are using a Foldable, a Flip phone, AR Glasses, or a secondary monitor, DroidOS unlocks the full potential of your hardware.
 
 ![Screenshot_20251130_185618_Discord](https://github.com/user-attachments/assets/dca14a11-21e6-439c-b653-7ce9f8e73a87)
 
+<br>
+<br>
+
+---
 
 ✨ Core Features
+
 🖥️ Universal Desktop Mode (DeX Replacement)
 Unlike proprietary solutions locked to specific brands, DroidOS provides a desktop-class experience on any Android phone:
  * Window Management: Force apps into specific tiling layouts (Split-screen, Quadrants, Tri-split) on external displays.
@@ -24,7 +34,13 @@ DroidOS utilizes Shizuku to access elevated system APIs without requiring root a
  * Manage window sizes, positions, and display power states via hidden Android APIs (Reflection).
  * Launch activities on specific display IDs (Cover screens, Virtual displays).
 
+<br>
+<br>
+
+---
+
 🚀 Getting Started
+
 Prerequisites
  * Shizuku: Must be installed and running on your device.
  * Developer Options: "Force activities to be resizable" and "Enable freeform windows" must be enabled.
@@ -42,12 +58,13 @@ We welcome contributions! Please note that this is a Monorepo.
  * If you are fixing a bug in the Launcher, make your Pull Request against the Cover-Screen-Launcher directory.
  * If you are improving the Trackpad, work within the Cover-Screen-Trackpad directory.
 
+<br>
+<br>
 
-
-
-
+---
 
 🚀 DroidOS Launcher Usage Guide
+
 The DroidOS Launcher is designed to manage multi-window tiling and control display resolutions, primarily using Shizuku for elevated permissions.
 1. The Two Operational Modes
 The Launcher operates primarily using an app queue combined with your selected window layout. The core difference lies in how aggressively the launcher manages apps after initialization.
@@ -80,12 +97,13 @@ Example: 4-Quadrant Layout
  * Tile 4 (Bottom-Right): Corresponds to the 4th app in the queue.
 You can ensure an app lands in a specific tile by dragging it to the corresponding position in the App Queue.
 
+<br>
+<br>
 
+---
 
+🕶️ DroidOS Virtual Display Setup
 
-
-
-🕶️ DroidOS XREAL Virtual Display Setup
 This guide outlines the steps to activate and control a virtual, tiled desktop environment when using AR glasses (such as XREAL) connected to your Android device. This process relies on having Shizuku running with permissions granted to both the CoverScreen Launcher and CoverScreen Trackpad applications.
 Part 1: Create and Switch to Virtual Display (Launcher App)
 The goal of this phase is to create a new virtual screen and move the Launcher's target focus from your physical phone screen to that new screen.
@@ -124,12 +142,10 @@ The Trackpad overlay provides dedicated controls accessible through its corners 
 | Edges (Left/Right) | Finger near edge + Move Left/Right | Performs Horizontal Scrolling in the remote screen. |  |
 Scrolling Note: Ensure the trackpad overlay is not positioned too close to the edges of your phone's physical screen for the scrolling zones to work reliably.
 
+<br>
+<br>
 
-
-
-
-
-
+---
 
 Want to donate to support the development of this project? https://ko-fi.com/katsuyamaki
 
@@ -147,6 +163,10 @@ This repository is a Monorepo containing two distinct but complementary Android 
 This project is licensed under the GNU General Public License v3.0 (GPLv3).
 You are free to use, modify, and distribute this software, but all modifications must remain open source. See the LICENSE file for details.
 
+<br>
+<br>
+
+---
 
 ![Screenshot_20251130_125934_Reddit](https://github.com/user-attachments/assets/a4644964-8371-4f39-9a03-df88e4a8524a)
 
@@ -164,5 +184,8 @@ You are free to use, modify, and distribute this software, but all modifications
 
 ![Screenshot_20251130_125807_One UI Cover Home](https://github.com/user-attachments/assets/eb08e879-6c55-45f6-a175-a19791588337)
 
+<br>
+<br>
 
+---
 
