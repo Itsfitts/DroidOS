@@ -9,7 +9,7 @@ It functions as a universal Samsung DeX replacement, a tiling window manager, an
 
 ![Screenshot_20251130_185618_Discord](https://github.com/user-attachments/assets/dca14a11-21e6-439c-b653-7ce9f8e73a87)
 
-https://youtu.be/aOzkV3t7wFM
+Video Demonstration : https://youtu.be/aOzkV3t7wFM
 
 <br>
 <br>
