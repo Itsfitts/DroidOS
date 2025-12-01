@@ -318,18 +318,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         handler.removeCallbacks(voiceRunnable)
         
         if (isTouchDragging && hasSentTouchDown) {
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+            // Drag action uses SOURCE_TOUCHSCREEN for stability
+            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
         }
         isTouchDragging = false
         hasSentTouchDown = false
         
         if (isLeftKeyHeld && hasSentMouseDown) {
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+            // Key Drag action uses SOURCE_TOUCHSCREEN for stability
+            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
         }
         isLeftKeyHeld = false
         
         if (isRightKeyHeld && hasSentMouseDown) {
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_SECONDARY, dragDownTime)
+            // Key Drag action uses SOURCE_TOUCHSCREEN for stability
+            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY, dragDownTime)
         }
         isRightKeyHeld = false
         hasSentMouseDown = false
@@ -646,11 +649,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
                     if (!skipInjection) {
                         if (isTouchDragging && hasSentTouchDown) {
-                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
                         } else if (isLeftKeyHeld && hasSentMouseDown) {
-                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
                         } else if (isRightKeyHeld && hasSentMouseDown) {
-                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_SECONDARY, dragDownTime)
+                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY, dragDownTime)
                         } else {
                             injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
                         }
@@ -683,17 +686,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         } 
     }
     private fun performRotation() { rotationAngle = (rotationAngle + 90) % 360; cursorView?.rotation = rotationAngle.toFloat(); vibrate(); updateBorderColor(0xFFFFFF00.toInt()); }
-    private fun startKeyDrag(b: Int) { vibrate(); updateBorderColor(0xFF00FF00.toInt()); dragDownTime = SystemClock.uptimeMillis(); injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_MOUSE, b, dragDownTime); hasSentMouseDown = true }
+    private fun startKeyDrag(b: Int) { vibrate(); updateBorderColor(0xFF00FF00.toInt()); dragDownTime = SystemClock.uptimeMillis(); injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, b, dragDownTime); hasSentMouseDown = true }
     private fun stopKeyDrag(b: Int) { 
         if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt())
-        if (hasSentMouseDown) { injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_MOUSE, b, dragDownTime) }
+        if (hasSentMouseDown) { injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, b, dragDownTime) }
         hasSentMouseDown = false
     }
-    private fun startTouchDrag() { isTouchDragging = true; vibrate(); updateBorderColor(0xFF00FF00.toInt()); dragDownTime = SystemClock.uptimeMillis(); injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_PRIMARY, dragDownTime); hasSentTouchDown = true }
+    private fun startTouchDrag() { isTouchDragging = true; vibrate(); updateBorderColor(0xFF00FF00.toInt()); dragDownTime = SystemClock.uptimeMillis(); injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime); hasSentTouchDown = true }
     private fun stopTouchDrag() { 
         isTouchDragging = false
         if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt())
-        if (hasSentTouchDown) { injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_PRIMARY, dragDownTime) }
+        if (hasSentTouchDown) { injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime) }
         hasSentTouchDown = false
     }
     
