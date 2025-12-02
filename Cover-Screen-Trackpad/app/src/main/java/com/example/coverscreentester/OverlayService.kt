@@ -111,7 +111,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     
     private var cursorSpeed = 2.5f
     private var scrollSpeed = 3.0f 
-    private var scrollZoneThickness = 24 
+    private var scrollZoneThickness = 60 
     private var prefVibrate = true
     private var prefReverseScroll = true
     private var prefAlpha = 200
@@ -119,8 +119,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var prefVPosLeft = false
     private var prefHPosTop = false
     private var prefLocked = false
-    private var prefHandleTouchSize = 45 
-    private var prefScrollTouchSize = 24 
+    private var prefHandleTouchSize = 60 
+    private var prefScrollTouchSize = 60 
     private var prefScrollVisualSize = 4
     private var prefCursorSize = 50
     private var prefKeyScale = 100 
@@ -172,6 +172,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     if (visible) {
                         setTrackpadVisibility(true)
                     } else {
+                        // Only hide if the menu is on the SAME display as the trackpad
+                        // OR if menuDisplayId is -1 (unknown, assume same)
                         if (menuDisplayId == -1 || menuDisplayId == currentDisplayId) {
                             setTrackpadVisibility(false)
                         }
@@ -364,7 +366,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             }
             if (intent?.hasExtra("DISPLAY_ID") == true) {
                 val targetDisplayId = intent.getIntExtra("DISPLAY_ID", Display.DEFAULT_DISPLAY)
-                if (targetDisplayId != currentDisplayId || trackpadLayout == null) { 
+                val forceMove = intent.getBooleanExtra("FORCE_MOVE", false)
+                
+                // Only move if we aren't already there OR if we are explicitly forced
+                if ((targetDisplayId != currentDisplayId || trackpadLayout == null) && (trackpadLayout == null || forceMove)) { 
                     removeOverlays()
                     setupWindows(targetDisplayId) 
                 }
@@ -512,28 +517,6 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     
     private fun handleManualAdjust(intent: Intent) { 
-        val target = intent.getStringExtra("TARGET") ?: "TRACKPAD"
-        
-        if (target == "KEYBOARD") {
-            if (!isCustomKeyboardVisible) {
-                toggleCustomKeyboard() 
-            }
-            if (keyboardOverlay == null) return
-            
-            val dx = intent.getIntExtra("DX", 0)
-            val dy = intent.getIntExtra("DY", 0)
-            val dw = intent.getIntExtra("DW", 0)
-            val dh = intent.getIntExtra("DH", 0)
-            
-            if (dx != 0 || dy != 0) {
-                keyboardOverlay?.moveWindow(dx, dy)
-            }
-            if (dw != 0 || dh != 0) {
-                keyboardOverlay?.resizeWindow(dw, dh)
-            }
-            return
-        }
-
         if (windowManager == null || trackpadLayout == null) return
         val dx = intent.getIntExtra("DX", 0)
         val dy = intent.getIntExtra("DY", 0)
@@ -668,33 +651,59 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 val tool = event.getToolType(0)
                 val action = event.actionMasked
                 
+                // Debug logging
                 if (isDebugMode) {
-                    val txt = "ACT:$action ID:$devId T:$tool"
-                    debugTextView?.text = txt
+                    val toolName = when(tool) {
+                        MotionEvent.TOOL_TYPE_FINGER -> "FNGR"
+                        MotionEvent.TOOL_TYPE_MOUSE -> "MOUS"
+                        MotionEvent.TOOL_TYPE_STYLUS -> "STYL"
+                        else -> "?$tool"
+                    }
+                    val actionName = when(action) {
+                        MotionEvent.ACTION_DOWN -> "DOWN"
+                        MotionEvent.ACTION_MOVE -> "MOVE"
+                        MotionEvent.ACTION_UP -> "UP"
+                        MotionEvent.ACTION_CANCEL -> "CNCL"
+                        else -> "?$action"
+                    }
+                    val state = "D:$isTouchDragging L:$isLeftKeyHeld R:$isRightKeyHeld"
+                    debugTextView?.text = "$actionName $toolName id:$devId\n$state\nCUR:${cursorX.toInt()},${cursorY.toInt()}"
                 }
                 
-                // CRITICAL LOOP PREVENTION
-                // We rely on DeviceID and Tool Type. 
-                // Injected events usually have deviceId=0 or virtual source.
-                // We STRICTLY require FINGER type and NON-ZERO ID.
-                if (tool != MotionEvent.TOOL_TYPE_FINGER) return@setOnTouchListener false
-                
-                // Ignore HOVER events completely to prevent cursor feedback loop
-                if (action == MotionEvent.ACTION_HOVER_ENTER || 
-                    action == MotionEvent.ACTION_HOVER_MOVE || 
-                    action == MotionEvent.ACTION_HOVER_EXIT) {
+                // FILTER 1: Only accept FINGER tool type
+                if (tool != MotionEvent.TOOL_TYPE_FINGER) {
                     return@setOnTouchListener false
                 }
                 
+                // FILTER 2: Reject device ID <= 0 (synthetic/system events)
+                if (devId <= 0) {
+                    // If we get a cancel with ID -1, clean up our state
+                    if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
+                        if (activeFingerDeviceId > 0) {
+                            Log.w(TAG, "Synthetic cancel received (id=$devId), cleaning up state")
+                            cleanupAfterCancel()
+                        }
+                    }
+                    return@setOnTouchListener false
+                }
+                
+                // FILTER 3: Track active finger - only process events from the finger that started the gesture
                 when (action) {
-                    MotionEvent.ACTION_DOWN -> activeFingerDeviceId = devId
+                    MotionEvent.ACTION_DOWN -> {
+                        activeFingerDeviceId = devId
+                    }
                     MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (activeFingerDeviceId > 0 && devId != activeFingerDeviceId) return@setOnTouchListener false
+                        if (activeFingerDeviceId > 0 && devId != activeFingerDeviceId) {
+                            // Different finger/device - ignore
+                            return@setOnTouchListener false
+                        }
                     }
                 }
                 
+                // Skip if clicking animation in progress
                 if (isClicking) return@setOnTouchListener true
                 
+                // Process input if trackpad is active
                 if (!isPreviewMode && isTrackpadVisible) {
                     gestureDetector.onTouchEvent(event)
                     handleTrackpadTouch(event)
@@ -711,24 +720,45 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
     
+    /**
+     * Called when we receive a synthetic cancel event (device ID -1 or 0)
+     * This cleans up state without sending injection commands that could cause more issues
+     */
     private fun cleanupAfterCancel() {
         handler.removeCallbacks(longPressRunnable)
         handler.removeCallbacks(resizeLongPressRunnable)
         handler.removeCallbacks(moveLongPressRunnable)
         handler.removeCallbacks(voiceRunnable)
         
-        if (isTouchDragging && hasSentTouchDown) injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
-        if ((isVScrolling || isHScrolling) && hasSentScrollDown) injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
+        // Send UP events for any active drags to clean up remote state
+        if (isTouchDragging && hasSentTouchDown) {
+            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+        }
+        if ((isVScrolling || isHScrolling) && hasSentScrollDown) {
+            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
+        }
         
-        isTouchDragging = false; hasSentTouchDown = false; isVScrolling = false; isHScrolling = false; hasSentScrollDown = false
-        isMoving = false; isResizing = false; activeFingerDeviceId = -1
+        // Reset all state
+        isTouchDragging = false
+        hasSentTouchDown = false
+        isVScrolling = false
+        isHScrolling = false
+        hasSentScrollDown = false
+        isMoving = false
+        isResizing = false
+        activeFingerDeviceId = -1
         
-        if (!isDebugMode) { if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) }
+        // Update border color
+        if (!isDebugMode) {
+            if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
+            else updateBorderColor(0x55FFFFFF.toInt())
+        }
     }
     
     private fun loadOverlayPositionForDisplay(displayId: Int) {
         currentOverlayDisplayId = displayId
         val prefs = getSharedPreferences("TrackpadPrefs", MODE_PRIVATE)
+        
         val defaultX = (uiScreenWidth - 400) / 2
         val defaultY = (uiScreenHeight - 300) / 2
         
@@ -738,18 +768,27 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             trackpadParams.width = prefs.getInt("overlay_width_d$displayId", 400)
             trackpadParams.height = prefs.getInt("overlay_height_d$displayId", 300)
         } else {
-            trackpadParams.x = defaultX; trackpadParams.y = defaultY; trackpadParams.width = 400; trackpadParams.height = 300
+            trackpadParams.x = defaultX
+            trackpadParams.y = defaultY
+            trackpadParams.width = 400
+            trackpadParams.height = 300
         }
     }
     
     private fun saveOverlayPosition() {
         val prefs = getSharedPreferences("TrackpadPrefs", MODE_PRIVATE)
-        prefs.edit().putInt("overlay_x_d$currentOverlayDisplayId", trackpadParams.x).putInt("overlay_y_d$currentOverlayDisplayId", trackpadParams.y).apply()
+        prefs.edit()
+            .putInt("overlay_x_d$currentOverlayDisplayId", trackpadParams.x)
+            .putInt("overlay_y_d$currentOverlayDisplayId", trackpadParams.y)
+            .apply()
     }
     
     private fun saveOverlaySize() {
         val prefs = getSharedPreferences("TrackpadPrefs", MODE_PRIVATE)
-        prefs.edit().putInt("overlay_width_d$currentOverlayDisplayId", trackpadParams.width).putInt("overlay_height_d$currentOverlayDisplayId", trackpadParams.height).apply()
+        prefs.edit()
+            .putInt("overlay_width_d$currentOverlayDisplayId", trackpadParams.width)
+            .putInt("overlay_height_d$currentOverlayDisplayId", trackpadParams.height)
+            .apply()
     }
     
     private fun createRemoteCursor(displayId: Int) { 
@@ -797,8 +836,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     
     private fun updateCursorSize() { 
         val size = if (prefCursorSize > 0) prefCursorSize else 50
-        cursorView?.layoutParams?.let { lp -> lp.width = size; lp.height = size; cursorView?.layoutParams = lp }
-        remoteCursorView?.layoutParams?.let { lp -> lp.width = size; lp.height = size; remoteCursorView?.layoutParams = lp }
+        cursorView?.layoutParams?.let { lp ->
+            lp.width = size
+            lp.height = size
+            cursorView?.layoutParams = lp
+        }
+        remoteCursorView?.layoutParams?.let { lp ->
+            lp.width = size
+            lp.height = size
+            remoteCursorView?.layoutParams = lp
+        }
     }
     
     private fun getProfileKey(): String { 
@@ -872,26 +919,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         when (event.action) { 
             MotionEvent.ACTION_DOWN -> { 
                 handler.postDelayed(moveLongPressRunnable, 1000)
-                initialWindowX = trackpadParams.x
-                initialWindowY = trackpadParams.y
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                return true 
+                initialWindowX = trackpadParams.x; initialWindowY = trackpadParams.y; initialTouchX = event.rawX; initialTouchY = event.rawY; return true 
             }
             MotionEvent.ACTION_MOVE -> { 
                 if (isMoving) { 
                     trackpadParams.x = initialWindowX + (event.rawX - initialTouchX).toInt()
                     trackpadParams.y = initialWindowY + (event.rawY - initialTouchY).toInt()
                     windowManager?.updateViewLayout(trackpadLayout, trackpadParams) 
-                } else if (abs(event.rawX - initialTouchX) > 20) {
-                    handler.removeCallbacks(moveLongPressRunnable)
-                }
-                return true 
+                } else if (abs(event.rawX - initialTouchX) > 20) handler.removeCallbacks(moveLongPressRunnable); return true 
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
-                handler.removeCallbacks(moveLongPressRunnable)
-                if (isMoving) stopMove()
-                return true 
+                handler.removeCallbacks(moveLongPressRunnable); if (isMoving) stopMove(); return true 
             } 
         }
         return false 
@@ -905,30 +943,18 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         when (event.action) { 
             MotionEvent.ACTION_DOWN -> { 
                 handler.postDelayed(resizeLongPressRunnable, 1000)
-                initialWindowWidth = trackpadParams.width
-                initialWindowHeight = trackpadParams.height
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                return true 
+                initialWindowWidth = trackpadParams.width; initialWindowHeight = trackpadParams.height; initialTouchX = event.rawX; initialTouchY = event.rawY; return true 
             }
             MotionEvent.ACTION_MOVE -> { 
                 if (isResizing) { 
-                    val deltaX = event.rawX - initialTouchX
-                    val deltaY = event.rawY - initialTouchY
-                    val newWidth = (initialWindowWidth + deltaX).toInt()
-                    val newHeight = (initialWindowHeight + deltaY).toInt()
-                    trackpadParams.width = max(300, newWidth)
-                    trackpadParams.height = max(300, newHeight)
+                    val deltaX = event.rawX - initialTouchX; val deltaY = event.rawY - initialTouchY
+                    val newWidth = (initialWindowWidth + deltaX).toInt(); val newHeight = (initialWindowHeight + deltaY).toInt()
+                    trackpadParams.width = max(300, newWidth); trackpadParams.height = max(300, newHeight)
                     windowManager?.updateViewLayout(trackpadLayout, trackpadParams) 
-                } else if (abs(event.rawX - initialTouchX) > 20) {
-                    handler.removeCallbacks(resizeLongPressRunnable)
-                }
-                return true 
+                } else if (abs(event.rawX - initialTouchX) > 20) handler.removeCallbacks(resizeLongPressRunnable); return true 
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
-                handler.removeCallbacks(resizeLongPressRunnable)
-                if (isResizing) stopResize()
-                return true 
+                handler.removeCallbacks(resizeLongPressRunnable); if (isResizing) stopResize(); return true 
             } 
         }
         return false 
@@ -937,6 +963,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun startResize() { isResizing = true; vibrate(); updateBorderColor(0xFF0000FF.toInt()) }
     private fun stopResize() { isResizing = false; saveOverlaySize(); if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) }
     
+    // NEW: Detection helper for buffer check
+    private fun isCursorOverTrackpad(): Boolean {
+        if (inputTargetDisplayId != currentDisplayId) return false
+        if (trackpadLayout == null) return false
+        
+        val tX = trackpadParams.x.toFloat()
+        val tY = trackpadParams.y.toFloat()
+        val tW = trackpadParams.width.toFloat()
+        val tH = trackpadParams.height.toFloat()
+        
+        return cursorX >= tX && cursorX <= (tX + tW) && 
+               cursorY >= tY && cursorY <= (tY + tH)
+    }
+
     private fun handleTrackpadTouch(event: MotionEvent) {
         val viewWidth = trackpadLayout?.width ?: 0
         val viewHeight = trackpadLayout?.height ?: 0
@@ -954,13 +994,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 if (inVZone) { 
                     isVScrolling = true; vibrate(); updateBorderColor(0xFF00FFFF.toInt())
                     virtualScrollX = cursorX; virtualScrollY = cursorY; dragDownTime = SystemClock.uptimeMillis()
-                    injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
-                    hasSentScrollDown = true
+                    // FIX: Don't inject scroll start if cursor is overlapping trackpad to avoid loop
+                    if (!isCursorOverTrackpad()) {
+                        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
+                        hasSentScrollDown = true
+                    }
                 } else if (inHZone) { 
                     isHScrolling = true; vibrate(); updateBorderColor(0xFF00FFFF.toInt())
                     virtualScrollX = cursorX; virtualScrollY = cursorY; dragDownTime = SystemClock.uptimeMillis()
-                    injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
-                    hasSentScrollDown = true
+                    // FIX: Don't inject scroll start if cursor is overlapping trackpad
+                    if (!isCursorOverTrackpad()) {
+                        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
+                        hasSentScrollDown = true
+                    }
                 } else { 
                     handler.postDelayed(longPressRunnable, 400) 
                 }
@@ -1008,17 +1054,39 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {} 
                     }
                     
-                    if (isTouchDragging && hasSentTouchDown) {
-                        injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime)
+                    // CRITICAL FIX: SELF-INTERSECTION CHECK WITH BUFFER
+                    var skipInjection = false
+                    if (inputTargetDisplayId == currentDisplayId && trackpadLayout != null) {
+                        val tX = trackpadParams.x.toFloat()
+                        val tY = trackpadParams.y.toFloat()
+                        val tW = trackpadParams.width.toFloat()
+                        val tH = trackpadParams.height.toFloat()
+
+                        // BUFFER ZONE: 100px margin to stop OS input conflict loops
+                        val buffer = 100f 
+                        
+                        if (cursorX >= (tX - buffer) && cursorX <= (tX + tW + buffer) && 
+                            cursorY >= (tY - buffer) && cursorY <= (tY + tH + buffer)) {
+                            skipInjection = true
+                        }
                     }
-                    else if (isLeftKeyHeld && hasSentMouseDown) {
-                        injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
-                    }
-                    else if (isRightKeyHeld && hasSentMouseDown) {
-                        injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY, dragDownTime)
-                    }
-                    else {
-                        injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+
+                    if (!skipInjection) {
+                        if (isTouchDragging && hasSentTouchDown) {
+                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime)
+                        }
+                        else if (isLeftKeyHeld && hasSentMouseDown) {
+                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+                        }
+                        else if (isRightKeyHeld && hasSentMouseDown) {
+                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY, dragDownTime)
+                        }
+                        else {
+                            // Don't inject hover on local display if not dragging (prevent cursor fighting)
+                            if (inputTargetDisplayId != currentDisplayId) {
+                                injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+                            }
+                        }
                     }
                 }
                 lastTouchX = event.x; lastTouchY = event.y 
@@ -1056,6 +1124,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     
     private fun performClick(isRightClick: Boolean) { 
         if (shellService == null) { bindShizuku(); return }
+        // Block click if over buffer zone
+        if (isCursorOverTrackpad()) {
+             if(isDebugMode) showToast("Blocked: Over Trackpad")
+             return
+        }
         Thread { try { if (isRightClick) shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId) else shellService?.execClick(cursorX, cursorY, inputTargetDisplayId) } catch (e: Exception) { Log.e(TAG, "Click injection failed", e) } }.start()
     }
     
@@ -1109,8 +1182,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         prefVibrate = p.getBoolean("vibrate", true); prefReverseScroll = p.getBoolean("reverse_scroll", true)
         prefAlpha = p.getInt("alpha", 200); prefLocked = p.getBoolean("lock_position", false)
         prefVPosLeft = p.getBoolean("v_pos_left", false); prefHPosTop = p.getBoolean("h_pos_top", false)
-        prefHandleTouchSize = p.getInt("handle_touch_size", 45) 
-        prefScrollTouchSize = p.getInt("scroll_touch_size", 24) 
+        prefHandleTouchSize = p.getInt("handle_touch_size", 60) 
+        prefScrollTouchSize = p.getInt("scroll_touch_size", 60) 
         prefHandleSize = p.getInt("handle_size", 60); prefScrollVisualSize = p.getInt("scroll_visual_size", 4)
         scrollZoneThickness = prefScrollTouchSize; prefCursorSize = p.getInt("cursor_size", 50)
         prefKeyScale = p.getInt("keyboard_key_scale", 100) 
