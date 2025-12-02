@@ -10,10 +10,12 @@ import android.widget.TextView
 class ManualAdjustActivity : Activity() {
 
     private var isMoveMode = true
+    private var isKeyboardTarget = false
     private val STEP_SIZE = 10
 
     private lateinit var textMode: TextView
     private lateinit var btnToggle: Button
+    private lateinit var btnToggleTarget: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,11 +23,17 @@ class ManualAdjustActivity : Activity() {
 
         textMode = findViewById(R.id.text_mode)
         btnToggle = findViewById(R.id.btn_toggle_mode)
+        btnToggleTarget = findViewById(R.id.btn_toggle_target)
         
         updateModeUI()
 
         btnToggle.setOnClickListener {
             isMoveMode = !isMoveMode
+            updateModeUI()
+        }
+        
+        btnToggleTarget.setOnClickListener {
+            isKeyboardTarget = !isKeyboardTarget
             updateModeUI()
         }
 
@@ -52,28 +60,32 @@ class ManualAdjustActivity : Activity() {
     }
 
     private fun updateModeUI() {
-        if (isMoveMode) {
-            textMode.text = "CURRENT MODE: POSITION"
-            textMode.setTextColor(Color.GREEN)
-            btnToggle.text = "Switch to Resize"
+        val targetText = if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD"
+        val actionText = if (isMoveMode) "POSITION" else "SIZE"
+        
+        textMode.text = "$targetText: $actionText"
+        
+        if (isKeyboardTarget) {
+            textMode.setTextColor(Color.MAGENTA)
+            btnToggleTarget.text = "Switch to Trackpad"
         } else {
-            textMode.text = "CURRENT MODE: SIZE"
-            textMode.setTextColor(Color.CYAN)
-            btnToggle.text = "Switch to Position"
+            textMode.setTextColor(if (isMoveMode) Color.GREEN else Color.CYAN)
+            btnToggleTarget.text = "Switch to Keyboard"
         }
+        
+        btnToggle.text = if (isMoveMode) "Switch to Resize" else "Switch to Position"
     }
 
     private fun sendAdjust(xChange: Int, yChange: Int) {
         val intent = Intent(this, OverlayService::class.java)
         intent.action = "MANUAL_ADJUST"
         
+        intent.putExtra("TARGET", if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD")
+        
         if (isMoveMode) {
             intent.putExtra("DX", xChange)
             intent.putExtra("DY", yChange)
         } else {
-            // In resize mode:
-            // UP/DOWN affects Height
-            // LEFT/RIGHT affects Width
             intent.putExtra("DW", xChange)
             intent.putExtra("DH", yChange)
         }

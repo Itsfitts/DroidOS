@@ -37,6 +37,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import java.util.ArrayList
 import com.example.coverscreentester.BuildConfig
 
@@ -110,7 +111,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     
     private var cursorSpeed = 2.5f
     private var scrollSpeed = 3.0f 
-    private var scrollZoneThickness = 60 
+    private var scrollZoneThickness = 30 // Reduced default to avoid accidental touches
     private var prefVibrate = true
     private var prefReverseScroll = true
     private var prefAlpha = 200
@@ -119,7 +120,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var prefHPosTop = false
     private var prefLocked = false
     private var prefHandleTouchSize = 60
-    private var prefScrollTouchSize = 60
+    private var prefScrollTouchSize = 30 // Reduced default
     private var prefScrollVisualSize = 4
     private var prefCursorSize = 50 
     
@@ -350,6 +351,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     updateLayoutSizes()
                     updateScrollPosition()
                     updateCursorSize() 
+                    if (isCustomKeyboardVisible) {
+                        toggleCustomKeyboard()
+                        toggleCustomKeyboard()
+                    }
                 }
                 "PREVIEW_UPDATE" -> handlePreview(intent)
                 "CYCLE_INPUT_TARGET" -> cycleInputTarget()
@@ -360,17 +365,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             }
             if (intent?.hasExtra("DISPLAY_ID") == true) {
                 val targetDisplayId = intent.getIntExtra("DISPLAY_ID", Display.DEFAULT_DISPLAY)
-                // --- FIX IMPLEMENTED HERE ---
-                // If force move is TRUE (user clicked button) OR if trackpad is null (fresh start)
-                val forceMove = intent.getBooleanExtra("FORCE_MOVE", false)
-                
-                if (trackpadLayout == null || forceMove) {
+                if (targetDisplayId != currentDisplayId || trackpadLayout == null) { 
                     removeOverlays()
                     setupWindows(targetDisplayId) 
-                } else {
-                    Log.d(TAG, "Trackpad already active. Ignoring automatic move to Display $targetDisplayId")
                 }
-                // ----------------------------
             }
         } catch (e: Exception) { 
             Log.e(TAG, "Crash in onStartCommand", e) 
@@ -515,6 +513,29 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     
     private fun handleManualAdjust(intent: Intent) { 
+        val target = intent.getStringExtra("TARGET") ?: "TRACKPAD"
+        
+        if (target == "KEYBOARD") {
+            if (!isCustomKeyboardVisible) {
+                toggleCustomKeyboard() // Show if hidden to adjust
+            }
+            if (keyboardOverlay == null) return
+            
+            val dx = intent.getIntExtra("DX", 0)
+            val dy = intent.getIntExtra("DY", 0)
+            val dw = intent.getIntExtra("DW", 0)
+            val dh = intent.getIntExtra("DH", 0)
+            
+            if (dx != 0 || dy != 0) {
+                keyboardOverlay?.moveWindow(dx, dy)
+            }
+            if (dw != 0 || dh != 0) {
+                keyboardOverlay?.resizeWindow(dw, dh)
+            }
+            return
+        }
+
+        // TRACKPAD LOGIC
         if (windowManager == null || trackpadLayout == null) return
         val dx = intent.getIntExtra("DX", 0)
         val dy = intent.getIntExtra("DY", 0)
@@ -1048,8 +1069,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 lastTouchX = event.x
                 lastTouchY = event.y
                 
-                val inVZone = if (prefVPosLeft) event.x < scrollZoneThickness else event.x > (viewWidth - scrollZoneThickness)
-                val inHZone = if (prefHPosTop) event.y < scrollZoneThickness else event.y > (viewHeight - scrollZoneThickness)
+                // Ensure scroll zone doesn't exceed 15% of view size (Safety Cap)
+                val actualZoneV = min(scrollZoneThickness, (viewWidth * 0.15f).toInt())
+                val actualZoneH = min(scrollZoneThickness, (viewHeight * 0.15f).toInt())
+                
+                val inVZone = if (prefVPosLeft) event.x < actualZoneV else event.x > (viewWidth - actualZoneV)
+                val inHZone = if (prefHPosTop) event.y < actualZoneH else event.y > (viewHeight - actualZoneH)
                 
                 if (inVZone) { 
                     isVScrolling = true

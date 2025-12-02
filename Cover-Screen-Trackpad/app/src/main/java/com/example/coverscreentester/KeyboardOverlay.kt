@@ -1,4 +1,3 @@
-
 package com.example.coverscreentester
 
 import android.content.Context
@@ -42,7 +41,6 @@ class KeyboardOverlay(
     private var screenWidth = 720
     private var screenHeight = 748
     
-    // Store which display we're on for per-display persistence
     private var currentDisplayId = 0
 
     fun setScreenDimensions(width: Int, height: Int, displayId: Int = 0) {
@@ -50,23 +48,12 @@ class KeyboardOverlay(
         screenHeight = height
         currentDisplayId = displayId
         
-        // Load saved size for this display, or use defaults
         loadKeyboardSizeForDisplay(displayId)
         
-        // If no saved size, calculate defaults
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         if (!prefs.contains("keyboard_width_d$displayId")) {
             keyboardWidth = (width * 0.95f).toInt().coerceIn(300, 650)
             keyboardHeight = (height * 0.36f).toInt().coerceIn(180, 320)
-        }
-    }
-
-    fun updateTargetDisplay(newTargetId: Int): KeyboardOverlay {
-        return KeyboardOverlay(context, windowManager, shellService, newTargetId).also {
-            it.screenWidth = screenWidth
-            it.screenHeight = screenHeight
-            it.currentDisplayId = currentDisplayId
-            it.loadKeyboardSizeForDisplay(currentDisplayId)
         }
     }
 
@@ -85,6 +72,29 @@ class KeyboardOverlay(
     fun toggle() { if (isVisible) hide() else show() }
     fun isShowing(): Boolean = isVisible
 
+    // NEW: Methods for Manual Adjustment & Scaling
+    fun moveWindow(dx: Int, dy: Int) {
+        if (!isVisible || keyboardParams == null) return
+        keyboardParams!!.x += dx
+        keyboardParams!!.y += dy
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardPosition()
+        } catch (e: Exception) {}
+    }
+    
+    fun resizeWindow(dw: Int, dh: Int) {
+         if (!isVisible || keyboardParams == null) return
+         keyboardParams!!.width = max(280, keyboardParams!!.width + dw)
+         keyboardParams!!.height = max(180, keyboardParams!!.height + dh)
+         keyboardWidth = keyboardParams!!.width
+         keyboardHeight = keyboardParams!!.height
+         try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardSize()
+         } catch (e: Exception) {}
+    }
+
     private fun createKeyboardWindow() {
         keyboardContainer = FrameLayout(context)
         val containerBg = GradientDrawable()
@@ -97,6 +107,10 @@ class KeyboardOverlay(
         keyboardView?.setKeyboardListener(this)
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
+        
+        // Apply Scale
+        val scale = prefs.getInt("keyboard_key_scale", 100) / 100f
+        keyboardView?.setScale(scale)
 
         val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         kbParams.setMargins(6, 28, 6, 6)
@@ -107,7 +121,6 @@ class KeyboardOverlay(
         addCloseButton()
         addTargetLabel()
 
-        // Load saved position for this display
         val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
         val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - keyboardHeight - 10)
 
@@ -225,16 +238,13 @@ class KeyboardOverlay(
     override fun onKeyPress(keyCode: Int, char: Char?) { injectKey(keyCode) }
     
     override fun onTextInput(text: String) {
-        if (shellService == null) { Log.w(TAG, "Shell service not available"); return }
-        
+        if (shellService == null) return
         Thread {
             try {
                 val escaped = escapeForShell(text)
                 val cmd = "input -d $targetDisplayId text $escaped"
                 shellService.runCommand(cmd)
-            } catch (e: Exception) { 
-                Log.e(TAG, "Text injection failed: $text", e) 
-            }
+            } catch (e: Exception) { Log.e(TAG, "Text injection failed", e) }
         }.start()
     }
 
@@ -261,7 +271,7 @@ class KeyboardOverlay(
     }
 
     private fun injectKey(keyCode: Int) {
-        if (shellService == null) { Log.w(TAG, "Shell service not available"); return }
+        if (shellService == null) return
         Thread {
             try {
                 val cmd = "input -d $targetDisplayId keyevent $keyCode"
