@@ -88,7 +88,9 @@ class SettingsActivity : Activity() {
         seekScrollVisual.setOnSeekBarChangeListener(createPreviewListener("scroll_visual"))
         seekHandleTouch.setOnSeekBarChangeListener(createPreviewListener("handle_touch"))
         seekScrollTouch.setOnSeekBarChangeListener(createPreviewListener("scroll_touch"))
-        // No live preview for keyboard scale yet as keyboard isn't visible in settings, only trackpad is previewed
+        
+        // --- KEYBOARD SCALE PREVIEW ---
+        seekKeyScale.setOnSeekBarChangeListener(createPreviewListener("keyboard_scale"))
 
         btnSave.setOnClickListener {
             val cVal = if (seekBarCursor.progress < 1) 0.1f else seekBarCursor.progress / 10f

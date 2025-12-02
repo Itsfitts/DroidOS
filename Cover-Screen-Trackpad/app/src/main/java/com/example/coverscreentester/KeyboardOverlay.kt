@@ -41,6 +41,7 @@ class KeyboardOverlay(
     private var screenWidth = 720
     private var screenHeight = 748
     
+    // Store which display we're on for per-display persistence
     private var currentDisplayId = 0
 
     fun setScreenDimensions(width: Int, height: Int, displayId: Int = 0) {
@@ -54,6 +55,29 @@ class KeyboardOverlay(
         if (!prefs.contains("keyboard_width_d$displayId")) {
             keyboardWidth = (width * 0.95f).toInt().coerceIn(300, 650)
             keyboardHeight = (height * 0.36f).toInt().coerceIn(180, 320)
+        }
+    }
+
+    // Dynamic Scale Update
+    fun updateScale(scale: Float) {
+        if (keyboardView == null) return
+        
+        // 1. Update the internal key sizes
+        keyboardView?.setScale(scale)
+        
+        // 2. Adjust window height to fit new scale (approximate calculation)
+        // Base height 260 at 1.0 scale.
+        val newHeight = (260 * scale).toInt().coerceAtLeast(180)
+        keyboardHeight = newHeight
+        
+        if (isVisible && keyboardParams != null) {
+            keyboardParams?.height = newHeight
+            try {
+                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                saveKeyboardSize()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -108,7 +132,7 @@ class KeyboardOverlay(
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
         
-        // Apply Scale
+        // Apply saved scale
         val scale = prefs.getInt("keyboard_key_scale", 100) / 100f
         keyboardView?.setScale(scale)
 

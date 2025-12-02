@@ -1,5 +1,6 @@
 package com.example.quadrantlauncher
 
+import android.app.ActivityManager
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -707,6 +708,12 @@ class FloatingLauncherService : Service() {
     }
     
     private fun launchTrackpad() {
+        // Prevent relaunching if already active (keeps overlay on current screen)
+        if (isTrackpadRunning()) {
+            showToast("Trackpad is already active")
+            return
+        }
+
         try {
             val intent = packageManager.getLaunchIntentForPackage(PACKAGE_TRACKPAD)
             if (intent != null) {
@@ -773,6 +780,19 @@ class FloatingLauncherService : Service() {
             showToast("Error launching Trackpad")
             Log.e(TAG, "Launch Error", e)
         }
+    }
+
+    private fun isTrackpadRunning(): Boolean {
+        try {
+            val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val runningApps = am.runningAppProcesses
+            if (runningApps != null) {
+                for (info in runningApps) {
+                    if (info.processName == PACKAGE_TRACKPAD) return true
+                }
+            }
+        } catch (e: Exception) {}
+        return false
     }
 
     private fun getLayoutName(type: Int): String { 

@@ -3920,314 +3920,6 @@ class KeyboardManager(
 }
 ````
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardOverlay.kt
-````kotlin
-package com.example.coverscreentester
-
-import android.content.Context
-import android.graphics.Color
-import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
-import android.util.Log
-import android.view.Gravity
-import android.view.KeyEvent
-import android.view.MotionEvent
-import android.view.View
-import android.view.WindowManager
-import android.widget.FrameLayout
-import android.widget.TextView
-import kotlin.math.max
-
-class KeyboardOverlay(
-    private val context: Context,
-    private val windowManager: WindowManager,
-    private val shellService: IShellService?,
-    private val targetDisplayId: Int
-) : KeyboardView.KeyboardListener {
-
-    private var keyboardContainer: FrameLayout? = null
-    private var keyboardView: KeyboardView? = null
-    private var keyboardParams: WindowManager.LayoutParams? = null
-    private var isVisible = false
-
-    private var isMoving = false
-    private var isResizing = false
-    private var initialTouchX = 0f
-    private var initialTouchY = 0f
-    private var initialWindowX = 0
-    private var initialWindowY = 0
-    private var initialWidth = 0
-    private var initialHeight = 0
-
-    private val TAG = "KeyboardOverlay"
-    private var keyboardWidth = 500
-    private var keyboardHeight = 260
-    private var screenWidth = 720
-    private var screenHeight = 748
-    
-    // Store which display we're on for per-display persistence
-    private var currentDisplayId = 0
-
-    fun setScreenDimensions(width: Int, height: Int, displayId: Int = 0) {
-        screenWidth = width
-        screenHeight = height
-        currentDisplayId = displayId
-        
-        // Load saved size for this display, or use defaults
-        loadKeyboardSizeForDisplay(displayId)
-        
-        // If no saved size, calculate defaults
-        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        if (!prefs.contains("keyboard_width_d$displayId")) {
-            keyboardWidth = (width * 0.95f).toInt().coerceIn(300, 650)
-            keyboardHeight = (height * 0.36f).toInt().coerceIn(180, 320)
-        }
-    }
-
-    fun updateTargetDisplay(newTargetId: Int): KeyboardOverlay {
-        return KeyboardOverlay(context, windowManager, shellService, newTargetId).also {
-            it.screenWidth = screenWidth
-            it.screenHeight = screenHeight
-            it.currentDisplayId = currentDisplayId
-            it.loadKeyboardSizeForDisplay(currentDisplayId)
-        }
-    }
-
-    fun show() {
-        if (isVisible) return
-        try { createKeyboardWindow(); isVisible = true } 
-        catch (e: Exception) { Log.e(TAG, "Failed to show keyboard", e) }
-    }
-
-    fun hide() {
-        if (!isVisible) return
-        try { windowManager.removeView(keyboardContainer); keyboardContainer = null; keyboardView = null; isVisible = false } 
-        catch (e: Exception) { Log.e(TAG, "Failed to hide keyboard", e) }
-    }
-
-    fun toggle() { if (isVisible) hide() else show() }
-    fun isShowing(): Boolean = isVisible
-
-    private fun createKeyboardWindow() {
-        keyboardContainer = FrameLayout(context)
-        val containerBg = GradientDrawable()
-        containerBg.setColor(Color.parseColor("#1A1A1A"))
-        containerBg.cornerRadius = 16f
-        containerBg.setStroke(2, Color.parseColor("#3DDC84"))
-        keyboardContainer?.background = containerBg
-
-        keyboardView = KeyboardView(context)
-        keyboardView?.setKeyboardListener(this)
-        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
-
-        val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        kbParams.setMargins(6, 28, 6, 6)
-        keyboardContainer?.addView(keyboardView, kbParams)
-
-        addDragHandle()
-        addResizeHandle()
-        addCloseButton()
-        addTargetLabel()
-
-        // Load saved position for this display
-        val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
-        val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - keyboardHeight - 10)
-
-        keyboardParams = WindowManager.LayoutParams(
-            keyboardWidth, keyboardHeight,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        )
-        keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT
-        keyboardParams?.x = savedX
-        keyboardParams?.y = savedY
-        windowManager.addView(keyboardContainer, keyboardParams)
-    }
-
-    private fun addDragHandle() {
-        val handle = FrameLayout(context)
-        val handleParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 28)
-        handleParams.gravity = Gravity.TOP
-        val indicator = View(context)
-        val indicatorBg = GradientDrawable()
-        indicatorBg.setColor(Color.parseColor("#555555"))
-        indicatorBg.cornerRadius = 3f
-        indicator.background = indicatorBg
-        val indicatorParams = FrameLayout.LayoutParams(50, 5)
-        indicatorParams.gravity = Gravity.CENTER
-        indicatorParams.topMargin = 8
-        handle.addView(indicator, indicatorParams)
-        handle.setOnTouchListener { _, event -> handleDrag(event); true }
-        keyboardContainer?.addView(handle, handleParams)
-    }
-
-    private fun addResizeHandle() {
-        val handle = FrameLayout(context)
-        val handleParams = FrameLayout.LayoutParams(36, 36)
-        handleParams.gravity = Gravity.BOTTOM or Gravity.RIGHT
-        val indicator = View(context)
-        val indicatorBg = GradientDrawable()
-        indicatorBg.setColor(Color.parseColor("#3DDC84"))
-        indicatorBg.cornerRadius = 4f
-        indicator.background = indicatorBg
-        indicator.alpha = 0.7f
-        val indicatorParams = FrameLayout.LayoutParams(14, 14)
-        indicatorParams.gravity = Gravity.BOTTOM or Gravity.RIGHT
-        indicatorParams.setMargins(0, 0, 6, 6)
-        handle.addView(indicator, indicatorParams)
-        handle.setOnTouchListener { _, event -> handleResize(event); true }
-        keyboardContainer?.addView(handle, handleParams)
-    }
-
-    private fun addCloseButton() {
-        val button = FrameLayout(context)
-        val buttonParams = FrameLayout.LayoutParams(28, 28)
-        buttonParams.gravity = Gravity.TOP or Gravity.RIGHT
-        buttonParams.setMargins(0, 2, 4, 0)
-        val closeText = TextView(context)
-        closeText.text = "X"
-        closeText.setTextColor(Color.parseColor("#FF5555"))
-        closeText.textSize = 12f
-        closeText.gravity = Gravity.CENTER
-        button.addView(closeText, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-        button.setOnClickListener { hide() }
-        keyboardContainer?.addView(button, buttonParams)
-    }
-
-    private fun addTargetLabel() {
-        val label = TextView(context)
-        label.text = "Display $targetDisplayId"
-        label.setTextColor(Color.parseColor("#888888"))
-        label.textSize = 9f
-        val labelParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
-        labelParams.gravity = Gravity.TOP or Gravity.LEFT
-        labelParams.setMargins(8, 6, 0, 0)
-        keyboardContainer?.addView(label, labelParams)
-    }
-
-    private fun handleDrag(event: MotionEvent): Boolean {
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> { isMoving = true; initialTouchX = event.rawX; initialTouchY = event.rawY; initialWindowX = keyboardParams?.x ?: 0; initialWindowY = keyboardParams?.y ?: 0 }
-            MotionEvent.ACTION_MOVE -> { if (isMoving) { keyboardParams?.x = initialWindowX + (event.rawX - initialTouchX).toInt(); keyboardParams?.y = initialWindowY + (event.rawY - initialTouchY).toInt(); try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} } }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { isMoving = false; saveKeyboardPosition() }
-        }
-        return true
-    }
-
-    private fun handleResize(event: MotionEvent): Boolean {
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> { isResizing = true; initialTouchX = event.rawX; initialTouchY = event.rawY; initialWidth = keyboardParams?.width ?: keyboardWidth; initialHeight = keyboardParams?.height ?: keyboardHeight }
-            MotionEvent.ACTION_MOVE -> { if (isResizing) { keyboardParams?.width = max(280, initialWidth + (event.rawX - initialTouchX).toInt()); keyboardParams?.height = max(180, initialHeight + (event.rawY - initialTouchY).toInt()); keyboardWidth = keyboardParams?.width ?: keyboardWidth; keyboardHeight = keyboardParams?.height ?: keyboardHeight; try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} } }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { isResizing = false; saveKeyboardSize() }
-        }
-        return true
-    }
-
-    private fun saveKeyboardSize() {
-        context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-            .putInt("keyboard_width_d$currentDisplayId", keyboardWidth)
-            .putInt("keyboard_height_d$currentDisplayId", keyboardHeight)
-            .apply()
-    }
-
-    private fun saveKeyboardPosition() {
-        context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-            .putInt("keyboard_x_d$currentDisplayId", keyboardParams?.x ?: 0)
-            .putInt("keyboard_y_d$currentDisplayId", keyboardParams?.y ?: 0)
-            .apply()
-    }
-
-    private fun loadKeyboardSizeForDisplay(displayId: Int) {
-        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        keyboardWidth = prefs.getInt("keyboard_width_d$displayId", keyboardWidth)
-        keyboardHeight = prefs.getInt("keyboard_height_d$displayId", keyboardHeight)
-    }
-
-    override fun onKeyPress(keyCode: Int, char: Char?) { injectKey(keyCode) }
-    
-    override fun onTextInput(text: String) {
-        if (shellService == null) { Log.w(TAG, "Shell service not available"); return }
-        
-        Thread {
-            try {
-                val escaped = escapeForShell(text)
-                val cmd = "input -d $targetDisplayId text $escaped"
-                shellService.runCommand(cmd)
-            } catch (e: Exception) { 
-                Log.e(TAG, "Text injection failed: $text", e) 
-            }
-        }.start()
-    }
-
-    override fun onSpecialKey(key: KeyboardView.SpecialKey) {
-        val keyCode = when (key) {
-            KeyboardView.SpecialKey.BACKSPACE -> KeyEvent.KEYCODE_DEL
-            KeyboardView.SpecialKey.ENTER -> KeyEvent.KEYCODE_ENTER
-            KeyboardView.SpecialKey.SPACE -> KeyEvent.KEYCODE_SPACE
-            KeyboardView.SpecialKey.TAB -> KeyEvent.KEYCODE_TAB
-            KeyboardView.SpecialKey.ESCAPE -> KeyEvent.KEYCODE_ESCAPE
-            KeyboardView.SpecialKey.ARROW_UP -> KeyEvent.KEYCODE_DPAD_UP
-            KeyboardView.SpecialKey.ARROW_DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
-            KeyboardView.SpecialKey.ARROW_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
-            KeyboardView.SpecialKey.ARROW_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
-            KeyboardView.SpecialKey.HOME -> KeyEvent.KEYCODE_MOVE_HOME
-            KeyboardView.SpecialKey.END -> KeyEvent.KEYCODE_MOVE_END
-            KeyboardView.SpecialKey.DELETE -> KeyEvent.KEYCODE_FORWARD_DEL
-            KeyboardView.SpecialKey.SHIFT -> KeyEvent.KEYCODE_SHIFT_LEFT
-            KeyboardView.SpecialKey.CTRL -> KeyEvent.KEYCODE_CTRL_LEFT
-            KeyboardView.SpecialKey.ALT -> KeyEvent.KEYCODE_ALT_LEFT
-            else -> return
-        }
-        injectKey(keyCode)
-    }
-
-    private fun injectKey(keyCode: Int) {
-        if (shellService == null) { Log.w(TAG, "Shell service not available"); return }
-        Thread {
-            try {
-                val cmd = "input -d $targetDisplayId keyevent $keyCode"
-                shellService.runCommand(cmd)
-            } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
-        }.start()
-    }
-    
-    private fun escapeForShell(text: String): String {
-        val sb = StringBuilder()
-        for (c in text) {
-            when (c) {
-                ' ' -> sb.append("%s")
-                '\'' -> sb.append("'")
-                '"' -> sb.append("\\\"")
-                '\\' -> sb.append("\\\\")
-                '`' -> sb.append("\\`")
-                '$' -> sb.append("\\$")
-                '&' -> sb.append("\\&")
-                '|' -> sb.append("\\|")
-                ';' -> sb.append("\\;")
-                '(' -> sb.append("\\(")
-                ')' -> sb.append("\\)")
-                '<' -> sb.append("\\<")
-                '>' -> sb.append("\\>")
-                '!' -> sb.append("\\!")
-                '?' -> sb.append("\\?")
-                '*' -> sb.append("\\*")
-                '[' -> sb.append("\\[")
-                ']' -> sb.append("\\]")
-                '{' -> sb.append("\\{")
-                '}' -> sb.append("\\}")
-                '#' -> sb.append("\\#")
-                '~' -> sb.append("\\~")
-                '^' -> sb.append("\\^")
-                else -> sb.append(c)
-            }
-        }
-        return sb.toString()
-    }
-}
-````
-
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardUtils.kt
 ````kotlin
 package com.example.coverscreentester
@@ -4310,344 +4002,6 @@ object KeyboardUtils {
         KeyDef("▼", KEY_DOWN),
         KeyDef("►", KEY_RIGHT)
     )
-}
-````
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardView.kt
-````kotlin
-package com.example.coverscreentester
-
-import android.content.Context
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.util.AttributeSet
-import android.util.TypedValue
-import android.view.Gravity
-import android.view.HapticFeedbackConstants
-import android.view.MotionEvent
-import android.view.View
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
-import kotlin.math.roundToInt
-
-class KeyboardView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
-) : LinearLayout(context, attrs, defStyleAttr) {
-
-    interface KeyboardListener {
-        fun onKeyPress(keyCode: Int, char: Char?)
-        fun onTextInput(text: String)
-        fun onSpecialKey(key: SpecialKey)
-    }
-
-    enum class SpecialKey {
-        BACKSPACE, ENTER, SPACE, SHIFT, CAPS_LOCK, SYMBOLS, ABC,
-        TAB, ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT,
-        HOME, END, DELETE, ESCAPE, CTRL, ALT
-    }
-
-    enum class KeyboardState {
-        LOWERCASE, UPPERCASE, CAPS_LOCK, SYMBOLS_1, SYMBOLS_2
-    }
-
-    private var listener: KeyboardListener? = null
-    private var currentState = KeyboardState.LOWERCASE
-    private var vibrationEnabled = true
-    private var keyHeight = 40
-    private var keySpacing = 2
-    private var fontSize = 13f
-
-    private val lowercaseRows = listOf(
-        listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
-        listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
-        listOf("SHIFT", "z", "x", "c", "v", "b", "n", "m", "BKSP"),
-        listOf("SYM", ",", "SPACE", ".", "ENTER")
-    )
-
-    private val uppercaseRows = listOf(
-        listOf("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"),
-        listOf("A", "S", "D", "F", "G", "H", "J", "K", "L"),
-        listOf("SHIFT", "Z", "X", "C", "V", "B", "N", "M", "BKSP"),
-        listOf("SYM", ",", "SPACE", ".", "ENTER")
-    )
-
-    private val symbols1Rows = listOf(
-        listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
-        listOf("@", "#", "\$", "%", "&", "-", "+", "(", ")"),
-        listOf("SYM2", "*", "\"", "'", ":", ";", "!", "?", "BKSP"),
-        listOf("ABC", ",", "SPACE", ".", "ENTER")
-    )
-
-    private val symbols2Rows = listOf(
-        listOf("~", "`", "|", "^", "=", "{", "}", "[", "]", "\\"),
-        listOf("<", ">", "/", "_", "©", "®", "™", "°", "•"),
-        listOf("SYM1", "€", "£", "¥", "¢", "§", "¶", "∆", "BKSP"),
-        listOf("ABC", "_", "SPACE", "/", "ENTER")
-    )
-
-    private val arrowRow = listOf("TAB", "CTRL", "←", "↑", "↓", "→", "ESC")
-
-    init {
-        orientation = VERTICAL
-        setBackgroundColor(Color.parseColor("#1A1A1A"))
-        setPadding(4, 4, 4, 4)
-        buildKeyboard()
-    }
-
-    fun setKeyboardListener(l: KeyboardListener) { listener = l }
-    fun setVibrationEnabled(enabled: Boolean) { vibrationEnabled = enabled }
-
-    private fun buildKeyboard() {
-        removeAllViews()
-        val rows = when (currentState) {
-            KeyboardState.LOWERCASE -> lowercaseRows
-            KeyboardState.UPPERCASE, KeyboardState.CAPS_LOCK -> uppercaseRows
-            KeyboardState.SYMBOLS_1 -> symbols1Rows
-            KeyboardState.SYMBOLS_2 -> symbols2Rows
-        }
-        for ((rowIndex, row) in rows.withIndex()) { addView(createRow(row, rowIndex)) }
-        addView(createArrowRow())
-    }
-
-    private fun createRow(keys: List<String>, rowIndex: Int): LinearLayout {
-        val row = LinearLayout(context)
-        row.orientation = HORIZONTAL
-        row.gravity = Gravity.CENTER
-        row.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, dpToPx(keyHeight)).apply {
-            setMargins(0, dpToPx(keySpacing), 0, 0)
-        }
-        if (rowIndex == 1) row.setPadding(dpToPx(12), 0, dpToPx(12), 0)
-        for (key in keys) { row.addView(createKey(key, getKeyWeight(key))) }
-        return row
-    }
-
-    private fun createArrowRow(): LinearLayout {
-        val row = LinearLayout(context)
-        row.orientation = HORIZONTAL
-        row.gravity = Gravity.CENTER
-        row.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, dpToPx(keyHeight - 4)).apply {
-            setMargins(0, dpToPx(keySpacing + 2), 0, 0)
-        }
-        row.setBackgroundColor(Color.parseColor("#0D0D0D"))
-        for (key in arrowRow) { row.addView(createKey(key, getKeyWeight(key), isArrowRow = true)) }
-        return row
-    }
-
-    private fun getKeyWeight(key: String): Float = when (key) {
-        "SPACE" -> 4.5f
-        "SHIFT", "BKSP", "ENTER" -> 1.5f
-        "SYM", "SYM1", "SYM2", "ABC" -> 1.3f
-        "TAB", "CTRL", "ESC" -> 1.2f
-        else -> 1f
-    }
-
-    private fun createKey(key: String, weight: Float, isArrowRow: Boolean = false): View {
-        val container = FrameLayout(context)
-        val params = LayoutParams(0, LayoutParams.MATCH_PARENT, weight)
-        params.setMargins(dpToPx(keySpacing), 0, dpToPx(keySpacing), 0)
-        container.layoutParams = params
-
-        val keyView = TextView(context)
-        keyView.gravity = Gravity.CENTER
-        keyView.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (isArrowRow) fontSize - 2 else fontSize)
-        keyView.setTextColor(Color.WHITE)
-        keyView.text = getDisplayText(key)
-
-        val bg = GradientDrawable()
-        bg.cornerRadius = dpToPx(6).toFloat()
-        bg.setColor(getKeyColor(key, isArrowRow))
-        keyView.background = bg
-        keyView.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        container.addView(keyView)
-
-        container.setOnTouchListener { v, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    bg.setColor(Color.parseColor("#4A4A4A"))
-                    keyView.background = bg
-                    if (vibrationEnabled) v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    bg.setColor(getKeyColor(key, isArrowRow))
-                    keyView.background = bg
-                    if (event.action == MotionEvent.ACTION_UP) handleKeyPress(key)
-                }
-            }
-            true
-        }
-        if (key == "SHIFT") container.setOnLongClickListener { toggleCapsLock(); true }
-        return container
-    }
-
-    private fun getDisplayText(key: String): String = when (key) {
-        "SHIFT" -> if (currentState == KeyboardState.CAPS_LOCK) "⬆" else "⇧"
-        "BKSP" -> "⌫"; "ENTER" -> "↵"; "SPACE" -> "␣"
-        "SYM", "SYM1", "SYM2" -> "?123"; "ABC" -> "ABC"
-        "TAB" -> "⇥"; "CTRL" -> "Ctrl"; "ESC" -> "Esc"
-        "←" -> "◀"; "→" -> "▶"; "↑" -> "▲"; "↓" -> "▼"
-        else -> key
-    }
-
-    private fun getKeyColor(key: String, isArrowRow: Boolean): Int {
-        if (isArrowRow) return Color.parseColor("#252525")
-        return when (key) {
-            "SHIFT" -> when (currentState) {
-                KeyboardState.CAPS_LOCK -> Color.parseColor("#3DDC84")
-                KeyboardState.UPPERCASE -> Color.parseColor("#4A90D9")
-                else -> Color.parseColor("#3A3A3A")
-            }
-            "BKSP", "ENTER", "SYM", "SYM1", "SYM2", "ABC" -> Color.parseColor("#3A3A3A")
-            "SPACE" -> Color.parseColor("#2D2D2D")
-            else -> Color.parseColor("#2D2D2D")
-        }
-    }
-
-    private fun handleKeyPress(key: String) {
-        when (key) {
-            "SHIFT" -> toggleShift()
-            "BKSP" -> listener?.onSpecialKey(SpecialKey.BACKSPACE)
-            "ENTER" -> listener?.onSpecialKey(SpecialKey.ENTER)
-            "SPACE" -> listener?.onSpecialKey(SpecialKey.SPACE)
-            "TAB" -> listener?.onSpecialKey(SpecialKey.TAB)
-            "CTRL" -> listener?.onSpecialKey(SpecialKey.CTRL)
-            "ESC" -> listener?.onSpecialKey(SpecialKey.ESCAPE)
-            "←" -> listener?.onSpecialKey(SpecialKey.ARROW_LEFT)
-            "→" -> listener?.onSpecialKey(SpecialKey.ARROW_RIGHT)
-            "↑" -> listener?.onSpecialKey(SpecialKey.ARROW_UP)
-            "↓" -> listener?.onSpecialKey(SpecialKey.ARROW_DOWN)
-            "SYM", "SYM1" -> { currentState = KeyboardState.SYMBOLS_1; buildKeyboard() }
-            "SYM2" -> { currentState = KeyboardState.SYMBOLS_2; buildKeyboard() }
-            "ABC" -> { currentState = KeyboardState.LOWERCASE; buildKeyboard() }
-            else -> {
-                listener?.onTextInput(key)
-                if (currentState == KeyboardState.UPPERCASE) { currentState = KeyboardState.LOWERCASE; buildKeyboard() }
-            }
-        }
-    }
-
-    private fun toggleShift() {
-        currentState = when (currentState) {
-            KeyboardState.LOWERCASE -> KeyboardState.UPPERCASE
-            KeyboardState.UPPERCASE -> KeyboardState.LOWERCASE
-            KeyboardState.CAPS_LOCK -> KeyboardState.LOWERCASE
-            else -> currentState
-        }
-        buildKeyboard()
-    }
-
-    private fun toggleCapsLock() {
-        currentState = when (currentState) {
-            KeyboardState.LOWERCASE, KeyboardState.UPPERCASE -> KeyboardState.CAPS_LOCK
-            KeyboardState.CAPS_LOCK -> KeyboardState.LOWERCASE
-            else -> currentState
-        }
-        if (vibrationEnabled) vibrate()
-        buildKeyboard()
-    }
-
-    private fun vibrate() {
-        val v = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            v.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else { @Suppress("DEPRECATION") v.vibrate(30) }
-    }
-
-    private fun dpToPx(dp: Int): Int = TypedValue.applyDimension(
-        TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), resources.displayMetrics
-    ).roundToInt()
-}
-````
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ManualAdjustActivity.kt
-````kotlin
-package com.example.coverscreentester
-
-import android.app.Activity
-import android.content.Intent
-import android.graphics.Color
-import android.os.Bundle
-import android.widget.Button
-import android.widget.TextView
-
-class ManualAdjustActivity : Activity() {
-
-    private var isMoveMode = true
-    private val STEP_SIZE = 10
-
-    private lateinit var textMode: TextView
-    private lateinit var btnToggle: Button
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_manual_adjust)
-
-        textMode = findViewById(R.id.text_mode)
-        btnToggle = findViewById(R.id.btn_toggle_mode)
-        
-        updateModeUI()
-
-        btnToggle.setOnClickListener {
-            isMoveMode = !isMoveMode
-            updateModeUI()
-        }
-
-        findViewById<Button>(R.id.btn_up).setOnClickListener { sendAdjust(0, -STEP_SIZE) }
-        findViewById<Button>(R.id.btn_down).setOnClickListener { sendAdjust(0, STEP_SIZE) }
-        findViewById<Button>(R.id.btn_left).setOnClickListener { sendAdjust(-STEP_SIZE, 0) }
-        findViewById<Button>(R.id.btn_right).setOnClickListener { sendAdjust(STEP_SIZE, 0) }
-        
-        // New Center Reset
-        findViewById<Button>(R.id.btn_center).setOnClickListener {
-            val intent = Intent(this, OverlayService::class.java)
-            intent.action = "RESET_POSITION"
-            startService(intent)
-        }
-
-        // New Rotate
-        findViewById<Button>(R.id.btn_rotate).setOnClickListener {
-            val intent = Intent(this, OverlayService::class.java)
-            intent.action = "ROTATE"
-            startService(intent)
-        }
-        
-        findViewById<Button>(R.id.btn_back).setOnClickListener { finish() }
-    }
-
-    private fun updateModeUI() {
-        if (isMoveMode) {
-            textMode.text = "CURRENT MODE: POSITION"
-            textMode.setTextColor(Color.GREEN)
-            btnToggle.text = "Switch to Resize"
-        } else {
-            textMode.text = "CURRENT MODE: SIZE"
-            textMode.setTextColor(Color.CYAN)
-            btnToggle.text = "Switch to Position"
-        }
-    }
-
-    private fun sendAdjust(xChange: Int, yChange: Int) {
-        val intent = Intent(this, OverlayService::class.java)
-        intent.action = "MANUAL_ADJUST"
-        
-        if (isMoveMode) {
-            intent.putExtra("DX", xChange)
-            intent.putExtra("DY", yChange)
-        } else {
-            // In resize mode:
-            // UP/DOWN affects Height
-            // LEFT/RIGHT affects Width
-            intent.putExtra("DW", xChange)
-            intent.putExtra("DH", yChange)
-        }
-        
-        startService(intent)
-    }
 }
 ````
 
@@ -4748,137 +4102,6 @@ class ProfilesActivity : Activity() {
         }
         
         tvList.text = sb.toString()
-    }
-}
-````
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/SettingsActivity.kt
-````kotlin
-package com.example.coverscreentester
-
-import android.app.Activity
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.widget.Button
-import android.widget.SeekBar
-import android.widget.Switch
-import android.widget.TextView
-import androidx.core.content.ContextCompat
-
-class SettingsActivity : Activity() {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_settings)
-
-        val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-
-        // Views
-        val seekBarCursor = findViewById<SeekBar>(R.id.seekBarCursorSpeed)
-        val tvCursor = findViewById<TextView>(R.id.tvCursorSpeed)
-        val seekBarScroll = findViewById<SeekBar>(R.id.seekBarScrollSpeed)
-        val tvScroll = findViewById<TextView>(R.id.tvScrollSpeed)
-        
-        val swVibrate = findViewById<Switch>(R.id.switchVibrate)
-        val swReverse = findViewById<Switch>(R.id.switchReverseScroll)
-        val swVPos = findViewById<Switch>(R.id.switchVPosLeft)
-        val swHPos = findViewById<Switch>(R.id.switchHPosTop)
-        
-        val seekCursorSize = findViewById<SeekBar>(R.id.seekBarCursorSize)
-        val seekAlpha = findViewById<SeekBar>(R.id.seekBarAlpha)
-        val seekHandleSize = findViewById<SeekBar>(R.id.seekBarHandleSize)
-        val seekScrollVisual = findViewById<SeekBar>(R.id.seekBarScrollVisual)
-        
-        val seekHandleTouch = findViewById<SeekBar>(R.id.seekBarHandleTouch)
-        val seekScrollTouch = findViewById<SeekBar>(R.id.seekBarScrollTouch)
-        
-        val btnSave = findViewById<Button>(R.id.btnSave)
-        val btnBack = findViewById<Button>(R.id.btnBack)
-
-        // Load Values
-        val cSpeed = prefs.getFloat("cursor_speed", 2.5f)
-        seekBarCursor.progress = (cSpeed * 10).toInt()
-        tvCursor.text = "Cursor Speed: "
-
-        val sSpeed = prefs.getFloat("scroll_speed", 3.0f)
-        seekBarScroll.progress = (sSpeed * 10).toInt()
-        tvScroll.text = "Scroll Speed: "
-
-        swVibrate.isChecked = prefs.getBoolean("vibrate", true)
-        swReverse.isChecked = prefs.getBoolean("reverse_scroll", true)
-        swVPos.isChecked = prefs.getBoolean("v_pos_left", false)
-        swHPos.isChecked = prefs.getBoolean("h_pos_top", false)
-        
-        seekCursorSize.progress = prefs.getInt("cursor_size", 50)
-        seekAlpha.progress = prefs.getInt("alpha", 200)
-        seekHandleSize.progress = prefs.getInt("handle_size", 60)
-        seekScrollVisual.progress = prefs.getInt("scroll_visual_size", 4)
-        seekHandleTouch.progress = prefs.getInt("handle_touch_size", 60)
-        seekScrollTouch.progress = prefs.getInt("scroll_touch_size", 60)
-
-        // Listeners
-        seekBarCursor.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-                tvCursor.text = "Cursor Speed: "
-            }
-            override fun onStartTrackingTouch(s: SeekBar) {}
-            override fun onStopTrackingTouch(s: SeekBar) {}
-        })
-
-        seekBarScroll.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-                tvScroll.text = "Scroll Speed: "
-            }
-            override fun onStartTrackingTouch(s: SeekBar) {}
-            override fun onStopTrackingTouch(s: SeekBar) {}
-        })
-        
-        seekCursorSize.setOnSeekBarChangeListener(createPreviewListener("cursor_size"))
-        seekAlpha.setOnSeekBarChangeListener(createPreviewListener("alpha"))
-        seekHandleSize.setOnSeekBarChangeListener(createPreviewListener("handle_size"))
-        seekScrollVisual.setOnSeekBarChangeListener(createPreviewListener("scroll_visual"))
-        seekHandleTouch.setOnSeekBarChangeListener(createPreviewListener("handle_touch"))
-        seekScrollTouch.setOnSeekBarChangeListener(createPreviewListener("scroll_touch"))
-
-        btnSave.setOnClickListener {
-            val cVal = if (seekBarCursor.progress < 1) 0.1f else seekBarCursor.progress / 10f
-            val sVal = if (seekBarScroll.progress < 1) 0.1f else seekBarScroll.progress / 10f
-            
-            prefs.edit()
-                .putFloat("cursor_speed", cVal)
-                .putFloat("scroll_speed", sVal)
-                .putBoolean("vibrate", swVibrate.isChecked)
-                .putBoolean("reverse_scroll", swReverse.isChecked)
-                .putBoolean("v_pos_left", swVPos.isChecked)
-                .putBoolean("h_pos_top", swHPos.isChecked)
-                .putInt("cursor_size", seekCursorSize.progress)
-                .putInt("alpha", seekAlpha.progress)
-                .putInt("handle_size", seekHandleSize.progress)
-                .putInt("scroll_visual_size", seekScrollVisual.progress)
-                .putInt("handle_touch_size", seekHandleTouch.progress)
-                .putInt("scroll_touch_size", seekScrollTouch.progress)
-                .apply()
-
-            val intent = Intent(this, OverlayService::class.java)
-            intent.action = "RELOAD_PREFS"
-            startService(intent)
-            finish()
-        }
-        
-        btnBack.setOnClickListener { finish() }
-    }
-    
-    private fun createPreviewListener(target: String) = object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-            val intent = Intent(this@SettingsActivity, OverlayService::class.java)
-            intent.action = "PREVIEW_UPDATE"
-            intent.putExtra("TARGET", target)
-            intent.putExtra("VALUE", v)
-            startService(intent)
-        }
-        override fun onStartTrackingTouch(s: SeekBar) {}
-        override fun onStopTrackingTouch(s: SeekBar) {}
     }
 }
 ````
@@ -5565,151 +4788,6 @@ class TrackpadService : Service() {
 </ScrollView>
 ````
 
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_manual_adjust.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:background="#121212"
-    android:padding="16dp">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Manual Adjustment"
-        android:textColor="#FFFFFF"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp"/>
-
-    <TextView
-        android:id="@+id/text_mode"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="CURRENT MODE: MOVE"
-        android:textColor="#3DDC84"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp"/>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="24dp">
-
-        <Button
-            android:id="@+id/btn_toggle_mode"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Switch Mode"
-            android:backgroundTint="#444444"
-            android:textColor="#FFFFFF"
-            android:layout_marginEnd="8dp"/>
-
-        <Button
-            android:id="@+id/btn_rotate"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Rotate 90°"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"
-            android:layout_marginStart="8dp"/>
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center">
-
-        <Button
-            android:id="@+id/btn_up"
-            android:layout_width="80dp"
-            android:layout_height="60dp"
-            android:text="▲"
-            android:textSize="20sp"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"
-            android:layout_marginBottom="4dp"/>
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btn_left"
-                android:layout_width="80dp"
-                android:layout_height="60dp"
-                android:text="◄"
-                android:textSize="20sp"
-                android:backgroundTint="#333333"
-                android:textColor="#FFFFFF"
-                android:layout_marginEnd="4dp"/>
-
-            <Button
-                android:id="@+id/btn_center"
-                android:layout_width="80dp"
-                android:layout_height="60dp"
-                android:text="⟲"
-                android:textSize="24sp"
-                android:backgroundTint="#555555"
-                android:textColor="#FFFFFF"
-                android:tooltipText="Reset to Center"/>
-
-            <Button
-                android:id="@+id/btn_right"
-                android:layout_width="80dp"
-                android:layout_height="60dp"
-                android:text="►"
-                android:textSize="20sp"
-                android:backgroundTint="#333333"
-                android:textColor="#FFFFFF"
-                android:layout_marginStart="4dp"/>
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/btn_down"
-            android:layout_width="80dp"
-            android:layout_height="60dp"
-            android:text="▼"
-            android:textSize="20sp"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"
-            android:layout_marginTop="4dp"/>
-
-    </LinearLayout>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Center Button resets position/size"
-        android:textColor="#666666"
-        android:textSize="12sp"
-        android:layout_marginTop="16dp"/>
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"/>
-
-    <Button
-        android:id="@+id/btn_back"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Back to Main Menu"
-        android:backgroundTint="#3DDC84"
-        android:textColor="#000000"
-        android:textStyle="bold"/>
-
-</LinearLayout>
-````
-
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_menu.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -5844,227 +4922,6 @@ class TrackpadService : Service() {
             android:text="Back"
             android:backgroundTint="#444444"
             android:layout_marginBottom="40dp"/>
-
-    </LinearLayout>
-</ScrollView>
-````
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_settings.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#121212"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Configuration"
-            android:textColor="#FFFFFF"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="20dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--- Input Speed ---"
-            android:textColor="#AAAAAA"
-            android:layout_gravity="center"
-            android:layout_marginBottom="10dp"/>
-
-        <TextView
-            android:id="@+id/tvCursorSpeed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cursor Speed: 2.5"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarCursorSpeed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100"
-            android:progress="25"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvScrollSpeed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Scroll Speed: 3.0"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarScrollSpeed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100"
-            android:progress="30"
-            android:layout_marginBottom="24dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--- Behavior ---"
-            android:textColor="#AAAAAA"
-            android:layout_gravity="center"
-            android:layout_marginBottom="10dp"/>
-
-        <Switch
-            android:id="@+id/switchVibrate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Haptic Feedback"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"/>
-
-        <Switch
-            android:id="@+id/switchReverseScroll"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Natural Scrolling (Reverse)"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"/>
-
-        <Switch
-            android:id="@+id/switchVPosLeft"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Vertical Scroll on Left"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"/>
-
-        <Switch
-            android:id="@+id/switchHPosTop"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Horizontal Scroll on Top"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"
-            android:layout_marginBottom="24dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--- Visuals ---"
-            android:textColor="#AAAAAA"
-            android:layout_gravity="center"
-            android:layout_marginBottom="10dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cursor Size"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarCursorSize"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="150"
-            android:progress="50"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Border Visibility (Alpha)"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarAlpha"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="255"
-            android:progress="200"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Handle Icon Size"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarHandleSize"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100"
-            android:progress="60"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Scroll Bar Thickness (Visual)"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarScrollVisual"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="20"
-            android:progress="4"
-            android:layout_marginBottom="24dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--- Touch Areas ---"
-            android:textColor="#AAAAAA"
-            android:layout_gravity="center"
-            android:layout_marginBottom="10dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Corner Handle Touch Area"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarHandleTouch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="150"
-            android:progress="60"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Scroll Bar Touch Width"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarScrollTouch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="150"
-            android:progress="60"
-            android:layout_marginBottom="24dp"/>
-
-        <Button
-            android:id="@+id/btnSave"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Save &amp; Apply"
-            android:backgroundTint="#3DDC84"
-            android:textColor="#000000"
-            android:textStyle="bold"
-            android:layout_marginBottom="12dp"/>
-
-        <Button
-            android:id="@+id/btnBack"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Back to Main Menu"
-            android:backgroundTint="#444444"
-            android:textColor="#FFFFFF"/>
 
     </LinearLayout>
 </ScrollView>
@@ -7199,425 +6056,1303 @@ dependencies {
 }
 ````
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/MainActivity.kt
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardOverlay.kt
 ````kotlin
 package com.example.coverscreentester
 
-import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.content.res.ColorStateList
-import android.os.Bundle
-import android.provider.Settings
-import android.widget.Button
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
+import android.util.Log
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.TextView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import rikka.shizuku.Shizuku
+import kotlin.math.max
 
-class MainActivity : AppCompatActivity() {
+class KeyboardOverlay(
+    private val context: Context,
+    private val windowManager: WindowManager,
+    private val shellService: IShellService?,
+    private val targetDisplayId: Int
+) : KeyboardView.KeyboardListener {
 
-    private lateinit var statusText: TextView
-    private lateinit var toggleButton: Button
-    private lateinit var hideAppButton: Button
-    private lateinit var lockButton: Button
-    private lateinit var profilesButton: Button
-    private lateinit var settingsButton: Button
-    private lateinit var helpButton: Button
-    private lateinit var closeButton: Button
-    private lateinit var btnManualAdjust: Button
-    private lateinit var btnTargetSwitch: Button
-    private lateinit var btnResetCursor: Button
-    private lateinit var btnForceKeyboard: Button
+    private var keyboardContainer: FrameLayout? = null
+    private var keyboardView: KeyboardView? = null
+    private var keyboardParams: WindowManager.LayoutParams? = null
+    private var isVisible = false
+
+    private var isMoving = false
+    private var isResizing = false
+    private var initialTouchX = 0f
+    private var initialTouchY = 0f
+    private var initialWindowX = 0
+    private var initialWindowY = 0
+    private var initialWidth = 0
+    private var initialHeight = 0
+
+    private val TAG = "KeyboardOverlay"
+    private var keyboardWidth = 500
+    private var keyboardHeight = 260
+    private var screenWidth = 720
+    private var screenHeight = 748
     
-    private var lastKnownDisplayId = -1
-    
-    // For 5x tap debug mode toggle
-    private var resetCursorTapCount = 0
-    private var lastResetCursorTapTime = 0L
-    private val TAP_TIMEOUT = 1500L // 1.5 seconds to complete 5 taps
+    // Store which display we're on for per-display persistence
+    private var currentDisplayId = 0
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        statusText = findViewById(R.id.text_status)
-        toggleButton = findViewById(R.id.btn_toggle)
-        hideAppButton = findViewById(R.id.btn_hide_app)
-        lockButton = findViewById(R.id.btn_lock)
-        profilesButton = findViewById(R.id.btn_profiles)
-        settingsButton = findViewById(R.id.btn_settings)
-        helpButton = findViewById(R.id.btn_help)
-        closeButton = findViewById(R.id.btn_close)
-        btnManualAdjust = findViewById(R.id.btn_manual_adjust)
+    fun setScreenDimensions(width: Int, height: Int, displayId: Int = 0) {
+        screenWidth = width
+        screenHeight = height
+        currentDisplayId = displayId
         
-        btnTargetSwitch = findViewById(R.id.btn_target_switch)
-        btnTargetSwitch.setOnClickListener {
-            val intent = Intent("CYCLE_INPUT_TARGET")
-            intent.setPackage(packageName) 
-            sendBroadcast(intent)
+        loadKeyboardSizeForDisplay(displayId)
+        
+        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        if (!prefs.contains("keyboard_width_d$displayId")) {
+            keyboardWidth = (width * 0.95f).toInt().coerceIn(300, 650)
+            keyboardHeight = (height * 0.36f).toInt().coerceIn(180, 320)
         }
+    }
+
+    // Dynamic Scale Update
+    fun updateScale(scale: Float) {
+        if (keyboardView == null) return
         
-        btnResetCursor = findViewById(R.id.btn_reset_cursor)
-        btnResetCursor.setOnClickListener {
-            val currentTime = System.currentTimeMillis()
-            
-            // Check if we're within the tap timeout window
-            if (currentTime - lastResetCursorTapTime > TAP_TIMEOUT) {
-                resetCursorTapCount = 0
-            }
-            
-            resetCursorTapCount++
-            lastResetCursorTapTime = currentTime
-            
-            if (resetCursorTapCount >= 5) {
-                // Toggle debug mode on 5th tap
-                val intent = Intent("TOGGLE_DEBUG")
-                intent.setPackage(packageName)
-                sendBroadcast(intent)
-                Toast.makeText(this, "Debug Mode Toggled", Toast.LENGTH_SHORT).show()
-                resetCursorTapCount = 0
-            } else {
-                // Normal reset cursor behavior
-                val intent = Intent("RESET_CURSOR")
-                intent.setPackage(packageName)
-                sendBroadcast(intent)
+        // 1. Update the internal key sizes
+        keyboardView?.setScale(scale)
+        
+        // 2. Adjust window height to fit new scale (approximate calculation)
+        // Base height 260 at 1.0 scale.
+        val newHeight = (260 * scale).toInt().coerceAtLeast(180)
+        keyboardHeight = newHeight
+        
+        if (isVisible && keyboardParams != null) {
+            keyboardParams?.height = newHeight
+            try {
+                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                saveKeyboardSize()
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
-        
-        btnForceKeyboard = findViewById(R.id.btn_force_keyboard)
-        btnForceKeyboard.setOnClickListener {
-            val intent = Intent("TOGGLE_CUSTOM_KEYBOARD")
-            intent.setPackage(packageName)
-            sendBroadcast(intent)
-            Toast.makeText(this, "Toggling Keyboard...", Toast.LENGTH_SHORT).show()
-        }
-
-        if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-            Shizuku.requestPermission(0)
-        }
-
-        toggleButton.setOnClickListener {
-            if (!isAccessibilityEnabled()) {
-                Toast.makeText(this, "Please Enable Accessibility Service", Toast.LENGTH_LONG).show()
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            } else {
-                forceMoveCommand()
-                Toast.makeText(this, "Moving Trackpad to this screen...", Toast.LENGTH_SHORT).show()
-            }
-        }
-        
-        hideAppButton.setOnClickListener {
-            // Move app to background without closing
-            moveTaskToBack(true)
-        }
-
-        settingsButton.setOnClickListener { 
-            // Show trackpad in preview mode when entering settings
-            val intent = Intent("SET_PREVIEW_MODE")
-            intent.setPackage(packageName)
-            intent.putExtra("PREVIEW_MODE", true)
-            sendBroadcast(intent)
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
-
-        profilesButton.setOnClickListener {
-            startActivity(Intent(this, ProfilesActivity::class.java))
-        }
-        
-        btnManualAdjust.setOnClickListener {
-            // Show trackpad in preview mode when entering manual adjust
-            val intent = Intent("SET_PREVIEW_MODE")
-            intent.setPackage(packageName)
-            intent.putExtra("PREVIEW_MODE", true)
-            sendBroadcast(intent)
-            startActivity(Intent(this, ManualAdjustActivity::class.java))
-        }
-
-        helpButton.setOnClickListener { showHelpDialog() }
-        lockButton.setOnClickListener { toggleLock() }
-
-        closeButton.setOnClickListener {
-            finishAffinity()
-            System.exit(0)
-        }
-
-        if (savedInstanceState == null && isAccessibilityEnabled()) {
-            checkAndMoveDisplay()
-        }
-
-        updateStatusUI()
-        updateLockUI()
     }
 
-    override fun onResume() {
-        super.onResume()
-        updateStatusUI()
-        updateLockUI()
-        if (isAccessibilityEnabled()) {
-            checkAndMoveDisplay()
-        }
-        // Hide trackpad ONLY if on the SAME display as this menu
-        val myDisplayId = display?.displayId ?: android.view.Display.DEFAULT_DISPLAY
-        val intent = Intent("SET_TRACKPAD_VISIBILITY")
-        intent.setPackage(packageName)
-        intent.putExtra("VISIBLE", false)
-        intent.putExtra("MENU_DISPLAY_ID", myDisplayId) // Pass ID to service
-        sendBroadcast(intent)
+    fun show() {
+        if (isVisible) return
+        try { createKeyboardWindow(); isVisible = true } 
+        catch (e: Exception) { Log.e(TAG, "Failed to show keyboard", e) }
+    }
+
+    fun hide() {
+        if (!isVisible) return
+        try { windowManager.removeView(keyboardContainer); keyboardContainer = null; keyboardView = null; isVisible = false } 
+        catch (e: Exception) { Log.e(TAG, "Failed to hide keyboard", e) }
+    }
+
+    fun toggle() { if (isVisible) hide() else show() }
+    fun isShowing(): Boolean = isVisible
+
+    // NEW: Methods for Manual Adjustment & Scaling
+    fun moveWindow(dx: Int, dy: Int) {
+        if (!isVisible || keyboardParams == null) return
+        keyboardParams!!.x += dx
+        keyboardParams!!.y += dy
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardPosition()
+        } catch (e: Exception) {}
     }
     
-    override fun onPause() {
-        super.onPause()
-        // Show trackpad when leaving main menu (always show)
-        val intent = Intent("SET_TRACKPAD_VISIBILITY")
-        intent.setPackage(packageName)
-        intent.putExtra("VISIBLE", true)
-        sendBroadcast(intent)
+    fun resizeWindow(dw: Int, dh: Int) {
+         if (!isVisible || keyboardParams == null) return
+         keyboardParams!!.width = max(280, keyboardParams!!.width + dw)
+         keyboardParams!!.height = max(180, keyboardParams!!.height + dh)
+         keyboardWidth = keyboardParams!!.width
+         keyboardHeight = keyboardParams!!.height
+         try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardSize()
+         } catch (e: Exception) {}
+    }
+
+    private fun createKeyboardWindow() {
+        keyboardContainer = FrameLayout(context)
+        val containerBg = GradientDrawable()
+        containerBg.setColor(Color.parseColor("#1A1A1A"))
+        containerBg.cornerRadius = 16f
+        containerBg.setStroke(2, Color.parseColor("#3DDC84"))
+        keyboardContainer?.background = containerBg
+
+        keyboardView = KeyboardView(context)
+        keyboardView?.setKeyboardListener(this)
+        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
         
-        // Also disable preview mode
-        val previewIntent = Intent("SET_PREVIEW_MODE")
-        previewIntent.setPackage(packageName)
-        previewIntent.putExtra("PREVIEW_MODE", false)
-        sendBroadcast(previewIntent)
+        // Apply saved scale
+        val scale = prefs.getInt("keyboard_key_scale", 100) / 100f
+        keyboardView?.setScale(scale)
+
+        val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        kbParams.setMargins(6, 28, 6, 6)
+        keyboardContainer?.addView(keyboardView, kbParams)
+
+        addDragHandle()
+        addResizeHandle()
+        addCloseButton()
+        addTargetLabel()
+
+        val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
+        val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - keyboardHeight - 10)
+
+        keyboardParams = WindowManager.LayoutParams(
+            keyboardWidth, keyboardHeight,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT
+        keyboardParams?.x = savedX
+        keyboardParams?.y = savedY
+        windowManager.addView(keyboardContainer, keyboardParams)
     }
 
-    private fun checkAndMoveDisplay() {
-        val currentDisplayId = display?.displayId ?: android.view.Display.DEFAULT_DISPLAY
-        if (currentDisplayId != lastKnownDisplayId) {
-            lastKnownDisplayId = currentDisplayId
-            forceMoveCommand()
+    private fun addDragHandle() {
+        val handle = FrameLayout(context)
+        val handleParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 28)
+        handleParams.gravity = Gravity.TOP
+        val indicator = View(context)
+        val indicatorBg = GradientDrawable()
+        indicatorBg.setColor(Color.parseColor("#555555"))
+        indicatorBg.cornerRadius = 3f
+        indicator.background = indicatorBg
+        val indicatorParams = FrameLayout.LayoutParams(50, 5)
+        indicatorParams.gravity = Gravity.CENTER
+        indicatorParams.topMargin = 8
+        handle.addView(indicator, indicatorParams)
+        handle.setOnTouchListener { _, event -> handleDrag(event); true }
+        keyboardContainer?.addView(handle, handleParams)
+    }
+
+    private fun addResizeHandle() {
+        val handle = FrameLayout(context)
+        val handleParams = FrameLayout.LayoutParams(36, 36)
+        handleParams.gravity = Gravity.BOTTOM or Gravity.RIGHT
+        val indicator = View(context)
+        val indicatorBg = GradientDrawable()
+        indicatorBg.setColor(Color.parseColor("#3DDC84"))
+        indicatorBg.cornerRadius = 4f
+        indicator.background = indicatorBg
+        indicator.alpha = 0.7f
+        val indicatorParams = FrameLayout.LayoutParams(14, 14)
+        indicatorParams.gravity = Gravity.BOTTOM or Gravity.RIGHT
+        indicatorParams.setMargins(0, 0, 6, 6)
+        handle.addView(indicator, indicatorParams)
+        handle.setOnTouchListener { _, event -> handleResize(event); true }
+        keyboardContainer?.addView(handle, handleParams)
+    }
+
+    private fun addCloseButton() {
+        val button = FrameLayout(context)
+        val buttonParams = FrameLayout.LayoutParams(28, 28)
+        buttonParams.gravity = Gravity.TOP or Gravity.RIGHT
+        buttonParams.setMargins(0, 2, 4, 0)
+        val closeText = TextView(context)
+        closeText.text = "X"
+        closeText.setTextColor(Color.parseColor("#FF5555"))
+        closeText.textSize = 12f
+        closeText.gravity = Gravity.CENTER
+        button.addView(closeText, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        button.setOnClickListener { hide() }
+        keyboardContainer?.addView(button, buttonParams)
+    }
+
+    private fun addTargetLabel() {
+        val label = TextView(context)
+        label.text = "Display $targetDisplayId"
+        label.setTextColor(Color.parseColor("#888888"))
+        label.textSize = 9f
+        val labelParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
+        labelParams.gravity = Gravity.TOP or Gravity.LEFT
+        labelParams.setMargins(8, 6, 0, 0)
+        keyboardContainer?.addView(label, labelParams)
+    }
+
+    private fun handleDrag(event: MotionEvent): Boolean {
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> { isMoving = true; initialTouchX = event.rawX; initialTouchY = event.rawY; initialWindowX = keyboardParams?.x ?: 0; initialWindowY = keyboardParams?.y ?: 0 }
+            MotionEvent.ACTION_MOVE -> { if (isMoving) { keyboardParams?.x = initialWindowX + (event.rawX - initialTouchX).toInt(); keyboardParams?.y = initialWindowY + (event.rawY - initialTouchY).toInt(); try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} } }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { isMoving = false; saveKeyboardPosition() }
         }
+        return true
     }
 
-    private fun forceMoveCommand() {
-        val currentDisplayId = display?.displayId ?: android.view.Display.DEFAULT_DISPLAY
-        val intent = Intent(this, OverlayService::class.java)
-        intent.putExtra("DISPLAY_ID", currentDisplayId)
-        startService(intent)
-    }
-
-    private fun updateStatusUI() {
-        if (Shizuku.getBinder() == null) {
-            statusText.text = "Status: Shizuku Not Running"
-            statusText.setTextColor(0xFFFF0000.toInt())
-        } else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-            statusText.text = "Status: Shizuku Permission Needed"
-            statusText.setTextColor(0xFFFFFF00.toInt())
-        } else if (isAccessibilityEnabled()) {
-            statusText.text = "Status: Active"
-            statusText.setTextColor(0xFF00FF00.toInt())
-            toggleButton.text = "Move Trackpad Here"
-        } else {
-            statusText.text = "Status: Accessibility Needed"
-            statusText.setTextColor(0xFFFFFF00.toInt())
-            toggleButton.text = "Enable Trackpad"
+    private fun handleResize(event: MotionEvent): Boolean {
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> { isResizing = true; initialTouchX = event.rawX; initialTouchY = event.rawY; initialWidth = keyboardParams?.width ?: keyboardWidth; initialHeight = keyboardParams?.height ?: keyboardHeight }
+            MotionEvent.ACTION_MOVE -> { if (isResizing) { keyboardParams?.width = max(280, initialWidth + (event.rawX - initialTouchX).toInt()); keyboardParams?.height = max(180, initialHeight + (event.rawY - initialTouchY).toInt()); keyboardWidth = keyboardParams?.width ?: keyboardWidth; keyboardHeight = keyboardParams?.height ?: keyboardHeight; try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} } }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { isResizing = false; saveKeyboardSize() }
         }
+        return true
     }
 
-    private fun isAccessibilityEnabled(): Boolean {
-        val componentName = ComponentName(this, OverlayService::class.java)
-        val enabledServices = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-        return enabledServices?.contains(componentName.flattenToString()) == true
+    private fun saveKeyboardSize() {
+        context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+            .putInt("keyboard_width_d$currentDisplayId", keyboardWidth)
+            .putInt("keyboard_height_d$currentDisplayId", keyboardHeight)
+            .apply()
     }
 
-    private fun toggleLock() {
-        val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        val current = prefs.getBoolean("lock_position", false)
-        prefs.edit().putBoolean("lock_position", !current).apply()
-        updateLockUI()
-        val intent = Intent(this, OverlayService::class.java)
-        intent.action = "RELOAD_PREFS"
-        startService(intent)
+    private fun saveKeyboardPosition() {
+        context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+            .putInt("keyboard_x_d$currentDisplayId", keyboardParams?.x ?: 0)
+            .putInt("keyboard_y_d$currentDisplayId", keyboardParams?.y ?: 0)
+            .apply()
     }
 
-    private fun updateLockUI() {
-        val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        val isLocked = prefs.getBoolean("lock_position", false)
-        
-        if (isLocked) {
-            lockButton.text = "Position: Locked"
-            lockButton.backgroundTintList = ColorStateList.valueOf(0xFFFF0000.toInt())
-            lockButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_lock_closed, 0, 0, 0)
-        } else {
-            lockButton.text = "Position: Unlocked"
-            lockButton.backgroundTintList = ColorStateList.valueOf(0xFF3DDC84.toInt())
-            lockButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_lock_open, 0, 0, 0)
+    private fun loadKeyboardSizeForDisplay(displayId: Int) {
+        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        keyboardWidth = prefs.getInt("keyboard_width_d$displayId", keyboardWidth)
+        keyboardHeight = prefs.getInt("keyboard_height_d$displayId", keyboardHeight)
+    }
+
+    override fun onKeyPress(keyCode: Int, char: Char?) { injectKey(keyCode) }
+    
+    override fun onTextInput(text: String) {
+        if (shellService == null) return
+        Thread {
+            try {
+                val escaped = escapeForShell(text)
+                val cmd = "input -d $targetDisplayId text $escaped"
+                shellService.runCommand(cmd)
+            } catch (e: Exception) { Log.e(TAG, "Text injection failed", e) }
+        }.start()
+    }
+
+    override fun onSpecialKey(key: KeyboardView.SpecialKey) {
+        val keyCode = when (key) {
+            KeyboardView.SpecialKey.BACKSPACE -> KeyEvent.KEYCODE_DEL
+            KeyboardView.SpecialKey.ENTER -> KeyEvent.KEYCODE_ENTER
+            KeyboardView.SpecialKey.SPACE -> KeyEvent.KEYCODE_SPACE
+            KeyboardView.SpecialKey.TAB -> KeyEvent.KEYCODE_TAB
+            KeyboardView.SpecialKey.ESCAPE -> KeyEvent.KEYCODE_ESCAPE
+            KeyboardView.SpecialKey.ARROW_UP -> KeyEvent.KEYCODE_DPAD_UP
+            KeyboardView.SpecialKey.ARROW_DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
+            KeyboardView.SpecialKey.ARROW_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
+            KeyboardView.SpecialKey.ARROW_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
+            KeyboardView.SpecialKey.HOME -> KeyEvent.KEYCODE_MOVE_HOME
+            KeyboardView.SpecialKey.END -> KeyEvent.KEYCODE_MOVE_END
+            KeyboardView.SpecialKey.DELETE -> KeyEvent.KEYCODE_FORWARD_DEL
+            KeyboardView.SpecialKey.SHIFT -> KeyEvent.KEYCODE_SHIFT_LEFT
+            KeyboardView.SpecialKey.CTRL -> KeyEvent.KEYCODE_CTRL_LEFT
+            KeyboardView.SpecialKey.ALT -> KeyEvent.KEYCODE_ALT_LEFT
+            else -> return
         }
+        injectKey(keyCode)
     }
 
-    private fun showHelpDialog() {
-        val text = TextView(this)
-        text.setPadding(50, 40, 50, 40)
-        text.textSize = 14f
-        text.text = """
-            == TRACKPAD CONTROLS ==
-            - Tap: Left Click
-            - Vol Up + Drag: Drag/Select
-            - Vol Down: Right Click (Back)
-            - Vol Down (Hold 1s): Move trackpad
-            
-            == CORNER HANDLES ==
-            - Top-Left TAP: Toggle Keyboard
-            - Top-Left HOLD: Move trackpad
-            - Top-Right HOLD: Move window
-            - Bottom-Right HOLD: Resize window
-            - Bottom-Left TAP: Open Menu
-            
-            == CUSTOM KEYBOARD ==
-            - Full QWERTY layout
-            - SHIFT tap = Single uppercase
-            - SHIFT hold = Caps Lock (green)
-            - ?123 = Symbol layers
-            - Arrow/Tab/Esc keys at bottom
-            - Drag top bar to move
-            - Drag corner to resize
-            
-            == VIRTUAL DISPLAY ==
-            1. Create Virtual Display
-            2. Click 'Switch Local/Remote'
-            3. PINK Border = Remote control
-            
-            == SECRET ==
-            - Tap Reset Cursor 5x = Debug Mode
-        """.trimIndent()
-
-        AlertDialog.Builder(this)
-            .setTitle("Instructions")
-            .setView(text)
-            .setPositiveButton("Got it", null)
-            .show()
+    private fun injectKey(keyCode: Int) {
+        if (shellService == null) return
+        Thread {
+            try {
+                val cmd = "input -d $targetDisplayId keyevent $keyCode"
+                shellService.runCommand(cmd)
+            } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
+        }.start()
+    }
+    
+    private fun escapeForShell(text: String): String {
+        val sb = StringBuilder()
+        for (c in text) {
+            when (c) {
+                ' ' -> sb.append("%s")
+                '\'' -> sb.append("'")
+                '"' -> sb.append("\\\"")
+                '\\' -> sb.append("\\\\")
+                '`' -> sb.append("\\`")
+                '$' -> sb.append("\\$")
+                '&' -> sb.append("\\&")
+                '|' -> sb.append("\\|")
+                ';' -> sb.append("\\;")
+                '(' -> sb.append("\\(")
+                ')' -> sb.append("\\)")
+                '<' -> sb.append("\\<")
+                '>' -> sb.append("\\>")
+                '!' -> sb.append("\\!")
+                '?' -> sb.append("\\?")
+                '*' -> sb.append("\\*")
+                '[' -> sb.append("\\[")
+                ']' -> sb.append("\\]")
+                '{' -> sb.append("\\{")
+                '}' -> sb.append("\\}")
+                '#' -> sb.append("\\#")
+                '~' -> sb.append("\\~")
+                '^' -> sb.append("\\^")
+                else -> sb.append(c)
+            }
+        }
+        return sb.toString()
     }
 }
 ````
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShellUserService.kt
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardView.kt
 ````kotlin
 package com.example.coverscreentester
 
-import android.os.SystemClock
-import android.util.Log
-import android.view.InputDevice
-import android.view.InputEvent
-import android.view.KeyEvent
+import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.util.AttributeSet
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
-import com.example.coverscreentester.IShellService
-import java.lang.reflect.Method
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import kotlin.math.roundToInt
 
-class ShellUserService : IShellService.Stub() {
+class KeyboardView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : LinearLayout(context, attrs, defStyleAttr) {
 
-    private val TAG = "ShellUserService"
-    private lateinit var inputManager: Any
-    private lateinit var injectInputEventMethod: Method
-    private val INJECT_MODE_ASYNC = 0
+    interface KeyboardListener {
+        fun onKeyPress(keyCode: Int, char: Char?)
+        fun onTextInput(text: String)
+        fun onSpecialKey(key: SpecialKey)
+    }
+
+    enum class SpecialKey {
+        BACKSPACE, ENTER, SPACE, SHIFT, CAPS_LOCK, SYMBOLS, ABC,
+        TAB, ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT,
+        HOME, END, DELETE, ESCAPE, CTRL, ALT
+    }
+
+    enum class KeyboardState {
+        LOWERCASE, UPPERCASE, CAPS_LOCK, SYMBOLS_1, SYMBOLS_2
+    }
+
+    private var listener: KeyboardListener? = null
+    private var currentState = KeyboardState.LOWERCASE
+    private var vibrationEnabled = true
+    
+    // Base dimensions (scaled by user pref)
+    private val BASE_KEY_HEIGHT = 40
+    private val BASE_FONT_SIZE = 14f
+    private var scaleFactor = 1.0f
+    
+    private var keyHeight = BASE_KEY_HEIGHT
+    private var keySpacing = 2
+    private var fontSize = BASE_FONT_SIZE
+
+    // Rows 1-3 are standard full width
+    private val lowercaseRows = listOf(
+        listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
+        listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
+        listOf("SHIFT", "z", "x", "c", "v", "b", "n", "m", "BKSP")
+    )
+
+    private val uppercaseRows = listOf(
+        listOf("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"),
+        listOf("A", "S", "D", "F", "G", "H", "J", "K", "L"),
+        listOf("SHIFT", "Z", "X", "C", "V", "B", "N", "M", "BKSP")
+    )
+
+    private val symbols1Rows = listOf(
+        listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
+        listOf("@", "#", "\$", "%", "&", "-", "+", "(", ")"),
+        listOf("SYM2", "*", "\"", "'", ":", ";", "!", "?", "BKSP")
+    )
+
+    private val symbols2Rows = listOf(
+        listOf("~", "`", "|", "^", "=", "{", "}", "[", "]", "\\"),
+        listOf("<", ">", "/", "_", "©", "®", "™", "°", "•"),
+        listOf("SYM1", "€", "£", "¥", "¢", "§", "¶", "∆", "BKSP")
+    )
+
+    // Row 4 (Space row) - Shortened to make room for Enter
+    // Was: SYM, comma, SPACE, dot, ENTER
+    // Now: SYM, comma, SPACE, dot
+    private val row4Lower = listOf("SYM", ",", "SPACE", ".")
+    private val row4Sym = listOf("ABC", ",", "SPACE", ".")
+
+    // Row 5 (Arrows/Modifiers)
+    // Added ALT, moved ESC
+    private val arrowRow = listOf("TAB", "CTRL", "ALT", "←", "↑", "↓", "→", "ESC")
 
     init {
-        setupReflection()
+        orientation = VERTICAL
+        setBackgroundColor(Color.parseColor("#1A1A1A"))
+        setPadding(4, 4, 4, 4)
+        buildKeyboard()
     }
 
-    private fun setupReflection() {
-        try {
-            val imClass = Class.forName("android.hardware.input.InputManager")
-            val getInstance = imClass.getMethod("getInstance")
-            inputManager = getInstance.invoke(null)!!
+    fun setKeyboardListener(l: KeyboardListener) { listener = l }
+    fun setVibrationEnabled(enabled: Boolean) { vibrationEnabled = enabled }
+    
+    fun setScale(scale: Float) {
+        this.scaleFactor = scale.coerceIn(0.5f, 2.0f)
+        this.keyHeight = (BASE_KEY_HEIGHT * scaleFactor).toInt()
+        this.fontSize = BASE_FONT_SIZE * scaleFactor
+        buildKeyboard()
+    }
 
-            injectInputEventMethod = imClass.getMethod(
-                "injectInputEvent",
-                InputEvent::class.java,
-                Int::class.javaPrimitiveType
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to setup reflection", e)
+    private fun buildKeyboard() {
+        removeAllViews()
+        
+        // 1. Top 3 Rows (Standard)
+        val topRows = when (currentState) {
+            KeyboardState.LOWERCASE -> lowercaseRows
+            KeyboardState.UPPERCASE, KeyboardState.CAPS_LOCK -> uppercaseRows
+            KeyboardState.SYMBOLS_1 -> symbols1Rows
+            KeyboardState.SYMBOLS_2 -> symbols2Rows
+        }
+        
+        for ((index, rowKeys) in topRows.withIndex()) {
+            addView(createRow(rowKeys, index))
+        }
+        
+        // 2. Bottom Section (Split Layout)
+        val bottomContainer = LinearLayout(context)
+        bottomContainer.orientation = HORIZONTAL
+        bottomContainer.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+        
+        // Left Column (Row 4 + Row 5)
+        val leftCol = LinearLayout(context)
+        leftCol.orientation = VERTICAL
+        val leftParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 8.5f) // Takes ~85% width
+        leftCol.layoutParams = leftParams
+        
+        // Row 4 (Space)
+        val r4Keys = if (currentState == KeyboardState.LOWERCASE || currentState == KeyboardState.UPPERCASE || currentState == KeyboardState.CAPS_LOCK) row4Lower else row4Sym
+        leftCol.addView(createRow(r4Keys, 3))
+        
+        // Row 5 (Arrows)
+        leftCol.addView(createRow(arrowRow, 4))
+        
+        bottomContainer.addView(leftCol)
+        
+        // Right Column (Big Enter)
+        val enterContainer = FrameLayout(context)
+        val enterParams = LayoutParams(0, LayoutParams.MATCH_PARENT, 1.5f) // Takes ~15% width
+        enterParams.setMargins(dpToPx(keySpacing), dpToPx(keySpacing), 0, 0)
+        enterContainer.layoutParams = enterParams
+        
+        val enterKey = createKey("ENTER", 1f)
+        // Override height to match parent (span 2 rows)
+        val kParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        enterKey.layoutParams = kParams
+        
+        enterContainer.addView(enterKey)
+        bottomContainer.addView(enterContainer)
+        
+        addView(bottomContainer)
+    }
+
+    private fun createRow(keys: List<String>, rowIndex: Int): LinearLayout {
+        val row = LinearLayout(context)
+        row.orientation = HORIZONTAL
+        row.gravity = Gravity.CENTER
+        row.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, dpToPx(keyHeight)).apply {
+            setMargins(0, dpToPx(keySpacing), 0, 0)
+        }
+        
+        // Adjust padding/margins for specific rows if needed
+        if (rowIndex == 1) row.setPadding(dpToPx((12 * scaleFactor).toInt()), 0, dpToPx((12 * scaleFactor).toInt()), 0)
+        
+        for (key in keys) { 
+            val weight = getKeyWeight(key, rowIndex)
+            row.addView(createKey(key, weight)) 
+        }
+        return row
+    }
+
+    private fun getKeyWeight(key: String, rowIndex: Int): Float {
+        // Special Handling for Bottom Row (Index 4) to squish items
+        if (rowIndex == 4) return 1f 
+        
+        return when (key) {
+            "SPACE" -> 4.0f
+            "SHIFT", "BKSP" -> 1.5f
+            "SYM", "SYM1", "SYM2", "ABC" -> 1.3f
+            else -> 1f
         }
     }
 
-    override fun setWindowingMode(taskId: Int, mode: Int) {
-        try { Runtime.getRuntime().exec("am task set-windowing-mode $taskId $mode").waitFor() } catch (e: Exception) { Log.e(TAG, "Failed to set window mode", e) }
+    private fun createKey(key: String, weight: Float): View {
+        val container = FrameLayout(context)
+        
+        // Use weight for width
+        val params = if (weight > 0) {
+            LayoutParams(0, LayoutParams.MATCH_PARENT, weight)
+        } else {
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+        }
+        
+        params.setMargins(dpToPx(keySpacing), 0, dpToPx(keySpacing), 0)
+        container.layoutParams = params
+
+        val keyView = TextView(context)
+        keyView.gravity = Gravity.CENTER
+        
+        // Adjust font size for dense arrow row
+        val rowFontSize = if (key in arrowRow) fontSize - 4 else fontSize
+        keyView.setTextSize(TypedValue.COMPLEX_UNIT_SP, rowFontSize)
+        keyView.setTextColor(Color.WHITE)
+        keyView.text = getDisplayText(key)
+
+        val bg = GradientDrawable()
+        bg.cornerRadius = dpToPx(6).toFloat()
+        bg.setColor(getKeyColor(key))
+        keyView.background = bg
+        
+        val viewParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        container.addView(keyView, viewParams)
+
+        container.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    bg.setColor(Color.parseColor("#3DDC84")) // Green highlight
+                    keyView.background = bg
+                    if (vibrationEnabled) v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    bg.setColor(getKeyColor(key))
+                    keyView.background = bg
+                    if (event.action == MotionEvent.ACTION_UP) handleKeyPress(key)
+                }
+            }
+            true
+        }
+        if (key == "SHIFT") container.setOnLongClickListener { toggleCapsLock(); true }
+        return container
     }
 
-    override fun resizeTask(taskId: Int, left: Int, top: Int, right: Int, bottom: Int) {
-        try { Runtime.getRuntime().exec("am task resize $taskId $left $top $right $bottom") } catch (e: Exception) { Log.e(TAG, "Failed to resize task", e) }
+    private fun getDisplayText(key: String): String = when (key) {
+        "SHIFT" -> if (currentState == KeyboardState.CAPS_LOCK) "⬆" else "⇧"
+        "BKSP" -> "⌫"; "ENTER" -> "↵"; "SPACE" -> " "
+        "SYM", "SYM1", "SYM2" -> "?123"; "ABC" -> "ABC"
+        "TAB" -> "⇥"; "CTRL" -> "Ctrl"; "ALT" -> "Alt"; "ESC" -> "Esc"
+        "←" -> "◀"; "→" -> "▶"; "↑" -> "▲"; "↓" -> "▼"
+        else -> key
     }
 
-    override fun runCommand(cmd: String?): String {
-        try { if (cmd != null) { Runtime.getRuntime().exec(cmd) } } catch (e: Exception) {}
-        return "" 
-    }
-
-    override fun injectKey(keyCode: Int, action: Int) {
-        if (action == KeyEvent.ACTION_DOWN) {
-            try { Runtime.getRuntime().exec("input keyevent $keyCode") } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
+    private fun getKeyColor(key: String): Int {
+        // Arrow row background
+        if (key in arrowRow) return Color.parseColor("#252525")
+        
+        return when (key) {
+            "SHIFT" -> when (currentState) {
+                KeyboardState.CAPS_LOCK -> Color.parseColor("#3DDC84")
+                KeyboardState.UPPERCASE -> Color.parseColor("#4A90D9")
+                else -> Color.parseColor("#3A3A3A")
+            }
+            "ENTER" -> Color.parseColor("#4A90D9") // Blue for Enter
+            "BKSP", "SYM", "SYM1", "SYM2", "ABC" -> Color.parseColor("#3A3A3A")
+            "SPACE" -> Color.parseColor("#2D2D2D")
+            else -> Color.parseColor("#2D2D2D")
         }
     }
 
-    override fun injectKeyOnDisplay(keyCode: Int, action: Int, displayId: Int) {
-        if (!this::inputManager.isInitialized || !this::injectInputEventMethod.isInitialized) return
-        val now = SystemClock.uptimeMillis()
-        val event = KeyEvent(now, now, action, keyCode, 0, 0, -1, 0, 0, InputDevice.SOURCE_KEYBOARD)
-        try {
-            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-            method.invoke(event, displayId)
-            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
-        } catch (e: Exception) { Log.e(TAG, "Key Injection on Display Failed", e) }
+    private fun handleKeyPress(key: String) {
+        when (key) {
+            "SHIFT" -> toggleShift()
+            "BKSP" -> listener?.onSpecialKey(SpecialKey.BACKSPACE)
+            "ENTER" -> listener?.onSpecialKey(SpecialKey.ENTER)
+            "SPACE" -> listener?.onSpecialKey(SpecialKey.SPACE)
+            "TAB" -> listener?.onSpecialKey(SpecialKey.TAB)
+            "CTRL" -> listener?.onSpecialKey(SpecialKey.CTRL)
+            "ALT" -> listener?.onSpecialKey(SpecialKey.ALT)
+            "ESC" -> listener?.onSpecialKey(SpecialKey.ESCAPE)
+            "←" -> listener?.onSpecialKey(SpecialKey.ARROW_LEFT)
+            "→" -> listener?.onSpecialKey(SpecialKey.ARROW_RIGHT)
+            "↑" -> listener?.onSpecialKey(SpecialKey.ARROW_UP)
+            "↓" -> listener?.onSpecialKey(SpecialKey.ARROW_DOWN)
+            "SYM", "SYM1" -> { currentState = KeyboardState.SYMBOLS_1; buildKeyboard() }
+            "SYM2" -> { currentState = KeyboardState.SYMBOLS_2; buildKeyboard() }
+            "ABC" -> { currentState = KeyboardState.LOWERCASE; buildKeyboard() }
+            else -> {
+                listener?.onTextInput(key)
+                if (currentState == KeyboardState.UPPERCASE) { currentState = KeyboardState.LOWERCASE; buildKeyboard() }
+            }
+        }
     }
 
-    override fun execClick(x: Float, y: Float, displayId: Int) {
-        val downTime = SystemClock.uptimeMillis()
-        // Changed source to SOURCE_TOUCHSCREEN for better reliability on virtual displays
-        injectInternal(MotionEvent.ACTION_DOWN, x, y, displayId, downTime, downTime, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY)
-        try { Thread.sleep(50) } catch (e: InterruptedException) {}
-        injectInternal(MotionEvent.ACTION_UP, x, y, displayId, downTime, SystemClock.uptimeMillis(), InputDevice.SOURCE_TOUCHSCREEN, 0)
+    private fun toggleShift() {
+        currentState = when (currentState) {
+            KeyboardState.LOWERCASE -> KeyboardState.UPPERCASE
+            KeyboardState.UPPERCASE -> KeyboardState.LOWERCASE
+            KeyboardState.CAPS_LOCK -> KeyboardState.LOWERCASE
+            else -> currentState
+        }
+        buildKeyboard()
     }
 
-    override fun execRightClick(x: Float, y: Float, displayId: Int) {
-        val downTime = SystemClock.uptimeMillis()
-        // Changed source to SOURCE_TOUCHSCREEN for better reliability on virtual displays
-        injectInternal(MotionEvent.ACTION_DOWN, x, y, displayId, downTime, downTime, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY)
-        try { Thread.sleep(50) } catch (e: InterruptedException) {}
-        injectInternal(MotionEvent.ACTION_UP, x, y, displayId, downTime, SystemClock.uptimeMillis(), InputDevice.SOURCE_TOUCHSCREEN, 0)
+    private fun toggleCapsLock() {
+        currentState = when (currentState) {
+            KeyboardState.LOWERCASE, KeyboardState.UPPERCASE -> KeyboardState.CAPS_LOCK
+            KeyboardState.CAPS_LOCK -> KeyboardState.LOWERCASE
+            else -> currentState
+        }
+        if (vibrationEnabled) vibrate()
+        buildKeyboard()
     }
 
-    override fun injectMouse(action: Int, x: Float, y: Float, displayId: Int, source: Int, buttonState: Int, downTime: Long) {
-        injectInternal(action, x, y, displayId, downTime, SystemClock.uptimeMillis(), source, buttonState)
+    private fun vibrate() {
+        val v = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            v.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else { @Suppress("DEPRECATION") v.vibrate(30) }
     }
 
-    override fun injectScroll(x: Float, y: Float, vDistance: Float, hDistance: Float, displayId: Int) {
-        if (!this::inputManager.isInitialized || !this::injectInputEventMethod.isInitialized) return
-        val now = SystemClock.uptimeMillis()
-        val props = MotionEvent.PointerProperties(); props.id = 0; props.toolType = MotionEvent.TOOL_TYPE_MOUSE
-        val coords = MotionEvent.PointerCoords(); coords.x = x; coords.y = y; coords.pressure = 1.0f; coords.size = 1.0f
-        coords.setAxisValue(MotionEvent.AXIS_VSCROLL, vDistance)
-        coords.setAxisValue(MotionEvent.AXIS_HSCROLL, hDistance)
-        var event: MotionEvent? = null
-        try {
-            event = MotionEvent.obtain(now, now, MotionEvent.ACTION_SCROLL, 1, arrayOf(props), arrayOf(coords), 0, 0, 1.0f, 1.0f, 0, 0, InputDevice.SOURCE_MOUSE, 0)
-            setDisplayId(event, displayId)
-            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
-        } catch (e: Exception) { Log.e(TAG, "Scroll Injection failed", e) } finally { event?.recycle() }
+    private fun dpToPx(dp: Int): Int = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), resources.displayMetrics
+    ).roundToInt()
+}
+````
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ManualAdjustActivity.kt
+````kotlin
+package com.example.coverscreentester
+
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Color
+import android.os.Bundle
+import android.widget.Button
+import android.widget.TextView
+
+class ManualAdjustActivity : Activity() {
+
+    private var isMoveMode = true
+    private var isKeyboardTarget = false
+    private val STEP_SIZE = 10
+
+    private lateinit var textMode: TextView
+    private lateinit var btnToggle: Button
+    private lateinit var btnToggleTarget: Button
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_manual_adjust)
+
+        textMode = findViewById(R.id.text_mode)
+        btnToggle = findViewById(R.id.btn_toggle_mode)
+        btnToggleTarget = findViewById(R.id.btn_toggle_target)
+        
+        updateModeUI()
+
+        btnToggle.setOnClickListener {
+            isMoveMode = !isMoveMode
+            updateModeUI()
+        }
+        
+        btnToggleTarget.setOnClickListener {
+            isKeyboardTarget = !isKeyboardTarget
+            updateModeUI()
+        }
+
+        findViewById<Button>(R.id.btn_up).setOnClickListener { sendAdjust(0, -STEP_SIZE) }
+        findViewById<Button>(R.id.btn_down).setOnClickListener { sendAdjust(0, STEP_SIZE) }
+        findViewById<Button>(R.id.btn_left).setOnClickListener { sendAdjust(-STEP_SIZE, 0) }
+        findViewById<Button>(R.id.btn_right).setOnClickListener { sendAdjust(STEP_SIZE, 0) }
+        
+        // New Center Reset
+        findViewById<Button>(R.id.btn_center).setOnClickListener {
+            val intent = Intent(this, OverlayService::class.java)
+            intent.action = "RESET_POSITION"
+            startService(intent)
+        }
+
+        // New Rotate
+        findViewById<Button>(R.id.btn_rotate).setOnClickListener {
+            val intent = Intent(this, OverlayService::class.java)
+            intent.action = "ROTATE"
+            startService(intent)
+        }
+        
+        findViewById<Button>(R.id.btn_back).setOnClickListener { finish() }
     }
 
-    private fun setDisplayId(event: MotionEvent, displayId: Int) {
-        try {
-            val method = MotionEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-            method.invoke(event, displayId)
-        } catch (e: Exception) {}
+    private fun updateModeUI() {
+        val targetText = if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD"
+        val actionText = if (isMoveMode) "POSITION" else "SIZE"
+        
+        textMode.text = "$targetText: $actionText"
+        
+        if (isKeyboardTarget) {
+            textMode.setTextColor(Color.MAGENTA)
+            btnToggleTarget.text = "Switch to Trackpad"
+        } else {
+            textMode.setTextColor(if (isMoveMode) Color.GREEN else Color.CYAN)
+            btnToggleTarget.text = "Switch to Keyboard"
+        }
+        
+        btnToggle.text = if (isMoveMode) "Switch to Resize" else "Switch to Position"
     }
 
-    private fun injectInternal(action: Int, x: Float, y: Float, displayId: Int, downTime: Long, eventTime: Long, source: Int, buttonState: Int) {
-        if (!this::inputManager.isInitialized || !this::injectInputEventMethod.isInitialized) return
-        val props = MotionEvent.PointerProperties(); props.id = 0
-        props.toolType = if (source == InputDevice.SOURCE_MOUSE) MotionEvent.TOOL_TYPE_MOUSE else MotionEvent.TOOL_TYPE_FINGER
-        val coords = MotionEvent.PointerCoords(); coords.x = x; coords.y = y
-        coords.pressure = if (buttonState != 0 || action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE) 1.0f else 0.0f; coords.size = 1.0f
-        var event: MotionEvent? = null
-        try {
-            event = MotionEvent.obtain(downTime, eventTime, action, 1, arrayOf(props), arrayOf(coords), 0, buttonState, 1.0f, 1.0f, 0, 0, source, 0)
-            setDisplayId(event, displayId)
-            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
-        } catch (e: Exception) { Log.e(TAG, "Injection failed", e) } finally { event?.recycle() }
+    private fun sendAdjust(xChange: Int, yChange: Int) {
+        val intent = Intent(this, OverlayService::class.java)
+        intent.action = "MANUAL_ADJUST"
+        
+        intent.putExtra("TARGET", if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD")
+        
+        if (isMoveMode) {
+            intent.putExtra("DX", xChange)
+            intent.putExtra("DY", yChange)
+        } else {
+            intent.putExtra("DW", xChange)
+            intent.putExtra("DH", yChange)
+        }
+        
+        startService(intent)
     }
 }
+````
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/SettingsActivity.kt
+````kotlin
+package com.example.coverscreentester
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Button
+import android.widget.SeekBar
+import android.widget.Switch
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+
+class SettingsActivity : Activity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_settings)
+
+        val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+
+        // Views
+        val seekBarCursor = findViewById<SeekBar>(R.id.seekBarCursorSpeed)
+        val tvCursor = findViewById<TextView>(R.id.tvCursorSpeed)
+        val seekBarScroll = findViewById<SeekBar>(R.id.seekBarScrollSpeed)
+        val tvScroll = findViewById<TextView>(R.id.tvScrollSpeed)
+        
+        val swVibrate = findViewById<Switch>(R.id.switchVibrate)
+        val swReverse = findViewById<Switch>(R.id.switchReverseScroll)
+        val swVPos = findViewById<Switch>(R.id.switchVPosLeft)
+        val swHPos = findViewById<Switch>(R.id.switchHPosTop)
+        
+        val seekCursorSize = findViewById<SeekBar>(R.id.seekBarCursorSize)
+        val seekAlpha = findViewById<SeekBar>(R.id.seekBarAlpha)
+        val seekHandleSize = findViewById<SeekBar>(R.id.seekBarHandleSize)
+        val seekScrollVisual = findViewById<SeekBar>(R.id.seekBarScrollVisual)
+        
+        val seekHandleTouch = findViewById<SeekBar>(R.id.seekBarHandleTouch)
+        val seekScrollTouch = findViewById<SeekBar>(R.id.seekBarScrollTouch)
+        val seekKeyScale = findViewById<SeekBar>(R.id.seekBarKeyScale)
+        
+        val btnSave = findViewById<Button>(R.id.btnSave)
+        val btnBack = findViewById<Button>(R.id.btnBack)
+
+        // Load Values
+        val cSpeed = prefs.getFloat("cursor_speed", 2.5f)
+        seekBarCursor.progress = (cSpeed * 10).toInt()
+        tvCursor.text = "Cursor Speed: "
+
+        val sSpeed = prefs.getFloat("scroll_speed", 3.0f)
+        seekBarScroll.progress = (sSpeed * 10).toInt()
+        tvScroll.text = "Scroll Speed: "
+
+        swVibrate.isChecked = prefs.getBoolean("vibrate", true)
+        swReverse.isChecked = prefs.getBoolean("reverse_scroll", true)
+        swVPos.isChecked = prefs.getBoolean("v_pos_left", false)
+        swHPos.isChecked = prefs.getBoolean("h_pos_top", false)
+        
+        seekCursorSize.progress = prefs.getInt("cursor_size", 50)
+        seekAlpha.progress = prefs.getInt("alpha", 200)
+        seekHandleSize.progress = prefs.getInt("handle_size", 60)
+        seekScrollVisual.progress = prefs.getInt("scroll_visual_size", 4)
+        seekHandleTouch.progress = prefs.getInt("handle_touch_size", 60)
+        seekScrollTouch.progress = prefs.getInt("scroll_touch_size", 60)
+        
+        // Load scale, default 100% (range 50-200)
+        seekKeyScale.progress = prefs.getInt("keyboard_key_scale", 100)
+
+        // Listeners
+        seekBarCursor.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
+                tvCursor.text = "Cursor Speed: "
+            }
+            override fun onStartTrackingTouch(s: SeekBar) {}
+            override fun onStopTrackingTouch(s: SeekBar) {}
+        })
+
+        seekBarScroll.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
+                tvScroll.text = "Scroll Speed: "
+            }
+            override fun onStartTrackingTouch(s: SeekBar) {}
+            override fun onStopTrackingTouch(s: SeekBar) {}
+        })
+        
+        seekCursorSize.setOnSeekBarChangeListener(createPreviewListener("cursor_size"))
+        seekAlpha.setOnSeekBarChangeListener(createPreviewListener("alpha"))
+        seekHandleSize.setOnSeekBarChangeListener(createPreviewListener("handle_size"))
+        seekScrollVisual.setOnSeekBarChangeListener(createPreviewListener("scroll_visual"))
+        seekHandleTouch.setOnSeekBarChangeListener(createPreviewListener("handle_touch"))
+        seekScrollTouch.setOnSeekBarChangeListener(createPreviewListener("scroll_touch"))
+        
+        // --- KEYBOARD SCALE PREVIEW ---
+        seekKeyScale.setOnSeekBarChangeListener(createPreviewListener("keyboard_scale"))
+
+        btnSave.setOnClickListener {
+            val cVal = if (seekBarCursor.progress < 1) 0.1f else seekBarCursor.progress / 10f
+            val sVal = if (seekBarScroll.progress < 1) 0.1f else seekBarScroll.progress / 10f
+            
+            prefs.edit()
+                .putFloat("cursor_speed", cVal)
+                .putFloat("scroll_speed", sVal)
+                .putBoolean("vibrate", swVibrate.isChecked)
+                .putBoolean("reverse_scroll", swReverse.isChecked)
+                .putBoolean("v_pos_left", swVPos.isChecked)
+                .putBoolean("h_pos_top", swHPos.isChecked)
+                .putInt("cursor_size", seekCursorSize.progress)
+                .putInt("alpha", seekAlpha.progress)
+                .putInt("handle_size", seekHandleSize.progress)
+                .putInt("scroll_visual_size", seekScrollVisual.progress)
+                .putInt("handle_touch_size", seekHandleTouch.progress)
+                .putInt("scroll_touch_size", seekScrollTouch.progress)
+                .putInt("keyboard_key_scale", seekKeyScale.progress)
+                .apply()
+
+            val intent = Intent(this, OverlayService::class.java)
+            intent.action = "RELOAD_PREFS"
+            startService(intent)
+            finish()
+        }
+        
+        btnBack.setOnClickListener { finish() }
+    }
+    
+    private fun createPreviewListener(target: String) = object : SeekBar.OnSeekBarChangeListener {
+        override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
+            val intent = Intent(this@SettingsActivity, OverlayService::class.java)
+            intent.action = "PREVIEW_UPDATE"
+            intent.putExtra("TARGET", target)
+            intent.putExtra("VALUE", v)
+            startService(intent)
+        }
+        override fun onStartTrackingTouch(s: SeekBar) {}
+        override fun onStopTrackingTouch(s: SeekBar) {}
+    }
+}
+````
+
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_manual_adjust.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#121212"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Manual Adjustment"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/text_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="TRACKPAD: MOVE"
+        android:textColor="#3DDC84"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="8dp">
+        
+        <Button
+            android:id="@+id/btn_toggle_target"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Target: Trackpad"
+            android:backgroundTint="#6200EE"
+            android:textColor="#FFFFFF"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="24dp">
+
+        <Button
+            android:id="@+id/btn_toggle_mode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Switch Mode"
+            android:backgroundTint="#444444"
+            android:textColor="#FFFFFF"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btn_rotate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Rotate 90°"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btn_up"
+            android:layout_width="80dp"
+            android:layout_height="60dp"
+            android:text="▲"
+            android:textSize="20sp"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="4dp"/>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_left"
+                android:layout_width="80dp"
+                android:layout_height="60dp"
+                android:text="◄"
+                android:textSize="20sp"
+                android:backgroundTint="#333333"
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="4dp"/>
+
+            <Button
+                android:id="@+id/btn_center"
+                android:layout_width="80dp"
+                android:layout_height="60dp"
+                android:text="⟲"
+                android:textSize="24sp"
+                android:backgroundTint="#555555"
+                android:textColor="#FFFFFF"
+                android:tooltipText="Reset to Center"/>
+
+            <Button
+                android:id="@+id/btn_right"
+                android:layout_width="80dp"
+                android:layout_height="60dp"
+                android:text="►"
+                android:textSize="20sp"
+                android:backgroundTint="#333333"
+                android:textColor="#FFFFFF"
+                android:layout_marginStart="4dp"/>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_down"
+            android:layout_width="80dp"
+            android:layout_height="60dp"
+            android:text="▼"
+            android:textSize="20sp"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"
+            android:layout_marginTop="4dp"/>
+
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Center Button resets position/size"
+        android:textColor="#666666"
+        android:textSize="12sp"
+        android:layout_marginTop="16dp"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <Button
+        android:id="@+id/btn_back"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Back to Main Menu"
+        android:backgroundTint="#3DDC84"
+        android:textColor="#000000"
+        android:textStyle="bold"/>
+
+</LinearLayout>
+````
+
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_settings.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Configuration"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="20dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--- Input Speed ---"
+            android:textColor="#AAAAAA"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"/>
+
+        <TextView
+            android:id="@+id/tvCursorSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cursor Speed: 2.5"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarCursorSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="25"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvScrollSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scroll Speed: 3.0"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarScrollSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="30"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--- Behavior ---"
+            android:textColor="#AAAAAA"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"/>
+
+        <Switch
+            android:id="@+id/switchVibrate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Haptic Feedback"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"/>
+
+        <Switch
+            android:id="@+id/switchReverseScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Natural Scrolling (Reverse)"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"/>
+
+        <Switch
+            android:id="@+id/switchVPosLeft"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Vertical Scroll on Left"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"/>
+
+        <Switch
+            android:id="@+id/switchHPosTop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Horizontal Scroll on Top"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--- Visuals ---"
+            android:textColor="#AAAAAA"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"/>
+            
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Keyboard Key Size (%)"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarKeyScale"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="200"
+            android:progress="100"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cursor Size"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarCursorSize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="150"
+            android:progress="50"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Border Visibility (Alpha)"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarAlpha"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="255"
+            android:progress="200"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Handle Icon Size"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarHandleSize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="60"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scroll Bar Thickness (Visual)"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarScrollVisual"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="20"
+            android:progress="4"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--- Touch Areas ---"
+            android:textColor="#AAAAAA"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Corner Handle Touch Area"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarHandleTouch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="150"
+            android:progress="60"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scroll Bar Touch Width"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarScrollTouch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="150"
+            android:progress="60"
+            android:layout_marginBottom="24dp"/>
+
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Save &amp; Apply"
+            android:backgroundTint="#3DDC84"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/btnBack"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Back to Main Menu"
+            android:backgroundTint="#444444"
+            android:textColor="#FFFFFF"/>
+
+    </LinearLayout>
+</ScrollView>
 ````
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/values/strings.xml
@@ -14301,1642 +14036,428 @@ object AppPreferences {
 }
 ````
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/MainActivity.kt
 ````kotlin
 package com.example.coverscreentester
 
-import android.accessibilityservice.AccessibilityService
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.content.ServiceConnection
-import android.content.pm.ServiceInfo
-import android.graphics.Color
-import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
-import android.hardware.display.DisplayManager
-import android.os.Build
-import android.os.Handler
-import android.os.IBinder
-import android.os.Looper
+import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.os.Bundle
+import android.provider.Settings
+import android.widget.Button
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import rikka.shizuku.Shizuku
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var statusText: TextView
+    private lateinit var toggleButton: Button
+    private lateinit var hideAppButton: Button
+    private lateinit var lockButton: Button
+    private lateinit var profilesButton: Button
+    private lateinit var settingsButton: Button
+    private lateinit var helpButton: Button
+    private lateinit var closeButton: Button
+    private lateinit var btnManualAdjust: Button
+    private lateinit var btnTargetSwitch: Button
+    private lateinit var btnResetCursor: Button
+    private lateinit var btnForceKeyboard: Button
+    
+    private var lastKnownDisplayId = -1
+    
+    // For 5x tap debug mode toggle
+    private var resetCursorTapCount = 0
+    private var lastResetCursorTapTime = 0L
+    private val TAP_TIMEOUT = 1500L // 1.5 seconds to complete 5 taps
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        statusText = findViewById(R.id.text_status)
+        toggleButton = findViewById(R.id.btn_toggle)
+        hideAppButton = findViewById(R.id.btn_hide_app)
+        lockButton = findViewById(R.id.btn_lock)
+        profilesButton = findViewById(R.id.btn_profiles)
+        settingsButton = findViewById(R.id.btn_settings)
+        helpButton = findViewById(R.id.btn_help)
+        closeButton = findViewById(R.id.btn_close)
+        btnManualAdjust = findViewById(R.id.btn_manual_adjust)
+        
+        btnTargetSwitch = findViewById(R.id.btn_target_switch)
+        btnTargetSwitch.setOnClickListener {
+            val intent = Intent("CYCLE_INPUT_TARGET")
+            intent.setPackage(packageName) 
+            sendBroadcast(intent)
+        }
+        
+        btnResetCursor = findViewById(R.id.btn_reset_cursor)
+        btnResetCursor.setOnClickListener {
+            val currentTime = System.currentTimeMillis()
+            
+            // Check if we're within the tap timeout window
+            if (currentTime - lastResetCursorTapTime > TAP_TIMEOUT) {
+                resetCursorTapCount = 0
+            }
+            
+            resetCursorTapCount++
+            lastResetCursorTapTime = currentTime
+            
+            if (resetCursorTapCount >= 5) {
+                // Toggle debug mode on 5th tap
+                val intent = Intent("TOGGLE_DEBUG")
+                intent.setPackage(packageName)
+                sendBroadcast(intent)
+                Toast.makeText(this, "Debug Mode Toggled", Toast.LENGTH_SHORT).show()
+                resetCursorTapCount = 0
+            } else {
+                // Normal reset cursor behavior
+                val intent = Intent("RESET_CURSOR")
+                intent.setPackage(packageName)
+                sendBroadcast(intent)
+            }
+        }
+        
+        btnForceKeyboard = findViewById(R.id.btn_force_keyboard)
+        btnForceKeyboard.setOnClickListener {
+            val intent = Intent("TOGGLE_CUSTOM_KEYBOARD")
+            intent.setPackage(packageName)
+            sendBroadcast(intent)
+            Toast.makeText(this, "Toggling Keyboard...", Toast.LENGTH_SHORT).show()
+        }
+
+        if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            Shizuku.requestPermission(0)
+        }
+
+        toggleButton.setOnClickListener {
+            if (!isAccessibilityEnabled()) {
+                Toast.makeText(this, "Please Enable Accessibility Service", Toast.LENGTH_LONG).show()
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            } else {
+                // EXPLICIT MOVE: User clicked the button
+                forceMoveCommand(true)
+                Toast.makeText(this, "Moving Trackpad to this screen...", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        hideAppButton.setOnClickListener {
+            // Move app to background without closing
+            moveTaskToBack(true)
+        }
+
+        settingsButton.setOnClickListener { 
+            // Show trackpad in preview mode when entering settings
+            val intent = Intent("SET_PREVIEW_MODE")
+            intent.setPackage(packageName)
+            intent.putExtra("PREVIEW_MODE", true)
+            sendBroadcast(intent)
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        profilesButton.setOnClickListener {
+            startActivity(Intent(this, ProfilesActivity::class.java))
+        }
+        
+        btnManualAdjust.setOnClickListener {
+            // Show trackpad in preview mode when entering manual adjust
+            val intent = Intent("SET_PREVIEW_MODE")
+            intent.setPackage(packageName)
+            intent.putExtra("PREVIEW_MODE", true)
+            sendBroadcast(intent)
+            startActivity(Intent(this, ManualAdjustActivity::class.java))
+        }
+
+        helpButton.setOnClickListener { showHelpDialog() }
+        lockButton.setOnClickListener { toggleLock() }
+
+        closeButton.setOnClickListener {
+            finishAffinity()
+            System.exit(0)
+        }
+
+        if (savedInstanceState == null && isAccessibilityEnabled()) {
+            checkAndMoveDisplay()
+        }
+
+        updateStatusUI()
+        updateLockUI()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateStatusUI()
+        updateLockUI()
+        if (isAccessibilityEnabled()) {
+            checkAndMoveDisplay()
+        }
+        // Hide trackpad ONLY if on the SAME display as this menu
+        val myDisplayId = display?.displayId ?: android.view.Display.DEFAULT_DISPLAY
+        val intent = Intent("SET_TRACKPAD_VISIBILITY")
+        intent.setPackage(packageName)
+        intent.putExtra("VISIBLE", false)
+        intent.putExtra("MENU_DISPLAY_ID", myDisplayId) // Pass ID to service
+        sendBroadcast(intent)
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        // Show trackpad when leaving main menu (always show)
+        val intent = Intent("SET_TRACKPAD_VISIBILITY")
+        intent.setPackage(packageName)
+        intent.putExtra("VISIBLE", true)
+        sendBroadcast(intent)
+        
+        // Also disable preview mode
+        val previewIntent = Intent("SET_PREVIEW_MODE")
+        previewIntent.setPackage(packageName)
+        previewIntent.putExtra("PREVIEW_MODE", false)
+        sendBroadcast(previewIntent)
+    }
+
+    private fun checkAndMoveDisplay() {
+        val currentDisplayId = display?.displayId ?: android.view.Display.DEFAULT_DISPLAY
+        if (currentDisplayId != lastKnownDisplayId) {
+            lastKnownDisplayId = currentDisplayId
+            // IMPLICIT MOVE: Just updating known state, do not force if already open
+            forceMoveCommand(false)
+        }
+    }
+
+    private fun forceMoveCommand(isExplicit: Boolean) {
+        val currentDisplayId = display?.displayId ?: android.view.Display.DEFAULT_DISPLAY
+        val intent = Intent(this, OverlayService::class.java)
+        intent.putExtra("DISPLAY_ID", currentDisplayId)
+        if (isExplicit) {
+            intent.putExtra("FORCE_MOVE", true)
+        }
+        startService(intent)
+    }
+
+    private fun updateStatusUI() {
+        if (Shizuku.getBinder() == null) {
+            statusText.text = "Status: Shizuku Not Running"
+            statusText.setTextColor(0xFFFF0000.toInt())
+        } else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            statusText.text = "Status: Shizuku Permission Needed"
+            statusText.setTextColor(0xFFFFFF00.toInt())
+        } else if (isAccessibilityEnabled()) {
+            statusText.text = "Status: Active"
+            statusText.setTextColor(0xFF00FF00.toInt())
+            toggleButton.text = "Move Trackpad Here"
+        } else {
+            statusText.text = "Status: Accessibility Needed"
+            statusText.setTextColor(0xFFFFFF00.toInt())
+            toggleButton.text = "Enable Trackpad"
+        }
+    }
+
+    private fun isAccessibilityEnabled(): Boolean {
+        val componentName = ComponentName(this, OverlayService::class.java)
+        val enabledServices = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+        return enabledServices?.contains(componentName.flattenToString()) == true
+    }
+
+    private fun toggleLock() {
+        val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        val current = prefs.getBoolean("lock_position", false)
+        prefs.edit().putBoolean("lock_position", !current).apply()
+        updateLockUI()
+        val intent = Intent(this, OverlayService::class.java)
+        intent.action = "RELOAD_PREFS"
+        startService(intent)
+    }
+
+    private fun updateLockUI() {
+        val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        val isLocked = prefs.getBoolean("lock_position", false)
+        
+        if (isLocked) {
+            lockButton.text = "Position: Locked"
+            lockButton.backgroundTintList = ColorStateList.valueOf(0xFFFF0000.toInt())
+            lockButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_lock_closed, 0, 0, 0)
+        } else {
+            lockButton.text = "Position: Unlocked"
+            lockButton.backgroundTintList = ColorStateList.valueOf(0xFF3DDC84.toInt())
+            lockButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_lock_open, 0, 0, 0)
+        }
+    }
+
+    private fun showHelpDialog() {
+        val text = TextView(this)
+        text.setPadding(50, 40, 50, 40)
+        text.textSize = 14f
+        text.text = """
+            == TRACKPAD CONTROLS ==
+            - Tap: Left Click
+            - Vol Up + Drag: Drag/Select
+            - Vol Down: Right Click (Back)
+            - Vol Down (Hold 1s): Move trackpad
+            
+            == CORNER HANDLES ==
+            - Top-Left TAP: Toggle Keyboard
+            - Top-Left HOLD: Move trackpad
+            - Top-Right HOLD: Move window
+            - Bottom-Right HOLD: Resize window
+            - Bottom-Left TAP: Open Menu
+            
+            == CUSTOM KEYBOARD ==
+            - Full QWERTY layout
+            - SHIFT tap = Single uppercase
+            - SHIFT hold = Caps Lock (green)
+            - ?123 = Symbol layers
+            - Arrow/Tab/Esc keys at bottom
+            - Drag top bar to move
+            - Drag corner to resize
+            
+            == VIRTUAL DISPLAY ==
+            1. Create Virtual Display
+            2. Click 'Switch Local/Remote'
+            3. PINK Border = Remote control
+            
+            == SECRET ==
+            - Tap Reset Cursor 5x = Debug Mode
+        """.trimIndent()
+
+        AlertDialog.Builder(this)
+            .setTitle("Instructions")
+            .setView(text)
+            .setPositiveButton("Got it", null)
+            .show()
+    }
+}
+````
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShellUserService.kt
+````kotlin
+package com.example.coverscreentester
+
 import android.os.SystemClock
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.util.Log
-import android.view.Display
-import android.view.GestureDetector
-import android.view.Gravity
 import android.view.InputDevice
+import android.view.InputEvent
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.View
-import android.view.WindowManager
-import android.view.accessibility.AccessibilityEvent
-import android.widget.FrameLayout
-import android.widget.ImageView
-import android.widget.TextView
-import kotlin.math.abs
-import kotlin.math.max
-import java.util.ArrayList
-import com.example.coverscreentester.BuildConfig
+import com.example.coverscreentester.IShellService
+import java.lang.reflect.Method
 
-class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
+class ShellUserService : IShellService.Stub() {
 
-    private var windowManager: WindowManager? = null
-    private var displayManager: DisplayManager? = null
-    private var trackpadLayout: FrameLayout? = null
-    private lateinit var trackpadParams: WindowManager.LayoutParams
-    private var cursorLayout: FrameLayout? = null
-    private var cursorView: ImageView? = null
-    private lateinit var cursorParams: WindowManager.LayoutParams
-    
-    private var debugTextView: TextView? = null
-    
-    private var remoteWindowManager: WindowManager? = null
-    private var remoteCursorLayout: FrameLayout? = null
-    private var remoteCursorView: ImageView? = null
-    private lateinit var remoteCursorParams: WindowManager.LayoutParams
-    
-    private var shellService: IShellService? = null
-    private var isBound = false
-    
-    private var keyboardOverlay: KeyboardOverlay? = null
-    private var isCustomKeyboardVisible = false
-    
-    private var isTrackpadVisible = true
-    private var isPreviewMode = false
-    
-    private var currentOverlayDisplayId = 0
-    private var currentDisplayId = -1 
-    private var inputTargetDisplayId = -1
-    private var lastLoadedProfileKey = ""
+    private val TAG = "ShellUserService"
+    private lateinit var inputManager: Any
+    private lateinit var injectInputEventMethod: Method
+    private val INJECT_MODE_ASYNC = 0
 
-    private var uiScreenWidth = 1080
-    private var uiScreenHeight = 2640
-    private var targetScreenWidth = 1920
-    private var targetScreenHeight = 1080
-
-    private var cursorX = 300f
-    private var cursorY = 300f
-    private var virtualScrollX = 0f
-    private var virtualScrollY = 0f
-    private var rotationAngle = 0 
-    private var lastTouchX = 0f
-    private var lastTouchY = 0f
-    
-    private var initialWindowX = 0
-    private var initialWindowY = 0
-    private var initialWindowWidth = 0
-    private var initialWindowHeight = 0
-    private var initialTouchX = 0f
-    private var initialTouchY = 0f
-    
-    private var isTouchDragging = false
-    private var isLeftKeyHeld = false
-    private var isRightKeyHeld = false
-    private var isRightDragPending = false 
-    private var isVScrolling = false
-    private var isHScrolling = false
-    private var dragDownTime: Long = 0L
-    
-    private var isClicking = false
-
-    private var hasSentTouchDown = false
-    private var hasSentMouseDown = false
-    private var hasSentScrollDown = false
-    
-    private var activeFingerDeviceId = -1
-    private var pendingDragDownTime: Long = 0L
-    
-    private var cursorSpeed = 2.5f
-    private var scrollSpeed = 3.0f 
-    private var scrollZoneThickness = 60 
-    private var prefVibrate = true
-    private var prefReverseScroll = true
-    private var prefAlpha = 200
-    private var prefHandleSize = 60 
-    private var prefVPosLeft = false
-    private var prefHPosTop = false
-    private var prefLocked = false
-    private var prefHandleTouchSize = 60
-    private var prefScrollTouchSize = 60
-    private var prefScrollVisualSize = 4
-    private var prefCursorSize = 50 
-    
-    private var isDebugMode = false
-    private var isKeyboardMode = false 
-    private var savedWindowX = 0
-    private var savedWindowY = 0
-    
-    private var currentBorderColor = 0xFFFFFFFF.toInt()
-    private var highlightAlpha = false
-    private var highlightHandles = false
-    private var highlightScrolls = false
-    
-    private val handleContainers = ArrayList<FrameLayout>()
-    private val handleVisuals = ArrayList<View>()
-    private var vScrollContainer: FrameLayout? = null
-    private var hScrollContainer: FrameLayout? = null
-    private var vScrollVisual: View? = null
-    private var hScrollVisual: View? = null
-    
-    private val handler = Handler(Looper.getMainLooper())
-    private val longPressRunnable = Runnable { startTouchDrag() }
-    private var isResizing = false
-    private val resizeLongPressRunnable = Runnable { startResize() }
-    private var isMoving = false
-    private val moveLongPressRunnable = Runnable { startMove() }
-    private val voiceRunnable = Runnable { toggleKeyboardMode() }
-    
-    private var keyboardHandleDownTime = 0L
-    private val keyboardLongPressRunnable = Runnable { toggleKeyboardMode() }
-    
-    private val clearHighlightsRunnable = Runnable {
-        highlightAlpha = false; highlightHandles = false; highlightScrolls = false
-        updateBorderColor(currentBorderColor); updateLayoutSizes() 
-    }
-    
-    private val switchReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            when (intent?.action) {
-                "CYCLE_INPUT_TARGET" -> cycleInputTarget()
-                "RESET_CURSOR" -> resetCursorCenter()
-                "TOGGLE_DEBUG" -> toggleDebugMode()
-                "FORCE_KEYBOARD" -> toggleCustomKeyboard()
-                "TOGGLE_CUSTOM_KEYBOARD" -> toggleCustomKeyboard()
-                "SET_TRACKPAD_VISIBILITY" -> {
-                    val visible = intent.getBooleanExtra("VISIBLE", true)
-                    val menuDisplayId = intent.getIntExtra("MENU_DISPLAY_ID", -1)
-                    
-                    if (visible) {
-                        setTrackpadVisibility(true)
-                    } else {
-                        // Only hide if menu is on the SAME display as this overlay
-                        if (menuDisplayId == -1 || menuDisplayId == currentDisplayId) {
-                            setTrackpadVisibility(false)
-                        }
-                    }
-                }
-                "SET_PREVIEW_MODE" -> {
-                    val preview = intent.getBooleanExtra("PREVIEW_MODE", false)
-                    setPreviewMode(preview)
-                }
-            }
-        }
+    init {
+        setupReflection()
     }
 
-    companion object {
-        private const val TAG = "OverlayService"
-    }
-
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
-    override fun onInterrupt() {}
-
-    override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (isPreviewMode || !isTrackpadVisible) return super.onKeyEvent(event)
-        
-        val action = event.action
-        val keyCode = event.keyCode
-        
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            if (action == KeyEvent.ACTION_DOWN) { 
-                if (!isLeftKeyHeld) { 
-                    isLeftKeyHeld = true
-                    startKeyDrag(MotionEvent.BUTTON_PRIMARY) 
-                } 
-            } else if (action == KeyEvent.ACTION_UP) { 
-                isLeftKeyHeld = false
-                stopKeyDrag(MotionEvent.BUTTON_PRIMARY) 
-            }
-            return true 
-        }
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            if (action == KeyEvent.ACTION_DOWN) { 
-                if (!isRightDragPending) { 
-                    isRightDragPending = true
-                    handler.postDelayed(voiceRunnable, 1000) 
-                } 
-            } else if (action == KeyEvent.ACTION_UP) { 
-                handler.removeCallbacks(voiceRunnable)
-                if (isRightDragPending) { 
-                    performClick(true)
-                    isRightDragPending = false 
-                } 
-            }
-            return true 
-        }
-        return super.onKeyEvent(event)
-    }
-
-    private val userServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) { 
-            shellService = IShellService.Stub.asInterface(binder)
-            isBound = true 
-            Thread { shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1") }.start()
-            initCustomKeyboard()
-        }
-        override fun onServiceDisconnected(name: ComponentName?) { 
-            shellService = null
-            isBound = false 
-        }
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        try { 
-            displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-            displayManager?.registerDisplayListener(this, handler) 
-        } catch (e: Exception) { 
-            Log.e(TAG, "Failed to init DisplayManager", e) 
-        }
-        val filter = IntentFilter().apply {
-            addAction("CYCLE_INPUT_TARGET")
-            addAction("RESET_CURSOR")
-            addAction("TOGGLE_DEBUG")
-            addAction("FORCE_KEYBOARD")
-            addAction("TOGGLE_CUSTOM_KEYBOARD")
-            addAction("SET_TRACKPAD_VISIBILITY")
-            addAction("SET_PREVIEW_MODE")
-        }
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(switchReceiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(switchReceiver, filter)
-        }
-    }
-
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        try { 
-            createNotification()
-            bindShizuku()
-            loadPrefs()
-            if (displayManager == null) { 
-                displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-                displayManager?.registerDisplayListener(this, handler) 
-            }
-            setupWindows(Display.DEFAULT_DISPLAY) 
-        } catch (e: Exception) { 
-            Log.e(TAG, "Crash in onServiceConnected", e) 
-        }
-    }
-
-    override fun onDisplayAdded(displayId: Int) {}
-    override fun onDisplayRemoved(displayId: Int) {}
-    override fun onDisplayChanged(displayId: Int) { 
-        if (displayId == currentDisplayId) { 
-            updateUiMetrics(displayId)
-            val newKey = getProfileKey()
-            if (newKey != lastLoadedProfileKey) loadLayout() 
-        }
-    }
-
-    private fun updateUiMetrics(displayId: Int) {
+    private fun setupReflection() {
         try {
-            if (displayManager == null) displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-            val display = displayManager?.getDisplay(displayId) ?: return
-            val metrics = android.util.DisplayMetrics()
-            display.getRealMetrics(metrics)
-            if (metrics.widthPixels > 0) { 
-                uiScreenWidth = metrics.widthPixels
-                uiScreenHeight = metrics.heightPixels
-                if (inputTargetDisplayId == -1 || inputTargetDisplayId == displayId) { 
-                    targetScreenWidth = uiScreenWidth
-                    targetScreenHeight = uiScreenHeight 
-                }
-                keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId)
-            }
+            val imClass = Class.forName("android.hardware.input.InputManager")
+            val getInstance = imClass.getMethod("getInstance")
+            inputManager = getInstance.invoke(null)!!
+
+            injectInputEventMethod = imClass.getMethod(
+                "injectInputEvent",
+                InputEvent::class.java,
+                Int::class.javaPrimitiveType
+            )
         } catch (e: Exception) {
-            Log.e(TAG, "updateUiMetrics failed", e)
+            Log.e(TAG, "Failed to setup reflection", e)
         }
     }
 
-    private fun updateTargetMetrics(displayId: Int) {
+    override fun setWindowingMode(taskId: Int, mode: Int) {
+        try { Runtime.getRuntime().exec("am task set-windowing-mode $taskId $mode").waitFor() } catch (e: Exception) { Log.e(TAG, "Failed to set window mode", e) }
+    }
+
+    override fun resizeTask(taskId: Int, left: Int, top: Int, right: Int, bottom: Int) {
+        try { Runtime.getRuntime().exec("am task resize $taskId $left $top $right $bottom") } catch (e: Exception) { Log.e(TAG, "Failed to resize task", e) }
+    }
+
+    override fun runCommand(cmd: String?): String {
+        try { if (cmd != null) { Runtime.getRuntime().exec(cmd) } } catch (e: Exception) {}
+        return "" 
+    }
+
+    override fun injectKey(keyCode: Int, action: Int) {
+        if (action == KeyEvent.ACTION_DOWN) {
+            try { Runtime.getRuntime().exec("input keyevent $keyCode") } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
+        }
+    }
+
+    override fun injectKeyOnDisplay(keyCode: Int, action: Int, displayId: Int) {
+        if (!this::inputManager.isInitialized || !this::injectInputEventMethod.isInitialized) return
+        val now = SystemClock.uptimeMillis()
+        val event = KeyEvent(now, now, action, keyCode, 0, 0, -1, 0, 0, InputDevice.SOURCE_KEYBOARD)
         try {
-            if (displayManager == null) displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-            val display = displayManager?.getDisplay(displayId)
-            if (display == null) { 
-                targetScreenWidth = 1920
-                targetScreenHeight = 1080
-                return 
-            }
-            val metrics = android.util.DisplayMetrics()
-            display.getRealMetrics(metrics)
-            if (metrics.widthPixels > 0) { 
-                targetScreenWidth = metrics.widthPixels
-                targetScreenHeight = metrics.heightPixels 
-            } else { 
-                targetScreenWidth = 1920
-                targetScreenHeight = 1080 
-            }
-        } catch (e: Exception) { 
-            targetScreenWidth = 1920
-            targetScreenHeight = 1080 
-        }
+            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
+            method.invoke(event, displayId)
+            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
+        } catch (e: Exception) { Log.e(TAG, "Key Injection on Display Failed", e) }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun execClick(x: Float, y: Float, displayId: Int) {
+        val downTime = SystemClock.uptimeMillis()
+        // FIX: Changed SOURCE_TOUCHSCREEN to SOURCE_MOUSE to align with cursor movement
+        injectInternal(MotionEvent.ACTION_DOWN, x, y, displayId, downTime, downTime, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_PRIMARY)
+        try { Thread.sleep(50) } catch (e: InterruptedException) {}
+        injectInternal(MotionEvent.ACTION_UP, x, y, displayId, downTime, SystemClock.uptimeMillis(), InputDevice.SOURCE_MOUSE, 0)
+    }
+
+    override fun execRightClick(x: Float, y: Float, displayId: Int) {
+        val downTime = SystemClock.uptimeMillis()
+        // FIX: Changed SOURCE_TOUCHSCREEN to SOURCE_MOUSE
+        injectInternal(MotionEvent.ACTION_DOWN, x, y, displayId, downTime, downTime, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_SECONDARY)
+        try { Thread.sleep(50) } catch (e: InterruptedException) {}
+        injectInternal(MotionEvent.ACTION_UP, x, y, displayId, downTime, SystemClock.uptimeMillis(), InputDevice.SOURCE_MOUSE, 0)
+    }
+
+    override fun injectMouse(action: Int, x: Float, y: Float, displayId: Int, source: Int, buttonState: Int, downTime: Long) {
+        injectInternal(action, x, y, displayId, downTime, SystemClock.uptimeMillis(), source, buttonState)
+    }
+
+    override fun injectScroll(x: Float, y: Float, vDistance: Float, hDistance: Float, displayId: Int) {
+        if (!this::inputManager.isInitialized || !this::injectInputEventMethod.isInitialized) return
+        val now = SystemClock.uptimeMillis()
+        val props = MotionEvent.PointerProperties(); props.id = 0; props.toolType = MotionEvent.TOOL_TYPE_MOUSE
+        val coords = MotionEvent.PointerCoords(); coords.x = x; coords.y = y; coords.pressure = 1.0f; coords.size = 1.0f
+        coords.setAxisValue(MotionEvent.AXIS_VSCROLL, vDistance)
+        coords.setAxisValue(MotionEvent.AXIS_HSCROLL, hDistance)
+        var event: MotionEvent? = null
         try {
-            when (intent?.action) {
-                "RESET_POSITION" -> resetTrackpadPosition()
-                "ROTATE" -> performRotation()
-                "SAVE_LAYOUT" -> saveLayout()
-                "LOAD_LAYOUT" -> loadLayout()
-                "DELETE_PROFILE" -> deleteCurrentProfile()
-                "MANUAL_ADJUST" -> handleManualAdjust(intent)
-                "RELOAD_PREFS" -> { 
-                    loadPrefs()
-                    updateBorderColor(currentBorderColor)
-                    updateLayoutSizes()
-                    updateScrollPosition()
-                    updateCursorSize() 
-                }
-                "PREVIEW_UPDATE" -> handlePreview(intent)
-                "CYCLE_INPUT_TARGET" -> cycleInputTarget()
-                "RESET_CURSOR" -> resetCursorCenter()
-                "TOGGLE_DEBUG" -> toggleDebugMode()
-                "FORCE_KEYBOARD" -> toggleCustomKeyboard()
-                "TOGGLE_CUSTOM_KEYBOARD" -> toggleCustomKeyboard()
-            }
-            if (intent?.hasExtra("DISPLAY_ID") == true) {
-                val targetDisplayId = intent.getIntExtra("DISPLAY_ID", Display.DEFAULT_DISPLAY)
-                if (targetDisplayId != currentDisplayId || trackpadLayout == null) { 
-                    removeOverlays()
-                    setupWindows(targetDisplayId) 
-                }
-            }
-        } catch (e: Exception) { 
-            Log.e(TAG, "Crash in onStartCommand", e) 
-        }
-        return START_STICKY
-    }
-    
-    private fun setTrackpadVisibility(visible: Boolean) {
-        if (!visible && isTrackpadVisible) {
-            resetAllTouchStates()
-        }
-        
-        isTrackpadVisible = visible
-        trackpadLayout?.visibility = if (visible) View.VISIBLE else View.GONE
-        cursorLayout?.visibility = if (visible) View.VISIBLE else View.GONE
+            event = MotionEvent.obtain(now, now, MotionEvent.ACTION_SCROLL, 1, arrayOf(props), arrayOf(coords), 0, 0, 1.0f, 1.0f, 0, 0, InputDevice.SOURCE_MOUSE, 0)
+            setDisplayId(event, displayId)
+            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
+        } catch (e: Exception) { Log.e(TAG, "Scroll Injection failed", e) } finally { event?.recycle() }
     }
 
-    private fun setPreviewMode(preview: Boolean) {
-        if (preview && !isPreviewMode) {
-            resetAllTouchStates()
-        }
-        
-        isPreviewMode = preview
-        
-        if (preview) {
-            trackpadLayout?.visibility = View.VISIBLE
-            cursorLayout?.visibility = View.VISIBLE
-            trackpadParams.flags = trackpadParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-            try {
-                windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
-            } catch (e: Exception) {}
-            trackpadLayout?.alpha = 0.7f
-        } else {
-            trackpadParams.flags = trackpadParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
-            try {
-                windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
-            } catch (e: Exception) {}
-            trackpadLayout?.alpha = 1.0f
-        }
-    }
-    
-    private fun resetAllTouchStates() {
-        handler.removeCallbacks(longPressRunnable)
-        handler.removeCallbacks(resizeLongPressRunnable)
-        handler.removeCallbacks(moveLongPressRunnable)
-        handler.removeCallbacks(voiceRunnable)
-        
-        if (isTouchDragging && hasSentTouchDown) {
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
-        }
-        isTouchDragging = false
-        hasSentTouchDown = false
-        
-        if (isLeftKeyHeld && hasSentMouseDown) {
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
-        }
-        isLeftKeyHeld = false
-        
-        if (isRightKeyHeld && hasSentMouseDown) {
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY, dragDownTime)
-        }
-        isRightKeyHeld = false
-        hasSentMouseDown = false
-        
-        if ((isVScrolling || isHScrolling) && hasSentScrollDown) {
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
-        }
-        isVScrolling = false
-        isHScrolling = false
-        hasSentScrollDown = false
-        
-        isRightDragPending = false
-        isMoving = false
-        isResizing = false
-        isClicking = false
-        activeFingerDeviceId = -1
-        
-        if (!isDebugMode) {
-            if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-            else updateBorderColor(0x55FFFFFF.toInt())
-        }
-    }
-    
-    private fun initCustomKeyboard() {
-        if (windowManager == null || shellService == null) return
-        keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId)
-        keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId)
-    }
-    
-    private fun toggleCustomKeyboard() {
-        if (keyboardOverlay == null && shellService != null) initCustomKeyboard()
-        
-        if (keyboardOverlay != null) {
-            val wasVisible = keyboardOverlay?.isShowing() == true
-            if (wasVisible) keyboardOverlay?.hide()
-            keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId)
-            keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId)
-            if (!wasVisible) keyboardOverlay?.show()
-        } else {
-            keyboardOverlay?.toggle()
-        }
-        
-        isCustomKeyboardVisible = keyboardOverlay?.isShowing() ?: false
-        if (isCustomKeyboardVisible) { 
-            updateBorderColor(0xFF9C27B0.toInt()) 
-        } else { 
-            if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-            else updateBorderColor(0x55FFFFFF.toInt()) 
-        }
-        vibrate()
-    }
-
-    private fun toggleDebugMode() { 
-        isDebugMode = !isDebugMode
-        if (isDebugMode) { 
-            showToast("Debug ON")
-            updateBorderColor(0xFFFFFF00.toInt()) 
-            debugTextView?.visibility = View.VISIBLE
-        } else { 
-            showToast("Debug OFF")
-            if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-            else updateBorderColor(0x55FFFFFF.toInt()) 
-            debugTextView?.visibility = View.GONE
-        } 
-    }
-    
-    private fun resetCursorCenter() { 
-        cursorX = (targetScreenWidth / 2).toFloat()
-        cursorY = (targetScreenHeight / 2).toFloat()
-        // Don't inject hover on reset - just update visual
-        if (inputTargetDisplayId == currentDisplayId) { 
-            cursorParams.x = cursorX.toInt()
-            cursorParams.y = cursorY.toInt()
-            try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {} 
-        } else { 
-            remoteCursorParams.x = cursorX.toInt()
-            remoteCursorParams.y = cursorY.toInt()
-            try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {} 
-        }
-        showToast("Reset to ${cursorX.toInt()}x${cursorY.toInt()}")
-        vibrate() 
-    }
-    
-    private fun handleManualAdjust(intent: Intent) { 
-        if (windowManager == null || trackpadLayout == null) return
-        val dx = intent.getIntExtra("DX", 0)
-        val dy = intent.getIntExtra("DY", 0)
-        val dw = intent.getIntExtra("DW", 0)
-        val dh = intent.getIntExtra("DH", 0)
-        trackpadParams.x += dx
-        trackpadParams.y += dy
-        trackpadParams.width = max(200, trackpadParams.width + dw)
-        trackpadParams.height = max(200, trackpadParams.height + dh)
-        try { 
-            windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
-            saveLayout() 
-        } catch (e: Exception) {} 
-    }
-    
-    private fun removeOverlays() { 
-        try { 
-            keyboardOverlay?.hide()
-            if (trackpadLayout != null) { 
-                windowManager?.removeView(trackpadLayout)
-                trackpadLayout = null 
-            }
-            if (cursorLayout != null) { 
-                windowManager?.removeView(cursorLayout)
-                cursorLayout = null 
-            }
-            removeRemoteCursor()
-        } catch (e: Exception) {} 
-    }
-
-    private fun setupWindows(displayId: Int) {
-        if (trackpadLayout != null && displayId == currentDisplayId) return
+    private fun setDisplayId(event: MotionEvent, displayId: Int) {
         try {
-            updateUiMetrics(displayId)
-            if (uiScreenWidth == 0) updateUiMetrics(displayId)
-            val displayContext = createDisplayContext(displayManager!!.getDisplay(displayId))
-            windowManager = displayContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            currentDisplayId = displayId
-            inputTargetDisplayId = displayId
-            currentOverlayDisplayId = displayId
-            targetScreenWidth = uiScreenWidth
-            targetScreenHeight = uiScreenHeight
-            
-            // CURSOR WINDOW
-            cursorLayout = FrameLayout(displayContext)
-            cursorView = ImageView(displayContext)
-            cursorView?.setImageResource(R.drawable.ic_cursor)
-            val size = if (prefCursorSize > 0) prefCursorSize else 50
-            cursorLayout?.addView(cursorView, FrameLayout.LayoutParams(size, size))
-            cursorParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or 
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT
-            )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { 
-                cursorParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES 
-            }
-            cursorParams.gravity = Gravity.TOP or Gravity.LEFT
-            cursorX = uiScreenWidth / 2f
-            cursorY = uiScreenHeight / 2f
-            cursorParams.x = cursorX.toInt()
-            cursorParams.y = cursorY.toInt()
-            windowManager?.addView(cursorLayout, cursorParams)
+            val method = MotionEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
+            method.invoke(event, displayId)
+        } catch (e: Exception) {}
+    }
 
-            // TRACKPAD WINDOW
-            trackpadLayout = FrameLayout(displayContext)
-            val bg = GradientDrawable()
-            bg.cornerRadius = 30f
-            trackpadLayout?.background = bg
-            updateBorderColor(0x55FFFFFF.toInt())
-            trackpadLayout?.isFocusable = true
-            trackpadLayout?.isFocusableInTouchMode = true
-            
-            handleContainers.clear()
-            handleVisuals.clear()
-            val handleColor = 0x15FFFFFF.toInt()
-            addHandle(displayContext, Gravity.TOP or Gravity.RIGHT, handleColor) { _, e -> moveWindow(e) }
-            addHandle(displayContext, Gravity.BOTTOM or Gravity.RIGHT, handleColor) { _, e -> resizeWindow(e) }
-            addHandle(displayContext, Gravity.BOTTOM or Gravity.LEFT, handleColor) { _, e -> openMenuHandle(e) }
-            addHandle(displayContext, Gravity.TOP or Gravity.LEFT, handleColor) { _, e -> keyboardHandle(e) }
-            addScrollBars(displayContext)
-            
-            // DEBUG TEXT
-            debugTextView = TextView(displayContext)
-            debugTextView?.text = "DEBUG"
-            debugTextView?.setTextColor(Color.YELLOW)
-            debugTextView?.setBackgroundColor(0xAA000000.toInt())
-            debugTextView?.textSize = 9f
-            debugTextView?.visibility = View.GONE
-            val debugParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, 
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            )
-            debugParams.gravity = Gravity.CENTER
-            trackpadLayout?.addView(debugTextView, debugParams)
-
-            // TRACKPAD PARAMS
-            trackpadParams = WindowManager.LayoutParams(
-                400, 300,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or 
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
-                PixelFormat.TRANSLUCENT
-            )
-            trackpadParams.gravity = Gravity.TOP or Gravity.LEFT
-            trackpadParams.title = "TrackpadInput"
-            
-            loadOverlayPositionForDisplay(displayId)
-            
-            // GESTURE DETECTOR for single tap
-            val gestureDetector = GestureDetector(displayContext, object : GestureDetector.SimpleOnGestureListener() { 
-                override fun onSingleTapConfirmed(e: MotionEvent): Boolean { 
-                    if (!isTouchDragging && !isLeftKeyHeld && !isRightKeyHeld && 
-                        !isVScrolling && !isHScrolling && !isPreviewMode && 
-                        isTrackpadVisible && !isClicking) {
-                        performClick(false)
-                    }
-                    return true 
-                } 
-            })
-            
-            // MAIN TOUCH LISTENER
-            trackpadLayout?.setOnTouchListener { _, event -> 
-                val devId = event.deviceId
-                val tool = event.getToolType(0)
-                val action = event.actionMasked
-                
-                // Debug logging
-                if (isDebugMode) {
-                    val toolName = when(tool) {
-                        MotionEvent.TOOL_TYPE_FINGER -> "FNGR"
-                        MotionEvent.TOOL_TYPE_MOUSE -> "MOUS"
-                        MotionEvent.TOOL_TYPE_STYLUS -> "STYL"
-                        else -> "?$tool"
-                    }
-                    val actionName = when(action) {
-                        MotionEvent.ACTION_DOWN -> "DOWN"
-                        MotionEvent.ACTION_MOVE -> "MOVE"
-                        MotionEvent.ACTION_UP -> "UP"
-                        MotionEvent.ACTION_CANCEL -> "CNCL"
-                        else -> "?$action"
-                    }
-                    val state = "D:$isTouchDragging L:$isLeftKeyHeld R:$isRightKeyHeld sent:$hasSentTouchDown"
-                    debugTextView?.text = "$actionName $toolName id:$devId\n$state\nCUR:${cursorX.toInt()},${cursorY.toInt()}"
-                }
-                
-                // FILTER 1: Only accept FINGER tool type
-                if (tool != MotionEvent.TOOL_TYPE_FINGER) {
-                    return@setOnTouchListener false
-                }
-                
-                // FILTER 2: Reject device ID <= 0 (synthetic/system events)
-                if (devId <= 0) {
-                    // If we get a cancel with ID -1, clean up our state
-                    if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
-                        if (activeFingerDeviceId > 0) {
-                            Log.w(TAG, "Synthetic cancel received (id=$devId), cleaning up state")
-                            cleanupAfterCancel()
-                        }
-                    }
-                    return@setOnTouchListener false
-                }
-                
-                // FILTER 3: Track active finger - only process events from the finger that started the gesture
-                when (action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        activeFingerDeviceId = devId
-                    }
-                    MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (activeFingerDeviceId > 0 && devId != activeFingerDeviceId) {
-                            // Different finger/device - ignore
-                            return@setOnTouchListener false
-                        }
-                    }
-                }
-                
-                // Skip if clicking animation in progress
-                if (isClicking) return@setOnTouchListener true
-                
-                // Process input if trackpad is active
-                if (!isPreviewMode && isTrackpadVisible) {
-                    gestureDetector.onTouchEvent(event)
-                    handleTrackpadTouch(event)
-                }
-                true 
-            }
-            
-            windowManager?.addView(trackpadLayout, trackpadParams)
-            loadLayout()
-            
-            if (shellService != null) initCustomKeyboard()
-        } catch (e: Exception) { 
-            Log.e(TAG, "Setup Windows Crash", e) 
-        }
-    }
-    
-    /**
-     * Called when we receive a synthetic cancel event (device ID -1 or 0)
-     * This cleans up state without sending injection commands that could cause more issues
-     */
-    private fun cleanupAfterCancel() {
-        handler.removeCallbacks(longPressRunnable)
-        handler.removeCallbacks(resizeLongPressRunnable)
-        handler.removeCallbacks(moveLongPressRunnable)
-        handler.removeCallbacks(voiceRunnable)
-        
-        // Send UP events for any active drags to clean up remote state
-        if (isTouchDragging && hasSentTouchDown) {
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
-        }
-        if ((isVScrolling || isHScrolling) && hasSentScrollDown) {
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
-        }
-        
-        // Reset all state
-        isTouchDragging = false
-        hasSentTouchDown = false
-        isVScrolling = false
-        isHScrolling = false
-        hasSentScrollDown = false
-        isMoving = false
-        isResizing = false
-        activeFingerDeviceId = -1
-        
-        // Update border color
-        if (!isDebugMode) {
-            if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-            else updateBorderColor(0x55FFFFFF.toInt())
-        }
-    }
-    
-    private fun loadOverlayPositionForDisplay(displayId: Int) {
-        currentOverlayDisplayId = displayId
-        val prefs = getSharedPreferences("TrackpadPrefs", MODE_PRIVATE)
-        
-        val defaultX = (uiScreenWidth - 400) / 2
-        val defaultY = (uiScreenHeight - 300) / 2
-        
-        if (prefs.contains("overlay_x_d$displayId")) {
-            trackpadParams.x = prefs.getInt("overlay_x_d$displayId", defaultX)
-            trackpadParams.y = prefs.getInt("overlay_y_d$displayId", defaultY)
-            trackpadParams.width = prefs.getInt("overlay_width_d$displayId", 400)
-            trackpadParams.height = prefs.getInt("overlay_height_d$displayId", 300)
-        } else {
-            trackpadParams.x = defaultX
-            trackpadParams.y = defaultY
-            trackpadParams.width = 400
-            trackpadParams.height = 300
-        }
-    }
-    
-    private fun saveOverlayPosition() {
-        val prefs = getSharedPreferences("TrackpadPrefs", MODE_PRIVATE)
-        prefs.edit()
-            .putInt("overlay_x_d$currentOverlayDisplayId", trackpadParams.x)
-            .putInt("overlay_y_d$currentOverlayDisplayId", trackpadParams.y)
-            .apply()
-    }
-    
-    private fun saveOverlaySize() {
-        val prefs = getSharedPreferences("TrackpadPrefs", MODE_PRIVATE)
-        prefs.edit()
-            .putInt("overlay_width_d$currentOverlayDisplayId", trackpadParams.width)
-            .putInt("overlay_height_d$currentOverlayDisplayId", trackpadParams.height)
-            .apply()
-    }
-    
-    private fun createRemoteCursor(displayId: Int) { 
-        try { 
-            removeRemoteCursor()
-            val display = displayManager?.getDisplay(displayId) ?: return
-            val remoteContext = createDisplayContext(display)
-            remoteWindowManager = remoteContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            remoteCursorLayout = FrameLayout(remoteContext)
-            remoteCursorView = ImageView(remoteContext)
-            remoteCursorView?.setImageResource(R.drawable.ic_cursor)
-            val size = if (prefCursorSize > 0) prefCursorSize else 50
-            remoteCursorLayout?.addView(remoteCursorView, FrameLayout.LayoutParams(size, size))
-            remoteCursorParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or 
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT
-            )
-            remoteCursorParams.gravity = Gravity.TOP or Gravity.LEFT
-            val metrics = android.util.DisplayMetrics()
-            display.getRealMetrics(metrics)
-            remoteCursorParams.x = metrics.widthPixels / 2
-            remoteCursorParams.y = metrics.heightPixels / 2
-            remoteWindowManager?.addView(remoteCursorLayout, remoteCursorParams) 
-        } catch (e: Exception) { 
-            Log.e(TAG, "Failed to create remote cursor", e)
-            showToast("Failed to draw on Display $displayId") 
-        } 
-    }
-    
-    private fun removeRemoteCursor() { 
-        try { 
-            if (remoteCursorLayout != null && remoteWindowManager != null) { 
-                remoteWindowManager?.removeView(remoteCursorLayout) 
-            } 
-        } catch(e: Exception) {}
-        remoteCursorLayout = null
-        remoteCursorView = null
-        remoteWindowManager = null 
-    }
-    
-    private fun updateCursorSize() { 
-        val size = if (prefCursorSize > 0) prefCursorSize else 50
-        cursorView?.layoutParams?.let { lp ->
-            lp.width = size
-            lp.height = size
-            cursorView?.layoutParams = lp
-        }
-        remoteCursorView?.layoutParams?.let { lp ->
-            lp.width = size
-            lp.height = size
-            remoteCursorView?.layoutParams = lp
-        }
-    }
-    
-    private fun getProfileKey(): String { 
-        if (uiScreenHeight == 0) return "profile_1.0"
-        val ratio = uiScreenWidth.toFloat() / uiScreenHeight.toFloat()
-        return "profile_" + String.format("%.1f", ratio) 
-    }
-    
-    private fun saveLayout() { 
-        if (trackpadLayout == null || uiScreenWidth == 0 || uiScreenHeight == 0) return
-        val key = getProfileKey()
-        lastLoadedProfileKey = key
-        val xPct = trackpadParams.x.toFloat() / uiScreenWidth.toFloat()
-        val yPct = trackpadParams.y.toFloat() / uiScreenHeight.toFloat()
-        val wPct = trackpadParams.width.toFloat() / uiScreenWidth.toFloat()
-        val hPct = trackpadParams.height.toFloat() / uiScreenHeight.toFloat()
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        p.edit()
-            .putFloat("${key}_xp", xPct)
-            .putFloat("${key}_yp", yPct)
-            .putFloat("${key}_wp", wPct)
-            .putFloat("${key}_hp", hPct)
-            .putBoolean("${key}_saved", true)
-            .apply()
-        saveOverlayPosition()
-        saveOverlaySize()
-        vibrate() 
-    }
-    
-    private fun loadLayout() { 
-        if (trackpadLayout == null || windowManager == null) return
-        val key = getProfileKey()
-        lastLoadedProfileKey = key
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        if (p.getBoolean("${key}_saved", false)) { 
-            val xPct = p.getFloat("${key}_xp", 0.1f)
-            val yPct = p.getFloat("${key}_yp", 0.1f)
-            val wPct = p.getFloat("${key}_wp", 0.5f)
-            val hPct = p.getFloat("${key}_hp", 0.4f)
-            val calcW = (wPct * uiScreenWidth).toInt()
-            val calcH = (hPct * uiScreenHeight).toInt()
-            trackpadParams.width = calcW.coerceAtLeast(300)
-            trackpadParams.height = calcH.coerceAtLeast(300)
-            trackpadParams.x = (xPct * uiScreenWidth).toInt()
-            trackpadParams.y = (yPct * uiScreenHeight).toInt() 
-        } else { 
-            trackpadParams.width = 400
-            trackpadParams.height = 300
-            trackpadParams.x = (uiScreenWidth / 2) - 200
-            trackpadParams.y = (uiScreenHeight / 2) - 150 
-        }
-        try { 
-            windowManager?.updateViewLayout(trackpadLayout, trackpadParams) 
-        } catch (e: Exception) {} 
-    }
-    
-    private fun deleteCurrentProfile() { 
-        val key = getProfileKey()
-        getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-            .remove("${key}_saved")
-            .remove("${key}_xp")
-            .remove("${key}_yp")
-            .remove("${key}_wp")
-            .remove("${key}_hp")
-            .apply()
-        resetTrackpadPosition() 
-    }
-    
-    private fun resetTrackpadPosition() { 
-        if (windowManager == null || trackpadLayout == null) return
-        trackpadParams.width = 400
-        trackpadParams.height = 300
-        val centerX = (uiScreenWidth / 2) - 200
-        val centerY = (uiScreenHeight / 2) - 150
-        trackpadParams.x = if (centerX > 0) centerX else 100
-        trackpadParams.y = if (centerY > 0) centerY else 100
-        try { 
-            windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
-            vibrate() 
-        } catch (e: Exception) {} 
-    }
-    
-    private fun moveWindow(event: MotionEvent): Boolean { 
-        if (prefLocked) return true
-        when (event.action) { 
-            MotionEvent.ACTION_DOWN -> { 
-                handler.postDelayed(moveLongPressRunnable, 1000)
-                initialWindowX = trackpadParams.x
-                initialWindowY = trackpadParams.y
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                return true 
-            }
-            MotionEvent.ACTION_MOVE -> { 
-                if (isMoving) { 
-                    trackpadParams.x = initialWindowX + (event.rawX - initialTouchX).toInt()
-                    trackpadParams.y = initialWindowY + (event.rawY - initialTouchY).toInt()
-                    windowManager?.updateViewLayout(trackpadLayout, trackpadParams) 
-                } else if (abs(event.rawX - initialTouchX) > 20) {
-                    handler.removeCallbacks(moveLongPressRunnable)
-                }
-                return true 
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
-                handler.removeCallbacks(moveLongPressRunnable)
-                if (isMoving) stopMove()
-                return true 
-            } 
-        }
-        return false 
-    }
-    
-    private fun startMove() { 
-        isMoving = true
-        vibrate()
-        updateBorderColor(0xFF0000FF.toInt()) 
-    }
-    
-    private fun stopMove() { 
-        isMoving = false
-        saveOverlayPosition()
-        if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-        else updateBorderColor(0x55FFFFFF.toInt()) 
-    }
-    
-    private fun resizeWindow(event: MotionEvent): Boolean { 
-        if (prefLocked) return true
-        when (event.action) { 
-            MotionEvent.ACTION_DOWN -> { 
-                handler.postDelayed(resizeLongPressRunnable, 1000)
-                initialWindowWidth = trackpadParams.width
-                initialWindowHeight = trackpadParams.height
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                return true 
-            }
-            MotionEvent.ACTION_MOVE -> { 
-                if (isResizing) { 
-                    val deltaX = event.rawX - initialTouchX
-                    val deltaY = event.rawY - initialTouchY
-                    val newWidth = (initialWindowWidth + deltaX).toInt()
-                    val newHeight = (initialWindowHeight + deltaY).toInt()
-                    trackpadParams.width = max(300, newWidth)
-                    trackpadParams.height = max(300, newHeight)
-                    windowManager?.updateViewLayout(trackpadLayout, trackpadParams) 
-                } else if (abs(event.rawX - initialTouchX) > 20) {
-                    handler.removeCallbacks(resizeLongPressRunnable)
-                }
-                return true 
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
-                handler.removeCallbacks(resizeLongPressRunnable)
-                if (isResizing) stopResize()
-                return true 
-            } 
-        }
-        return false 
-    }
-    
-    private fun startResize() { 
-        isResizing = true
-        vibrate()
-        updateBorderColor(0xFF0000FF.toInt()) 
-    }
-    
-    private fun stopResize() { 
-        isResizing = false
-        saveOverlaySize()
-        if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-        else updateBorderColor(0x55FFFFFF.toInt()) 
-    }
-    
-    /**
-     * Check if cursor is currently inside the trackpad window bounds (on same display)
-     */
-    private fun isCursorOverTrackpad(): Boolean {
-        if (inputTargetDisplayId != currentDisplayId) return false
-        if (trackpadLayout == null) return false
-        
-        val tX = trackpadParams.x.toFloat()
-        val tY = trackpadParams.y.toFloat()
-        val tW = trackpadParams.width.toFloat()
-        val tH = trackpadParams.height.toFloat()
-        
-        return cursorX >= tX && cursorX <= (tX + tW) && 
-               cursorY >= tY && cursorY <= (tY + tH)
-    }
-    
-    private fun handleTrackpadTouch(event: MotionEvent) {
-        val viewWidth = trackpadLayout?.width ?: 0
-        val viewHeight = trackpadLayout?.height ?: 0
-        
-        if (viewWidth == 0 || viewHeight == 0) return
-
-        when (event.actionMasked) { 
-            MotionEvent.ACTION_DOWN -> { 
-                isVScrolling = false
-                isHScrolling = false
-                isTouchDragging = false
-                handler.removeCallbacks(longPressRunnable)
-                
-                lastTouchX = event.x
-                lastTouchY = event.y
-                
-                val inVZone = if (prefVPosLeft) event.x < scrollZoneThickness else event.x > (viewWidth - scrollZoneThickness)
-                val inHZone = if (prefHPosTop) event.y < scrollZoneThickness else event.y > (viewHeight - scrollZoneThickness)
-                
-                if (inVZone) { 
-                    isVScrolling = true
-                    vibrate()
-                    updateBorderColor(0xFF00FFFF.toInt())
-                    virtualScrollX = cursorX
-                    virtualScrollY = cursorY
-                    dragDownTime = SystemClock.uptimeMillis()
-                    
-                    // Start simulated scroll (Touch Down)
-                    if (!isCursorOverTrackpad()) {
-                        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
-                        hasSentScrollDown = true
-                    }
-                } else if (inHZone) { 
-                    isHScrolling = true
-                    vibrate()
-                    updateBorderColor(0xFF00FFFF.toInt())
-                    virtualScrollX = cursorX
-                    virtualScrollY = cursorY
-                    dragDownTime = SystemClock.uptimeMillis()
-                    
-                    // Start simulated scroll (Touch Down)
-                    if (!isCursorOverTrackpad()) {
-                        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
-                        hasSentScrollDown = true
-                    }
-                } else {
-                    handler.postDelayed(longPressRunnable, 400) 
-                }
-            }
-            MotionEvent.ACTION_MOVE -> { 
-                val rawDx = (event.x - lastTouchX) * cursorSpeed
-                val rawDy = (event.y - lastTouchY) * cursorSpeed
-                
-                if (isVScrolling) { 
-                    // Simulate Touch Scroll (Drag)
-                    val dist = (event.y - lastTouchY) * scrollSpeed
-                    if (abs(dist) > 0) { 
-                        if (prefReverseScroll) virtualScrollY += dist else virtualScrollY -= dist
-                        if (hasSentScrollDown) {
-                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
-                        }
-                    } 
-                } else if (isHScrolling) { 
-                     // Simulate Touch Scroll (Drag)
-                    val dist = (event.x - lastTouchX) * scrollSpeed
-                    if (abs(dist) > 0) { 
-                        if (prefReverseScroll) virtualScrollX += dist else virtualScrollX -= dist
-                        if (hasSentScrollDown) {
-                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
-                        }
-                    } 
-                } else { 
-                    var finalDx = rawDx
-                    var finalDy = rawDy
-                    when (rotationAngle) { 
-                        90 -> { finalDx = -rawDy; finalDy = rawDx }
-                        180 -> { finalDx = -rawDx; finalDy = -rawDy } 
-                        270 -> { finalDx = rawDy; finalDy = -rawDx } 
-                    }
-                    
-                    // Cancel long press if moving significantly
-                    if (!isTouchDragging && (abs(rawDx) > 5 || abs(rawDy) > 5)) { 
-                        handler.removeCallbacks(longPressRunnable)
-                        if (isRightDragPending) { 
-                            isRightDragPending = false
-                            handler.removeCallbacks(voiceRunnable)
-                            isRightKeyHeld = true
-                            startKeyDrag(MotionEvent.BUTTON_SECONDARY) 
-                        } 
-                    }
-                    
-                    // Store old cursor position to check if we crossed trackpad boundary
-                    val wasOverTrackpad = isCursorOverTrackpad()
-                    
-                    // Update cursor position
-                    val safeW = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth.toFloat() else uiScreenWidth.toFloat()
-                    val safeH = if (inputTargetDisplayId != currentDisplayId) targetScreenHeight.toFloat() else uiScreenHeight.toFloat()
-                    
-                    val margin = 2f
-                    cursorX = (cursorX + finalDx).coerceIn(margin, safeW - margin)
-                    cursorY = (cursorY + finalDy).coerceIn(margin, safeH - margin)
-                    
-                    // Update visual cursor
-                    if (inputTargetDisplayId == currentDisplayId) { 
-                        cursorParams.x = cursorX.toInt()
-                        cursorParams.y = cursorY.toInt()
-                        try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {} 
-                    } else { 
-                        remoteCursorParams.x = cursorX.toInt()
-                        remoteCursorParams.y = cursorY.toInt()
-                        try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {} 
-                    }
-                    
-                    // Check if cursor is now over trackpad
-                    val nowOverTrackpad = isCursorOverTrackpad()
-                    
-                    // DEFERRED INJECTION: If we're dragging and cursor just exited trackpad, send DOWN now
-                    if (isTouchDragging && !hasSentTouchDown && wasOverTrackpad && !nowOverTrackpad) {
-                        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime)
-                        hasSentTouchDown = true
-                    }
-                    
-                    // Same for key drags
-                    if (isLeftKeyHeld && !hasSentMouseDown && wasOverTrackpad && !nowOverTrackpad) {
-                        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
-                        hasSentMouseDown = true
-                    }
-                    if (isRightKeyHeld && !hasSentMouseDown && wasOverTrackpad && !nowOverTrackpad) {
-                        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY, dragDownTime)
-                        hasSentMouseDown = true
-                    }
-                    
-                    // Only inject MOVE if cursor is outside trackpad AND we've sent DOWN
-                    if (!nowOverTrackpad) {
-                        if (isTouchDragging && hasSentTouchDown) {
-                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime)
-                        } else if (isLeftKeyHeld && hasSentMouseDown) {
-                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
-                        } else if (isRightKeyHeld && hasSentMouseDown) {
-                            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY, dragDownTime)
-                        } else if (!isTouchDragging && !isLeftKeyHeld && !isRightKeyHeld) {
-                            // ALWAYS INJECT HOVER MOVE
-                            injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
-                        }
-                    }
-                }
-                lastTouchX = event.x
-                lastTouchY = event.y 
-            }
-            MotionEvent.ACTION_UP -> { 
-                handler.removeCallbacks(longPressRunnable)
-                if (isTouchDragging) stopTouchDrag()
-                
-                if ((isVScrolling || isHScrolling) && hasSentScrollDown) { 
-                    injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
-                }
-                
-                isVScrolling = false
-                isHScrolling = false
-                hasSentScrollDown = false
-                activeFingerDeviceId = -1
-                
-                if (isDebugMode) { 
-                    showToast("Disp:$inputTargetDisplayId | X:${cursorX.toInt()} Y:${cursorY.toInt()}")
-                    updateBorderColor(0xFFFFFF00.toInt()) 
-                } else { 
-                    if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-                    else updateBorderColor(0x55FFFFFF.toInt()) 
-                } 
-            }
-            MotionEvent.ACTION_CANCEL -> {
-                // Cancel received - clean up but don't send injections (might cause loop)
-                handler.removeCallbacks(longPressRunnable)
-                isTouchDragging = false
-                hasSentTouchDown = false
-                isVScrolling = false
-                isHScrolling = false
-                hasSentScrollDown = false
-                activeFingerDeviceId = -1
-                
-                if (!isDebugMode) {
-                    if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-                    else updateBorderColor(0x55FFFFFF.toInt())
-                }
-            }
-        } 
-    }
-    
-    private fun performRotation() { 
-        rotationAngle = (rotationAngle + 90) % 360
-        cursorView?.rotation = rotationAngle.toFloat()
-        vibrate()
-        updateBorderColor(0xFFFFFF00.toInt())
-    }
-    
-    private fun startKeyDrag(button: Int) { 
-        vibrate()
-        updateBorderColor(0xFF00FF00.toInt())
-        dragDownTime = SystemClock.uptimeMillis()
-        // Only inject immediately if cursor is outside trackpad
-        if (!isCursorOverTrackpad()) {
-            injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, button, dragDownTime)
-            hasSentMouseDown = true
-        }
-        // Otherwise, hasSentMouseDown stays false and we'll send DOWN when cursor exits
-    }
-    
-    private fun stopKeyDrag(button: Int) { 
-        if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-        else updateBorderColor(0x55FFFFFF.toInt())
-        if (hasSentMouseDown) { 
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, button, dragDownTime) 
-        }
-        hasSentMouseDown = false
-    }
-    
-    private fun startTouchDrag() { 
-        isTouchDragging = true
-        vibrate()
-        updateBorderColor(0xFF00FF00.toInt())
-        pendingDragDownTime = SystemClock.uptimeMillis()
-        
-        // Only inject immediately if cursor is outside trackpad
-        if (!isCursorOverTrackpad()) {
-            injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime)
-            hasSentTouchDown = true
-        }
-        // Otherwise, hasSentTouchDown stays false and we'll send DOWN when cursor exits trackpad
-    }
-    
-    private fun stopTouchDrag() { 
-        isTouchDragging = false
-        if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
-        else updateBorderColor(0x55FFFFFF.toInt())
-        if (hasSentTouchDown) { 
-            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime) 
-        }
-        hasSentTouchDown = false
-    }
-    
-    private fun injectAction(action: Int, source: Int, buttonState: Int, downTime: Long, x: Float = cursorX, y: Float = cursorY) { 
-        if (shellService == null) return
-        
-        val dId = if (inputTargetDisplayId != -1) inputTargetDisplayId 
-                  else (cursorLayout?.display?.displayId ?: Display.DEFAULT_DISPLAY)
-        
-        // Fire and forget on background thread - no blocking
-        Thread {
-            try {
-                // Use CURRENT event time for the action, but preserve original downTime
-                shellService?.injectMouse(action, x, y, dId, source, buttonState, downTime)
-            } catch (e: Exception) {
-                Log.e(TAG, "Injection failed", e)
-            }
-        }.start()
-    }
-    
-    private fun injectScroll(vDist: Float, hDist: Float) { 
-        if (shellService == null) return
-        val dId = if (inputTargetDisplayId != -1) inputTargetDisplayId 
-                  else (cursorLayout?.display?.displayId ?: Display.DEFAULT_DISPLAY)
-        Thread {
-            try { 
-                shellService?.injectScroll(cursorX, cursorY, vDist, hDist, dId) 
-            } catch (e: Exception) {
-                Log.e(TAG, "Scroll injection failed", e)
-            }
-        }.start()
-    }
-    
-    private fun performClick(isRightClick: Boolean) { 
-        if (shellService == null) { 
-            bindShizuku()
-            return 
-        }
-        // CRITICAL: Only click if cursor is outside trackpad (on same display)
-        if (isCursorOverTrackpad()) {
-            if (isDebugMode) showToast("Click blocked - cursor over trackpad")
-            return
-        }
-        Thread {
-            try { 
-                if (isRightClick) {
-                    shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId) 
-                } else {
-                    shellService?.execClick(cursorX, cursorY, inputTargetDisplayId) 
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Click injection failed", e)
-            }
-        }.start()
-    }
-    
-    private fun cycleInputTarget() { 
-        if (displayManager == null) return
-        try { 
-            val displays = displayManager!!.displays
-            var nextId = -1
-            for (d in displays) { 
-                if (d.displayId != currentDisplayId) { 
-                    if (inputTargetDisplayId == currentDisplayId) { 
-                        nextId = d.displayId
-                        break 
-                    } else if (inputTargetDisplayId == d.displayId) { 
-                        continue 
-                    } else { 
-                        nextId = d.displayId 
-                    } 
-                } 
-            }
-            if (nextId == -1) { 
-                inputTargetDisplayId = currentDisplayId
-                targetScreenWidth = uiScreenWidth
-                targetScreenHeight = uiScreenHeight
-                removeRemoteCursor()
-                cursorX = (uiScreenWidth / 2).toFloat()
-                cursorY = (uiScreenHeight / 2).toFloat()
-                cursorParams.x = cursorX.toInt()
-                cursorParams.y = cursorY.toInt()
-                windowManager?.updateViewLayout(cursorLayout, cursorParams)
-                currentBorderColor = 0x55FFFFFF.toInt()
-                updateBorderColor(currentBorderColor)
-                cursorView?.visibility = View.VISIBLE
-                showToast("Target: Local (Display $currentDisplayId)")
-                vibrate()
-            } else { 
-                inputTargetDisplayId = nextId
-                updateTargetMetrics(nextId)
-                createRemoteCursor(nextId)
-                cursorX = (targetScreenWidth / 2).toFloat()
-                cursorY = (targetScreenHeight / 2).toFloat()
-                currentBorderColor = 0xFFFF00FF.toInt()
-                updateBorderColor(currentBorderColor)
-                cursorView?.visibility = View.GONE
-                showToast("Target: Display $nextId (${targetScreenWidth}x${targetScreenHeight})")
-                vibrate()
-                vibrate()
-            }
-            if (isCustomKeyboardVisible) { 
-                keyboardOverlay?.hide()
-                keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId)
-                keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId)
-                keyboardOverlay?.show() 
-            }
-        } catch (e: Exception) { 
-            Log.e(TAG, "Cycle Error", e) 
-        } 
-    }
-    
-    private fun showToast(msg: String) { 
-        handler.post { 
-            android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show() 
-        } 
-    }
-    
-    private fun vibrate() { 
-        if (!prefVibrate) return
-        val v = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        if (Build.VERSION.SDK_INT >= 26) {
-            v.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)) 
-        } else {
-            @Suppress("DEPRECATION")
-            v.vibrate(50) 
-        }
-    }
-    
-    private fun bindShizuku() { 
-        try { 
-            val c = ComponentName(packageName, ShellUserService::class.java.name)
-            ShizukuBinder.bind(c, userServiceConnection, BuildConfig.DEBUG, BuildConfig.VERSION_CODE) 
-        } catch (e: Exception) {
-            Log.e(TAG, "Shizuku bind failed", e)
-        } 
-    }
-    
-    private fun createNotification() { 
-        val channel = NotificationChannel("overlay_service", "Trackpad Active", NotificationManager.IMPORTANCE_LOW)
-        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
-        val notification = Notification.Builder(this, "overlay_service")
-            .setContentTitle("Trackpad Active")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .build()
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) 
-        } else {
-            startForeground(1, notification) 
-        }
-    }
-    
-    override fun onDestroy() { 
-        super.onDestroy()
-        try { unregisterReceiver(switchReceiver) } catch(e: Exception) {}
-        displayManager?.unregisterDisplayListener(this)
-        if (trackpadLayout != null) windowManager?.removeView(trackpadLayout)
-        if (cursorLayout != null) windowManager?.removeView(cursorLayout)
-        removeRemoteCursor()
-        if (isBound) {
-            ShizukuBinder.unbind(
-                ComponentName(packageName, ShellUserService::class.java.name), 
-                userServiceConnection
-            )
-        }
-    }
-    
-    private fun toggleKeyboardMode() { 
-        vibrate()
-        isRightDragPending = false
-        if (!isKeyboardMode) { 
-            isKeyboardMode = true
-            savedWindowX = trackpadParams.x
-            savedWindowY = trackpadParams.y
-            trackpadParams.x = uiScreenWidth - trackpadParams.width
-            trackpadParams.y = 0
-            windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
-            updateBorderColor(0xFFFF0000.toInt()) 
-        } else { 
-            isKeyboardMode = false
-            trackpadParams.x = savedWindowX
-            trackpadParams.y = savedWindowY
-            windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
-            updateBorderColor(currentBorderColor) 
-        } 
-    }
-    
-    private fun openMenuHandle(event: MotionEvent): Boolean { 
-        if (event.action == MotionEvent.ACTION_DOWN) { 
-            vibrate()
-            val intent = Intent(this, MainActivity::class.java).apply { 
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) 
-            }
-            startActivity(intent)
-            return true 
-        }
-        return false 
-    }
-    
-    private fun keyboardHandle(event: MotionEvent): Boolean {
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> { 
-                keyboardHandleDownTime = SystemClock.uptimeMillis()
-                handler.postDelayed(keyboardLongPressRunnable, 800)
-                return true 
-            }
-            MotionEvent.ACTION_UP -> { 
-                handler.removeCallbacks(keyboardLongPressRunnable)
-                if (SystemClock.uptimeMillis() - keyboardHandleDownTime < 800) { 
-                    toggleCustomKeyboard() 
-                }
-                return true 
-            }
-            MotionEvent.ACTION_CANCEL -> { 
-                handler.removeCallbacks(keyboardLongPressRunnable)
-                return true 
-            }
-        }
-        return false
-    }
-    
-    private fun loadPrefs() { 
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        cursorSpeed = p.getFloat("cursor_speed", 2.5f)
-        scrollSpeed = p.getFloat("scroll_speed", 3.0f)
-        prefVibrate = p.getBoolean("vibrate", true)
-        prefReverseScroll = p.getBoolean("reverse_scroll", true)
-        prefAlpha = p.getInt("alpha", 200)
-        prefLocked = p.getBoolean("lock_position", false)
-        prefVPosLeft = p.getBoolean("v_pos_left", false)
-        prefHPosTop = p.getBoolean("h_pos_top", false)
-        prefHandleTouchSize = p.getInt("handle_touch_size", 60)
-        prefScrollTouchSize = p.getInt("scroll_touch_size", 60)
-        prefHandleSize = p.getInt("handle_size", 60)
-        prefScrollVisualSize = p.getInt("scroll_visual_size", 4)
-        scrollZoneThickness = prefScrollTouchSize
-        prefCursorSize = p.getInt("cursor_size", 50) 
-    }
-    
-    private fun handlePreview(intent: Intent) { 
-        val target = intent.getStringExtra("TARGET")
-        val value = intent.getIntExtra("VALUE", 0)
-        handler.removeCallbacks(clearHighlightsRunnable)
-        when (target) { 
-            "alpha" -> { 
-                prefAlpha = value
-                highlightAlpha = true
-                updateBorderColor(currentBorderColor) 
-            }
-            "handle_touch" -> { 
-                prefHandleTouchSize = value
-                highlightHandles = true
-                updateLayoutSizes() 
-            }
-            "scroll_touch" -> { 
-                prefScrollTouchSize = value
-                scrollZoneThickness = value
-                highlightScrolls = true
-                updateLayoutSizes()
-                updateScrollPosition() 
-            }
-            "handle_size" -> { 
-                prefHandleSize = value
-                highlightHandles = true
-                updateHandleSize() 
-            }
-            "scroll_visual" -> { 
-                prefScrollVisualSize = value
-                highlightScrolls = true
-                updateLayoutSizes() 
-            }
-            "cursor_size" -> { 
-                prefCursorSize = value
-                updateCursorSize() 
-            } 
-        }
-        handler.postDelayed(clearHighlightsRunnable, 1500) 
-    }
-    
-    private fun addHandle(context: Context, gravity: Int, color: Int, onTouch: (View, MotionEvent) -> Boolean) { 
-        val container = FrameLayout(context)
-        val containerParams = FrameLayout.LayoutParams(prefHandleTouchSize, prefHandleTouchSize)
-        containerParams.gravity = gravity
-        
-        val visual = View(context)
-        val bg = GradientDrawable()
-        bg.setColor(color)
-        bg.cornerRadii = floatArrayOf(15f, 15f, 15f, 15f, 15f, 15f, 15f, 15f)
-        visual.background = bg
-        
-        val visualParams = FrameLayout.LayoutParams(prefHandleSize, prefHandleSize)
-        visualParams.gravity = Gravity.CENTER
-        container.addView(visual, visualParams)
-        
-        handleVisuals.add(visual)
-        handleContainers.add(container)
-        trackpadLayout?.addView(container, containerParams)
-        container.setOnTouchListener { view, e -> onTouch(view, e) } 
-    }
-    
-    private fun updateHandleSize() { 
-        for (v in handleVisuals) { 
-            val p = v.layoutParams
-            p.width = prefHandleSize
-            p.height = prefHandleSize
-            v.layoutParams = p 
-        } 
-    }
-    
-    private fun updateLayoutSizes() { 
-        for (c in handleContainers) { 
-            val p = c.layoutParams
-            p.width = prefHandleTouchSize
-            p.height = prefHandleTouchSize
-            c.layoutParams = p 
-        }
-        updateScrollPosition() 
-    }
-    
-    private fun addScrollBars(context: Context) { 
-        val margin = prefHandleTouchSize + 10
-        
-        vScrollContainer = FrameLayout(context)
-        val vParams = FrameLayout.LayoutParams(prefScrollTouchSize, FrameLayout.LayoutParams.MATCH_PARENT)
-        vParams.gravity = if (prefVPosLeft) Gravity.LEFT else Gravity.RIGHT
-        vParams.setMargins(0, margin, 0, margin)
-        trackpadLayout?.addView(vScrollContainer, vParams)
-        
-        vScrollVisual = View(context)
-        vScrollVisual!!.setBackgroundColor(0x30FFFFFF.toInt())
-        val vvParams = FrameLayout.LayoutParams(prefScrollVisualSize, FrameLayout.LayoutParams.MATCH_PARENT)
-        vvParams.gravity = Gravity.CENTER_HORIZONTAL
-        vScrollContainer?.addView(vScrollVisual, vvParams)
-        
-        hScrollContainer = FrameLayout(context)
-        val hParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, prefScrollTouchSize)
-        hParams.gravity = if (prefHPosTop) Gravity.TOP else Gravity.BOTTOM
-        hParams.setMargins(margin, 0, margin, 0)
-        trackpadLayout?.addView(hScrollContainer, hParams)
-        
-        hScrollVisual = View(context)
-        hScrollVisual!!.setBackgroundColor(0x30FFFFFF.toInt())
-        val hvParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, prefScrollVisualSize)
-        hvParams.gravity = Gravity.CENTER_VERTICAL
-        hScrollContainer?.addView(hScrollVisual, hvParams) 
-    }
-    
-    private fun updateScrollPosition() { 
-        val margin = prefHandleTouchSize + 10
-        vScrollContainer?.let { container ->
-            val vp = container.layoutParams as FrameLayout.LayoutParams
-            vp.gravity = if (prefVPosLeft) Gravity.LEFT else Gravity.RIGHT
-            vp.setMargins(0, margin, 0, margin)
-            container.layoutParams = vp 
-        }
-        hScrollContainer?.let { container ->
-            val hp = container.layoutParams as FrameLayout.LayoutParams
-            hp.gravity = if (prefHPosTop) Gravity.TOP else Gravity.BOTTOM
-            hp.setMargins(margin, 0, margin, 0)
-            container.layoutParams = hp 
-        }
-    }
-    
-    private fun updateBorderColor(strokeColor: Int) { 
-        currentBorderColor = strokeColor
-        val bg = trackpadLayout?.background as? GradientDrawable ?: return
-        bg.setColor(Color.TRANSPARENT)
-        val colorWithAlpha = (strokeColor and 0x00FFFFFF) or (prefAlpha shl 24)
-        bg.setStroke(4, if (highlightAlpha) 0xFF00FF00.toInt() else colorWithAlpha)
-        trackpadLayout?.invalidate() 
+    private fun injectInternal(action: Int, x: Float, y: Float, displayId: Int, downTime: Long, eventTime: Long, source: Int, buttonState: Int) {
+        if (!this::inputManager.isInitialized || !this::injectInputEventMethod.isInitialized) return
+        val props = MotionEvent.PointerProperties(); props.id = 0
+        props.toolType = if (source == InputDevice.SOURCE_MOUSE) MotionEvent.TOOL_TYPE_MOUSE else MotionEvent.TOOL_TYPE_FINGER
+        val coords = MotionEvent.PointerCoords(); coords.x = x; coords.y = y
+        coords.pressure = if (buttonState != 0 || action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE) 1.0f else 0.0f; coords.size = 1.0f
+        var event: MotionEvent? = null
+        try {
+            event = MotionEvent.obtain(downTime, eventTime, action, 1, arrayOf(props), arrayOf(coords), 0, buttonState, 1.0f, 1.0f, 0, 0, source, 0)
+            setDisplayId(event, displayId)
+            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
+        } catch (e: Exception) { Log.e(TAG, "Injection failed", e) } finally { event?.recycle() }
     }
 }
 ````
@@ -17305,6 +15826,1206 @@ class FloatingLauncherService : Service() {
             else if (holder is WidthHolder && item is WidthOption) { holder.textVal.text = item.currentPercent.toString(); holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }; holder.btnPlus.setOnClickListener { changeDrawerWidth(5) } }
         }
         override fun getItemCount() = displayList.size
+    }
+}
+````
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
+````kotlin
+package com.example.coverscreentester
+
+import android.accessibilityservice.AccessibilityService
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.BroadcastReceiver
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.ServiceConnection
+import android.content.pm.ServiceInfo
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
+import android.hardware.display.DisplayManager
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.util.Log
+import android.view.Display
+import android.view.GestureDetector
+import android.view.Gravity
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.TextView
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import java.util.ArrayList
+import com.example.coverscreentester.BuildConfig
+
+class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
+
+    private var windowManager: WindowManager? = null
+    private var displayManager: DisplayManager? = null
+    private var trackpadLayout: FrameLayout? = null
+    private lateinit var trackpadParams: WindowManager.LayoutParams
+    private var cursorLayout: FrameLayout? = null
+    private var cursorView: ImageView? = null
+    private lateinit var cursorParams: WindowManager.LayoutParams
+    
+    private var debugTextView: TextView? = null
+    
+    private var remoteWindowManager: WindowManager? = null
+    private var remoteCursorLayout: FrameLayout? = null
+    private var remoteCursorView: ImageView? = null
+    private lateinit var remoteCursorParams: WindowManager.LayoutParams
+    
+    private var shellService: IShellService? = null
+    private var isBound = false
+    
+    private var keyboardOverlay: KeyboardOverlay? = null
+    private var isCustomKeyboardVisible = false
+    
+    private var isTrackpadVisible = true
+    private var isPreviewMode = false
+    
+    private var currentOverlayDisplayId = 0
+    private var currentDisplayId = -1 
+    private var inputTargetDisplayId = -1
+    private var lastLoadedProfileKey = ""
+
+    private var uiScreenWidth = 1080
+    private var uiScreenHeight = 2640
+    private var targetScreenWidth = 1920
+    private var targetScreenHeight = 1080
+
+    private var cursorX = 300f
+    private var cursorY = 300f
+    private var virtualScrollX = 0f
+    private var virtualScrollY = 0f
+    private var rotationAngle = 0 
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+    
+    private var initialWindowX = 0
+    private var initialWindowY = 0
+    private var initialWindowWidth = 0
+    private var initialWindowHeight = 0
+    private var initialTouchX = 0f
+    private var initialTouchY = 0f
+    
+    private var isTouchDragging = false
+    private var isLeftKeyHeld = false
+    private var isRightKeyHeld = false
+    private var isRightDragPending = false 
+    private var isVScrolling = false
+    private var isHScrolling = false
+    private var dragDownTime: Long = 0L
+    
+    private var isClicking = false
+
+    private var hasSentTouchDown = false
+    private var hasSentMouseDown = false
+    private var hasSentScrollDown = false
+    
+    private var activeFingerDeviceId = -1
+    private var pendingDragDownTime: Long = 0L
+    
+    private var cursorSpeed = 2.5f
+    private var scrollSpeed = 3.0f 
+    private var scrollZoneThickness = 24 // Reduced default from 30
+    private var prefVibrate = true
+    private var prefReverseScroll = true
+    private var prefAlpha = 200
+    private var prefHandleSize = 60 
+    private var prefVPosLeft = false
+    private var prefHPosTop = false
+    private var prefLocked = false
+    private var prefHandleTouchSize = 45 // Reduced default from 60
+    private var prefScrollTouchSize = 24 // Reduced default from 60
+    private var prefScrollVisualSize = 4
+    private var prefCursorSize = 50
+    private var prefKeyScale = 100 
+    
+    private var isDebugMode = false
+    private var isKeyboardMode = false 
+    private var savedWindowX = 0
+    private var savedWindowY = 0
+    
+    private var currentBorderColor = 0xFFFFFFFF.toInt()
+    private var highlightAlpha = false
+    private var highlightHandles = false
+    private var highlightScrolls = false
+    
+    private val handleContainers = ArrayList<FrameLayout>()
+    private val handleVisuals = ArrayList<View>()
+    private var vScrollContainer: FrameLayout? = null
+    private var hScrollContainer: FrameLayout? = null
+    private var vScrollVisual: View? = null
+    private var hScrollVisual: View? = null
+    
+    private val handler = Handler(Looper.getMainLooper())
+    private val longPressRunnable = Runnable { startTouchDrag() }
+    private var isResizing = false
+    private val resizeLongPressRunnable = Runnable { startResize() }
+    private var isMoving = false
+    private val moveLongPressRunnable = Runnable { startMove() }
+    private val voiceRunnable = Runnable { toggleKeyboardMode() }
+    
+    private var keyboardHandleDownTime = 0L
+    private val keyboardLongPressRunnable = Runnable { toggleKeyboardMode() }
+    
+    private val clearHighlightsRunnable = Runnable {
+        highlightAlpha = false; highlightHandles = false; highlightScrolls = false
+        updateBorderColor(currentBorderColor); updateLayoutSizes() 
+    }
+    
+    private val switchReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                "CYCLE_INPUT_TARGET" -> cycleInputTarget()
+                "RESET_CURSOR" -> resetCursorCenter()
+                "TOGGLE_DEBUG" -> toggleDebugMode()
+                "FORCE_KEYBOARD" -> toggleCustomKeyboard()
+                "TOGGLE_CUSTOM_KEYBOARD" -> toggleCustomKeyboard()
+                "SET_TRACKPAD_VISIBILITY" -> {
+                    val visible = intent.getBooleanExtra("VISIBLE", true)
+                    val menuDisplayId = intent.getIntExtra("MENU_DISPLAY_ID", -1)
+                    if (visible) {
+                        setTrackpadVisibility(true)
+                    } else {
+                        if (menuDisplayId == -1 || menuDisplayId == currentDisplayId) {
+                            setTrackpadVisibility(false)
+                        }
+                    }
+                }
+                "SET_PREVIEW_MODE" -> {
+                    val preview = intent.getBooleanExtra("PREVIEW_MODE", false)
+                    setPreviewMode(preview)
+                }
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "OverlayService"
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onInterrupt() {}
+
+    override fun onKeyEvent(event: KeyEvent): Boolean {
+        if (isPreviewMode || !isTrackpadVisible) return super.onKeyEvent(event)
+        
+        val action = event.action
+        val keyCode = event.keyCode
+        
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            if (action == KeyEvent.ACTION_DOWN) { 
+                if (!isLeftKeyHeld) { 
+                    isLeftKeyHeld = true
+                    startKeyDrag(MotionEvent.BUTTON_PRIMARY) 
+                } 
+            } else if (action == KeyEvent.ACTION_UP) { 
+                isLeftKeyHeld = false
+                stopKeyDrag(MotionEvent.BUTTON_PRIMARY) 
+            }
+            return true 
+        }
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (action == KeyEvent.ACTION_DOWN) { 
+                if (!isRightDragPending) { 
+                    isRightDragPending = true
+                    handler.postDelayed(voiceRunnable, 1000) 
+                } 
+            } else if (action == KeyEvent.ACTION_UP) { 
+                handler.removeCallbacks(voiceRunnable)
+                if (isRightDragPending) { 
+                    performClick(true)
+                    isRightDragPending = false 
+                } 
+            }
+            return true 
+        }
+        return super.onKeyEvent(event)
+    }
+
+    private val userServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) { 
+            shellService = IShellService.Stub.asInterface(binder)
+            isBound = true 
+            Thread { shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1") }.start()
+            initCustomKeyboard()
+        }
+        override fun onServiceDisconnected(name: ComponentName?) { 
+            shellService = null
+            isBound = false 
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        try { 
+            displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            displayManager?.registerDisplayListener(this, handler) 
+        } catch (e: Exception) { 
+            Log.e(TAG, "Failed to init DisplayManager", e) 
+        }
+        val filter = IntentFilter().apply {
+            addAction("CYCLE_INPUT_TARGET")
+            addAction("RESET_CURSOR")
+            addAction("TOGGLE_DEBUG")
+            addAction("FORCE_KEYBOARD")
+            addAction("TOGGLE_CUSTOM_KEYBOARD")
+            addAction("SET_TRACKPAD_VISIBILITY")
+            addAction("SET_PREVIEW_MODE")
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(switchReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(switchReceiver, filter)
+        }
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        try { 
+            createNotification()
+            bindShizuku()
+            loadPrefs()
+            if (displayManager == null) { 
+                displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+                displayManager?.registerDisplayListener(this, handler) 
+            }
+            setupWindows(Display.DEFAULT_DISPLAY) 
+        } catch (e: Exception) { 
+            Log.e(TAG, "Crash in onServiceConnected", e) 
+        }
+    }
+
+    override fun onDisplayAdded(displayId: Int) {}
+    override fun onDisplayRemoved(displayId: Int) {}
+    override fun onDisplayChanged(displayId: Int) { 
+        if (displayId == currentDisplayId) { 
+            updateUiMetrics(displayId)
+            val newKey = getProfileKey()
+            if (newKey != lastLoadedProfileKey) loadLayout() 
+        }
+    }
+
+    private fun updateUiMetrics(displayId: Int) {
+        try {
+            if (displayManager == null) displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            val display = displayManager?.getDisplay(displayId) ?: return
+            val metrics = android.util.DisplayMetrics()
+            display.getRealMetrics(metrics)
+            if (metrics.widthPixels > 0) { 
+                uiScreenWidth = metrics.widthPixels
+                uiScreenHeight = metrics.heightPixels
+                if (inputTargetDisplayId == -1 || inputTargetDisplayId == displayId) { 
+                    targetScreenWidth = uiScreenWidth
+                    targetScreenHeight = uiScreenHeight 
+                }
+                keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateUiMetrics failed", e)
+        }
+    }
+
+    private fun updateTargetMetrics(displayId: Int) {
+        try {
+            if (displayManager == null) displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            val display = displayManager?.getDisplay(displayId)
+            if (display == null) { 
+                targetScreenWidth = 1920
+                targetScreenHeight = 1080
+                return 
+            }
+            val metrics = android.util.DisplayMetrics()
+            display.getRealMetrics(metrics)
+            if (metrics.widthPixels > 0) { 
+                targetScreenWidth = metrics.widthPixels
+                targetScreenHeight = metrics.heightPixels 
+            } else { 
+                targetScreenWidth = 1920
+                targetScreenHeight = 1080 
+            }
+        } catch (e: Exception) { 
+            targetScreenWidth = 1920
+            targetScreenHeight = 1080 
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        try {
+            when (intent?.action) {
+                "RESET_POSITION" -> resetTrackpadPosition()
+                "ROTATE" -> performRotation()
+                "SAVE_LAYOUT" -> saveLayout()
+                "LOAD_LAYOUT" -> loadLayout()
+                "DELETE_PROFILE" -> deleteCurrentProfile()
+                "MANUAL_ADJUST" -> handleManualAdjust(intent)
+                "RELOAD_PREFS" -> { 
+                    loadPrefs()
+                    updateBorderColor(currentBorderColor)
+                    updateLayoutSizes()
+                    updateScrollPosition()
+                    updateCursorSize() 
+                    if (isCustomKeyboardVisible) {
+                        toggleCustomKeyboard()
+                        toggleCustomKeyboard()
+                    }
+                }
+                "PREVIEW_UPDATE" -> handlePreview(intent)
+                "CYCLE_INPUT_TARGET" -> cycleInputTarget()
+                "RESET_CURSOR" -> resetCursorCenter()
+                "TOGGLE_DEBUG" -> toggleDebugMode()
+                "FORCE_KEYBOARD" -> toggleCustomKeyboard()
+                "TOGGLE_CUSTOM_KEYBOARD" -> toggleCustomKeyboard()
+            }
+            if (intent?.hasExtra("DISPLAY_ID") == true) {
+                val targetDisplayId = intent.getIntExtra("DISPLAY_ID", Display.DEFAULT_DISPLAY)
+                if (targetDisplayId != currentDisplayId || trackpadLayout == null) { 
+                    removeOverlays()
+                    setupWindows(targetDisplayId) 
+                }
+            }
+        } catch (e: Exception) { 
+            Log.e(TAG, "Crash in onStartCommand", e) 
+        }
+        return START_STICKY
+    }
+    
+    private fun setTrackpadVisibility(visible: Boolean) {
+        if (!visible && isTrackpadVisible) {
+            resetAllTouchStates()
+        }
+        
+        isTrackpadVisible = visible
+        trackpadLayout?.visibility = if (visible) View.VISIBLE else View.GONE
+        cursorLayout?.visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
+    private fun setPreviewMode(preview: Boolean) {
+        if (preview && !isPreviewMode) {
+            resetAllTouchStates()
+        }
+        
+        isPreviewMode = preview
+        
+        if (preview) {
+            trackpadLayout?.visibility = View.VISIBLE
+            cursorLayout?.visibility = View.VISIBLE
+            trackpadParams.flags = trackpadParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            try {
+                windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
+            } catch (e: Exception) {}
+            trackpadLayout?.alpha = 0.7f
+        } else {
+            trackpadParams.flags = trackpadParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            try {
+                windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
+            } catch (e: Exception) {}
+            trackpadLayout?.alpha = 1.0f
+        }
+    }
+    
+    private fun resetAllTouchStates() {
+        handler.removeCallbacks(longPressRunnable)
+        handler.removeCallbacks(resizeLongPressRunnable)
+        handler.removeCallbacks(moveLongPressRunnable)
+        handler.removeCallbacks(voiceRunnable)
+        
+        if (isTouchDragging && hasSentTouchDown) {
+            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+        }
+        isTouchDragging = false
+        hasSentTouchDown = false
+        
+        if (isLeftKeyHeld && hasSentMouseDown) {
+            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+        }
+        isLeftKeyHeld = false
+        
+        if (isRightKeyHeld && hasSentMouseDown) {
+            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY, dragDownTime)
+        }
+        isRightKeyHeld = false
+        hasSentMouseDown = false
+        
+        if ((isVScrolling || isHScrolling) && hasSentScrollDown) {
+            injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
+        }
+        isVScrolling = false
+        isHScrolling = false
+        hasSentScrollDown = false
+        
+        isRightDragPending = false
+        isMoving = false
+        isResizing = false
+        isClicking = false
+        activeFingerDeviceId = -1
+        
+        if (!isDebugMode) {
+            if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
+            else updateBorderColor(0x55FFFFFF.toInt())
+        }
+    }
+    
+    private fun initCustomKeyboard() {
+        if (windowManager == null || shellService == null) return
+        keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId)
+        keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId)
+    }
+    
+    private fun toggleCustomKeyboard() {
+        if (keyboardOverlay == null && shellService != null) initCustomKeyboard()
+        
+        if (keyboardOverlay != null) {
+            val wasVisible = keyboardOverlay?.isShowing() == true
+            if (wasVisible) keyboardOverlay?.hide()
+            keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId)
+            keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId)
+            if (!wasVisible) keyboardOverlay?.show()
+        } else {
+            keyboardOverlay?.toggle()
+        }
+        
+        isCustomKeyboardVisible = keyboardOverlay?.isShowing() ?: false
+        if (isCustomKeyboardVisible) { 
+            updateBorderColor(0xFF9C27B0.toInt()) 
+        } else { 
+            if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
+            else updateBorderColor(0x55FFFFFF.toInt()) 
+        }
+        vibrate()
+    }
+
+    private fun toggleDebugMode() { 
+        isDebugMode = !isDebugMode
+        if (isDebugMode) { 
+            showToast("Debug ON")
+            updateBorderColor(0xFFFFFF00.toInt()) 
+            debugTextView?.visibility = View.VISIBLE
+        } else { 
+            showToast("Debug OFF")
+            if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) 
+            else updateBorderColor(0x55FFFFFF.toInt()) 
+            debugTextView?.visibility = View.GONE
+        } 
+    }
+    
+    private fun resetCursorCenter() { 
+        cursorX = (targetScreenWidth / 2).toFloat()
+        cursorY = (targetScreenHeight / 2).toFloat()
+        // Don't inject hover on reset - just update visual
+        if (inputTargetDisplayId == currentDisplayId) { 
+            cursorParams.x = cursorX.toInt()
+            cursorParams.y = cursorY.toInt()
+            try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {} 
+        } else { 
+            remoteCursorParams.x = cursorX.toInt()
+            remoteCursorParams.y = cursorY.toInt()
+            try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {} 
+        }
+        showToast("Reset to ${cursorX.toInt()}x${cursorY.toInt()}")
+        vibrate() 
+    }
+    
+    private fun handleManualAdjust(intent: Intent) { 
+        val target = intent.getStringExtra("TARGET") ?: "TRACKPAD"
+        
+        if (target == "KEYBOARD") {
+            if (!isCustomKeyboardVisible) {
+                toggleCustomKeyboard() 
+            }
+            if (keyboardOverlay == null) return
+            
+            val dx = intent.getIntExtra("DX", 0)
+            val dy = intent.getIntExtra("DY", 0)
+            val dw = intent.getIntExtra("DW", 0)
+            val dh = intent.getIntExtra("DH", 0)
+            
+            if (dx != 0 || dy != 0) {
+                keyboardOverlay?.moveWindow(dx, dy)
+            }
+            if (dw != 0 || dh != 0) {
+                keyboardOverlay?.resizeWindow(dw, dh)
+            }
+            return
+        }
+
+        if (windowManager == null || trackpadLayout == null) return
+        val dx = intent.getIntExtra("DX", 0)
+        val dy = intent.getIntExtra("DY", 0)
+        val dw = intent.getIntExtra("DW", 0)
+        val dh = intent.getIntExtra("DH", 0)
+        trackpadParams.x += dx
+        trackpadParams.y += dy
+        trackpadParams.width = max(200, trackpadParams.width + dw)
+        trackpadParams.height = max(200, trackpadParams.height + dh)
+        try { 
+            windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
+            saveLayout() 
+        } catch (e: Exception) {} 
+    }
+    
+    private fun removeOverlays() { 
+        try { 
+            keyboardOverlay?.hide()
+            if (trackpadLayout != null) { 
+                windowManager?.removeView(trackpadLayout)
+                trackpadLayout = null 
+            }
+            if (cursorLayout != null) { 
+                windowManager?.removeView(cursorLayout)
+                cursorLayout = null 
+            }
+            removeRemoteCursor()
+        } catch (e: Exception) {} 
+    }
+
+    private fun setupWindows(displayId: Int) {
+        if (trackpadLayout != null && displayId == currentDisplayId) return
+        try {
+            updateUiMetrics(displayId)
+            if (uiScreenWidth == 0) updateUiMetrics(displayId)
+            val displayContext = createDisplayContext(displayManager!!.getDisplay(displayId))
+            windowManager = displayContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            currentDisplayId = displayId
+            inputTargetDisplayId = displayId
+            currentOverlayDisplayId = displayId
+            targetScreenWidth = uiScreenWidth
+            targetScreenHeight = uiScreenHeight
+            
+            // CURSOR WINDOW
+            cursorLayout = FrameLayout(displayContext)
+            cursorView = ImageView(displayContext)
+            cursorView?.setImageResource(R.drawable.ic_cursor)
+            val size = if (prefCursorSize > 0) prefCursorSize else 50
+            cursorLayout?.addView(cursorView, FrameLayout.LayoutParams(size, size))
+            cursorParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or 
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { 
+                cursorParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES 
+            }
+            cursorParams.gravity = Gravity.TOP or Gravity.LEFT
+            cursorX = uiScreenWidth / 2f
+            cursorY = uiScreenHeight / 2f
+            cursorParams.x = cursorX.toInt()
+            cursorParams.y = cursorY.toInt()
+            windowManager?.addView(cursorLayout, cursorParams)
+
+            // TRACKPAD WINDOW
+            trackpadLayout = FrameLayout(displayContext)
+            val bg = GradientDrawable()
+            bg.cornerRadius = 30f
+            trackpadLayout?.background = bg
+            updateBorderColor(0x55FFFFFF.toInt())
+            trackpadLayout?.isFocusable = true
+            trackpadLayout?.isFocusableInTouchMode = true
+            
+            handleContainers.clear()
+            handleVisuals.clear()
+            val handleColor = 0x15FFFFFF.toInt()
+            addHandle(displayContext, Gravity.TOP or Gravity.RIGHT, handleColor) { _, e -> moveWindow(e) }
+            addHandle(displayContext, Gravity.BOTTOM or Gravity.RIGHT, handleColor) { _, e -> resizeWindow(e) }
+            addHandle(displayContext, Gravity.BOTTOM or Gravity.LEFT, handleColor) { _, e -> openMenuHandle(e) }
+            addHandle(displayContext, Gravity.TOP or Gravity.LEFT, handleColor) { _, e -> keyboardHandle(e) }
+            addScrollBars(displayContext)
+            
+            // DEBUG TEXT
+            debugTextView = TextView(displayContext)
+            debugTextView?.text = "DEBUG"
+            debugTextView?.setTextColor(Color.YELLOW)
+            debugTextView?.setBackgroundColor(0xAA000000.toInt())
+            debugTextView?.textSize = 9f
+            debugTextView?.visibility = View.GONE
+            val debugParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, 
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+            debugParams.gravity = Gravity.CENTER
+            trackpadLayout?.addView(debugTextView, debugParams)
+
+            // TRACKPAD PARAMS
+            trackpadParams = WindowManager.LayoutParams(
+                400, 300,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or 
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                PixelFormat.TRANSLUCENT
+            )
+            trackpadParams.gravity = Gravity.TOP or Gravity.LEFT
+            trackpadParams.title = "TrackpadInput"
+            
+            loadOverlayPositionForDisplay(displayId)
+            
+            // GESTURE DETECTOR for single tap
+            val gestureDetector = GestureDetector(displayContext, object : GestureDetector.SimpleOnGestureListener() { 
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean { 
+                    if (!isTouchDragging && !isLeftKeyHeld && !isRightKeyHeld && 
+                        !isVScrolling && !isHScrolling && !isPreviewMode && 
+                        isTrackpadVisible && !isClicking) {
+                        performClick(false)
+                    }
+                    return true 
+                } 
+            })
+            
+            // MAIN TOUCH LISTENER
+            trackpadLayout?.setOnTouchListener { _, event -> 
+                val devId = event.deviceId
+                val tool = event.getToolType(0)
+                val action = event.actionMasked
+                
+                if (isDebugMode) {
+                    val txt = "ACT:$action ID:$devId T:$tool"
+                    debugTextView?.text = txt
+                }
+                
+                if (tool != MotionEvent.TOOL_TYPE_FINGER) return@setOnTouchListener false
+                if (devId <= 0) {
+                    if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
+                        if (activeFingerDeviceId > 0) cleanupAfterCancel()
+                    }
+                    return@setOnTouchListener false
+                }
+                
+                when (action) {
+                    MotionEvent.ACTION_DOWN -> activeFingerDeviceId = devId
+                    MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (activeFingerDeviceId > 0 && devId != activeFingerDeviceId) return@setOnTouchListener false
+                    }
+                }
+                
+                if (isClicking) return@setOnTouchListener true
+                
+                if (!isPreviewMode && isTrackpadVisible) {
+                    gestureDetector.onTouchEvent(event)
+                    handleTrackpadTouch(event)
+                }
+                true 
+            }
+            
+            windowManager?.addView(trackpadLayout, trackpadParams)
+            loadLayout()
+            
+            if (shellService != null) initCustomKeyboard()
+        } catch (e: Exception) { 
+            Log.e(TAG, "Setup Windows Crash", e) 
+        }
+    }
+    
+    private fun cleanupAfterCancel() {
+        handler.removeCallbacks(longPressRunnable)
+        handler.removeCallbacks(resizeLongPressRunnable)
+        handler.removeCallbacks(moveLongPressRunnable)
+        handler.removeCallbacks(voiceRunnable)
+        
+        if (isTouchDragging && hasSentTouchDown) injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+        if ((isVScrolling || isHScrolling) && hasSentScrollDown) injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
+        
+        isTouchDragging = false; hasSentTouchDown = false; isVScrolling = false; isHScrolling = false; hasSentScrollDown = false
+        isMoving = false; isResizing = false; activeFingerDeviceId = -1
+        
+        if (!isDebugMode) { if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) }
+    }
+    
+    private fun loadOverlayPositionForDisplay(displayId: Int) {
+        currentOverlayDisplayId = displayId
+        val prefs = getSharedPreferences("TrackpadPrefs", MODE_PRIVATE)
+        val defaultX = (uiScreenWidth - 400) / 2
+        val defaultY = (uiScreenHeight - 300) / 2
+        
+        if (prefs.contains("overlay_x_d$displayId")) {
+            trackpadParams.x = prefs.getInt("overlay_x_d$displayId", defaultX)
+            trackpadParams.y = prefs.getInt("overlay_y_d$displayId", defaultY)
+            trackpadParams.width = prefs.getInt("overlay_width_d$displayId", 400)
+            trackpadParams.height = prefs.getInt("overlay_height_d$displayId", 300)
+        } else {
+            trackpadParams.x = defaultX; trackpadParams.y = defaultY; trackpadParams.width = 400; trackpadParams.height = 300
+        }
+    }
+    
+    private fun saveOverlayPosition() {
+        val prefs = getSharedPreferences("TrackpadPrefs", MODE_PRIVATE)
+        prefs.edit().putInt("overlay_x_d$currentOverlayDisplayId", trackpadParams.x).putInt("overlay_y_d$currentOverlayDisplayId", trackpadParams.y).apply()
+    }
+    
+    private fun saveOverlaySize() {
+        val prefs = getSharedPreferences("TrackpadPrefs", MODE_PRIVATE)
+        prefs.edit().putInt("overlay_width_d$currentOverlayDisplayId", trackpadParams.width).putInt("overlay_height_d$currentOverlayDisplayId", trackpadParams.height).apply()
+    }
+    
+    private fun createRemoteCursor(displayId: Int) { 
+        try { 
+            removeRemoteCursor()
+            val display = displayManager?.getDisplay(displayId) ?: return
+            val remoteContext = createDisplayContext(display)
+            remoteWindowManager = remoteContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            remoteCursorLayout = FrameLayout(remoteContext)
+            remoteCursorView = ImageView(remoteContext)
+            remoteCursorView?.setImageResource(R.drawable.ic_cursor)
+            val size = if (prefCursorSize > 0) prefCursorSize else 50
+            remoteCursorLayout?.addView(remoteCursorView, FrameLayout.LayoutParams(size, size))
+            remoteCursorParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or 
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            )
+            remoteCursorParams.gravity = Gravity.TOP or Gravity.LEFT
+            val metrics = android.util.DisplayMetrics()
+            display.getRealMetrics(metrics)
+            remoteCursorParams.x = metrics.widthPixels / 2
+            remoteCursorParams.y = metrics.heightPixels / 2
+            remoteWindowManager?.addView(remoteCursorLayout, remoteCursorParams) 
+        } catch (e: Exception) { 
+            Log.e(TAG, "Failed to create remote cursor", e)
+            showToast("Failed to draw on Display $displayId") 
+        } 
+    }
+    
+    private fun removeRemoteCursor() { 
+        try { 
+            if (remoteCursorLayout != null && remoteWindowManager != null) { 
+                remoteWindowManager?.removeView(remoteCursorLayout) 
+            } 
+        } catch(e: Exception) {}
+        remoteCursorLayout = null
+        remoteCursorView = null
+        remoteWindowManager = null 
+    }
+    
+    private fun updateCursorSize() { 
+        val size = if (prefCursorSize > 0) prefCursorSize else 50
+        cursorView?.layoutParams?.let { lp -> lp.width = size; lp.height = size; cursorView?.layoutParams = lp }
+        remoteCursorView?.layoutParams?.let { lp -> lp.width = size; lp.height = size; remoteCursorView?.layoutParams = lp }
+    }
+    
+    private fun getProfileKey(): String { 
+        if (uiScreenHeight == 0) return "profile_1.0"
+        val ratio = uiScreenWidth.toFloat() / uiScreenHeight.toFloat()
+        return "profile_" + String.format("%.1f", ratio) 
+    }
+    
+    private fun saveLayout() { 
+        if (trackpadLayout == null || uiScreenWidth == 0 || uiScreenHeight == 0) return
+        val key = getProfileKey()
+        lastLoadedProfileKey = key
+        val xPct = trackpadParams.x.toFloat() / uiScreenWidth.toFloat()
+        val yPct = trackpadParams.y.toFloat() / uiScreenHeight.toFloat()
+        val wPct = trackpadParams.width.toFloat() / uiScreenWidth.toFloat()
+        val hPct = trackpadParams.height.toFloat() / uiScreenHeight.toFloat()
+        
+        getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+            .putFloat("${key}_xp", xPct)
+            .putFloat("${key}_yp", yPct)
+            .putFloat("${key}_wp", wPct)
+            .putFloat("${key}_hp", hPct)
+            .putInt("${key}_kb_scale", prefKeyScale)
+            .putBoolean("${key}_saved", true)
+            .apply()
+        saveOverlayPosition(); saveOverlaySize(); vibrate() 
+    }
+    
+    private fun loadLayout() { 
+        if (trackpadLayout == null || windowManager == null) return
+        val key = getProfileKey()
+        lastLoadedProfileKey = key
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        
+        if (p.getBoolean("${key}_saved", false)) { 
+            val xPct = p.getFloat("${key}_xp", 0.1f)
+            val yPct = p.getFloat("${key}_yp", 0.1f)
+            val wPct = p.getFloat("${key}_wp", 0.5f)
+            val hPct = p.getFloat("${key}_hp", 0.4f)
+            
+            val savedScale = p.getInt("${key}_kb_scale", 100)
+            prefKeyScale = savedScale
+            keyboardOverlay?.updateScale(prefKeyScale / 100f)
+            
+            val calcW = (wPct * uiScreenWidth).toInt(); val calcH = (hPct * uiScreenHeight).toInt()
+            trackpadParams.width = calcW.coerceAtLeast(300); trackpadParams.height = calcH.coerceAtLeast(300)
+            trackpadParams.x = (xPct * uiScreenWidth).toInt(); trackpadParams.y = (yPct * uiScreenHeight).toInt() 
+        } else { 
+            trackpadParams.width = 400; trackpadParams.height = 300; trackpadParams.x = (uiScreenWidth / 2) - 200; trackpadParams.y = (uiScreenHeight / 2) - 150 
+        }
+        try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch (e: Exception) {} 
+    }
+    
+    private fun deleteCurrentProfile() { 
+        val key = getProfileKey()
+        getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+            .remove("${key}_saved").remove("${key}_xp").remove("${key}_yp").remove("${key}_wp").remove("${key}_hp").remove("${key}_kb_scale").apply()
+        resetTrackpadPosition() 
+    }
+    
+    private fun resetTrackpadPosition() { 
+        if (windowManager == null || trackpadLayout == null) return
+        trackpadParams.width = 400; trackpadParams.height = 300
+        val centerX = (uiScreenWidth / 2) - 200; val centerY = (uiScreenHeight / 2) - 150
+        trackpadParams.x = if (centerX > 0) centerX else 100; trackpadParams.y = if (centerY > 0) centerY else 100;
+        try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams); vibrate() } catch (e: Exception) {} 
+    }
+    
+    private fun moveWindow(event: MotionEvent): Boolean { 
+        if (prefLocked) return true
+        when (event.action) { 
+            MotionEvent.ACTION_DOWN -> { 
+                handler.postDelayed(moveLongPressRunnable, 1000)
+                initialWindowX = trackpadParams.x
+                initialWindowY = trackpadParams.y
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                return true 
+            }
+            MotionEvent.ACTION_MOVE -> { 
+                if (isMoving) { 
+                    trackpadParams.x = initialWindowX + (event.rawX - initialTouchX).toInt()
+                    trackpadParams.y = initialWindowY + (event.rawY - initialTouchY).toInt()
+                    windowManager?.updateViewLayout(trackpadLayout, trackpadParams) 
+                } else if (abs(event.rawX - initialTouchX) > 20) {
+                    handler.removeCallbacks(moveLongPressRunnable)
+                }
+                return true 
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
+                handler.removeCallbacks(moveLongPressRunnable)
+                if (isMoving) stopMove()
+                return true 
+            } 
+        }
+        return false 
+    }
+    
+    private fun startMove() { isMoving = true; vibrate(); updateBorderColor(0xFF0000FF.toInt()) }
+    private fun stopMove() { isMoving = false; saveOverlayPosition(); if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) }
+    
+    private fun resizeWindow(event: MotionEvent): Boolean { 
+        if (prefLocked) return true
+        when (event.action) { 
+            MotionEvent.ACTION_DOWN -> { 
+                handler.postDelayed(resizeLongPressRunnable, 1000)
+                initialWindowWidth = trackpadParams.width
+                initialWindowHeight = trackpadParams.height
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                return true 
+            }
+            MotionEvent.ACTION_MOVE -> { 
+                if (isResizing) { 
+                    val deltaX = event.rawX - initialTouchX
+                    val deltaY = event.rawY - initialTouchY
+                    val newWidth = (initialWindowWidth + deltaX).toInt()
+                    val newHeight = (initialWindowHeight + deltaY).toInt()
+                    trackpadParams.width = max(300, newWidth)
+                    trackpadParams.height = max(300, newHeight)
+                    windowManager?.updateViewLayout(trackpadLayout, trackpadParams) 
+                } else if (abs(event.rawX - initialTouchX) > 20) {
+                    handler.removeCallbacks(resizeLongPressRunnable)
+                }
+                return true 
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
+                handler.removeCallbacks(resizeLongPressRunnable)
+                if (isResizing) stopResize()
+                return true 
+            } 
+        }
+        return false 
+    }
+    
+    private fun startResize() { isResizing = true; vibrate(); updateBorderColor(0xFF0000FF.toInt()) }
+    private fun stopResize() { isResizing = false; saveOverlaySize(); if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) }
+    
+    private fun isCursorOverTrackpad(): Boolean {
+        if (inputTargetDisplayId != currentDisplayId) return false
+        if (trackpadLayout == null) return false
+        val tX = trackpadParams.x.toFloat(); val tY = trackpadParams.y.toFloat()
+        val tW = trackpadParams.width.toFloat(); val tH = trackpadParams.height.toFloat()
+        return cursorX >= tX && cursorX <= (tX + tW) && cursorY >= tY && cursorY <= (tY + tH)
+    }
+    
+    private fun handleTrackpadTouch(event: MotionEvent) {
+        val viewWidth = trackpadLayout?.width ?: 0
+        val viewHeight = trackpadLayout?.height ?: 0
+        if (viewWidth == 0 || viewHeight == 0) return
+
+        when (event.actionMasked) { 
+            MotionEvent.ACTION_DOWN -> { 
+                isVScrolling = false; isHScrolling = false; isTouchDragging = false; handler.removeCallbacks(longPressRunnable)
+                lastTouchX = event.x; lastTouchY = event.y
+                val actualZoneV = min(scrollZoneThickness, (viewWidth * 0.15f).toInt())
+                val actualZoneH = min(scrollZoneThickness, (viewHeight * 0.15f).toInt())
+                val inVZone = if (prefVPosLeft) event.x < actualZoneV else event.x > (viewWidth - actualZoneV)
+                val inHZone = if (prefHPosTop) event.y < actualZoneH else event.y > (viewHeight - actualZoneH)
+                
+                if (inVZone) { 
+                    isVScrolling = true; vibrate(); updateBorderColor(0xFF00FFFF.toInt())
+                    virtualScrollX = cursorX; virtualScrollY = cursorY; dragDownTime = SystemClock.uptimeMillis()
+                    // Don't inject click if cursor is already overlapping trackpad (prevent loop)
+                    if (!isCursorOverTrackpad()) { 
+                        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
+                        hasSentScrollDown = true 
+                    }
+                } else if (inHZone) { 
+                    isHScrolling = true; vibrate(); updateBorderColor(0xFF00FFFF.toInt())
+                    virtualScrollX = cursorX; virtualScrollY = cursorY; dragDownTime = SystemClock.uptimeMillis()
+                    if (!isCursorOverTrackpad()) { 
+                        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
+                        hasSentScrollDown = true 
+                    }
+                } else { 
+                    handler.postDelayed(longPressRunnable, 400) 
+                }
+            }
+            MotionEvent.ACTION_MOVE -> { 
+                val rawDx = (event.x - lastTouchX) * cursorSpeed
+                val rawDy = (event.y - lastTouchY) * cursorSpeed
+                
+                if (isVScrolling) { 
+                    val dist = (event.y - lastTouchY) * scrollSpeed
+                    if (abs(dist) > 0) { 
+                        if (prefReverseScroll) virtualScrollY += dist else virtualScrollY -= dist
+                        if (hasSentScrollDown) injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY) 
+                    } 
+                } else if (isHScrolling) { 
+                    val dist = (event.x - lastTouchX) * scrollSpeed
+                    if (abs(dist) > 0) { 
+                        if (prefReverseScroll) virtualScrollX += dist else virtualScrollX -= dist
+                        if (hasSentScrollDown) injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY) 
+                    } 
+                } else { 
+                    var finalDx = rawDx; var finalDy = rawDy
+                    when (rotationAngle) { 90 -> { finalDx = -rawDy; finalDy = rawDx }; 180 -> { finalDx = -rawDx; finalDy = -rawDy }; 270 -> { finalDx = rawDy; finalDy = -rawDx } }
+                    
+                    if (!isTouchDragging && (abs(rawDx) > 5 || abs(rawDy) > 5)) { 
+                        handler.removeCallbacks(longPressRunnable)
+                        if (isRightDragPending) { 
+                            isRightDragPending = false; handler.removeCallbacks(voiceRunnable)
+                            isRightKeyHeld = true; startKeyDrag(MotionEvent.BUTTON_SECONDARY) 
+                        } 
+                    }
+                    
+                    val safeW = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth.toFloat() else uiScreenWidth.toFloat()
+                    val safeH = if (inputTargetDisplayId != currentDisplayId) targetScreenHeight.toFloat() else uiScreenHeight.toFloat()
+                    val margin = 2f
+                    cursorX = (cursorX + finalDx).coerceIn(margin, safeW - margin)
+                    cursorY = (cursorY + finalDy).coerceIn(margin, safeH - margin)
+                    
+                    // Update visual cursor (Always update visual)
+                    if (inputTargetDisplayId == currentDisplayId) { 
+                        cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt()
+                        try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {} 
+                    } else { 
+                        remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt()
+                        try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {} 
+                    }
+                    
+                    val nowOverTrackpad = isCursorOverTrackpad()
+                    
+                    // Logic to unblock movement if skipping injection
+                    // We only block injection if dragging/clicking over trackpad
+                    // We allow HOVER movement
+                    
+                    if (isTouchDragging && hasSentTouchDown) {
+                        // If we drag INTO trackpad area, stop injection
+                        if (nowOverTrackpad && !wasDraggingIntoTrackpad()) {
+                             // Stop the touch
+                             injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime)
+                             hasSentTouchDown = false
+                        } else if (!nowOverTrackpad) {
+                             if (!hasSentTouchDown) {
+                                 injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime)
+                                 hasSentTouchDown = true
+                             }
+                             injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime)
+                        }
+                    }
+                    else if (isLeftKeyHeld && hasSentMouseDown) {
+                        if (!nowOverTrackpad) injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, dragDownTime)
+                    }
+                    else if (isRightKeyHeld && hasSentMouseDown) {
+                        if (!nowOverTrackpad) injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_SECONDARY, dragDownTime)
+                    }
+                    else {
+                        // ALWAYS allow hover movement, regardless of trackpad overlap
+                        // This fixes the "Stuck Cursor" issue while hovering
+                        injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+                    }
+                }
+                lastTouchX = event.x; lastTouchY = event.y 
+            }
+            MotionEvent.ACTION_UP -> { 
+                handler.removeCallbacks(longPressRunnable); if (isTouchDragging) stopTouchDrag()
+                if ((isVScrolling || isHScrolling) && hasSentScrollDown) injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, 0, dragDownTime, virtualScrollX, virtualScrollY)
+                isVScrolling = false; isHScrolling = false; hasSentScrollDown = false; activeFingerDeviceId = -1
+                if (isDebugMode) { showToast("Disp:$inputTargetDisplayId | X:${cursorX.toInt()} Y:${cursorY.toInt()}"); updateBorderColor(0xFFFFFF00.toInt()) } else { if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) } 
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                handler.removeCallbacks(longPressRunnable); isTouchDragging = false; hasSentTouchDown = false; isVScrolling = false; isHScrolling = false; hasSentScrollDown = false; activeFingerDeviceId = -1
+                if (!isDebugMode) { if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) }
+            }
+        } 
+    }
+    
+    private fun wasDraggingIntoTrackpad(): Boolean { return false } // Simplified check
+    
+    private fun performRotation() { rotationAngle = (rotationAngle + 90) % 360; cursorView?.rotation = rotationAngle.toFloat(); vibrate(); updateBorderColor(0xFFFFFF00.toInt()) }
+    private fun startKeyDrag(button: Int) { vibrate(); updateBorderColor(0xFF00FF00.toInt()); dragDownTime = SystemClock.uptimeMillis(); if (!isCursorOverTrackpad()) { injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, button, dragDownTime); hasSentMouseDown = true } }
+    private fun stopKeyDrag(button: Int) { if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()); if (hasSentMouseDown) injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, button, dragDownTime); hasSentMouseDown = false }
+    private fun startTouchDrag() { isTouchDragging = true; vibrate(); updateBorderColor(0xFF00FF00.toInt()); pendingDragDownTime = SystemClock.uptimeMillis(); if (!isCursorOverTrackpad()) { injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime); hasSentTouchDown = true } }
+    private fun stopTouchDrag() { isTouchDragging = false; if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()); if (hasSentTouchDown) injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, pendingDragDownTime); hasSentTouchDown = false }
+    
+    private fun injectAction(action: Int, source: Int, buttonState: Int, downTime: Long, x: Float = cursorX, y: Float = cursorY) { 
+        if (shellService == null) return
+        val dId = if (inputTargetDisplayId != -1) inputTargetDisplayId else (cursorLayout?.display?.displayId ?: Display.DEFAULT_DISPLAY)
+        Thread { try { shellService?.injectMouse(action, x, y, dId, source, buttonState, downTime) } catch (e: Exception) { Log.e(TAG, "Injection failed", e) } }.start()
+    }
+    
+    private fun injectScroll(vDist: Float, hDist: Float) { 
+        if (shellService == null) return
+        val dId = if (inputTargetDisplayId != -1) inputTargetDisplayId else (cursorLayout?.display?.displayId ?: Display.DEFAULT_DISPLAY)
+        Thread { try { shellService?.injectScroll(cursorX, cursorY, vDist, hDist, dId) } catch (e: Exception) { Log.e(TAG, "Scroll injection failed", e) } }.start()
+    }
+    
+    private fun performClick(isRightClick: Boolean) { 
+        if (shellService == null) { bindShizuku(); return }
+        if (isCursorOverTrackpad()) return
+        Thread { try { if (isRightClick) shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId) else shellService?.execClick(cursorX, cursorY, inputTargetDisplayId) } catch (e: Exception) { Log.e(TAG, "Click injection failed", e) } }.start()
+    }
+    
+    private fun cycleInputTarget() { 
+        if (displayManager == null) return
+        try { 
+            val displays = displayManager!!.displays; var nextId = -1
+            for (d in displays) { if (d.displayId != currentDisplayId) { if (inputTargetDisplayId == currentDisplayId) { nextId = d.displayId; break } else if (inputTargetDisplayId == d.displayId) { continue } else { nextId = d.displayId } } }
+            if (nextId == -1) { 
+                inputTargetDisplayId = currentDisplayId; targetScreenWidth = uiScreenWidth; targetScreenHeight = uiScreenHeight
+                removeRemoteCursor(); cursorX = (uiScreenWidth / 2).toFloat(); cursorY = (uiScreenHeight / 2).toFloat()
+                cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); windowManager?.updateViewLayout(cursorLayout, cursorParams)
+                currentBorderColor = 0x55FFFFFF.toInt(); updateBorderColor(currentBorderColor); cursorView?.visibility = View.VISIBLE
+                showToast("Target: Local (Display $currentDisplayId)"); vibrate()
+            } else { 
+                inputTargetDisplayId = nextId; updateTargetMetrics(nextId); createRemoteCursor(nextId)
+                cursorX = (targetScreenWidth / 2).toFloat(); cursorY = (targetScreenHeight / 2).toFloat()
+                currentBorderColor = 0xFFFF00FF.toInt(); updateBorderColor(currentBorderColor); cursorView?.visibility = View.GONE
+                showToast("Target: Display $nextId (${targetScreenWidth}x${targetScreenHeight})"); vibrate(); vibrate()
+            }
+            if (isCustomKeyboardVisible) { keyboardOverlay?.hide(); keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId); keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId); keyboardOverlay?.show() }
+        } catch (e: Exception) { Log.e(TAG, "Cycle Error", e) } 
+    }
+    
+    private fun showToast(msg: String) { handler.post { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show() } }
+    private fun vibrate() { if (!prefVibrate) return; val v = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator; if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)) else @Suppress("DEPRECATION") v.vibrate(50) }
+    private fun bindShizuku() { try { val c = ComponentName(packageName, ShellUserService::class.java.name); ShizukuBinder.bind(c, userServiceConnection, BuildConfig.DEBUG, BuildConfig.VERSION_CODE) } catch (e: Exception) { Log.e(TAG, "Shizuku bind failed", e) } }
+    private fun createNotification() { val channel = NotificationChannel("overlay_service", "Trackpad Active", NotificationManager.IMPORTANCE_LOW); (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel); val notification = Notification.Builder(this, "overlay_service").setContentTitle("Trackpad Active").setSmallIcon(R.drawable.ic_launcher_foreground).build(); if (Build.VERSION.SDK_INT >= 34) startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(1, notification) }
+    override fun onDestroy() { super.onDestroy(); try { unregisterReceiver(switchReceiver) } catch(e: Exception) {}; displayManager?.unregisterDisplayListener(this); if (trackpadLayout != null) windowManager?.removeView(trackpadLayout); if (cursorLayout != null) windowManager?.removeView(cursorLayout); removeRemoteCursor(); if (isBound) ShizukuBinder.unbind(ComponentName(packageName, ShellUserService::class.java.name), userServiceConnection) }
+    
+    private fun toggleKeyboardMode() { 
+        vibrate(); isRightDragPending = false
+        if (!isKeyboardMode) { isKeyboardMode = true; savedWindowX = trackpadParams.x; savedWindowY = trackpadParams.y; trackpadParams.x = uiScreenWidth - trackpadParams.width; trackpadParams.y = 0; windowManager?.updateViewLayout(trackpadLayout, trackpadParams); updateBorderColor(0xFFFF0000.toInt()) } 
+        else { isKeyboardMode = false; trackpadParams.x = savedWindowX; trackpadParams.y = savedWindowY; windowManager?.updateViewLayout(trackpadLayout, trackpadParams); updateBorderColor(currentBorderColor) } 
+    }
+    
+    private fun openMenuHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_DOWN) { vibrate(); val intent = Intent(this, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }; startActivity(intent); return true }; return false }
+    
+    private fun keyboardHandle(event: MotionEvent): Boolean {
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> { keyboardHandleDownTime = SystemClock.uptimeMillis(); handler.postDelayed(keyboardLongPressRunnable, 800); return true }
+            MotionEvent.ACTION_UP -> { handler.removeCallbacks(keyboardLongPressRunnable); if (SystemClock.uptimeMillis() - keyboardHandleDownTime < 800) toggleCustomKeyboard(); return true }
+            MotionEvent.ACTION_CANCEL -> { handler.removeCallbacks(keyboardLongPressRunnable); return true }
+        }
+        return false
+    }
+    
+    private fun loadPrefs() { 
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        cursorSpeed = p.getFloat("cursor_speed", 2.5f); scrollSpeed = p.getFloat("scroll_speed", 3.0f)
+        prefVibrate = p.getBoolean("vibrate", true); prefReverseScroll = p.getBoolean("reverse_scroll", true)
+        prefAlpha = p.getInt("alpha", 200); prefLocked = p.getBoolean("lock_position", false)
+        prefVPosLeft = p.getBoolean("v_pos_left", false); prefHPosTop = p.getBoolean("h_pos_top", false)
+        prefHandleTouchSize = p.getInt("handle_touch_size", 45) // REDUCED DEFAULT
+        prefScrollTouchSize = p.getInt("scroll_touch_size", 24) // REDUCED DEFAULT
+        prefHandleSize = p.getInt("handle_size", 60); prefScrollVisualSize = p.getInt("scroll_visual_size", 4)
+        scrollZoneThickness = prefScrollTouchSize; prefCursorSize = p.getInt("cursor_size", 50)
+        prefKeyScale = p.getInt("keyboard_key_scale", 100) 
+    }
+    
+    private fun handlePreview(intent: Intent) { 
+        val target = intent.getStringExtra("TARGET"); val value = intent.getIntExtra("VALUE", 0)
+        handler.removeCallbacks(clearHighlightsRunnable)
+        when (target) { 
+            "alpha" -> { prefAlpha = value; highlightAlpha = true; updateBorderColor(currentBorderColor) }
+            "handle_touch" -> { prefHandleTouchSize = value; highlightHandles = true; updateLayoutSizes() }
+            "scroll_touch" -> { prefScrollTouchSize = value; scrollZoneThickness = value; highlightScrolls = true; updateLayoutSizes(); updateScrollPosition() }
+            "handle_size" -> { prefHandleSize = value; highlightHandles = true; updateHandleSize() }
+            "scroll_visual" -> { prefScrollVisualSize = value; highlightScrolls = true; updateLayoutSizes() }
+            "cursor_size" -> { prefCursorSize = value; updateCursorSize() }
+            "keyboard_scale" -> { prefKeyScale = value; keyboardOverlay?.updateScale(value / 100f) }
+        }
+        handler.postDelayed(clearHighlightsRunnable, 1500) 
+    }
+    
+    private fun addHandle(context: Context, gravity: Int, color: Int, onTouch: (View, MotionEvent) -> Boolean) { 
+        val container = FrameLayout(context); val containerParams = FrameLayout.LayoutParams(prefHandleTouchSize, prefHandleTouchSize); containerParams.gravity = gravity
+        val visual = View(context); val bg = GradientDrawable(); bg.setColor(color); bg.cornerRadii = floatArrayOf(15f, 15f, 15f, 15f, 15f, 15f, 15f, 15f); visual.background = bg
+        val visualParams = FrameLayout.LayoutParams(prefHandleSize, prefHandleSize); visualParams.gravity = Gravity.CENTER; container.addView(visual, visualParams)
+        handleVisuals.add(visual); handleContainers.add(container); trackpadLayout?.addView(container, containerParams); container.setOnTouchListener { view, e -> onTouch(view, e) } 
+    }
+    
+    private fun updateHandleSize() { for (v in handleVisuals) { val p = v.layoutParams; p.width = prefHandleSize; p.height = prefHandleSize; v.layoutParams = p } }
+    private fun updateLayoutSizes() { for (c in handleContainers) { val p = c.layoutParams; p.width = prefHandleTouchSize; p.height = prefHandleTouchSize; c.layoutParams = p }; updateScrollPosition() }
+    
+    private fun addScrollBars(context: Context) { 
+        val margin = prefHandleTouchSize + 10
+        vScrollContainer = FrameLayout(context); val vParams = FrameLayout.LayoutParams(prefScrollTouchSize, FrameLayout.LayoutParams.MATCH_PARENT); vParams.gravity = if (prefVPosLeft) Gravity.LEFT else Gravity.RIGHT; vParams.setMargins(0, margin, 0, margin); trackpadLayout?.addView(vScrollContainer, vParams)
+        vScrollVisual = View(context); vScrollVisual!!.setBackgroundColor(0x30FFFFFF.toInt()); val vvParams = FrameLayout.LayoutParams(prefScrollVisualSize, FrameLayout.LayoutParams.MATCH_PARENT); vvParams.gravity = Gravity.CENTER_HORIZONTAL; vScrollContainer?.addView(vScrollVisual, vvParams)
+        hScrollContainer = FrameLayout(context); val hParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, prefScrollTouchSize); hParams.gravity = if (prefHPosTop) Gravity.TOP else Gravity.BOTTOM; hParams.setMargins(margin, 0, margin, 0); trackpadLayout?.addView(hScrollContainer, hParams)
+        hScrollVisual = View(context); hScrollVisual!!.setBackgroundColor(0x30FFFFFF.toInt()); val hvParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, prefScrollVisualSize); hvParams.gravity = Gravity.CENTER_VERTICAL; hScrollContainer?.addView(hScrollVisual, hvParams) 
+    }
+    
+    private fun updateScrollPosition() { 
+        val margin = prefHandleTouchSize + 10
+        vScrollContainer?.let { container -> val vp = container.layoutParams as FrameLayout.LayoutParams; vp.gravity = if (prefVPosLeft) Gravity.LEFT else Gravity.RIGHT; vp.setMargins(0, margin, 0, margin); container.layoutParams = vp }
+        hScrollContainer?.let { container -> val hp = container.layoutParams as FrameLayout.LayoutParams; hp.gravity = if (prefHPosTop) Gravity.TOP else Gravity.BOTTOM; hp.setMargins(margin, 0, margin, 0); container.layoutParams = hp }
+    }
+    
+    private fun updateBorderColor(strokeColor: Int) { 
+        currentBorderColor = strokeColor
+        val bg = trackpadLayout?.background as? GradientDrawable ?: return
+        bg.setColor(Color.TRANSPARENT)
+        val colorWithAlpha = (strokeColor and 0x00FFFFFF) or (prefAlpha shl 24)
+        bg.setStroke(4, if (highlightAlpha) 0xFF00FF00.toInt() else colorWithAlpha)
+        trackpadLayout?.invalidate() 
     }
 }
 ````
