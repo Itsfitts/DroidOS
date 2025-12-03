@@ -20,6 +20,7 @@ object AppPreferences {
     private const val KEY_LAST_QUEUE = "KEY_LAST_QUEUE"
     private const val KEY_SHOW_SHIZUKU_WARNING = "KEY_SHOW_SHIZUKU_WARNING"
     private const val KEY_REORDER_TIMEOUT = "KEY_REORDER_TIMEOUT"
+    private const val KEY_USE_ALT_SCREEN_OFF = "KEY_USE_ALT_SCREEN_OFF" // New
     
     // Reorder Methods
     private const val KEY_REORDER_METHOD_DRAG = "KEY_REORDER_METHOD_DRAG"
@@ -310,6 +311,15 @@ object AppPreferences {
 
     fun getShowShizukuWarning(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_SHOW_SHIZUKU_WARNING, true)
+    }
+    
+    fun setUseAltScreenOff(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_USE_ALT_SCREEN_OFF, enable).apply()
+    }
+
+    fun getUseAltScreenOff(context: Context): Boolean {
+        // Default false (use standard SurfaceControl method)
+        return getPrefs(context).getBoolean(KEY_USE_ALT_SCREEN_OFF, false)
     }
     
     // --- REORDER PREFERENCES ---
