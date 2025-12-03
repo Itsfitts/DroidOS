@@ -24,6 +24,7 @@ class SettingsActivity : Activity() {
         val seekBarScroll = findViewById<SeekBar>(R.id.seekBarScrollSpeed)
         val tvScroll = findViewById<TextView>(R.id.tvScrollSpeed)
         
+        val swTapScroll = findViewById<Switch>(R.id.switchTapScroll)
         val swVibrate = findViewById<Switch>(R.id.switchVibrate)
         val swReverse = findViewById<Switch>(R.id.switchReverseScroll)
         val swVPos = findViewById<Switch>(R.id.switchVPosLeft)
@@ -48,8 +49,9 @@ class SettingsActivity : Activity() {
 
         val sSpeed = prefs.getFloat("scroll_speed", 3.0f)
         seekBarScroll.progress = (sSpeed * 10).toInt()
-        tvScroll.text = "Scroll Speed: "
+        tvScroll.text = "Scroll Distance: "
 
+        swTapScroll.isChecked = prefs.getBoolean("tap_scroll", true)
         swVibrate.isChecked = prefs.getBoolean("vibrate", true)
         swReverse.isChecked = prefs.getBoolean("reverse_scroll", true)
         swVPos.isChecked = prefs.getBoolean("v_pos_left", false)
@@ -61,8 +63,6 @@ class SettingsActivity : Activity() {
         seekScrollVisual.progress = prefs.getInt("scroll_visual_size", 4)
         seekHandleTouch.progress = prefs.getInt("handle_touch_size", 60)
         seekScrollTouch.progress = prefs.getInt("scroll_touch_size", 60)
-        
-        // Load scale, default 100% (range 50-200)
         seekKeyScale.progress = prefs.getInt("keyboard_key_scale", 100)
 
         // Listeners
@@ -76,7 +76,7 @@ class SettingsActivity : Activity() {
 
         seekBarScroll.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-                tvScroll.text = "Scroll Speed: "
+                tvScroll.text = "Scroll Distance: "
             }
             override fun onStartTrackingTouch(s: SeekBar) {}
             override fun onStopTrackingTouch(s: SeekBar) {}
@@ -88,8 +88,6 @@ class SettingsActivity : Activity() {
         seekScrollVisual.setOnSeekBarChangeListener(createPreviewListener("scroll_visual"))
         seekHandleTouch.setOnSeekBarChangeListener(createPreviewListener("handle_touch"))
         seekScrollTouch.setOnSeekBarChangeListener(createPreviewListener("scroll_touch"))
-        
-        // --- KEYBOARD SCALE PREVIEW ---
         seekKeyScale.setOnSeekBarChangeListener(createPreviewListener("keyboard_scale"))
 
         btnSave.setOnClickListener {
@@ -99,6 +97,7 @@ class SettingsActivity : Activity() {
             prefs.edit()
                 .putFloat("cursor_speed", cVal)
                 .putFloat("scroll_speed", sVal)
+                .putBoolean("tap_scroll", swTapScroll.isChecked)
                 .putBoolean("vibrate", swVibrate.isChecked)
                 .putBoolean("reverse_scroll", swReverse.isChecked)
                 .putBoolean("v_pos_left", swVPos.isChecked)

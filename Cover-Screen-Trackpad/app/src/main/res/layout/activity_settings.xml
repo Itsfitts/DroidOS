@@ -46,7 +46,7 @@
             android:id="@+id/tvScrollSpeed"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Scroll Speed: 3.0"
+            android:text="Scroll Distance (Swipe Length)"
             android:textColor="#FFFFFF"/>
         <SeekBar
             android:id="@+id/seekBarScrollSpeed"
@@ -65,6 +65,16 @@
             android:layout_marginBottom="10dp"/>
 
         <Switch
+            android:id="@+id/switchTapScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tap-to-Scroll Buttons"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"
+            android:checked="true"/>
+
+        <Switch
             android:id="@+id/switchVibrate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -77,7 +87,7 @@
             android:id="@+id/switchReverseScroll"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Natural Scrolling (Reverse)"
+            android:text="Reverse Buttons (Natural)"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:minHeight="48dp"/>
