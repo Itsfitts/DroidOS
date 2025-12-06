@@ -10,17 +10,11 @@ interface IShellService {
     List<String> getAllRunningPackages();
     int getTaskId(String packageName);
     void moveTaskToBack(int taskId);
-
-
     void setSystemBrightness(int brightness);
     int getSystemBrightness();
     float getSystemBrightnessFloat();
     void setAutoBrightness(boolean enabled);
     boolean isAutoBrightness();
-   
-
-   boolean setBrightnessViaDisplayManager(int displayId, float brightness);
-   
-
-   void setBrightness(int value);
+    boolean setBrightnessViaDisplayManager(int displayId, float brightness);
+    void setBrightness(int value);
 }

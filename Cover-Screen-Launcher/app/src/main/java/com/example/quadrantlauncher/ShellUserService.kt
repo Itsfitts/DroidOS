@@ -13,7 +13,6 @@ import java.util.ArrayList
 import java.util.regex.Pattern
 import android.os.Build
 
-
 class ShellUserService : IShellService.Stub() {
 
     private val TAG = "ShellUserService"
@@ -198,8 +197,8 @@ class ShellUserService : IShellService.Stub() {
     // AIDL Interface Implementations
     // ============================================================
 
-    //DISPLAY OFF CODE  DO NOT DELETE 
-     override fun setBrightness(displayId: Int, brightness: Int) {
+    
+override fun setBrightness(displayId: Int, brightness: Int) {
         Log.d(TAG, "setBrightness(Global Broadcast, Value: $brightness)")
         val token = Binder.clearCallingIdentity()
         try {
@@ -238,9 +237,7 @@ class ShellUserService : IShellService.Stub() {
         }
     }
 
-    // --- v2.0 LOGIC: Screen Off (SurfaceControl) ---
-    
- override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
+    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
         Log.d(TAG, "setScreenOff(Global Broadcast, TurnOff: $turnOff)")
         val token = Binder.clearCallingIdentity()
         try {
@@ -259,7 +256,6 @@ class ShellUserService : IShellService.Stub() {
             Binder.restoreCallingIdentity(token)
         }
     }
-
     // --- V1.0 LOGIC: Window Management (Retained for Tiling/Minimizing) ---
     
     override fun forceStop(packageName: String) {
@@ -395,8 +391,9 @@ class ShellUserService : IShellService.Stub() {
         if (pkg == "NotificationShade") return false
         return true
     }
-    //Displayoff code DO NOT CHANGE 
-override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
+
+    // Interface compliance stubs
+    override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
     override fun getSystemBrightness(): Int = 128
     override fun getSystemBrightnessFloat(): Float = 0.5f
     override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }

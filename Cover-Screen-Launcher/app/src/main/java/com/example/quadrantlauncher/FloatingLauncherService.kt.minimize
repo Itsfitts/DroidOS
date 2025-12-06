@@ -47,7 +47,6 @@ import java.lang.reflect.Method
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.math.hypot
-import kotlin.math.min
 
 class FloatingLauncherService : Service() {
 
