@@ -51,12 +51,22 @@ Installation
 You can download the latest APKs for both modules from the Releases page.
  * Install DroidOS Launcher to manage your apps and windows.
  * Install DroidOS Trackpad Keyboard to control the cursor.
- * DroidOS Launcher can be exited by swiping tbr bubble icon away.
  * Grant Shizuku permissions when prompted in each app.
  * I reccomend this fork of shizuku https://github.com/thedjchi/Shizuku once you set it up. It has a watchdog feature to autorestart whenever it gets turned off. Once you turn it on, even if you lose wireless adb you can still turn shizuku back on without it. Also has an auto start on boot feature. Does not require root.
  * Grant accessibility permissions to the trackpad when prompted.
+
+ * DroidOS Launcher can be exited by swiping the bubble icon away.
+
+<br>
+<br>
+
+---
+
 🤝 Contributing
-We welcome contributions! Please note that this is a Monorepo.
+
+We welcome contributions! 
+
+Please note that this is a Monorepo.
  * If you are fixing a bug in the Launcher, make your Pull Request against the Cover-Screen-Launcher directory.
  * If you are improving the Trackpad, work within the Cover-Screen-Trackpad directory.
 
