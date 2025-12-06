@@ -33,60 +33,89 @@ class ShellUserService : IShellService.Stub() {
         }
     }
 
-    //DISPLAY OFF CODE  DO NOT DELETE 
-     override fun setBrightness(displayId: Int, brightness: Int) {
-        Log.d(TAG, "setBrightness(Global Broadcast, Value: $brightness)")
-        val token = Binder.clearCallingIdentity()
+    override fun setBrightness(value: Int) {
+        val resolver = shellResolver ?: return
         try {
-            if (brightness < 0) {
-                // === SCREEN OFF ===
-                execShellCommand("settings put system screen_brightness_mode 0")
+            // 1. Disable Auto Brightness
+            Settings.System.putInt(resolver, "screen_brightness_mode", 0)
+
+            if (value == -1) {
+                // --- EXTINGUISH MODE (-1) ---
+                // Remove minimum limit
+                Settings.System.putInt(resolver, "screen_brightness_min", 0)
                 
-                // Get ALL tokens, but ONLY apply to the first 2 (Main + Cover)
-                // This prevents killing the Glasses (which would be index 2+)
-                val tokens = getAllPhysicalDisplayTokens()
-                val safeTokens = tokens.take(2)
-                
-                for (t in safeTokens) {
-                    setDisplayBrightnessOnToken(t, -1.0f)
+                // Set float to -1.0 (The magic signal for OLED off on some drivers)
+                try {
+                    Settings.System.putFloat(resolver, "screen_brightness_float", -1.0f)
+                } catch (e: Exception) {
+                    Settings.System.putString(resolver, "screen_brightness_float", "-1.0")
                 }
                 
-                execShellCommand("settings put system screen_brightness_float -1.0")
-                execShellCommand("settings put system screen_brightness -1")
+                // Set int to -1
+                Settings.System.putInt(resolver, "screen_brightness", -1)
+                
+                // Hardware override via DisplayManager
+                setBrightnessViaDisplayManager(0, -1.0f)
             } else {
-                // === SCREEN ON ===
-                val floatVal = brightness.toFloat() / 255.0f
+                // --- WAKE UP ---
+                val safeVal = value.coerceIn(1, 255)
+                val floatVal = safeVal / 255.0f
                 
-                // Restore ALL tokens (safety, in case user replugged glasses)
-                val tokens = getAllPhysicalDisplayTokens()
-                for (t in tokens) {
-                    setDisplayBrightnessOnToken(t, floatVal)
-                }
+                Settings.System.putFloat(resolver, "screen_brightness_float", floatVal)
+                Settings.System.putInt(resolver, "screen_brightness", safeVal)
                 
-                execShellCommand("settings put system screen_brightness_float $floatVal")
-                execShellCommand("settings put system screen_brightness $brightness")
+                setBrightnessViaDisplayManager(0, floatVal)
             }
         } catch (e: Exception) {
             Log.e(TAG, "setBrightness failed", e)
-        } finally {
-             Binder.restoreCallingIdentity(token)
+        }
+    }
+
+    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean {
+        try {
+            val serviceManagerClass = Class.forName("android.os.ServiceManager")
+            val getServiceMethod = serviceManagerClass.getMethod("getService", String::class.java)
+            val binder = getServiceMethod.invoke(null, "display") as IBinder
+            // Correctly escaped Stub for Kotlin string interpolation
+            val iDisplayManagerClass = Class.forName("android.hardware.display.IDisplayManager\$Stub")
+            val displayManager = iDisplayManagerClass.getMethod("asInterface", IBinder::class.java).invoke(null, binder)
+
+            try {
+                // Try 2-arg method first (Android 14+)
+                val method = displayManager.javaClass.getMethod("setTemporaryBrightness", Int::class.javaPrimitiveType, Float::class.javaPrimitiveType)
+                method.invoke(displayManager, displayId, brightness)
+                return true
+            } catch (e: NoSuchMethodException) {
+                // Fallback to 1-arg method
+                val method = displayManager.javaClass.getMethod("setTemporaryBrightness", Float::class.javaPrimitiveType)
+                method.invoke(displayManager, brightness)
+                return true
+            }
+        } catch (e: Exception) { 
+            Log.e(TAG, "setBrightnessViaDisplayManager failed", e)
+            return false 
         }
     }
 
     // --- v2.0 LOGIC: Screen Off (SurfaceControl) ---
-    
- override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
-        Log.d(TAG, "setScreenOff(Global Broadcast, TurnOff: $turnOff)")
+    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
         val token = Binder.clearCallingIdentity()
         try {
-            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
+            val scClass = Class.forName("android.view.SurfaceControl")
+            var serviceToken: IBinder? = null
+            try { serviceToken = scClass.getDeclaredMethod("getInternalDisplayToken").apply { isAccessible = true }.invoke(null) as? IBinder } catch (e: Exception) {}
             
-            // Same safety limit: Only affect first 2 physical screens
-            val tokens = getAllPhysicalDisplayTokens()
-            val safeTokens = tokens.take(2)
+            if (serviceToken == null) {
+                val ids = scClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                if (ids.isNotEmpty()) {
+                     val targetId = if (displayIndex >= 0 && displayIndex < ids.size) ids[displayIndex] else ids[0]
+                     serviceToken = scClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType).invoke(null, targetId) as? IBinder
+                }
+            }
             
-            for (t in safeTokens) {
-                setPowerModeOnToken(t, mode)
+            if (serviceToken != null) {
+                scClass.getMethod("setDisplayPowerMode", IBinder::class.java, Int::class.javaPrimitiveType)
+                    .invoke(null, serviceToken, if (turnOff) 0 else 2)
             }
         } catch (e: Exception) {
             Log.e(TAG, "setScreenOff failed", e)
@@ -230,10 +259,14 @@ class ShellUserService : IShellService.Stub() {
         if (pkg == "NotificationShade") return false
         return true
     }
-    //Displayoff code DO NOT CHANGE 
-     override fun getSystemBrightness(): Int = 128
+
+    // Interface compliance stubs
+    override fun setSystemBrightness(brightness: Int) { setBrightness(brightness) }
+    override fun getSystemBrightness(): Int = 128
     override fun getSystemBrightnessFloat(): Float = 0.5f
-    override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
+    override fun setAutoBrightness(enabled: Boolean) { 
+        val resolver = shellResolver ?: return
+        try { Settings.System.putInt(resolver, "screen_brightness_mode", if (enabled) 1 else 0) } catch(e: Exception) {}
+    }
     override fun isAutoBrightness(): Boolean = true
-    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
 }
