@@ -130,6 +130,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var prefCursorSize = 50 
     private var prefKeyScale = 100 
     
+    // --- Screen Control Prefs ---
+    private var prefUseAltScreenOff = true
+    private var isScreenOff = false
+    
     private var isDebugMode = false
     private var isKeyboardMode = false 
     private var savedWindowX = 0
@@ -324,8 +328,114 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         if (!isDebugMode) { if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) }
     }
     
-    private fun initCustomKeyboard() { if (windowManager == null || shellService == null) return; keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId); keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId) }
-    private fun toggleCustomKeyboard() { if (keyboardOverlay == null && shellService != null) initCustomKeyboard(); if (keyboardOverlay != null) { val wasVisible = keyboardOverlay?.isShowing() == true; if (wasVisible) keyboardOverlay?.hide(); keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId); keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId); if (!wasVisible) keyboardOverlay?.show() } else { keyboardOverlay?.toggle() }; isCustomKeyboardVisible = keyboardOverlay?.isShowing() ?: false; if (isCustomKeyboardVisible) { updateBorderColor(0xFF9C27B0.toInt()) } else { if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) }; vibrate() }
+    private fun initCustomKeyboard() { 
+        if (windowManager == null || shellService == null) return
+        keyboardOverlay = KeyboardOverlay(
+            this, 
+            windowManager!!, 
+            shellService, 
+            inputTargetDisplayId,
+            onScreenToggleAction = { toggleScreen() },
+            onScreenModeChangeAction = { toggleScreenMode() }
+        )
+        keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId) 
+    }
+
+    private fun toggleCustomKeyboard() { 
+        if (keyboardOverlay == null && shellService != null) initCustomKeyboard()
+        
+        if (keyboardOverlay != null) { 
+            val wasVisible = keyboardOverlay?.isShowing() == true
+            if (wasVisible) {
+                keyboardOverlay?.hide()
+                // AUTO SCREEN OFF LOGIC: Keyboard Hiding -> Screen OFF
+                // Note: User prompt implies "kb on = screen on, vice versa", so kb off = screen off
+                triggerAutoScreen(false)
+            } else {
+                keyboardOverlay = KeyboardOverlay(
+                    this, 
+                    windowManager!!, 
+                    shellService, 
+                    inputTargetDisplayId,
+                    onScreenToggleAction = { toggleScreen() },
+                    onScreenModeChangeAction = { toggleScreenMode() }
+                )
+                keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId)
+                keyboardOverlay?.show()
+                // AUTO SCREEN ON LOGIC: Keyboard Showing -> Screen ON
+                triggerAutoScreen(true)
+            }
+        } else { 
+            keyboardOverlay?.toggle() 
+        }
+        
+        isCustomKeyboardVisible = keyboardOverlay?.isShowing() ?: false
+        if (isCustomKeyboardVisible) { updateBorderColor(0xFF9C27B0.toInt()) } else { if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()) }
+        vibrate() 
+    }
+
+    // --- Screen Control Implementation ---
+
+    private fun toggleScreen() {
+        if (isScreenOff) {
+            turnScreenOn()
+        } else {
+            turnScreenOff()
+        }
+        vibrate()
+    }
+
+    private fun toggleScreenMode() {
+        prefUseAltScreenOff = !prefUseAltScreenOff
+        // Save preference
+        getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putBoolean("use_alt_screen_off", prefUseAltScreenOff).apply()
+        
+        val mode = if (prefUseAltScreenOff) "Alternate (Pixels)" else "Standard (Power)"
+        showToast("Screen Off Mode: $mode")
+        vibrate()
+    }
+
+    private fun triggerAutoScreen(turnOn: Boolean) {
+        if (turnOn) {
+            turnScreenOn()
+        } else {
+            // Only turn off if it was previously On, or logic dictates
+            turnScreenOff()
+        }
+    }
+
+    private fun turnScreenOff() {
+        isScreenOff = true
+        Thread {
+            try {
+                if (prefUseAltScreenOff) {
+                    shellService?.setBrightness(-1)
+                } else {
+                    shellService?.setScreenOff(0, true)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Screen Off Failed", e)
+            }
+        }.start()
+        showToast("Screen Off (${if(prefUseAltScreenOff) "Alt" else "Std"})")
+    }
+
+    private fun turnScreenOn() {
+        isScreenOff = false
+        Thread {
+            try {
+                // Restore brightness to reasonable default (128 = ~50%)
+                shellService?.setBrightness(128)
+                // Ensure power mode is on
+                shellService?.setScreenOff(0, false)
+            } catch (e: Exception) {
+                Log.e(TAG, "Screen On Failed", e)
+            }
+        }.start()
+        showToast("Screen On")
+    }
+
+
     private fun toggleDebugMode() { isDebugMode = !isDebugMode; if (isDebugMode) { showToast("Debug ON"); updateBorderColor(0xFFFFFF00.toInt()); debugTextView?.visibility = View.VISIBLE } else { showToast("Debug OFF"); if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()); debugTextView?.visibility = View.GONE } }
     private fun resetCursorCenter() { cursorX = (targetScreenWidth / 2).toFloat(); cursorY = (targetScreenHeight / 2).toFloat(); if (inputTargetDisplayId == currentDisplayId) { cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {} } else { remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt(); try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {} }; showToast("Reset to ${cursorX.toInt()}x${cursorY.toInt()}"); vibrate() }
     private fun handleManualAdjust(intent: Intent) { val target = intent.getStringExtra("TARGET") ?: "TRACKPAD"; if (target == "KEYBOARD") { if (!isCustomKeyboardVisible) { toggleCustomKeyboard() }; if (keyboardOverlay == null) return; val dx = intent.getIntExtra("DX", 0); val dy = intent.getIntExtra("DY", 0); val dw = intent.getIntExtra("DW", 0); val dh = intent.getIntExtra("DH", 0); if (dx != 0 || dy != 0) { keyboardOverlay?.moveWindow(dx, dy) }; if (dw != 0 || dh != 0) { keyboardOverlay?.resizeWindow(dw, dh) }; return }; if (windowManager == null || trackpadLayout == null) return; val dx = intent.getIntExtra("DX", 0); val dy = intent.getIntExtra("DY", 0); val dw = intent.getIntExtra("DW", 0); val dh = intent.getIntExtra("DH", 0); trackpadParams.x += dx; trackpadParams.y += dy; trackpadParams.width = max(200, trackpadParams.width + dw); trackpadParams.height = max(200, trackpadParams.height + dh); try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams); saveLayout() } catch (e: Exception) {} }
@@ -424,7 +534,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun injectScroll(vDist: Float, hDist: Float) { if (shellService == null) return; val dId = if (inputTargetDisplayId != -1) inputTargetDisplayId else (cursorLayout?.display?.displayId ?: Display.DEFAULT_DISPLAY); Thread { try { shellService?.injectScroll(cursorX, cursorY, vDist, hDist, dId) } catch (e: Exception) { Log.e(TAG, "Scroll injection failed", e) } }.start() }
     private fun performClick(r: Boolean) { if (shellService == null) { bindShizuku(); return }; if (isCursorOverTrackpad()) { if(isDebugMode) showToast("Blocked: Over Trackpad"); return }; Thread { try { if (r) shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId) else shellService?.execClick(cursorX, cursorY, inputTargetDisplayId) } catch (e: Exception) { Log.e(TAG, "Click injection failed", e) } }.start() }
     private fun cycleInputTarget() { 
-        if (displayManager == null) return; try { val displays = displayManager!!.displays; var nextId = -1; for (d in displays) { if (d.displayId != currentDisplayId) { if (inputTargetDisplayId == currentDisplayId) { nextId = d.displayId; break } else if (inputTargetDisplayId == d.displayId) { continue } else { nextId = d.displayId } } }; if (nextId == -1) { inputTargetDisplayId = currentDisplayId; targetScreenWidth = uiScreenWidth; targetScreenHeight = uiScreenHeight; removeRemoteCursor(); cursorX = (uiScreenWidth / 2).toFloat(); cursorY = (uiScreenHeight / 2).toFloat(); cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); windowManager?.updateViewLayout(cursorLayout, cursorParams); currentBorderColor = 0x55FFFFFF.toInt(); updateBorderColor(currentBorderColor); cursorView?.visibility = View.VISIBLE; showToast("Target: Local (Display $currentDisplayId)"); vibrate() } else { inputTargetDisplayId = nextId; updateTargetMetrics(nextId); createRemoteCursor(nextId); cursorX = (targetScreenWidth / 2).toFloat(); cursorY = (targetScreenHeight / 2).toFloat(); currentBorderColor = 0xFFFF00FF.toInt(); updateBorderColor(currentBorderColor); cursorView?.visibility = View.GONE; showToast("Target: Display $nextId (${targetScreenWidth}x${targetScreenHeight})"); vibrate(); vibrate() }; if (isCustomKeyboardVisible) { keyboardOverlay?.hide(); keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId); keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId); keyboardOverlay?.show() } } catch (e: Exception) { Log.e("OverlayService", "Cycle Error", e) } 
+        if (displayManager == null) return; try { val displays = displayManager!!.displays; var nextId = -1; for (d in displays) { if (d.displayId != currentDisplayId) { if (inputTargetDisplayId == currentDisplayId) { nextId = d.displayId; break } else if (inputTargetDisplayId == d.displayId) { continue } else { nextId = d.displayId } } }; if (nextId == -1) { inputTargetDisplayId = currentDisplayId; targetScreenWidth = uiScreenWidth; targetScreenHeight = uiScreenHeight; removeRemoteCursor(); cursorX = (uiScreenWidth / 2).toFloat(); cursorY = (uiScreenHeight / 2).toFloat(); cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); windowManager?.updateViewLayout(cursorLayout, cursorParams); currentBorderColor = 0x55FFFFFF.toInt(); updateBorderColor(currentBorderColor); cursorView?.visibility = View.VISIBLE; showToast("Target: Local (Display $currentDisplayId)"); vibrate() } else { inputTargetDisplayId = nextId; updateTargetMetrics(nextId); createRemoteCursor(nextId); cursorX = (targetScreenWidth / 2).toFloat(); cursorY = (targetScreenHeight / 2).toFloat(); currentBorderColor = 0xFFFF00FF.toInt(); updateBorderColor(currentBorderColor); cursorView?.visibility = View.GONE; showToast("Target: Display $nextId (${targetScreenWidth}x${targetScreenHeight})"); vibrate(); vibrate() }; if (isCustomKeyboardVisible) { keyboardOverlay?.hide(); keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId, { toggleScreen() }, { toggleScreenMode() }); keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentOverlayDisplayId); keyboardOverlay?.show() } } catch (e: Exception) { Log.e("OverlayService", "Cycle Error", e) } 
     }
     private fun showToast(msg: String) { handler.post { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show() } }
     private fun vibrate() { if (!prefVibrate) return; val v = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator; if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)) else @Suppress("DEPRECATION") v.vibrate(50) }
@@ -435,7 +545,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun toggleKeyboardMode() { vibrate(); isRightDragPending = false; if (!isKeyboardMode) { isKeyboardMode = true; savedWindowX = trackpadParams.x; savedWindowY = trackpadParams.y; trackpadParams.x = uiScreenWidth - trackpadParams.width; trackpadParams.y = 0; windowManager?.updateViewLayout(trackpadLayout, trackpadParams); updateBorderColor(0xFFFF0000.toInt()) } else { isKeyboardMode = false; trackpadParams.x = savedWindowX; trackpadParams.y = savedWindowY; windowManager?.updateViewLayout(trackpadLayout, trackpadParams); updateBorderColor(currentBorderColor) } }
     private fun openMenuHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_DOWN) { vibrate(); val intent = Intent(this, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }; startActivity(intent); return true }; return false }
     private fun keyboardHandle(event: MotionEvent): Boolean { when (event.action) { MotionEvent.ACTION_DOWN -> { keyboardHandleDownTime = SystemClock.uptimeMillis(); handler.postDelayed(keyboardLongPressRunnable, 800); return true }; MotionEvent.ACTION_UP -> { handler.removeCallbacks(keyboardLongPressRunnable); if (SystemClock.uptimeMillis() - keyboardHandleDownTime < 800) toggleCustomKeyboard(); return true }; MotionEvent.ACTION_CANCEL -> { handler.removeCallbacks(keyboardLongPressRunnable); return true } }; return false }
-    private fun loadPrefs() { val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE); cursorSpeed = p.getFloat("cursor_speed", 2.5f); scrollSpeed = p.getFloat("scroll_speed", 3.0f); prefTapScroll = p.getBoolean("tap_scroll", true); prefVibrate = p.getBoolean("vibrate", true); prefReverseScroll = p.getBoolean("reverse_scroll", true); prefAlpha = p.getInt("alpha", 200); prefLocked = p.getBoolean("lock_position", false); prefVPosLeft = p.getBoolean("v_pos_left", false); prefHPosTop = p.getBoolean("h_pos_top", false); prefHandleTouchSize = p.getInt("handle_touch_size", 60); prefScrollTouchSize = p.getInt("scroll_touch_size", 60); prefHandleSize = p.getInt("handle_size", 60); prefScrollVisualSize = p.getInt("scroll_visual_size", 4); scrollZoneThickness = prefScrollTouchSize; prefCursorSize = p.getInt("cursor_size", 50); prefKeyScale = p.getInt("keyboard_key_scale", 100) }
+    private fun loadPrefs() { val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE); cursorSpeed = p.getFloat("cursor_speed", 2.5f); scrollSpeed = p.getFloat("scroll_speed", 3.0f); prefTapScroll = p.getBoolean("tap_scroll", true); prefVibrate = p.getBoolean("vibrate", true); prefReverseScroll = p.getBoolean("reverse_scroll", true); prefAlpha = p.getInt("alpha", 200); prefLocked = p.getBoolean("lock_position", false); prefVPosLeft = p.getBoolean("v_pos_left", false); prefHPosTop = p.getBoolean("h_pos_top", false); prefHandleTouchSize = p.getInt("handle_touch_size", 60); prefScrollTouchSize = p.getInt("scroll_touch_size", 60); prefHandleSize = p.getInt("handle_size", 60); prefScrollVisualSize = p.getInt("scroll_visual_size", 4); scrollZoneThickness = prefScrollTouchSize; prefCursorSize = p.getInt("cursor_size", 50); prefKeyScale = p.getInt("keyboard_key_scale", 100); prefUseAltScreenOff = p.getBoolean("use_alt_screen_off", true) }
     private fun handlePreview(intent: Intent) { val target = intent.getStringExtra("TARGET"); val value = intent.getIntExtra("VALUE", 0); handler.removeCallbacks(clearHighlightsRunnable); when (target) { "alpha" -> { prefAlpha = value; highlightAlpha = true; updateBorderColor(currentBorderColor) }; "handle_touch" -> { prefHandleTouchSize = value; highlightHandles = true; updateLayoutSizes() }; "scroll_touch" -> { prefScrollTouchSize = value; scrollZoneThickness = value; highlightScrolls = true; updateLayoutSizes(); updateScrollPosition() }; "handle_size" -> { prefHandleSize = value; highlightHandles = true; updateHandleSize() }; "scroll_visual" -> { prefScrollVisualSize = value; highlightScrolls = true; updateLayoutSizes() }; "cursor_size" -> { prefCursorSize = value; updateCursorSize() }; "keyboard_scale" -> { prefKeyScale = value; keyboardOverlay?.updateScale(value / 100f) } }; handler.postDelayed(clearHighlightsRunnable, 1500) }
     private fun addHandle(context: Context, gravity: Int, color: Int, onTouch: (View, MotionEvent) -> Boolean) { val container = FrameLayout(context); val containerParams = FrameLayout.LayoutParams(prefHandleTouchSize, prefHandleTouchSize); containerParams.gravity = gravity; val visual = View(context); val bg = GradientDrawable(); bg.setColor(color); bg.cornerRadii = floatArrayOf(15f, 15f, 15f, 15f, 15f, 15f, 15f, 15f); visual.background = bg; val visualParams = FrameLayout.LayoutParams(prefHandleSize, prefHandleSize); visualParams.gravity = Gravity.CENTER; container.addView(visual, visualParams); handleVisuals.add(visual); handleContainers.add(container); trackpadLayout?.addView(container, containerParams); container.setOnTouchListener { view, e -> onTouch(view, e) } }
     private fun updateHandleSize() { for (v in handleVisuals) { val p = v.layoutParams; p.width = prefHandleSize; p.height = prefHandleSize; v.layoutParams = p } }

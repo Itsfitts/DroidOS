@@ -12,4 +12,9 @@ interface IShellService {
     void setWindowingMode(int taskId, int mode);
     void resizeTask(int taskId, int left, int top, int right, int bottom);
     String runCommand(String cmd);
+
+    // Screen Control Methods (Ported from Launcher)
+    void setScreenOff(int displayIndex, boolean turnOff);
+    void setBrightness(int value);
+    boolean setBrightnessViaDisplayManager(int displayId, float brightness);
 }

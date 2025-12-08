@@ -19,7 +19,9 @@ class KeyboardOverlay(
     private val context: Context,
     private val windowManager: WindowManager,
     private val shellService: IShellService?,
-    private val targetDisplayId: Int
+    private val targetDisplayId: Int,
+    private val onScreenToggleAction: () -> Unit,
+    private val onScreenModeChangeAction: () -> Unit
 ) : KeyboardView.KeyboardListener {
 
     private var keyboardContainer: FrameLayout? = null
@@ -163,6 +165,9 @@ class KeyboardOverlay(
         Thread { try { val cmd = "input -d $targetDisplayId text \"$text\""; shellService.runCommand(cmd) } catch (e: Exception) { Log.e(TAG, "Text injection failed", e) } }.start()
     }
 
+    override fun onScreenToggle() { onScreenToggleAction() }
+    override fun onScreenModeChange() { onScreenModeChangeAction() }
+
     override fun onSpecialKey(key: KeyboardView.SpecialKey, metaState: Int) {
         if (key == KeyboardView.SpecialKey.VOICE_INPUT) {
             triggerVoiceTyping()
@@ -223,5 +228,38 @@ class KeyboardOverlay(
                 shellService.injectKey(keyCode, KeyEvent.ACTION_UP, metaState, targetDisplayId)
             } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
         }.start()
+    }
+    
+    private fun escapeForShell(text: String): String {
+        val sb = StringBuilder()
+        for (c in text) {
+            when (c) {
+                ' ' -> sb.append("%s")
+                '\'' -> sb.append("'")
+                '"' -> sb.append("\\\"")
+                '\\' -> sb.append("\\\\")
+                '`' -> sb.append("\\`")
+                '$' -> sb.append("\\$")
+                '&' -> sb.append("\\&")
+                '|' -> sb.append("\\|")
+                ';' -> sb.append("\\;")
+                '(' -> sb.append("\\(")
+                ')' -> sb.append("\\)")
+                '<' -> sb.append("\\<")
+                '>' -> sb.append("\\>")
+                '!' -> sb.append("\\!")
+                '?' -> sb.append("\\?")
+                '*' -> sb.append("\\*")
+                '[' -> sb.append("\\[")
+                ']' -> sb.append("\\]")
+                '{' -> sb.append("\\{")
+                '}' -> sb.append("\\}")
+                '#' -> sb.append("\\#")
+                '~' -> sb.append("\\~")
+                '^' -> sb.append("\\^")
+                else -> sb.append(c)
+            }
+        }
+        return sb.toString()
     }
 }
