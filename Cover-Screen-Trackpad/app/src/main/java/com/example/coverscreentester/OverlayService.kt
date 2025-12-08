@@ -475,9 +475,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             PixelFormat.TRANSLUCENT
         )
         cursorParams.gravity = Gravity.TOP or Gravity.LEFT
-        cursorParams.x = uiScreenWidth / 2
-        cursorParams.y = uiScreenHeight / 2
-        
+        val centerX = uiScreenWidth / 2
+        val centerY = uiScreenHeight / 2
+        cursorX = centerX.toFloat()
+        cursorY = centerY.toFloat()
+        cursorParams.x = centerX  // or adjust based on your cursor image
+        cursorParams.y = centerY
         windowManager?.addView(cursorLayout, cursorParams)
     }
 
@@ -568,21 +571,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     
     fun updatePref(key: String, value: Any) {
-        when(key) {
-            "cursor_speed" -> prefs.cursorSpeed = value as Float
-            "scroll_speed" -> prefs.scrollSpeed = value as Float
-            "tap_scroll" -> prefs.prefTapScroll = (value as Int) == 1
-            "vibrate" -> prefs.prefVibrate = (value as Int) == 1
-            "reverse_scroll" -> prefs.prefReverseScroll = (value as Int) == 1
-            "alpha" -> { prefs.prefAlpha = value as Int; updateBorderColor(currentBorderColor) }
-            "handle_size" -> { prefs.prefHandleSize = value as Int; updateHandleSize() }
-            "cursor_size" -> { prefs.prefCursorSize = value as Int; updateCursorSize() }
-            "keyboard_key_scale" -> { prefs.prefKeyScale = value as Int; keyboardOverlay?.updateScale(value / 100f) }
-            "use_alt_screen_off" -> prefs.prefUseAltScreenOff = (value as Int) == 1
-        }
-        savePrefs()
+    when(key) {
+        "cursor_speed" -> prefs.cursorSpeed = value as Float
+        "scroll_speed" -> prefs.scrollSpeed = value as Float
+        "tap_scroll" -> prefs.prefTapScroll = when (value) { is Boolean -> value; is Int -> value == 1; else -> true }
+        "vibrate" -> prefs.prefVibrate = when (value) { is Boolean -> value; is Int -> value == 1; else -> true }
+        "reverse_scroll" -> prefs.prefReverseScroll = when (value) { is Boolean -> value; is Int -> value == 1; else -> true }
+        "alpha" -> { prefs.prefAlpha = value as Int; updateBorderColor(currentBorderColor) }
+        "handle_size" -> { prefs.prefHandleSize = value as Int; updateHandleSize() }
+        "cursor_size" -> { prefs.prefCursorSize = value as Int; updateCursorSize() }
+        "keyboard_key_scale" -> { prefs.prefKeyScale = value as Int; keyboardOverlay?.updateScale((value as Int) / 100f) }
+        "use_alt_screen_off" -> prefs.prefUseAltScreenOff = when (value) { is Boolean -> value; is Int -> value == 1; else -> true }
     }
-    
+    savePrefs()
+}
     private fun loadPrefs() {
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         prefs.cursorSpeed = p.getFloat("cursor_speed", 2.5f)
@@ -697,8 +699,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         vScrollVisual = View(context)
         vScrollVisual?.setBackgroundColor(0x30FFFFFF.toInt())
         vScrollContainer?.addView(vScrollVisual, FrameLayout.LayoutParams(prefs.prefScrollVisualSize, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER))
-        
-        hScrollContainer = FrameLayout(context)
+        vScrollContainer?.setOnTouchListener { _, event -> handleVScrollTouch(event) }
+
+hScrollContainer = FrameLayout(context)
         val hp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, prefs.prefScrollTouchSize)
         hp.gravity = if (prefs.prefHPosTop) Gravity.TOP else Gravity.BOTTOM
         hp.setMargins(margin, 0, margin, 0)
@@ -707,8 +710,77 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         hScrollVisual = View(context)
         hScrollVisual?.setBackgroundColor(0x30FFFFFF.toInt())
         hScrollContainer?.addView(hScrollVisual, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, prefs.prefScrollVisualSize, Gravity.CENTER))
+        hScrollContainer?.setOnTouchListener { _, event -> handleHScrollTouch(event) }
     }
-    
+   
+
+private fun handleVScrollTouch(event: MotionEvent): Boolean {
+    when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+            isVScrolling = true
+            lastTouchY = event.y
+            scrollAccumulatorY = 0f
+            vScrollVisual?.setBackgroundColor(0x60FFFFFF.toInt())
+        }
+        MotionEvent.ACTION_MOVE -> {
+            if (isVScrolling) {
+                val dy = event.y - lastTouchY
+                scrollAccumulatorY += dy * prefs.scrollSpeed
+                val scrollThreshold = 30f
+                if (abs(scrollAccumulatorY) > scrollThreshold) {
+                    val scrollAmount = if (prefs.prefReverseScroll) -scrollAccumulatorY else scrollAccumulatorY
+                    injectScroll(0f, scrollAmount / 10f)
+                    scrollAccumulatorY = 0f
+                }
+                lastTouchY = event.y
+            }
+        }
+        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+            isVScrolling = false
+            scrollAccumulatorY = 0f
+            vScrollVisual?.setBackgroundColor(0x30FFFFFF.toInt())
+        }
+    }
+    return true
+}
+
+private fun handleHScrollTouch(event: MotionEvent): Boolean {
+    when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+            isHScrolling = true
+            lastTouchX = event.x
+            scrollAccumulatorX = 0f
+            hScrollVisual?.setBackgroundColor(0x60FFFFFF.toInt())
+        }
+        MotionEvent.ACTION_MOVE -> {
+            if (isHScrolling) {
+                val dx = event.x - lastTouchX
+                scrollAccumulatorX += dx * prefs.scrollSpeed
+                val scrollThreshold = 30f
+                if (abs(scrollAccumulatorX) > scrollThreshold) {
+                    val scrollAmount = if (prefs.prefReverseScroll) -scrollAccumulatorX else scrollAccumulatorX
+                    injectScroll(scrollAmount / 10f, 0f)
+                    scrollAccumulatorX = 0f
+                }
+                lastTouchX = event.x
+            }
+        }
+        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+            isHScrolling = false
+            scrollAccumulatorX = 0f
+            hScrollVisual?.setBackgroundColor(0x30FFFFFF.toInt())
+        }
+    }
+    return true
+}
+
+private fun injectScroll(hScroll: Float, vScroll: Float) {
+    if (shellService == null) return
+    Thread {
+        try { shellService?.injectScroll(cursorX, cursorY, vScroll, hScroll, inputTargetDisplayId) } catch(e: Exception){}
+    }.start()
+}
+
     private fun updateScrollPosition() {
         val margin = prefs.prefHandleTouchSize + 10
         vScrollContainer?.let { container ->
@@ -808,17 +880,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             try { shellService?.injectMouse(action, cursorX, cursorY, inputTargetDisplayId, source, button, time) } catch(e: Exception){}
         }.start()
     }
-    
     private fun performClick(right: Boolean) {
-        if (shellService == null) return
-        Thread {
-            try { 
-                if (right) shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId)
-                else shellService?.execClick(cursorX, cursorY, inputTargetDisplayId)
-            } catch(e: Exception){}
-        }.start()
-    }
-    
+    if (shellService == null) return
+    val clickOffsetY = 100f  // Adjust this value until click matches cursor
+    Thread {
+        try { 
+            if (right) shellService?.execRightClick(cursorX, cursorY + clickOffsetY, inputTargetDisplayId)
+            else shellService?.execClick(cursorX, cursorY + clickOffsetY, inputTargetDisplayId)
+        } catch(e: Exception){}
+    }.start()
+}
+        
     fun resetCursorCenter() { 
         cursorX = uiScreenWidth/2f; cursorY = uiScreenHeight/2f
         cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt()
