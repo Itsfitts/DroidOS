@@ -68,9 +68,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // --- State ---
     var currentDisplayId = 0
     var inputTargetDisplayId = 0
-    var isTrackpadVisible = false
+    var isTrackpadVisible = true
     var isCustomKeyboardVisible = false
     var isScreenOff = false
+    private var isPreviewMode = false
     
     // --- Preferences Object ---
     class Prefs {
@@ -100,27 +101,42 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var targetScreenHeight = 1080
     private var cursorX = 300f
     private var cursorY = 300f
+    private var virtualScrollX = 0f
+    private var virtualScrollY = 0f
+    private var scrollAccumulatorX = 0f
+    private var scrollAccumulatorY = 0f
+    private var rotationAngle = 0
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+    private var initialWindowX = 0
+    private var initialWindowY = 0
+    private var initialWindowWidth = 0
+    private var initialWindowHeight = 0
+    private var initialTouchX = 0f
+    private var initialTouchY = 0f
     private var isTouchDragging = false
     private var isLeftKeyHeld = false
     private var isRightKeyHeld = false
     private var isRightDragPending = false
-    private var lastTouchX = 0f
-    private var lastTouchY = 0f
-    private var activeFingerDeviceId = -1
-    private var rotationAngle = 0
-    private var currentBorderColor = 0xFFFFFFFF.toInt()
-    
-    // Scroll Vars
     private var isVScrolling = false
     private var isHScrolling = false
-    private var scrollAccumulatorX = 0f
-    private var scrollAccumulatorY = 0f
-    private var virtualScrollX = 0f
-    private var virtualScrollY = 0f
-    private var hasSentScrollDown = false
     private var dragDownTime: Long = 0L
+    private var isClicking = false
+    private var hasSentTouchDown = false
+    private var hasSentMouseDown = false
+    private var hasSentScrollDown = false
+    private var activeFingerDeviceId = -1
+    private var pendingDragDownTime: Long = 0L
+    private var ignoreTouchSequence = false
+    private var isDebugMode = false
+    private var isKeyboardMode = false
+    private var savedWindowX = 0
+    private var savedWindowY = 0
+    private var currentBorderColor = 0xFFFFFFFF.toInt()
+    private var highlightAlpha = false
+    private var highlightHandles = false
+    private var highlightScrolls = false
 
-    // Handles & Visuals
     private val handleContainers = ArrayList<FrameLayout>()
     private val handleVisuals = ArrayList<View>()
     private var vScrollContainer: FrameLayout? = null
@@ -134,41 +150,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var remoteCursorLayout: FrameLayout? = null
     private var remoteCursorView: ImageView? = null
     private lateinit var remoteCursorParams: WindowManager.LayoutParams
-
-    // State helpers
-    private var isDebugMode = false
-    private var isKeyboardMode = false
-    private var savedWindowX = 0
-    private var savedWindowY = 0
+    private var currentOverlayDisplayId = 0
     private var lastLoadedProfileKey = ""
-    private var initialWindowX = 0
-    private var initialWindowY = 0
-    private var initialWindowWidth = 0
-    private var initialWindowHeight = 0
-    private var initialTouchX = 0f
-    private var initialTouchY = 0f
-    private var isMoving = false
-    private var isResizing = false
-    private var isClicking = false
-    private var hasSentTouchDown = false
-    private var hasSentMouseDown = false
-    private var pendingDragDownTime: Long = 0L
-    private var ignoreTouchSequence = false
-    private var keyboardHandleDownTime = 0L
-    private var isPreviewMode = false
 
-    // Highlight state
-    private var highlightAlpha = false
-    private var highlightHandles = false
-    private var highlightScrolls = false
+    private var scrollZoneThickness = 60
 
     // Runnables
     private val longPressRunnable = Runnable { startTouchDrag() }
+    private var isResizing = false
     private val resizeLongPressRunnable = Runnable { startResize() }
+    private var isMoving = false
     private val moveLongPressRunnable = Runnable { startMove() }
     
-    // DEFINED HERE to be accessible by name
     private val voiceRunnable = Runnable { toggleKeyboardMode() }
+    private var keyboardHandleDownTime = 0L
     private val keyboardLongPressRunnable = Runnable { toggleKeyboardMode() }
     
     private val clearHighlightsRunnable = Runnable {
@@ -207,6 +202,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         private const val TAG = "OverlayService"
         private const val BASE_SWIPE_DISTANCE = 200f
         private const val SCROLL_THRESHOLD = 5f
+        private const val DRAG_MOVEMENT_THRESHOLD = 20 // Buffer for hold
     }
     
     // --- VIBRATE HELPER (Must be member function) ---
@@ -471,16 +467,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         cursorParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or 
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, 
             PixelFormat.TRANSLUCENT
         )
         cursorParams.gravity = Gravity.TOP or Gravity.LEFT
-        val centerX = uiScreenWidth / 2
-        val centerY = uiScreenHeight / 2
-        cursorX = centerX.toFloat()
-        cursorY = centerY.toFloat()
-        cursorParams.x = centerX  // or adjust based on your cursor image
-        cursorParams.y = centerY
+        cursorParams.x = uiScreenWidth / 2
+        cursorParams.y = uiScreenHeight / 2
+        
         windowManager?.addView(cursorLayout, cursorParams)
     }
 
@@ -571,20 +566,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     
     fun updatePref(key: String, value: Any) {
-    when(key) {
-        "cursor_speed" -> prefs.cursorSpeed = value as Float
-        "scroll_speed" -> prefs.scrollSpeed = value as Float
-        "tap_scroll" -> prefs.prefTapScroll = when (value) { is Boolean -> value; is Int -> value == 1; else -> true }
-        "vibrate" -> prefs.prefVibrate = when (value) { is Boolean -> value; is Int -> value == 1; else -> true }
-        "reverse_scroll" -> prefs.prefReverseScroll = when (value) { is Boolean -> value; is Int -> value == 1; else -> true }
-        "alpha" -> { prefs.prefAlpha = value as Int; updateBorderColor(currentBorderColor) }
-        "handle_size" -> { prefs.prefHandleSize = value as Int; updateHandleSize() }
-        "cursor_size" -> { prefs.prefCursorSize = value as Int; updateCursorSize() }
-        "keyboard_key_scale" -> { prefs.prefKeyScale = value as Int; keyboardOverlay?.updateScale((value as Int) / 100f) }
-        "use_alt_screen_off" -> prefs.prefUseAltScreenOff = when (value) { is Boolean -> value; is Int -> value == 1; else -> true }
+        when(key) {
+            "cursor_speed" -> prefs.cursorSpeed = value as Float
+            "scroll_speed" -> prefs.scrollSpeed = value as Float
+            "tap_scroll" -> prefs.prefTapScroll = (value as Int) == 1
+            "vibrate" -> prefs.prefVibrate = (value as Int) == 1
+            "reverse_scroll" -> prefs.prefReverseScroll = (value as Int) == 1
+            "alpha" -> { prefs.prefAlpha = value as Int; updateBorderColor(currentBorderColor) }
+            "handle_size" -> { prefs.prefHandleSize = value as Int; updateHandleSize() }
+            "cursor_size" -> { prefs.prefCursorSize = value as Int; updateCursorSize() }
+            "keyboard_key_scale" -> { prefs.prefKeyScale = value as Int; keyboardOverlay?.updateScale(value / 100f) }
+            "use_alt_screen_off" -> prefs.prefUseAltScreenOff = (value as Int) == 1
+        }
+        savePrefs()
     }
-    savePrefs()
-}
+    
     private fun loadPrefs() {
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         prefs.cursorSpeed = p.getFloat("cursor_speed", 2.5f)
@@ -699,9 +695,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         vScrollVisual = View(context)
         vScrollVisual?.setBackgroundColor(0x30FFFFFF.toInt())
         vScrollContainer?.addView(vScrollVisual, FrameLayout.LayoutParams(prefs.prefScrollVisualSize, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER))
-        vScrollContainer?.setOnTouchListener { _, event -> handleVScrollTouch(event) }
-
-hScrollContainer = FrameLayout(context)
+        
+        hScrollContainer = FrameLayout(context)
         val hp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, prefs.prefScrollTouchSize)
         hp.gravity = if (prefs.prefHPosTop) Gravity.TOP else Gravity.BOTTOM
         hp.setMargins(margin, 0, margin, 0)
@@ -710,77 +705,8 @@ hScrollContainer = FrameLayout(context)
         hScrollVisual = View(context)
         hScrollVisual?.setBackgroundColor(0x30FFFFFF.toInt())
         hScrollContainer?.addView(hScrollVisual, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, prefs.prefScrollVisualSize, Gravity.CENTER))
-        hScrollContainer?.setOnTouchListener { _, event -> handleHScrollTouch(event) }
     }
-   
-
-private fun handleVScrollTouch(event: MotionEvent): Boolean {
-    when (event.actionMasked) {
-        MotionEvent.ACTION_DOWN -> {
-            isVScrolling = true
-            lastTouchY = event.y
-            scrollAccumulatorY = 0f
-            vScrollVisual?.setBackgroundColor(0x60FFFFFF.toInt())
-        }
-        MotionEvent.ACTION_MOVE -> {
-            if (isVScrolling) {
-                val dy = event.y - lastTouchY
-                scrollAccumulatorY += dy * prefs.scrollSpeed
-                val scrollThreshold = 30f
-                if (abs(scrollAccumulatorY) > scrollThreshold) {
-                    val scrollAmount = if (prefs.prefReverseScroll) -scrollAccumulatorY else scrollAccumulatorY
-                    injectScroll(0f, scrollAmount / 10f)
-                    scrollAccumulatorY = 0f
-                }
-                lastTouchY = event.y
-            }
-        }
-        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-            isVScrolling = false
-            scrollAccumulatorY = 0f
-            vScrollVisual?.setBackgroundColor(0x30FFFFFF.toInt())
-        }
-    }
-    return true
-}
-
-private fun handleHScrollTouch(event: MotionEvent): Boolean {
-    when (event.actionMasked) {
-        MotionEvent.ACTION_DOWN -> {
-            isHScrolling = true
-            lastTouchX = event.x
-            scrollAccumulatorX = 0f
-            hScrollVisual?.setBackgroundColor(0x60FFFFFF.toInt())
-        }
-        MotionEvent.ACTION_MOVE -> {
-            if (isHScrolling) {
-                val dx = event.x - lastTouchX
-                scrollAccumulatorX += dx * prefs.scrollSpeed
-                val scrollThreshold = 30f
-                if (abs(scrollAccumulatorX) > scrollThreshold) {
-                    val scrollAmount = if (prefs.prefReverseScroll) -scrollAccumulatorX else scrollAccumulatorX
-                    injectScroll(scrollAmount / 10f, 0f)
-                    scrollAccumulatorX = 0f
-                }
-                lastTouchX = event.x
-            }
-        }
-        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-            isHScrolling = false
-            scrollAccumulatorX = 0f
-            hScrollVisual?.setBackgroundColor(0x30FFFFFF.toInt())
-        }
-    }
-    return true
-}
-
-private fun injectScroll(hScroll: Float, vScroll: Float) {
-    if (shellService == null) return
-    Thread {
-        try { shellService?.injectScroll(cursorX, cursorY, vScroll, hScroll, inputTargetDisplayId) } catch(e: Exception){}
-    }.start()
-}
-
+    
     private fun updateScrollPosition() {
         val margin = prefs.prefHandleTouchSize + 10
         vScrollContainer?.let { container ->
@@ -810,19 +736,129 @@ private fun injectScroll(hScroll: Float, vScroll: Float) {
         trackpadLayout?.invalidate()
     }
     
+    private fun performSwipe(dx: Float, dy: Float) {
+        Thread {
+            val dId = if (inputTargetDisplayId != -1) inputTargetDisplayId else (cursorLayout?.display?.displayId ?: Display.DEFAULT_DISPLAY)
+            val now = SystemClock.uptimeMillis()
+            val startX = cursorX
+            val startY = cursorY
+            val endX = startX + dx
+            val endY = startY + dy
+            try { shellService?.injectMouse(MotionEvent.ACTION_DOWN, startX, startY, dId, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, now) } catch(e: Exception) {}
+            val steps = 5
+            for (i in 1..steps) {
+                val t = i.toFloat() / steps
+                val cx = startX + (dx * t)
+                val cy = startY + (dy * t)
+                try { shellService?.injectMouse(MotionEvent.ACTION_MOVE, cx, cy, dId, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, now + (i * 10)); Thread.sleep(10) } catch(e: Exception) {}
+            }
+            try { shellService?.injectMouse(MotionEvent.ACTION_UP, endX, endY, dId, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, now + 100) } catch(e: Exception) {}
+        }.start()
+    }
+
     private fun handleTrackpadTouch(event: MotionEvent) {
          val viewWidth = trackpadLayout?.width ?: 0
          val viewHeight = trackpadLayout?.height ?: 0
+         if (viewWidth == 0 || viewHeight == 0) return
          
          when (event.actionMasked) {
              MotionEvent.ACTION_DOWN -> {
+                 // --- SCROLL ZONE DETECTION ---
+                 isVScrolling = false
+                 isHScrolling = false
+                 isTouchDragging = false
+                 handler.removeCallbacks(longPressRunnable)
+                 
                  lastTouchX = event.x
                  lastTouchY = event.y
+                 scrollAccumulatorX = 0f
+                 scrollAccumulatorY = 0f
+                 
+                 val actualZoneV = min(scrollZoneThickness, (viewWidth * 0.15f).toInt())
+                 val actualZoneH = min(scrollZoneThickness, (viewHeight * 0.15f).toInt())
+                 
+                 val inVZone = if (prefs.prefVPosLeft) event.x < actualZoneV else event.x > (viewWidth - actualZoneV)
+                 val inHZone = if (prefs.prefHPosTop) event.y < actualZoneH else event.y > (viewHeight - actualZoneH)
+                 
+                 if (inVZone) {
+                     if (prefs.prefTapScroll) {
+                         vibrate()
+                         val isTopHalf = event.y < (viewHeight / 2)
+                         val dist = BASE_SWIPE_DISTANCE * prefs.scrollSpeed
+                         val dy = if (isTopHalf) (if (prefs.prefReverseScroll) -dist else dist) else (if (prefs.prefReverseScroll) dist else -dist)
+                         performSwipe(0f, dy)
+                         ignoreTouchSequence = true
+                         return
+                     } else {
+                         isVScrolling = true
+                         vibrate()
+                         updateBorderColor(0xFF00FFFF.toInt())
+                         virtualScrollX = cursorX
+                         virtualScrollY = cursorY
+                         dragDownTime = SystemClock.uptimeMillis()
+                         // Initiate a scroll down event if needed by system
+                     }
+                 } else if (inHZone) {
+                     if (prefs.prefTapScroll) {
+                         vibrate()
+                         val isLeftHalf = event.x < (viewWidth / 2)
+                         val dist = BASE_SWIPE_DISTANCE * prefs.scrollSpeed
+                         val dx = if (isLeftHalf) (if (prefs.prefReverseScroll) -dist else dist) else (if (prefs.prefReverseScroll) dist else -dist)
+                         performSwipe(dx, 0f)
+                         ignoreTouchSequence = true
+                         return
+                     } else {
+                         isHScrolling = true
+                         vibrate()
+                         updateBorderColor(0xFF00FFFF.toInt())
+                         virtualScrollX = cursorX
+                         virtualScrollY = cursorY
+                         dragDownTime = SystemClock.uptimeMillis()
+                     }
+                 } else {
+                     // Not a scroll, start Long Press for Drag
+                     handler.postDelayed(longPressRunnable, 400)
+                 }
              }
              MotionEvent.ACTION_MOVE -> {
-                 val dx = (event.x - lastTouchX) * prefs.cursorSpeed
-                 val dy = (event.y - lastTouchY) * prefs.cursorSpeed
+                 if (ignoreTouchSequence) return
                  
+                 val rawDx = (event.x - lastTouchX)
+                 val rawDy = (event.y - lastTouchY)
+                 
+                 // --- SCROLL EXECUTION ---
+                 if (isVScrolling) {
+                     val dist = rawDy * prefs.scrollSpeed
+                     scrollAccumulatorY += dist
+                     if (abs(scrollAccumulatorY) > SCROLL_THRESHOLD) {
+                        val scrollVal = if (prefs.prefReverseScroll) scrollAccumulatorY else -scrollAccumulatorY
+                        injectScroll(0f, scrollVal / 10f)
+                        scrollAccumulatorY = 0f
+                     }
+                     lastTouchX = event.x; lastTouchY = event.y
+                     return
+                 }
+                 if (isHScrolling) {
+                     val dist = rawDx * prefs.scrollSpeed
+                     scrollAccumulatorX += dist
+                     if (abs(scrollAccumulatorX) > SCROLL_THRESHOLD) {
+                        val scrollVal = if (prefs.prefReverseScroll) scrollAccumulatorX else -scrollAccumulatorX
+                        injectScroll(scrollVal / 10f, 0f)
+                        scrollAccumulatorX = 0f
+                     }
+                     lastTouchX = event.x; lastTouchY = event.y
+                     return
+                 }
+
+                 // --- MOUSE MOVEMENT ---
+                 val dx = rawDx * prefs.cursorSpeed
+                 val dy = rawDy * prefs.cursorSpeed
+                 
+                 // --- SENSITIVITY FIX ---
+                 if (!isTouchDragging && (abs(rawDx) > DRAG_MOVEMENT_THRESHOLD || abs(rawDy) > DRAG_MOVEMENT_THRESHOLD)) {
+                    handler.removeCallbacks(longPressRunnable)
+                 }
+
                  val safeW = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth.toFloat() else uiScreenWidth.toFloat()
                  val safeH = if (inputTargetDisplayId != currentDisplayId) targetScreenHeight.toFloat() else uiScreenHeight.toFloat()
                  
@@ -838,8 +874,25 @@ private fun injectScroll(hScroll: Float, vScroll: Float) {
                  cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt()
                  try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception){}
                  
-                 injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+                 // --- DRAG vs HOVER LOGIC FIX ---
+                 if (isTouchDragging) {
+                     injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, SystemClock.uptimeMillis())
+                 } else {
+                     injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+                 }
+
                  lastTouchX = event.x; lastTouchY = event.y
+             }
+             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                 handler.removeCallbacks(longPressRunnable)
+                 if (isTouchDragging) {
+                     injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, SystemClock.uptimeMillis())
+                 }
+                 isTouchDragging = false
+                 isVScrolling = false
+                 isHScrolling = false
+                 ignoreTouchSequence = false
+                 updateBorderColor(currentBorderColor)
              }
          }
     }
@@ -880,17 +933,24 @@ private fun injectScroll(hScroll: Float, vScroll: Float) {
             try { shellService?.injectMouse(action, cursorX, cursorY, inputTargetDisplayId, source, button, time) } catch(e: Exception){}
         }.start()
     }
+    
+    private fun injectScroll(hScroll: Float, vScroll: Float) {
+        if (shellService == null) return
+        Thread {
+            try { shellService?.injectScroll(cursorX, cursorY, vScroll, hScroll, inputTargetDisplayId) } catch(e: Exception){}
+        }.start()
+    }
+    
     private fun performClick(right: Boolean) {
-    if (shellService == null) return
-    val clickOffsetY = 100f  // Adjust this value until click matches cursor
-    Thread {
-        try { 
-            if (right) shellService?.execRightClick(cursorX, cursorY + clickOffsetY, inputTargetDisplayId)
-            else shellService?.execClick(cursorX, cursorY + clickOffsetY, inputTargetDisplayId)
-        } catch(e: Exception){}
-    }.start()
-}
-        
+        if (shellService == null) return
+        Thread {
+            try { 
+                if (right) shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId)
+                else shellService?.execClick(cursorX, cursorY, inputTargetDisplayId)
+            } catch(e: Exception){}
+        }.start()
+    }
+    
     fun resetCursorCenter() { 
         cursorX = uiScreenWidth/2f; cursorY = uiScreenHeight/2f
         cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt()
@@ -952,7 +1012,13 @@ private fun injectScroll(hScroll: Float, vScroll: Float) {
         handler.post { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show() }
     }
     
-    private fun startTouchDrag() {}
+    private fun startTouchDrag() {
+        isTouchDragging = true
+        vibrate()
+        updateBorderColor(0xFF00FF00.toInt()) // Green border on hold
+        // Initiate drag
+        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, MotionEvent.BUTTON_PRIMARY, SystemClock.uptimeMillis())
+    }
     private fun startResize() {}
     private fun startMove() {}
     
