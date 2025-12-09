@@ -13,7 +13,21 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import kotlin.math.max
-import kotlin.math.roundToInt
+
+/*
+ * ======================================================================================
+ * CRITICAL REGRESSION CHECKLIST - KEYBOARD OVERLAY
+ * ======================================================================================
+ * 1. ROTATION LOGIC:
+ * - `setRotation(angle)` MUST SWAP width/height for 90°/270° orientations.
+ * - Child view translation (X/Y) is required to center the rotated view in the swapped window.
+ * 2. WINDOW FLAGS: FLAG_LAYOUT_NO_LIMITS + LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES.
+ * 3. INPUT INJECTION: Use shellService.injectKey / runCommand("input text").
+ * 4. SCALING & RESIZING: updateScale modifies height. Resize handle works.
+ * 5. ALPHA: Support independent opacity via updateAlpha().
+ * 6. PRESETS: Support absolute positioning via setWindowBounds().
+ * ======================================================================================
+ */
 
 class KeyboardOverlay(
     private val context: Context,
@@ -40,9 +54,11 @@ class KeyboardOverlay(
 
     private val TAG = "KeyboardOverlay"
     private var keyboardWidth = 500
-    private var keyboardHeight = 320 
+    private var keyboardHeight = 260
     private var screenWidth = 720
     private var screenHeight = 748
+    private var currentRotation = 0
+    private var currentAlpha = 200
     
     private var currentDisplayId = 0
 
@@ -52,24 +68,104 @@ class KeyboardOverlay(
         currentDisplayId = displayId
         loadKeyboardSizeForDisplay(displayId)
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        currentAlpha = prefs.getInt("keyboard_alpha", 200)
         if (!prefs.contains("keyboard_width_d$displayId")) {
             keyboardWidth = (width * 0.95f).toInt().coerceIn(300, 650)
-            keyboardHeight = (height * 0.45f).toInt().coerceIn(240, 400) 
+            keyboardHeight = (height * 0.36f).toInt().coerceIn(180, 320) 
         }
     }
 
     fun updateScale(scale: Float) {
         if (keyboardView == null) return
         keyboardView?.setScale(scale)
-        val newHeight = (320 * scale).toInt().coerceAtLeast(220)
+        val newHeight = (320 * scale).toInt().coerceAtLeast(180)
         keyboardHeight = newHeight
         if (isVisible && keyboardParams != null) {
             keyboardParams?.height = newHeight
             try { windowManager.updateViewLayout(keyboardContainer, keyboardParams); saveKeyboardSize() } catch (e: Exception) {}
         }
     }
+    
+    // --- RESTORED: Opacity Control ---
+    fun updateAlpha(alpha: Int) {
+        currentAlpha = alpha
+        if (isVisible && keyboardContainer != null) {
+            val bg = keyboardContainer?.background as? GradientDrawable
+            if (bg != null) {
+                val strokeColor = Color.parseColor("#3DDC84")
+                val fillColor = (alpha shl 24) or (0x1A1A1A)
+                bg.setColor(fillColor)
+                bg.setStroke(2, strokeColor)
+                keyboardContainer?.invalidate()
+            }
+        }
+    }
+    
+    // --- RESTORED: Preset Positioning ---
+    fun setWindowBounds(x: Int, y: Int, width: Int, height: Int) {
+        keyboardWidth = width
+        keyboardHeight = height
+        if (isVisible && keyboardParams != null) {
+            keyboardParams?.x = x
+            keyboardParams?.y = y
+            keyboardParams?.width = width
+            keyboardParams?.height = height
+            try { 
+                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                saveKeyboardPosition()
+                saveKeyboardSize()
+            } catch (e: Exception) {}
+        }
+    }
+    
+    fun getWidth(): Int = keyboardWidth
+    fun getHeight(): Int = keyboardHeight
+    
+    fun setRotation(angle: Int) {
+        if (!isVisible || keyboardContainer == null || keyboardParams == null) {
+            currentRotation = angle 
+            return
+        }
 
-    fun show() { if (isVisible) return; try { createKeyboardWindow(); isVisible = true } catch (e: Exception) { Log.e(TAG, "Failed to show keyboard", e) } }
+        currentRotation = angle
+        val isPortrait = (angle == 90 || angle == 270)
+        
+        val targetW = if (isPortrait) keyboardHeight else keyboardWidth
+        val targetH = if (isPortrait) keyboardWidth else keyboardHeight
+        
+        keyboardParams?.width = targetW
+        keyboardParams?.height = targetH
+        
+        keyboardContainer?.rotation = angle.toFloat()
+        
+        if (keyboardView != null) {
+            val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
+            if (isPortrait) {
+                lp.width = keyboardWidth
+                lp.height = keyboardHeight
+                keyboardView?.translationX = (targetW - keyboardWidth) / 2f
+                keyboardView?.translationY = (targetH - keyboardHeight) / 2f
+            } else {
+                lp.width = FrameLayout.LayoutParams.MATCH_PARENT
+                lp.height = FrameLayout.LayoutParams.MATCH_PARENT
+                keyboardView?.translationX = 0f
+                keyboardView?.translationY = 0f
+            }
+            keyboardView?.layoutParams = lp
+        }
+
+        try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {}
+    }
+
+    fun show() { 
+        if (isVisible) return
+        try { 
+            createKeyboardWindow()
+            isVisible = true
+            if (currentRotation != 0) setRotation(currentRotation)
+        } catch (e: Exception) { Log.e(TAG, "Failed to show keyboard", e) } 
+    }
+    
     fun hide() { if (!isVisible) return; try { windowManager.removeView(keyboardContainer); keyboardContainer = null; keyboardView = null; isVisible = false } catch (e: Exception) { Log.e(TAG, "Failed to hide keyboard", e) } }
     fun toggle() { if (isVisible) hide() else show() }
     fun isShowing(): Boolean = isVisible
@@ -89,8 +185,12 @@ class KeyboardOverlay(
 
     private fun createKeyboardWindow() {
         keyboardContainer = FrameLayout(context)
-        val containerBg = GradientDrawable(); containerBg.setColor(Color.parseColor("#1A1A1A")); containerBg.cornerRadius = 16f; containerBg.setStroke(2, Color.parseColor("#3DDC84"))
+        val containerBg = GradientDrawable(); 
+        val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
+        containerBg.setColor(fillColor)
+        containerBg.cornerRadius = 16f; containerBg.setStroke(2, Color.parseColor("#3DDC84"))
         keyboardContainer?.background = containerBg
+        
         keyboardView = KeyboardView(context)
         keyboardView?.setKeyboardListener(this)
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
@@ -103,6 +203,9 @@ class KeyboardOverlay(
         val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
         val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - keyboardHeight - 10)
         keyboardParams = WindowManager.LayoutParams(keyboardWidth, keyboardHeight, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+             keyboardParams?.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
         keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT; keyboardParams?.x = savedX; keyboardParams?.y = savedY
         windowManager.addView(keyboardContainer, keyboardParams)
     }
@@ -200,22 +303,13 @@ class KeyboardOverlay(
         if (shellService == null) return
         Thread {
             try {
-                // 1. Get List of IMEs
                 val output = shellService.runCommand("ime list -a -s")
-                
-                // 2. Find Google Voice or any Voice Service
                 val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) }
                     ?: output.lines().find { it.contains("voice", true) }
-                
                 if (voiceIme != null) {
-                    Log.d(TAG, "Switching to Voice IME: $voiceIme")
                     shellService.runCommand("ime set $voiceIme")
-                } else {
-                    Log.e(TAG, "No Voice IME found")
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Voice Switch Failed", e)
-            }
+            } catch (e: Exception) { Log.e(TAG, "Voice Switch Failed", e) }
         }.start()
     }
 
@@ -228,38 +322,5 @@ class KeyboardOverlay(
                 shellService.injectKey(keyCode, KeyEvent.ACTION_UP, metaState, targetDisplayId)
             } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
         }.start()
-    }
-    
-    private fun escapeForShell(text: String): String {
-        val sb = StringBuilder()
-        for (c in text) {
-            when (c) {
-                ' ' -> sb.append("%s")
-                '\'' -> sb.append("'")
-                '"' -> sb.append("\\\"")
-                '\\' -> sb.append("\\\\")
-                '`' -> sb.append("\\`")
-                '$' -> sb.append("\\$")
-                '&' -> sb.append("\\&")
-                '|' -> sb.append("\\|")
-                ';' -> sb.append("\\;")
-                '(' -> sb.append("\\(")
-                ')' -> sb.append("\\)")
-                '<' -> sb.append("\\<")
-                '>' -> sb.append("\\>")
-                '!' -> sb.append("\\!")
-                '?' -> sb.append("\\?")
-                '*' -> sb.append("\\*")
-                '[' -> sb.append("\\[")
-                ']' -> sb.append("\\]")
-                '{' -> sb.append("\\{")
-                '}' -> sb.append("\\}")
-                '#' -> sb.append("\\#")
-                '~' -> sb.append("\\~")
-                '^' -> sb.append("\\^")
-                else -> sb.append(c)
-            }
-        }
-        return sb.toString()
     }
 }

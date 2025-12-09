@@ -1,7 +1,10 @@
 package com.example.coverscreentester
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.display.DisplayManager
+import android.os.Build
 import android.os.Bundle
 import android.view.Display
 import android.widget.Toast
@@ -12,34 +15,33 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // No setContentView() - this is a trampoline Activity
-
-        // 1. Check if Shizuku is granted
+        
         if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-            // If not granted, we must show UI to request it
             Shizuku.requestPermission(0)
             Toast.makeText(this, "Please grant Shizuku permission", Toast.LENGTH_LONG).show()
             finish()
             return
         }
 
-        // 2. Determine current display ID
-        val currentDisplayId = display?.displayId ?: Display.DEFAULT_DISPLAY
+        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val displayId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display?.displayId ?: displayManager.getDisplay(Display.DEFAULT_DISPLAY).displayId
+        } else {
+            windowManager.defaultDisplay.displayId
+        }
 
-        // 3. Start Service with "OPEN_MENU" action on this display
         val intent = Intent(this, OverlayService::class.java).apply {
             action = "OPEN_MENU"
-            putExtra("DISPLAY_ID", currentDisplayId)
-            putExtra("FORCE_MOVE", true) // Ensure it moves here
+            putExtra("DISPLAY_ID", displayId)
+            putExtra("FORCE_MOVE", true) 
         }
         
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
             startService(intent)
         }
 
-        // 4. Close this activity immediately
         finish()
     }
 }
