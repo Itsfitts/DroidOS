@@ -102,6 +102,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =========================
     // PREFS CLASS - Stores all user preferences
     // Contains anchor mode to lock trackpad/keyboard position
+    // Contains hardkey binding mappings for Vol Up/Down and Power
     // =========================
     class Prefs {
         var cursorSpeed = 2.5f
@@ -124,10 +125,28 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         var prefAutomationEnabled = true
         var prefBubbleX = 50
         var prefBubbleY = 300
-        var prefAnchored = false  // NEW: Anchor mode to disable handle drag/resize
+        var prefAnchored = false  // Anchor mode to disable handle drag/resize
         var prefBubbleSize = 100        // 50-200 range (percentage, 100 = standard)
         var prefBubbleIconIndex = 0     // Index into icon array
         var prefBubbleAlpha = 255       // 0-255 opacity
+        
+        // =========================
+        // HARDKEY BINDING PREFS - Configurable hardware key actions
+        // Each key combo maps to an action ID string
+        // =========================
+        var hardkeyVolUpTap = "left_click"
+        var hardkeyVolUpDouble = "none"
+        var hardkeyVolUpHold = "left_drag"
+        var hardkeyVolDownTap = "right_click"
+        var hardkeyVolDownDouble = "display_toggle"
+        var hardkeyVolDownHold = "alt_position"
+        var hardkeyPowerDouble = "none"
+        var doubleTapMs = 300           // Max time between taps for double-tap (150-500)
+        var holdDurationMs = 400        // Time to trigger hold action (200-800)
+        var displayOffMode = "alternate" // "standard" or "alternate"
+        // =========================
+        // END HARDKEY BINDING PREFS
+        // =========================
     }
     // =========================
     // END PREFS CLASS
@@ -219,6 +238,53 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var keyboardHandleDownTime = 0L
     private val keyboardLongPressRunnable = Runnable { toggleKeyboardMode() }
     private val clearHighlightsRunnable = Runnable { highlightAlpha = false; highlightHandles = false; highlightScrolls = false; updateBorderColor(currentBorderColor); updateLayoutSizes() }
+    
+    // =========================
+    // HARDKEY DETECTION STATE - Variables for tap/double-tap/hold detection
+    // Used by onKeyEvent() to distinguish between different gesture types
+    // =========================
+    private var lastVolUpTime: Long = 0L
+    private var lastVolDownTime: Long = 0L
+    private var lastPowerTime: Long = 0L
+    private var volUpTapCount = 0
+    private var volDownTapCount = 0
+    private var powerTapCount = 0
+    private var volUpHoldTriggered = false
+    private var volDownHoldTriggered = false
+    private var volUpDragActive = false   // Track if we're currently dragging
+    private var volDownDragActive = false // Track if right-drag is active
+    
+    // Hold detection runnables - trigger hold action after delay
+    private val volUpHoldRunnable = Runnable {
+        volUpHoldTriggered = true
+        executeHardkeyAction(prefs.hardkeyVolUpHold)
+    }
+    private val volDownHoldRunnable = Runnable {
+        volDownHoldTriggered = true
+        executeHardkeyAction(prefs.hardkeyVolDownHold)
+    }
+    
+    // Double-tap detection runnables - execute single tap if no second tap arrives
+    private val volUpDoubleTapRunnable = Runnable {
+        if (volUpTapCount == 1) {
+            executeHardkeyAction(prefs.hardkeyVolUpTap)
+        }
+        volUpTapCount = 0
+    }
+    private val volDownDoubleTapRunnable = Runnable {
+        if (volDownTapCount == 1) {
+            executeHardkeyAction(prefs.hardkeyVolDownTap)
+        }
+        volDownTapCount = 0
+    }
+    private val powerDoubleTapRunnable = Runnable {
+        // Power single-tap is handled by system, we only care about double-tap
+        powerTapCount = 0
+    }
+    // =========================
+    // END HARDKEY DETECTION STATE
+    // =========================
+
     
     private val switchReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -342,19 +408,160 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}
+    // =========================
+    // ON KEY EVENT - Hardware key handler with configurable bindings
+    // Supports tap, double-tap, and hold gestures for Vol Up, Vol Down, and Power
+    // Uses prefs.doubleTapMs for double-tap window and prefs.holdDurationMs for hold threshold
+    // =========================
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (isPreviewMode || !isTrackpadVisible) return super.onKeyEvent(event)
-        val action = event.action; val keyCode = event.keyCode
+        
+        val action = event.action
+        val keyCode = event.keyCode
+        val currentTime = System.currentTimeMillis()
+        
+        // =========================
+        // VOLUME UP KEY HANDLING
+        // =========================
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            if (action == KeyEvent.ACTION_DOWN) { if (!isLeftKeyHeld) { isLeftKeyHeld = true; startKeyDrag(MotionEvent.BUTTON_PRIMARY) } } else if (action == KeyEvent.ACTION_UP) { isLeftKeyHeld = false; stopKeyDrag(MotionEvent.BUTTON_PRIMARY) }
-            return true 
+            when (action) {
+                KeyEvent.ACTION_DOWN -> {
+                    if (!isLeftKeyHeld) {
+                        isLeftKeyHeld = true
+                        volUpHoldTriggered = false
+                        
+                        // Schedule hold action
+                        handler.postDelayed(volUpHoldRunnable, prefs.holdDurationMs.toLong())
+                    }
+                }
+                KeyEvent.ACTION_UP -> {
+                    isLeftKeyHeld = false
+                    
+                    // Cancel hold runnable if key released before hold threshold
+                    handler.removeCallbacks(volUpHoldRunnable)
+                    
+                    // If drag is active, stop it
+                    if (volUpDragActive) {
+                        volUpDragActive = false
+                        stopKeyDrag(MotionEvent.BUTTON_PRIMARY)
+                    }
+                    
+                    // If hold was triggered, don't process as tap
+                    if (volUpHoldTriggered) {
+                        volUpHoldTriggered = false
+                        return true
+                    }
+                    
+                    // Process as tap or double-tap
+                    val timeSinceLastTap = currentTime - lastVolUpTime
+                    lastVolUpTime = currentTime
+                    
+                    if (timeSinceLastTap < prefs.doubleTapMs && volUpTapCount == 1) {
+                        // Double-tap detected
+                        handler.removeCallbacks(volUpDoubleTapRunnable)
+                        volUpTapCount = 0
+                        if (prefs.hardkeyVolUpDouble != "none") {
+                            executeHardkeyAction(prefs.hardkeyVolUpDouble)
+                        }
+                    } else {
+                        // First tap - wait for possible second tap
+                        volUpTapCount = 1
+                        handler.removeCallbacks(volUpDoubleTapRunnable)
+                        handler.postDelayed(volUpDoubleTapRunnable, prefs.doubleTapMs.toLong())
+                    }
+                }
+            }
+            return true
         }
+        
+        // =========================
+        // VOLUME DOWN KEY HANDLING
+        // =========================
         if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            if (action == KeyEvent.ACTION_DOWN) { if (!isRightDragPending) { isRightDragPending = true; handler.postDelayed(voiceRunnable, 1000) } } else if (action == KeyEvent.ACTION_UP) { handler.removeCallbacks(voiceRunnable); if (isRightDragPending) { performClick(true); isRightDragPending = false } }
-            return true 
+            when (action) {
+                KeyEvent.ACTION_DOWN -> {
+                    if (!isRightKeyHeld) {
+                        isRightKeyHeld = true
+                        volDownHoldTriggered = false
+                        
+                        // Schedule hold action
+                        handler.postDelayed(volDownHoldRunnable, prefs.holdDurationMs.toLong())
+                    }
+                }
+                KeyEvent.ACTION_UP -> {
+                    isRightKeyHeld = false
+                    
+                    // Cancel hold runnable if key released before hold threshold
+                    handler.removeCallbacks(volDownHoldRunnable)
+                    
+                    // If drag is active, stop it
+                    if (volDownDragActive) {
+                        volDownDragActive = false
+                        stopKeyDrag(MotionEvent.BUTTON_SECONDARY)
+                    }
+                    
+                    // If hold was triggered, don't process as tap
+                    if (volDownHoldTriggered) {
+                        volDownHoldTriggered = false
+                        return true
+                    }
+                    
+                    // Process as tap or double-tap
+                    val timeSinceLastTap = currentTime - lastVolDownTime
+                    lastVolDownTime = currentTime
+                    
+                    if (timeSinceLastTap < prefs.doubleTapMs && volDownTapCount == 1) {
+                        // Double-tap detected
+                        handler.removeCallbacks(volDownDoubleTapRunnable)
+                        volDownTapCount = 0
+                        if (prefs.hardkeyVolDownDouble != "none") {
+                            executeHardkeyAction(prefs.hardkeyVolDownDouble)
+                        }
+                    } else {
+                        // First tap - wait for possible second tap
+                        volDownTapCount = 1
+                        handler.removeCallbacks(volDownDoubleTapRunnable)
+                        handler.postDelayed(volDownDoubleTapRunnable, prefs.doubleTapMs.toLong())
+                    }
+                }
+            }
+            return true
         }
+        
+        // =========================
+        // POWER KEY HANDLING (Double-tap only, single tap handled by system)
+        // =========================
+        if (keyCode == KeyEvent.KEYCODE_POWER) {
+            when (action) {
+                KeyEvent.ACTION_UP -> {
+                    val timeSinceLastTap = currentTime - lastPowerTime
+                    lastPowerTime = currentTime
+                    
+                    if (timeSinceLastTap < prefs.doubleTapMs && powerTapCount == 1) {
+                        // Double-tap detected
+                        handler.removeCallbacks(powerDoubleTapRunnable)
+                        powerTapCount = 0
+                        if (prefs.hardkeyPowerDouble != "none") {
+                            executeHardkeyAction(prefs.hardkeyPowerDouble)
+                            return true // Consume the event
+                        }
+                    } else {
+                        // First tap - wait for possible second tap
+                        powerTapCount = 1
+                        handler.removeCallbacks(powerDoubleTapRunnable)
+                        handler.postDelayed(powerDoubleTapRunnable, prefs.doubleTapMs.toLong())
+                    }
+                }
+            }
+            // Don't consume power key events - let system handle single taps
+            return false
+        }
+        
         return super.onKeyEvent(event)
     }
+    // =========================
+    // END ON KEY EVENT
+    // =========================
 
     private fun setupUI(displayId: Int) {
         try {
@@ -508,6 +715,136 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     fun toggleTrackpad() { isTrackpadVisible = !isTrackpadVisible; trackpadLayout?.visibility = if (isTrackpadVisible) View.VISIBLE else View.GONE; if (isTrackpadVisible) updateBorderColor(currentBorderColor) }
     
+    // =========================
+    // EXECUTE HARDKEY ACTION - Central dispatcher for all hardkey-triggered actions
+    // Called by onKeyEvent() when a tap/double-tap/hold gesture is detected
+    // Action IDs map to specific behaviors defined in HARDKEY_ACTIONS
+    // =========================
+    private fun executeHardkeyAction(actionId: String) {
+        when (actionId) {
+            "none" -> { /* Do nothing */ }
+            
+            "left_click" -> {
+                performClick(false) // false = left click
+            }
+            
+            "right_click" -> {
+                performClick(true) // true = right click (back)
+            }
+            
+            "left_drag" -> {
+                // Start left-click drag (hold button while moving)
+                if (!volUpDragActive) {
+                    volUpDragActive = true
+                    startKeyDrag(MotionEvent.BUTTON_PRIMARY)
+                }
+            }
+            
+            "right_drag" -> {
+                // Start right-click drag (hold button while moving)
+                if (!volDownDragActive) {
+                    volDownDragActive = true
+                    startKeyDrag(MotionEvent.BUTTON_SECONDARY)
+                }
+            }
+            
+            "scroll_up" -> {
+                val dist = BASE_SWIPE_DISTANCE * prefs.scrollSpeed
+                performSwipe(0f, -dist)
+            }
+            
+            "scroll_down" -> {
+                val dist = BASE_SWIPE_DISTANCE * prefs.scrollSpeed
+                performSwipe(0f, dist)
+            }
+            
+            "display_toggle" -> {
+                // Use preferred display off mode
+                when (prefs.displayOffMode) {
+                    "standard" -> {
+                        isScreenOff = !isScreenOff
+                        Thread {
+                            try {
+                                if (isScreenOff) shellService?.setScreenOff(0, true)
+                                else shellService?.setScreenOff(0, false)
+                            } catch (e: Exception) {}
+                        }.start()
+                        showToast("Display ${if(isScreenOff) "Off" else "On"} (Std)")
+                    }
+                    else -> {
+                        isScreenOff = !isScreenOff
+                        Thread {
+                            try {
+                                if (isScreenOff) shellService?.setBrightness(-1)
+                                else shellService?.setBrightness(128)
+                            } catch (e: Exception) {}
+                        }.start()
+                        showToast("Display ${if(isScreenOff) "Off" else "On"} (Alt)")
+                    }
+                }
+            }
+            
+            "display_toggle_alt" -> {
+                isScreenOff = !isScreenOff
+                Thread {
+                    try {
+                        if (isScreenOff) shellService?.setBrightness(-1)
+                        else shellService?.setBrightness(128)
+                    } catch (e: Exception) {}
+                }.start()
+                showToast("Display ${if(isScreenOff) "Off" else "On"} (Alt)")
+            }
+            
+            "display_toggle_std" -> {
+                isScreenOff = !isScreenOff
+                Thread {
+                    try {
+                        if (isScreenOff) shellService?.setScreenOff(0, true)
+                        else shellService?.setScreenOff(0, false)
+                    } catch (e: Exception) {}
+                }.start()
+                        showToast("Display ${if(isScreenOff) "Off" else "On"} (Std)")
+            }
+            
+            "alt_position" -> {
+                toggleKeyboardMode()
+            }
+            
+            "toggle_keyboard" -> {
+                toggleCustomKeyboard()
+            }
+            
+            "toggle_trackpad" -> {
+                toggleTrackpad()
+            }
+            
+            "open_menu" -> {
+                menuManager?.toggle()
+            }
+            
+            "reset_cursor" -> {
+                resetCursorCenter()
+            }
+            
+            "display_wake" -> {
+                // Wake display if off
+                if (isScreenOff) {
+                    isScreenOff = false
+                    Thread {
+                        try {
+                            shellService?.setBrightness(128)
+                            shellService?.setScreenOff(0, false)
+                        } catch (e: Exception) {}
+                    }.start()
+                    showToast("Display Woken")
+                }
+            }
+        }
+    }
+    // =========================
+    // END EXECUTE HARDKEY ACTION
+    // =========================
+
     fun toggleKeyboardMode() { vibrate(); isRightDragPending = false; if (!isKeyboardMode) { isKeyboardMode = true; savedWindowX = trackpadParams.x; savedWindowY = trackpadParams.y; trackpadParams.x = uiScreenWidth - trackpadParams.width; trackpadParams.y = 0; windowManager?.updateViewLayout(trackpadLayout, trackpadParams); updateBorderColor(0xFFFF0000.toInt()) } else { isKeyboardMode = false; trackpadParams.x = savedWindowX; trackpadParams.y = savedWindowY; windowManager?.updateViewLayout(trackpadLayout, trackpadParams); updateBorderColor(currentBorderColor) } }
     
     private fun toggleDebugMode() { isDebugMode = !isDebugMode; if (isDebugMode) { showToast("Debug ON"); updateBorderColor(0xFFFFFF00.toInt()); debugTextView?.visibility = View.VISIBLE } else { showToast("Debug OFF"); if (inputTargetDisplayId != currentDisplayId) updateBorderColor(0xFFFF00FF.toInt()) else updateBorderColor(0x55FFFFFF.toInt()); debugTextView?.visibility = View.GONE } }
@@ -687,6 +1024,24 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
              "bubble_size" -> { prefs.prefBubbleSize = (value.toString().toIntOrNull() ?: 100); applyBubbleAppearance() }
             "bubble_icon" -> { cycleBubbleIcon() }
             "bubble_alpha" -> { prefs.prefBubbleAlpha = (value.toString().toIntOrNull() ?: 255); applyBubbleAppearance() }
+            
+            // =========================
+            // HARDKEY TIMING PREFS - Double-tap speed and hold duration
+            // =========================
+            "double_tap_ms" -> { prefs.doubleTapMs = (value.toString().toIntOrNull() ?: 300).coerceIn(150, 500) }
+            "hold_duration_ms" -> { prefs.holdDurationMs = (value.toString().toIntOrNull() ?: 400).coerceIn(200, 800) }
+            "display_off_mode" -> { prefs.displayOffMode = value.toString() }
+            "hardkey_vol_up_tap" -> { prefs.hardkeyVolUpTap = value.toString() }
+            "hardkey_vol_up_double" -> { prefs.hardkeyVolUpDouble = value.toString() }
+            "hardkey_vol_up_hold" -> { prefs.hardkeyVolUpHold = value.toString() }
+            "hardkey_vol_down_tap" -> { prefs.hardkeyVolDownTap = value.toString() }
+            "hardkey_vol_down_double" -> { prefs.hardkeyVolDownDouble = value.toString() }
+            "hardkey_vol_down_hold" -> { prefs.hardkeyVolDownHold = value.toString() }
+            "hardkey_power_double" -> { prefs.hardkeyPowerDouble = value.toString() }
+            // =========================
+            // END HARDKEY TIMING PREFS
+            // =========================
+
         }
         savePrefs() 
     }
@@ -778,8 +1133,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
 
     // =========================
-// =========================
     // LOAD PREFS - Loads all preferences from SharedPreferences
+    // Includes hardkey binding mappings and timing settings
     // =========================
     private fun loadPrefs() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
@@ -808,6 +1163,23 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         prefs.prefScrollTouchSize = p.getInt("scroll_touch_size", 80)
         prefs.prefScrollVisualSize = p.getInt("scroll_visual_size", 8)
         
+        // =========================
+        // LOAD HARDKEY BINDINGS - Action mappings for hardware keys
+        // =========================
+        prefs.hardkeyVolUpTap = p.getString("hardkey_vol_up_tap", "left_click") ?: "left_click"
+        prefs.hardkeyVolUpDouble = p.getString("hardkey_vol_up_double", "none") ?: "none"
+        prefs.hardkeyVolUpHold = p.getString("hardkey_vol_up_hold", "left_drag") ?: "left_drag"
+        prefs.hardkeyVolDownTap = p.getString("hardkey_vol_down_tap", "right_click") ?: "right_click"
+        prefs.hardkeyVolDownDouble = p.getString("hardkey_vol_down_double", "display_toggle") ?: "display_toggle"
+        prefs.hardkeyVolDownHold = p.getString("hardkey_vol_down_hold", "alt_position") ?: "alt_position"
+        prefs.hardkeyPowerDouble = p.getString("hardkey_power_double", "none") ?: "none"
+        prefs.doubleTapMs = p.getInt("double_tap_ms", 300)
+        prefs.holdDurationMs = p.getInt("hold_duration_ms", 400)
+        prefs.displayOffMode = p.getString("display_off_mode", "alternate") ?: "alternate"
+        // =========================
+        // END LOAD HARDKEY BINDINGS
+        // =========================
+        
         // === CRITICAL: Sync scrollZoneThickness with loaded value ===
         scrollZoneThickness = prefs.prefScrollTouchSize
         // === END SYNC ===
@@ -818,7 +1190,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     // =========================
     // END LOAD PREFS
-    // =========================    
+    // =========================
     private fun savePrefs() { 
         val e = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
         e.putFloat("cursor_speed", prefs.cursorSpeed)
@@ -828,12 +1200,30 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         e.putBoolean("automation_enabled", prefs.prefAutomationEnabled)
         e.putInt("bubble_x", prefs.prefBubbleX)
         e.putInt("bubble_y", prefs.prefBubbleY)
-        e.putBoolean("anchored", prefs.prefAnchored)  // NEW: Save anchor mode
+        e.putBoolean("anchored", prefs.prefAnchored)
         e.putInt("bubble_size", prefs.prefBubbleSize)
         e.putInt("bubble_icon_index", prefs.prefBubbleIconIndex)
         e.putInt("bubble_alpha", prefs.prefBubbleAlpha)
         e.putInt("scroll_touch_size", prefs.prefScrollTouchSize)
         e.putInt("scroll_visual_size", prefs.prefScrollVisualSize)
+        
+        // =========================
+        // SAVE HARDKEY BINDINGS - Action mappings for hardware keys
+        // =========================
+        e.putString("hardkey_vol_up_tap", prefs.hardkeyVolUpTap)
+        e.putString("hardkey_vol_up_double", prefs.hardkeyVolUpDouble)
+        e.putString("hardkey_vol_up_hold", prefs.hardkeyVolUpHold)
+        e.putString("hardkey_vol_down_tap", prefs.hardkeyVolDownTap)
+        e.putString("hardkey_vol_down_double", prefs.hardkeyVolDownDouble)
+        e.putString("hardkey_vol_down_hold", prefs.hardkeyVolDownHold)
+        e.putString("hardkey_power_double", prefs.hardkeyPowerDouble)
+        e.putInt("double_tap_ms", prefs.doubleTapMs)
+        e.putInt("hold_duration_ms", prefs.holdDurationMs)
+        e.putString("display_off_mode", prefs.displayOffMode)
+        // =========================
+        // END SAVE HARDKEY BINDINGS
+        // =========================
+        
         e.apply() 
     }
     // =========================

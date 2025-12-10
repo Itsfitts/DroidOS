@@ -27,7 +27,8 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
         TOGGLE, // Switch
         SLIDER, // SeekBar
         DPAD,   // Directional Pad
-        INFO    // Text only
+        INFO,   // Text only
+        HEADER  // Section Header
     }
 
     inner class Holder(v: View) : RecyclerView.ViewHolder(v) {
@@ -114,6 +115,19 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
                 holder.helpText.text = item.title // Title used as help text content
                 holder.title.visibility = View.GONE // Hide standard title
                 holder.icon.visibility = View.GONE
+            }
+            Type.HEADER -> {
+                holder.title.visibility = View.VISIBLE
+                holder.title.text = item.title
+                holder.title.setTypeface(null, android.graphics.Typeface.BOLD)
+                holder.icon.visibility = View.GONE
+                holder.valueText.visibility = View.GONE
+                holder.switch.visibility = View.GONE
+                holder.actionIcon.visibility = View.GONE
+                holder.slider.visibility = View.GONE
+                holder.dpadGrid.visibility = View.GONE
+                holder.helpText.visibility = View.GONE
+                holder.itemView.setOnClickListener(null)
             }
         }
     }

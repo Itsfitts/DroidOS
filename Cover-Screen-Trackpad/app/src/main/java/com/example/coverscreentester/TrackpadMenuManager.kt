@@ -27,16 +27,17 @@ class TrackpadMenuManager(
     // Manual Adjust State
     private var isResizeMode = false // Default to Move Mode
 
-    // Tab Constants
+    // Tab Constants - Order must match layout_trackpad_drawer.xml tab order
     private val TAB_MAIN = 0
     private val TAB_PRESETS = 1
     private val TAB_MOVE = 2
     private val TAB_KB_MOVE = 3
     private val TAB_CONFIG = 4
     private val TAB_TUNE = 5
-    private val TAB_BUBBLE = 6      // NEW
-    private val TAB_PROFILES = 7
-    private val TAB_HELP = 8
+    private val TAB_HARDKEYS = 6    // Hardkey bindings configuration
+    private val TAB_BUBBLE = 7      // Bubble customization
+    private val TAB_PROFILES = 8
+    private val TAB_HELP = 9
     
     private var currentTab = TAB_MAIN
 
@@ -72,7 +73,7 @@ class TrackpadMenuManager(
         recyclerView = drawerView?.findViewById(R.id.menu_recycler)
         recyclerView?.layoutManager = LinearLayoutManager(context)
 
-        // Updated Tab Mapping
+        // Updated Tab Mapping - Order matches layout_trackpad_drawer.xml
         val tabs = listOf(
             R.id.tab_main to TAB_MAIN,
             R.id.tab_presets to TAB_PRESETS,
@@ -80,8 +81,9 @@ class TrackpadMenuManager(
             R.id.tab_kb_move to TAB_KB_MOVE,
             R.id.tab_config to TAB_CONFIG,
             R.id.tab_tune to TAB_TUNE,
+            R.id.tab_hardkeys to TAB_HARDKEYS,  // Hardkey bindings
+            R.id.tab_bubble to TAB_BUBBLE,
             R.id.tab_profiles to TAB_PROFILES,
-            R.id.tab_bubble to TAB_BUBBLE,      // NEW
             R.id.tab_help to TAB_HELP
         )
 
@@ -124,7 +126,8 @@ class TrackpadMenuManager(
             TAB_KB_MOVE -> getMoveItems(true)
             TAB_CONFIG -> getConfigItems()
             TAB_TUNE -> getTuneItems()
-            TAB_BUBBLE -> getBubbleItems()      // NEW
+            TAB_HARDKEYS -> getHardkeyItems()   // Hardkey bindings configuration
+            TAB_BUBBLE -> getBubbleItems()
             TAB_PROFILES -> getProfileItems()
             TAB_HELP -> getHelpItems()
             else -> emptyList()
@@ -134,7 +137,7 @@ class TrackpadMenuManager(
     }
 
     private fun updateTabIcons(activeIdx: Int) {
-        val tabIds = listOf(R.id.tab_main, R.id.tab_presets, R.id.tab_move, R.id.tab_kb_move, R.id.tab_config, R.id.tab_tune, R.id.tab_bubble, R.id.tab_profiles, R.id.tab_help)
+        val tabIds = listOf(R.id.tab_main, R.id.tab_presets, R.id.tab_move, R.id.tab_kb_move, R.id.tab_config, R.id.tab_tune, R.id.tab_hardkeys, R.id.tab_bubble, R.id.tab_profiles, R.id.tab_help)
         for ((i, id) in tabIds.withIndex()) {
             val view = drawerView?.findViewById<ImageView>(id)
             if (i == activeIdx) view?.setColorFilter(Color.parseColor("#3DDC84")) 
@@ -293,6 +296,161 @@ class TrackpadMenuManager(
     // END GET TUNE ITEMS
     // =========================
 
+    // =========================
+    // HARDKEY ACTIONS LIST - Available actions for hardkey bindings
+    // Each action has an ID and display name
+    // =========================
+    private val hardkeyActions = listOf(
+        "none" to "None",
+        "left_click" to "Left Click",
+        "right_click" to "Right Click",
+        "left_drag" to "Left Drag",
+        "right_drag" to "Right Drag",
+        "scroll_up" to "Scroll Up",
+        "scroll_down" to "Scroll Down",
+        "display_toggle" to "Display Toggle",
+        "display_toggle_alt" to "Display (Alt Mode)",
+        "display_toggle_std" to "Display (Std Mode)",
+        "display_wake" to "Display Wake",
+        "alt_position" to "Alt KB Position",
+        "toggle_keyboard" to "Toggle Keyboard",
+        "toggle_trackpad" to "Toggle Trackpad",
+        "open_menu" to "Open Menu",
+        "reset_cursor" to "Reset Cursor"
+    )
+    
+    private fun getActionDisplayName(actionId: String): String {
+        return hardkeyActions.find { it.first == actionId }?.second ?: actionId
+    }
+    // =========================
+    // END HARDKEY ACTIONS LIST
+    // =========================
+
+    // =========================
+    // SHOW ACTION PICKER DIALOG - Displays AlertDialog for selecting hardkey action
+    // Updates the pref and refreshes the tab on selection
+    // =========================
+    private fun showActionPicker(prefKey: String, currentValue: String) {
+        val actionNames = hardkeyActions.map { it.second }.toTypedArray()
+        val actionIds = hardkeyActions.map { it.first }
+        val currentIndex = actionIds.indexOf(currentValue).coerceAtLeast(0)
+        
+        android.app.AlertDialog.Builder(context, R.style.Theme_CoverScreenTester)
+            .setTitle("Select Action")
+            .setSingleChoiceItems(actionNames, currentIndex) { dialog, which ->
+                val selectedAction = actionIds[which]
+                service.updatePref(prefKey, selectedAction)
+                dialog.dismiss()
+                loadTab(TAB_HARDKEYS) // Refresh to show new selection
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+    // =========================
+    // END SHOW ACTION PICKER DIALOG
+    // =========================
+
+    // =========================
+    // GET HARDKEY ITEMS - Hardkey bindings configuration menu
+    // Allows users to customize Vol Up/Down and Power button actions
+    // =========================
+    private fun getHardkeyItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        // === VOLUME UP SECTION ===
+        list.add(TrackpadMenuAdapter.MenuItem("VOLUME UP", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Tap: ${getActionDisplayName(p.hardkeyVolUpTap)}",
+            android.R.drawable.ic_media_play,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_up_tap", p.hardkeyVolUpTap) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap: ${getActionDisplayName(p.hardkeyVolUpDouble)}",
+            android.R.drawable.ic_media_ff,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_up_double", p.hardkeyVolUpDouble) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Hold: ${getActionDisplayName(p.hardkeyVolUpHold)}",
+            android.R.drawable.ic_menu_crop,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_up_hold", p.hardkeyVolUpHold) })
+        
+        // === VOLUME DOWN SECTION ===
+        list.add(TrackpadMenuAdapter.MenuItem("VOLUME DOWN", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Tap: ${getActionDisplayName(p.hardkeyVolDownTap)}",
+            android.R.drawable.ic_media_play,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_down_tap", p.hardkeyVolDownTap) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap: ${getActionDisplayName(p.hardkeyVolDownDouble)}",
+            android.R.drawable.ic_media_ff,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_down_double", p.hardkeyVolDownDouble) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Hold: ${getActionDisplayName(p.hardkeyVolDownHold)}",
+            android.R.drawable.ic_menu_crop,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_down_hold", p.hardkeyVolDownHold) })
+        
+        // === POWER BUTTON SECTION ===
+        list.add(TrackpadMenuAdapter.MenuItem("POWER BUTTON", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap: ${getActionDisplayName(p.hardkeyPowerDouble)}",
+            android.R.drawable.ic_lock_idle_lock,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_power_double", p.hardkeyPowerDouble) })
+        
+        // === DISPLAY SETTINGS SECTION ===
+        list.add(TrackpadMenuAdapter.MenuItem("DISPLAY SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Display Off Mode: ${if (p.displayOffMode == "alternate") "Alternate" else "Standard"}",
+            android.R.drawable.ic_menu_view,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { 
+            val newMode = if (p.displayOffMode == "alternate") "standard" else "alternate"
+            service.updatePref("display_off_mode", newMode)
+            loadTab(TAB_HARDKEYS)
+        })
+        
+        // === TIMING SECTION ===
+        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap Speed (${p.doubleTapMs}ms)",
+            android.R.drawable.ic_menu_recent_history,
+            TrackpadMenuAdapter.Type.SLIDER,
+            p.doubleTapMs
+        ) { v ->
+            service.updatePref("double_tap_ms", v)
+            loadTab(TAB_HARDKEYS) // Refresh to update label
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Hold Duration (${p.holdDurationMs}ms)",
+            android.R.drawable.ic_menu_recent_history,
+            TrackpadMenuAdapter.Type.SLIDER,
+            p.holdDurationMs
+        ) { v ->
+            service.updatePref("hold_duration_ms", v)
+            loadTab(TAB_HARDKEYS) // Refresh to update label
+        })
+        
+        return list
+    }
+    // =========================
+    // END GET HARDKEY ITEMS
+    // =========================
+
 
     // =========================
     // GET BUBBLE ITEMS - Bubble launcher customization
@@ -343,6 +501,12 @@ class TrackpadMenuManager(
     }
 
     private fun getHelpItems(): List<TrackpadMenuAdapter.MenuItem> {
-        return listOf(TrackpadMenuAdapter.MenuItem("TRACKPAD: Tap=Click, VolUp=Drag, VolDown=RightClick\n\nKEYBOARD: Drag Top=Move, BottomRight=Resize", 0, TrackpadMenuAdapter.Type.INFO))
+        return listOf(TrackpadMenuAdapter.MenuItem(
+            "TRACKPAD: Tap=Click, Touch+Move=Cursor\n\n" +
+            "HARDKEYS: Configure in Hardkeys tab\n" +
+            "• Tap/Double-Tap/Hold actions\n" +
+            "• Vol Up, Vol Down, Power\n\n" +
+            "KEYBOARD: Drag Top=Move, BottomRight=Resize",
+            0, TrackpadMenuAdapter.Type.INFO))
     }
 }
