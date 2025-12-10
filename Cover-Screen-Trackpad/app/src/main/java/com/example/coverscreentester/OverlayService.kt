@@ -99,6 +99,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     var isScreenOff = false
     private var isPreviewMode = false
     
+    // =========================
+    // PREFS CLASS - Stores all user preferences
+    // Contains anchor mode to lock trackpad/keyboard position
+    // =========================
     class Prefs {
         var cursorSpeed = 2.5f
         var scrollSpeed = 3.0f 
@@ -120,8 +124,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         var prefAutomationEnabled = true
         var prefBubbleX = 50
         var prefBubbleY = 300
+        var prefAnchored = false  // NEW: Anchor mode to disable handle drag/resize
     }
-    val prefs = Prefs()
+    // =========================
+    // END PREFS CLASS
+    // =========================
+  val prefs = Prefs()
 
     private var uiScreenWidth = 1080
     private var uiScreenHeight = 2640
@@ -531,6 +539,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     
     private fun parseBoolean(value: Any): Boolean { return when(value) { is Boolean -> value; is Int -> value == 1; is String -> value == "1" || value.equals("true", ignoreCase = true); else -> false } }
     
+    // =========================
+    // UPDATE PREF - Handles preference changes from menu
+    // Includes anchor mode toggle and updates keyboard anchor state
+    // =========================
     fun updatePref(key: String, value: Any) { 
         when(key) { 
             "cursor_speed" -> prefs.cursorSpeed = (value.toString().toFloatOrNull() ?: 2.5f)
@@ -552,9 +564,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             "keyboard_key_scale" -> { prefs.prefKeyScale = (value.toString().toIntOrNull() ?: 100); keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f) }
             "use_alt_screen_off" -> prefs.prefUseAltScreenOff = parseBoolean(value) 
             "automation_enabled" -> prefs.prefAutomationEnabled = parseBoolean(value)
+            "anchored" -> { 
+                prefs.prefAnchored = parseBoolean(value)
+                keyboardOverlay?.setAnchored(prefs.prefAnchored)  // Sync to keyboard overlay
+            }
         }
         savePrefs() 
     }
+    // =========================
+    // END UPDATE PREF
+    // =========================
     
     // --- PRESETS LOGIC ---
     fun applyLayoutPreset(type: Int) {
@@ -616,6 +635,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         } catch(e: Exception){}
     }
 
+    // =========================
+    // LOAD PREFS - Loads all user preferences from SharedPreferences
+    // Includes anchor mode preference
+    // =========================
     private fun loadPrefs() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         prefs.cursorSpeed = p.getFloat("cursor_speed", 2.5f)
@@ -627,11 +650,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         prefs.prefAutomationEnabled = p.getBoolean("automation_enabled", true)
         prefs.prefBubbleX = p.getInt("bubble_x", 50)
         prefs.prefBubbleY = p.getInt("bubble_y", 300)
+        prefs.prefAnchored = p.getBoolean("anchored", false)  // NEW: Load anchor mode
         // Reset handles if corrupted or first run
         if (prefs.prefHandleSize > 300) prefs.prefHandleSize = 60
         if (prefs.prefHandleTouchSize > 300) prefs.prefHandleTouchSize = 80
     }
+    // =========================
+    // END LOAD PREFS
+    // =========================
+
     
+    // =========================
+    // SAVE PREFS - Saves all user preferences to SharedPreferences
+    // Includes anchor mode preference
+    // =========================
     private fun savePrefs() { 
         val e = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
         e.putFloat("cursor_speed", prefs.cursorSpeed)
@@ -641,8 +673,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         e.putBoolean("automation_enabled", prefs.prefAutomationEnabled)
         e.putInt("bubble_x", prefs.prefBubbleX)
         e.putInt("bubble_y", prefs.prefBubbleY)
+        e.putBoolean("anchored", prefs.prefAnchored)  // NEW: Save anchor mode
         e.apply() 
     }
+    // =========================
+    // END SAVE PREFS
+    // =========================
 
     private fun bindShizuku() { try { val c = ComponentName(packageName, ShellUserService::class.java.name); ShizukuBinder.bind(c, userServiceConnection, BuildConfig.DEBUG, BuildConfig.VERSION_CODE) } catch (e: Exception) { e.printStackTrace() } }
     
@@ -828,9 +864,44 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
          }
     }
     
-    private fun moveWindow(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_MOVE) { trackpadParams.x += (event.rawX - lastTouchX).toInt(); trackpadParams.y += (event.rawY - lastTouchY).toInt(); windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }; lastTouchX = event.rawX; lastTouchY = event.rawY; return true }
-    private fun resizeWindow(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_MOVE) { trackpadParams.width += (event.rawX - lastTouchX).toInt(); trackpadParams.height += (event.rawY - lastTouchY).toInt(); windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }; lastTouchX = event.rawX; lastTouchY = event.rawY; return true }
-    private fun keyboardHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_UP) toggleCustomKeyboard(); return true }
+    // =========================
+    // MOVE WINDOW - Handles trackpad overlay position drag
+    // Returns early if anchored to prevent accidental movement
+    // =========================
+    private fun moveWindow(event: MotionEvent): Boolean { 
+        if (prefs.prefAnchored) return true  // Anchored: block movement
+        if (event.action == MotionEvent.ACTION_MOVE) { 
+            trackpadParams.x += (event.rawX - lastTouchX).toInt()
+            trackpadParams.y += (event.rawY - lastTouchY).toInt()
+            windowManager?.updateViewLayout(trackpadLayout, trackpadParams) 
+        }
+        lastTouchX = event.rawX
+        lastTouchY = event.rawY
+        return true 
+    }
+    // =========================
+    // END MOVE WINDOW
+    // =========================
+    
+    // =========================
+    // RESIZE WINDOW - Handles trackpad overlay size drag
+    // Returns early if anchored to prevent accidental resizing
+    // =========================
+    private fun resizeWindow(event: MotionEvent): Boolean { 
+        if (prefs.prefAnchored) return true  // Anchored: block resize
+        if (event.action == MotionEvent.ACTION_MOVE) { 
+            trackpadParams.width += (event.rawX - lastTouchX).toInt()
+            trackpadParams.height += (event.rawY - lastTouchY).toInt()
+            windowManager?.updateViewLayout(trackpadLayout, trackpadParams) 
+        }
+        lastTouchX = event.rawX
+        lastTouchY = event.rawY
+        return true 
+    }
+    // =========================
+    // END RESIZE WINDOW
+    // =========================
+   private fun keyboardHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_UP) toggleCustomKeyboard(); return true }
     private fun openMenuHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_DOWN) menuManager?.show(); return true }
     private fun injectAction(action: Int, source: Int, button: Int, time: Long) { if (shellService == null) return; Thread { try { shellService?.injectMouse(action, cursorX, cursorY, inputTargetDisplayId, source, button, time) } catch(e: Exception){} }.start() }
     private fun injectScroll(hScroll: Float, vScroll: Float) { if (shellService == null) return; Thread { try { shellService?.injectScroll(cursorX, cursorY, vScroll / 10f, hScroll / 10f, inputTargetDisplayId) } catch(e: Exception){} }.start() }

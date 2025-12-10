@@ -43,15 +43,22 @@ class KeyboardOverlay(
     private var keyboardParams: WindowManager.LayoutParams? = null
     private var isVisible = false
 
+    // =========================
+    // KEYBOARD OVERLAY STATE VARIABLES
+    // isAnchored blocks handle drag/resize when true
+    // =========================
     private var isMoving = false
     private var isResizing = false
+    private var isAnchored = false  // NEW: Anchor mode to disable handle drag/resize
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var initialWindowX = 0
     private var initialWindowY = 0
     private var initialWidth = 0
     private var initialHeight = 0
-
+    // =========================
+    // END STATE VARIABLES
+    // =========================
     private val TAG = "KeyboardOverlay"
     private var keyboardWidth = 500
     private var keyboardHeight = 260
@@ -87,19 +94,34 @@ class KeyboardOverlay(
     }
     
     // --- RESTORED: Opacity Control ---
+    // =========================
+    // UPDATE ALPHA - Applies opacity to BOTH background container AND key views
+    // This allows users to see apps behind the keyboard
+    // Alpha range: 0-255 (0 = fully transparent, 255 = fully opaque)
+    // =========================
     fun updateAlpha(alpha: Int) {
         currentAlpha = alpha
         if (isVisible && keyboardContainer != null) {
+            // 1. Update background container opacity
             val bg = keyboardContainer?.background as? GradientDrawable
             if (bg != null) {
                 val strokeColor = Color.parseColor("#3DDC84")
                 val fillColor = (alpha shl 24) or (0x1A1A1A)
                 bg.setColor(fillColor)
                 bg.setStroke(2, strokeColor)
-                keyboardContainer?.invalidate()
             }
+            
+            // 2. Update KeyboardView (keys) opacity
+            // Convert 0-255 to 0.0-1.0 for View.setAlpha()
+            val normalizedAlpha = alpha / 255f
+            keyboardView?.alpha = normalizedAlpha
+            
+            keyboardContainer?.invalidate()
         }
     }
+    // =========================
+    // END UPDATE ALPHA
+    // =========================
     
     // --- RESTORED: Preset Positioning ---
     fun setWindowBounds(x: Int, y: Int, width: Int, height: Int) {
@@ -117,7 +139,20 @@ class KeyboardOverlay(
             } catch (e: Exception) {}
         }
     }
-    
+   
+
+// =========================
+    // SET ANCHORED - Called from OverlayService when anchor toggle changes
+    // Blocks keyboard handle drag/resize when true
+    // =========================
+    fun setAnchored(anchored: Boolean) {
+        isAnchored = anchored
+    }
+    // =========================
+    // END SET ANCHORED
+    // =========================
+
+
     fun getWidth(): Int = keyboardWidth
     fun getHeight(): Int = keyboardHeight
     
@@ -239,23 +274,73 @@ class KeyboardOverlay(
         keyboardContainer?.addView(label, labelParams)
     }
 
+    // =========================
+    // HANDLE DRAG - Processes keyboard overlay drag/move gestures
+    // Returns early if anchored to prevent accidental movement
+    // =========================
     private fun handleDrag(event: MotionEvent): Boolean {
+        if (isAnchored) return true  // Anchored: block drag
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> { isMoving = true; initialTouchX = event.rawX; initialTouchY = event.rawY; initialWindowX = keyboardParams?.x ?: 0; initialWindowY = keyboardParams?.y ?: 0 }
-            MotionEvent.ACTION_MOVE -> { if (isMoving) { keyboardParams?.x = initialWindowX + (event.rawX - initialTouchX).toInt(); keyboardParams?.y = initialWindowY + (event.rawY - initialTouchY).toInt(); try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} } }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { isMoving = false; saveKeyboardPosition() }
+            MotionEvent.ACTION_DOWN -> { 
+                isMoving = true
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                initialWindowX = keyboardParams?.x ?: 0
+                initialWindowY = keyboardParams?.y ?: 0 
+            }
+            MotionEvent.ACTION_MOVE -> { 
+                if (isMoving) { 
+                    keyboardParams?.x = initialWindowX + (event.rawX - initialTouchX).toInt()
+                    keyboardParams?.y = initialWindowY + (event.rawY - initialTouchY).toInt()
+                    try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} 
+                } 
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
+                isMoving = false
+                saveKeyboardPosition() 
+            }
         }
         return true
     }
+    // =========================
+    // END HANDLE DRAG
+    // =========================
 
+
+    // =========================
+    // HANDLE RESIZE - Processes keyboard overlay resize gestures
+    // Returns early if anchored to prevent accidental resizing
+    // =========================
     private fun handleResize(event: MotionEvent): Boolean {
+        if (isAnchored) return true  // Anchored: block resize
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> { isResizing = true; initialTouchX = event.rawX; initialTouchY = event.rawY; initialWidth = keyboardParams?.width ?: keyboardWidth; initialHeight = keyboardParams?.height ?: keyboardHeight }
-            MotionEvent.ACTION_MOVE -> { if (isResizing) { keyboardParams?.width = max(280, initialWidth + (event.rawX - initialTouchX).toInt()); keyboardParams?.height = max(180, initialHeight + (event.rawY - initialTouchY).toInt()); keyboardWidth = keyboardParams?.width ?: keyboardWidth; keyboardHeight = keyboardParams?.height ?: keyboardHeight; try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} } }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { isResizing = false; saveKeyboardSize() }
+            MotionEvent.ACTION_DOWN -> { 
+                isResizing = true
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                initialWidth = keyboardParams?.width ?: keyboardWidth
+                initialHeight = keyboardParams?.height ?: keyboardHeight 
+            }
+            MotionEvent.ACTION_MOVE -> { 
+                if (isResizing) { 
+                    keyboardParams?.width = max(280, initialWidth + (event.rawX - initialTouchX).toInt())
+                    keyboardParams?.height = max(180, initialHeight + (event.rawY - initialTouchY).toInt())
+                    keyboardWidth = keyboardParams?.width ?: keyboardWidth
+                    keyboardHeight = keyboardParams?.height ?: keyboardHeight
+                    try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} 
+                } 
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
+                isResizing = false
+                saveKeyboardSize() 
+            }
         }
         return true
     }
+    // =========================
+    // END HANDLE RESIZE
+    // =========================
+
 
     private fun saveKeyboardSize() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_width_d$currentDisplayId", keyboardWidth).putInt("keyboard_height_d$currentDisplayId", keyboardHeight).apply() }
     private fun saveKeyboardPosition() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_x_d$currentDisplayId", keyboardParams?.x ?: 0).putInt("keyboard_y_d$currentDisplayId", keyboardParams?.y ?: 0).apply() }

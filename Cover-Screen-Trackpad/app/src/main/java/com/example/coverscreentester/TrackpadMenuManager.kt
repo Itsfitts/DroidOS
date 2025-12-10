@@ -139,8 +139,14 @@ class TrackpadMenuManager(
         }
     }
 
+    // =========================
+    // GET MAIN ITEMS - Generates main menu items list
+    // Includes Anchor toggle to lock trackpad/keyboard position
+    // =========================
     private fun getMainItems(): List<TrackpadMenuAdapter.MenuItem> {
         val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
         list.add(TrackpadMenuAdapter.MenuItem("Shizuku Status", android.R.drawable.ic_dialog_info, TrackpadMenuAdapter.Type.INFO)) 
         
         list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_myplaces, TrackpadMenuAdapter.Type.ACTION) { 
@@ -150,12 +156,28 @@ class TrackpadMenuManager(
         
         list.add(TrackpadMenuAdapter.MenuItem("Move Trackpad Here", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { service.forceMoveToCurrentDisplay(); hide() })
         list.add(TrackpadMenuAdapter.MenuItem("Target: ${if(service.inputTargetDisplayId == service.currentDisplayId) "Local" else "Remote"}", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) { service.cycleInputTarget(); loadTab(TAB_MAIN) })
+        
+        // --- ANCHOR TOGGLE: Locks trackpad and keyboard position/size ---
+        list.add(TrackpadMenuAdapter.MenuItem("Anchor (Lock Position)", 
+            if(p.prefAnchored) R.drawable.ic_lock_closed else R.drawable.ic_lock_open, 
+            TrackpadMenuAdapter.Type.TOGGLE, 
+            if(p.prefAnchored) 1 else 0) { v ->
+            service.updatePref("anchored", v)
+            loadTab(TAB_MAIN)  // Refresh to update icon
+        })
+        // --- END ANCHOR TOGGLE ---
+        
         list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { service.toggleCustomKeyboard() })
         list.add(TrackpadMenuAdapter.MenuItem("Reset Cursor", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { service.resetCursorCenter() })
         list.add(TrackpadMenuAdapter.MenuItem("Hide App", android.R.drawable.ic_menu_close_clear_cancel, TrackpadMenuAdapter.Type.ACTION) { service.hideApp() })
         list.add(TrackpadMenuAdapter.MenuItem("Force Kill Service", android.R.drawable.ic_delete, TrackpadMenuAdapter.Type.ACTION) { service.forceExit() })
         return list
     }
+    // =========================
+    // END GET MAIN ITEMS
+    // =========================
+
+
     
     private fun getPresetItems(): List<TrackpadMenuAdapter.MenuItem> {
         val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
@@ -217,6 +239,11 @@ class TrackpadMenuManager(
         return list
     }
 
+    // =========================
+    // GET CONFIG ITEMS - Trackpad configuration settings
+    // Keyboard Opacity moved to getTuneItems()
+    // ========================= 
+
     private fun getConfigItems(): List<TrackpadMenuAdapter.MenuItem> {
         val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
         val p = service.prefs
@@ -225,7 +252,6 @@ class TrackpadMenuManager(
         list.add(TrackpadMenuAdapter.MenuItem("Scroll Speed", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.SLIDER, (p.scrollSpeed * 10).toInt()) { v -> service.updatePref("scroll_speed", (v as Int) / 10f) })
         
         list.add(TrackpadMenuAdapter.MenuItem("Trackpad Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefAlpha) { v -> service.updatePref("alpha", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha) { v -> service.updatePref("keyboard_alpha", v) })
         
         list.add(TrackpadMenuAdapter.MenuItem("Handle Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefHandleSize / 2) { v -> service.updatePref("handle_size", v) })
         list.add(TrackpadMenuAdapter.MenuItem("Cursor Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefCursorSize) { v -> service.updatePref("cursor_size", v) })
@@ -234,14 +260,25 @@ class TrackpadMenuManager(
         list.add(TrackpadMenuAdapter.MenuItem("Haptic Feedback", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVibrate) 1 else 0) { v -> service.updatePref("vibrate", v) })
         return list
     }
+    // =========================
+    // END GET CONFIG ITEMS
+    // =========================
 
+    // =========================
+    // GET TUNE ITEMS - Keyboard configuration settings
+    // Contains Keyboard Opacity, Scale, and Auto Display Off
+    // =========================
     private fun getTuneItems(): List<TrackpadMenuAdapter.MenuItem> {
         val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
         val p = service.prefs
+        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha) { v -> service.updatePref("keyboard_alpha", v) })
         list.add(TrackpadMenuAdapter.MenuItem("Keyboard Scale", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyScale) { v -> service.updatePref("keyboard_key_scale", v) })
         list.add(TrackpadMenuAdapter.MenuItem("Auto Display Off", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefAutomationEnabled) 1 else 0) { v -> service.updatePref("automation_enabled", v) })
         return list
     }
+    // =========================
+    // END GET TUNE ITEMS
+    // =========================
 
     private fun getProfileItems(): List<TrackpadMenuAdapter.MenuItem> {
         val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
