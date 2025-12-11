@@ -15,33 +15,23 @@ import rikka.shizuku.Shizuku
 
 class MainActivity : AppCompatActivity() {
 
-    // Listener just to show a toast, DOES NOT START ANYTHING AUTOMATICALLY
-    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
-        runOnUiThread {
-            Toast.makeText(this, "Shizuku Connected!", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 1. SETUP UI ONLY. NO CHECKS.
+        // 1. SETUP UI ONLY. NO AUTOMATIC CHECKS.
         setupUI()
 
-        // 2. Add Listener safely
+        // 2. Add Listener safely (optional)
         try {
-            Shizuku.addBinderReceivedListener(binderReceivedListener)
+            Shizuku.addBinderReceivedListener {
+                runOnUiThread {
+                    Toast.makeText(this, "Shizuku Connected!", Toast.LENGTH_SHORT).show()
+                }
+            }
         } catch (e: Throwable) {
-            // Ignore if Shizuku not installed
+            // Ignore
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        try {
-            Shizuku.removeBinderReceivedListener(binderReceivedListener)
-        } catch (e: Throwable) {}
     }
 
     private fun setupUI() {
@@ -52,6 +42,7 @@ class MainActivity : AppCompatActivity() {
                 val uri = Uri.fromParts("package", packageName, null)
                 intent.data = uri
                 startActivity(intent)
+                Toast.makeText(this, "Tap 3 dots (top-right) -> Allow Restricted Settings", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 Toast.makeText(this, "Error opening App Info", Toast.LENGTH_SHORT).show()
             }
@@ -66,30 +57,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // NEW: "CHECK & START" BUTTON
-        // This is the ONLY place logic runs.
-        // We add it dynamically to be sure it appears.
-        val btnStart = Button(this).apply {
-            text = "3. CHECK PERMISSIONS & START"
-            backgroundTintList = getColorStateList(android.R.color.holo_blue_light)
-            setTextColor(getColor(android.R.color.black))
-            setOnClickListener { manualStartCheck() }
-        }
-        
-        // Find a valid container to add the button
-        val rootLayout = findViewById<android.widget.LinearLayout>(R.id.root_layout_container) 
-        if (rootLayout != null) {
-            rootLayout.addView(btnStart)
-        } else {
-            // Fallback: Add to the first child of content (usually the ScrollView's LinearLayout)
-            (findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0) as? android.view.ViewGroup)?.addView(btnStart)
+        // Button 3: Check & Start (The Safe Way)
+        findViewById<Button>(R.id.btn_start_check).setOnClickListener {
+            manualStartCheck()
         }
     }
 
     private fun manualStartCheck() {
         // 1. Check Overlay Permission
         if (!Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "⚠️ Grant 'Display Over Apps' Permission", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "⚠️ Please Grant 'Display Over Apps'", Toast.LENGTH_LONG).show()
             try {
                 val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
                 startActivity(intent)
@@ -101,6 +78,7 @@ class MainActivity : AppCompatActivity() {
         try {
             if (!Shizuku.pingBinder()) {
                 Toast.makeText(this, "⚠️ Shizuku Not Running!", Toast.LENGTH_SHORT).show()
+                // Don't block launch, just warn
             } else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
                 Shizuku.requestPermission(0)
                 return
@@ -130,7 +108,7 @@ class MainActivity : AppCompatActivity() {
             putExtra("DISPLAY_ID", targetDisplayId)
             putExtra("FORCE_MOVE", true)
         }
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
@@ -138,4 +116,3 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
-

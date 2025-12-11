@@ -548,46 +548,46 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             showToast("Error: Display $displayId not found")
             return
         }
-        
+
         try {
+            // 1. Create Base Display Context
             val displayContext = createDisplayContext(display)
-            
-            // 1. Context for Trackpad (Accessibility Overlay) - High Z-Order
+
+            // 2. Trackpad Context (Accessibility Overlay) - High Z-Order
+            // We keep this specialized context for the Trackpad to ensure it sits on top
             val trackpadContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                  displayContext.createWindowContext(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, null)
             } else displayContext
             val trackpadWM = trackpadContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            
-            // 2. Context for Menu (Application Overlay) - Lower Z-Order, Interactive
-            // This fixes the "BadTokenException" by providing a valid token for Application Overlays
-            val menuContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                 displayContext.createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null)
-            } else displayContext
-            val menuWM = menuContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            
-            // Set global WindowManager to the Trackpad one (default)
+
+            // 3. Menu Context (Standard Display Context) - Application Overlay
+            // We use the raw displayContext here, matching FloatingLauncherService.
+            // This avoids BadTokenException when adding TYPE_APPLICATION_OVERLAY windows.
+            val menuWM = displayContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+
+            // Set global WindowManager to the Trackpad one (default for bubbles/cursor)
             windowManager = trackpadWM
-            
+
             currentDisplayId = displayId
             inputTargetDisplayId = displayId
-            
+
             updateUiMetrics()
-            
+
             // Setup Trackpad components using Trackpad Context
             setupBubble(trackpadContext)
             setupTrackpad(trackpadContext)
             setupCursor(trackpadContext)
-            
-            // CRITICAL: Initialize MenuManager with the MENU Context and WM
-            menuManager = TrackpadMenuManager(menuContext, menuWM, this)
-            
+
+            // CRITICAL: Initialize MenuManager with the Display Context (not WindowContext)
+            menuManager = TrackpadMenuManager(displayContext, menuWM, this)
+
             if (shellService != null) initCustomKeyboard()
-            
+
             // Ensure correct initial stack
             enforceZOrder()
-            
+
             showToast("Trackpad active on Display $displayId")
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Failed to setup UI on display $displayId", e)
             showToast("Failed to launch on display $displayId")
