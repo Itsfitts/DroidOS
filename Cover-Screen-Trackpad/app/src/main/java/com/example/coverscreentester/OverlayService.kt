@@ -39,6 +39,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.ServiceInfo
+import androidx.core.content.ContextCompat
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -354,7 +355,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             addAction("SET_PREVIEW_MODE") 
             addAction("OPEN_MENU")
         }
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(switchReceiver, filter, Context.RECEIVER_EXPORTED) else registerReceiver(switchReceiver, filter)
+        ContextCompat.registerReceiver(this, switchReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     override fun onServiceConnected() {

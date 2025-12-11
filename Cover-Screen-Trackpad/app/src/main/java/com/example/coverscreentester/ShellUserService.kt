@@ -1,4 +1,3 @@
-
 /*
  * ======================================================================================
  * CRITICAL REGRESSION CHECKLIST - SHELL SERVICE
@@ -42,6 +41,7 @@ import java.io.InputStreamReader
 import java.lang.reflect.Method
 import java.util.ArrayList
 import android.os.Build
+import android.annotation.SuppressLint
 
 class ShellUserService : IShellService.Stub() {
 
@@ -81,6 +81,7 @@ class ShellUserService : IShellService.Stub() {
     }
 
     // --- HELPER: Display Control Class (Android 14+) ---
+    @SuppressLint("BlockedPrivateApi")
     private fun getDisplayControlClass(): Class<*>? {
         if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
         
