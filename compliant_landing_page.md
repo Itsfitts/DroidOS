@@ -1,3 +1,95 @@
+# Code Update: Google Play Compliant Permissions Page
+
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_main.xml
+
+### Description
+Replaces the complex dashboard with a simple, policy-compliant disclosure page. It explains the use of Accessibility Services and provides the necessary navigation buttons.
+
+### Code
+Replace the **entire file content** with:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src=" @mipmap/ic_trackpad_adaptive"
+            android:layout_marginBottom="24dp"
+            android:contentDescription="App Icon" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Accessibility Permission Required"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="This app uses the AccessibilityService API to provide a mouse trackpad and cursor on your screen.\n\nIt intercepts touch gestures on the overlay to inject mouse clicks and movement into the system.\n\nNo personal data is collected, stored, or transmitted via this service."
+            android:textColor="#DDDDDD"
+            android:textSize="16sp"
+            android:lineSpacingMultiplier="1.2"
+            android:gravity="start"
+            android:background="#1E1E1E"
+            android:padding="16dp"
+            android:layout_marginBottom="32dp"/>
+
+        <Button
+            android:id=" @+id/btn_fix_restricted"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="1. Allow Restricted Settings"
+            android:backgroundTint="#FF5722"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="If the app was sideloaded, you must first allow restricted settings in the App Info menu (3-dots > Allow Restricted Settings)."
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:layout_marginBottom="24dp"/>
+
+        <Button
+            android:id=" @+id/btn_open_accessibility"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="2. Enable Accessibility Service"
+            android:backgroundTint="#3DDC84"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:elevation="4dp"/>
+
+    </LinearLayout>
+</ScrollView>
+
+File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/MainActivity.kt
+Description
+Updates the activity to handle only the two permission-related buttons. It retains the auto-start ("Headless") logic but simplifies the UI initialization to match the new layout.
+Code
+Replace the entire file content with:
 package com.example.coverscreentester
 
 import android.content.ComponentName
