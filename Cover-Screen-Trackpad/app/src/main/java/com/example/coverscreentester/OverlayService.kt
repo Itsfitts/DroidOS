@@ -532,6 +532,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // END ON KEY EVENT
     // =========================
 
+    
     private fun setupUI(displayId: Int) {
         try {
             if (windowManager != null) {
@@ -550,23 +551,36 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         try {
             val displayContext = createDisplayContext(display)
-            val windowContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                 displayContext.createWindowContext(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, null)
-            } else {
-                 displayContext
-            }
             
-            windowManager = windowContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            // 1. Context for Trackpad (Accessibility Overlay) - High Z-Order
+            val trackpadContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                 displayContext.createWindowContext(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, null)
+            } else displayContext
+            val trackpadWM = trackpadContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            
+            // 2. Context for Menu (Application Overlay) - Lower Z-Order, Interactive
+            // This fixes the "BadTokenException" by providing a valid token for Application Overlays
+            val menuContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                 displayContext.createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null)
+            } else displayContext
+            val menuWM = menuContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            
+            // Set global WindowManager to the Trackpad one (default)
+            windowManager = trackpadWM
             
             currentDisplayId = displayId
             inputTargetDisplayId = displayId
             
             updateUiMetrics()
-            setupBubble(windowContext)
-            setupTrackpad(windowContext)
-            setupCursor(windowContext)
             
-            menuManager = TrackpadMenuManager(windowContext, windowManager!!, this)
+            // Setup Trackpad components using Trackpad Context
+            setupBubble(trackpadContext)
+            setupTrackpad(trackpadContext)
+            setupCursor(trackpadContext)
+            
+            // CRITICAL: Initialize MenuManager with the MENU Context and WM
+            menuManager = TrackpadMenuManager(menuContext, menuWM, this)
+            
             if (shellService != null) initCustomKeyboard()
             
             // Ensure correct initial stack

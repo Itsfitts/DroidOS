@@ -15,92 +15,103 @@ import rikka.shizuku.Shizuku
 
 class MainActivity : AppCompatActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // 1. Check Permissions
-        val isShizukuReady = safeCheckShizuku()
-        val isAccessibilityReady = isAccessibilityEnabled()
-
-        // 2. Headless Mode: If ready, start service and close
-        if (isShizukuReady && isAccessibilityReady) {
-            startOverlayService()
-            finish()
-            return
-        }
-
-        // 3. Setup Mode: Show Disclosure UI
-        setContentView(R.layout.activity_main)
-        setupUI()
-        
-        // Auto-request Shizuku if missing
-        if (!isShizukuReady) {
-            requestShizukuSafely()
+    // Listener just to show a toast, DOES NOT START ANYTHING AUTOMATICALLY
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        runOnUiThread {
+            Toast.makeText(this, "Shizuku Connected!", Toast.LENGTH_SHORT).show()
         }
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        // 1. SETUP UI ONLY. NO CHECKS.
+        setupUI()
+
+        // 2. Add Listener safely
+        try {
+            Shizuku.addBinderReceivedListener(binderReceivedListener)
+        } catch (e: Throwable) {
+            // Ignore if Shizuku not installed
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            Shizuku.removeBinderReceivedListener(binderReceivedListener)
+        } catch (e: Throwable) {}
+    }
+
     private fun setupUI() {
-        // Button 1: Fix Restricted Settings (App Info)
+        // Button 1: App Info
         findViewById<Button>(R.id.btn_fix_restricted).setOnClickListener {
             try {
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                 val uri = Uri.fromParts("package", packageName, null)
                 intent.data = uri
                 startActivity(intent)
-                Toast.makeText(this, "Tap 3 dots (top-right) -> Allow Restricted Settings", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
-                Toast.makeText(this, "Could not open App Info", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Error opening App Info", Toast.LENGTH_SHORT).show()
             }
         }
 
-        // Button 2: Enable Accessibility
+        // Button 2: Accessibility
         findViewById<Button>(R.id.btn_open_accessibility).setOnClickListener {
             try {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                Toast.makeText(this, "Find 'DroidOS Trackpad' and enable it.", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
-                Toast.makeText(this, "Could not open Settings", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Error opening Accessibility", Toast.LENGTH_SHORT).show()
             }
         }
-    }
 
-    private fun safeCheckShizuku(): Boolean {
-        return try {
-            if (!Shizuku.pingBinder()) return false
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: Throwable) {
-            false
+        // NEW: "CHECK & START" BUTTON
+        // This is the ONLY place logic runs.
+        // We add it dynamically to be sure it appears.
+        val btnStart = Button(this).apply {
+            text = "3. CHECK PERMISSIONS & START"
+            backgroundTintList = getColorStateList(android.R.color.holo_blue_light)
+            setTextColor(getColor(android.R.color.black))
+            setOnClickListener { manualStartCheck() }
+        }
+        
+        // Find a valid container to add the button
+        val rootLayout = findViewById<android.widget.LinearLayout>(R.id.root_layout_container) 
+        if (rootLayout != null) {
+            rootLayout.addView(btnStart)
+        } else {
+            // Fallback: Add to the first child of content (usually the ScrollView's LinearLayout)
+            (findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0) as? android.view.ViewGroup)?.addView(btnStart)
         }
     }
 
-    private fun requestShizukuSafely() {
+    private fun manualStartCheck() {
+        // 1. Check Overlay Permission
+        if (!Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "⚠️ Grant 'Display Over Apps' Permission", Toast.LENGTH_LONG).show()
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                startActivity(intent)
+            } catch(e: Exception) {}
+            return
+        }
+
+        // 2. Check Shizuku (TRY-CATCH IS MANDATORY)
         try {
-            if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            if (!Shizuku.pingBinder()) {
+                Toast.makeText(this, "⚠️ Shizuku Not Running!", Toast.LENGTH_SHORT).show()
+            } else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
                 Shizuku.requestPermission(0)
+                return
             }
         } catch (e: Throwable) {
-            // Ignore
+            Toast.makeText(this, "⚠️ Shizuku Error: ${e.message}", Toast.LENGTH_LONG).show()
         }
-    }
 
-    private fun isAccessibilityEnabled(): Boolean {
-        val expectedComponentName = ComponentName(this, OverlayService::class.java)
-        val enabledServicesSetting = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        
-        val colonSplitter = android.text.TextUtils.SimpleStringSplitter(':')
-        colonSplitter.setString(enabledServicesSetting)
-        
-        while (colonSplitter.hasNext()) {
-            val componentNameString = colonSplitter.next()
-            val enabledComponent = ComponentName.unflattenFromString(componentNameString)
-            if (enabledComponent != null && enabledComponent == expectedComponentName) {
-                return true
-            }
-        }
-        return false
+        // 3. Start Service
+        startOverlayService()
+        finish()
     }
 
     private fun startOverlayService() {
@@ -112,7 +123,7 @@ class MainActivity : AppCompatActivity() {
                 @Suppress("DEPRECATION")
                 targetDisplayId = windowManager.defaultDisplay.displayId
             }
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {}
 
         val intent = Intent(this, OverlayService::class.java).apply {
             action = "OPEN_MENU"
@@ -127,3 +138,4 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
+

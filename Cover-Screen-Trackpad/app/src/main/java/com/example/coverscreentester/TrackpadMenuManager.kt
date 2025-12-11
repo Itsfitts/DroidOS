@@ -48,7 +48,12 @@ class TrackpadMenuManager(
             windowManager.addView(drawerView, drawerParams)
             isVisible = true
             loadTab(currentTab)
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: SecurityException) {
+            android.widget.Toast.makeText(context, "Missing Overlay Permission! Open App to Fix.", android.widget.Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        } catch (e: Exception) { 
+            e.printStackTrace() 
+        }
     }
 
     fun hide() {
@@ -64,16 +69,18 @@ class TrackpadMenuManager(
     }
 
     private fun setupDrawer() {
+        // Use ContextWrapper to ensure correct theme (Matches Launcher)
         val themedContext = android.view.ContextThemeWrapper(context, R.style.Theme_CoverScreenTester)
         val inflater = LayoutInflater.from(themedContext)
         drawerView = inflater.inflate(R.layout.layout_trackpad_drawer, null)
 
+        // Close button logic
         drawerView?.findViewById<View>(R.id.btn_close_menu)?.setOnClickListener { hide() }
         
         recyclerView = drawerView?.findViewById(R.id.menu_recycler)
         recyclerView?.layoutManager = LinearLayoutManager(context)
 
-        // Updated Tab Mapping - Order matches layout_trackpad_drawer.xml
+        // Tab click listeners
         val tabs = listOf(
             R.id.tab_main to TAB_MAIN,
             R.id.tab_presets to TAB_PRESETS,
@@ -81,7 +88,7 @@ class TrackpadMenuManager(
             R.id.tab_kb_move to TAB_KB_MOVE,
             R.id.tab_config to TAB_CONFIG,
             R.id.tab_tune to TAB_TUNE,
-            R.id.tab_hardkeys to TAB_HARDKEYS,  // Hardkey bindings
+            R.id.tab_hardkeys to TAB_HARDKEYS,
             R.id.tab_bubble to TAB_BUBBLE,
             R.id.tab_profiles to TAB_PROFILES,
             R.id.tab_help to TAB_HELP
@@ -93,25 +100,32 @@ class TrackpadMenuManager(
             }
         }
 
+        // =========================
+        // WINDOW CONFIG (MATCHING DROIDOS LAUNCHER)
+        // =========================
         drawerParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, // Requires Permission
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,    // Clean Flags
             PixelFormat.TRANSLUCENT
         )
+        // Explicitly set Gravity
+        drawerParams?.gravity = Gravity.TOP or Gravity.START
+        drawerParams?.x = 0
+        drawerParams?.y = 0
         
-        drawerView?.setOnTouchListener { _, event ->
-            if (event.action == android.view.MotionEvent.ACTION_DOWN) {
-                val container = drawerView?.findViewById<View>(R.id.menu_container)
-                val hitRect = android.graphics.Rect()
-                container?.getGlobalVisibleRect(hitRect)
-                if (!hitRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
-                    hide()
-                    return@setOnTouchListener true
-                }
-            }
-            false
+        // =========================
+        // INTERACTION LOGIC
+        // =========================
+        // 1. Background Click -> Close
+        drawerView?.setOnClickListener { 
+            hide() 
+        }
+        
+        // 2. Menu Card Click -> Block (Consume)
+        drawerView?.findViewById<View>(R.id.menu_container)?.setOnClickListener { 
+            // Do nothing
         }
     }
 
@@ -508,3 +522,4 @@ class TrackpadMenuManager(
             0, TrackpadMenuAdapter.Type.INFO))
     }
 }
+
