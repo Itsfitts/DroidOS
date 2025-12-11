@@ -680,8 +680,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         startKeyDrag(MotionEvent.BUTTON_PRIMARY)
                     }
                 } else {
-                    volUpDragActive = false
-                    stopKeyDrag(MotionEvent.BUTTON_PRIMARY)
+                    // Handle UP event (Release)
+                    if (volUpDragActive) {
+                        // Case A: We were holding/dragging (Direct Mode) -> Finish Drag
+                        volUpDragActive = false
+                        stopKeyDrag(MotionEvent.BUTTON_PRIMARY)
+                    } else {
+                        // Case B: We were NOT dragging (Timer/Tap Mode) -> Atomic Click
+                        performClick(false) // Left Click
+                    }
                 }
             }
             
@@ -692,8 +699,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         startKeyDrag(MotionEvent.BUTTON_SECONDARY)
                     }
                 } else {
-                    volDownDragActive = false
-                    stopKeyDrag(MotionEvent.BUTTON_SECONDARY)
+                    // Handle UP event (Release)
+                    if (volDownDragActive) {
+                        // Case A: We were holding/dragging (Direct Mode) -> Finish Drag
+                        volDownDragActive = false
+                        stopKeyDrag(MotionEvent.BUTTON_SECONDARY)
+                    } else {
+                        // Case B: We were NOT dragging (Timer/Tap Mode) -> Atomic Click
+                        performClick(true) // Right Click
+                    }
                 }
             }
             
