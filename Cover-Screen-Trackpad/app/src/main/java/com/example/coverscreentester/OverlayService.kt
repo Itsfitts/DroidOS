@@ -1675,6 +1675,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
    private fun updateLayoutSizes() { for (c in handleContainers) { val p = c.layoutParams; p.width = prefs.prefHandleTouchSize; p.height = prefs.prefHandleTouchSize; c.layoutParams = p } }
     private fun updateCursorSize() { val size = if (prefs.prefCursorSize > 0) prefs.prefCursorSize else 50; cursorView?.layoutParams?.let { it.width = size; it.height = size; cursorView?.layoutParams = it } }
     private fun updateBorderColor(strokeColor: Int) { 
+        // Track internal state but DO NOT use it for drawing
         currentBorderColor = strokeColor 
         
         val bg = trackpadLayout?.background as? GradientDrawable ?: return
@@ -1683,11 +1684,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val fillColor = (prefs.prefBgAlpha shl 24) or 0x000000
         bg.setColor(fillColor)
         
-        // 2. Apply Border Stroke (State Color + User Border Alpha)
-        // Extract RGB from the state color (e.g., White, Green, Red)
-        val rgb = strokeColor and 0x00FFFFFF
-        // Combine with the Alpha from the slider
-        val finalStrokeColor = (prefs.prefAlpha shl 24) or rgb
+        // 2. Apply Border Stroke (FIX: Always White, Ignore State Colors)
+        // This prevents Orange (Drag) and Red (Keyboard Mode) flashing.
+        val finalStrokeColor = (prefs.prefAlpha shl 24) or 0xFFFFFF
         
         bg.setStroke(4, finalStrokeColor)
         
