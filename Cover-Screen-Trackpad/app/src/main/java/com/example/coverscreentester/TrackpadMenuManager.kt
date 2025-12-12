@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import android.graphics.Color
 import android.view.ViewGroup
+import android.view.MotionEvent
 import java.util.ArrayList
 
 class TrackpadMenuManager(
@@ -104,28 +105,66 @@ class TrackpadMenuManager(
         // WINDOW CONFIG (MATCHING DROIDOS LAUNCHER)
         // =========================
         drawerParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, // Requires Permission
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,    // Clean Flags
+            WindowManager.LayoutParams.WRAP_CONTENT, 
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, 
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, 
             PixelFormat.TRANSLUCENT
         )
-        // Explicitly set Gravity
+        // Explicitly set Gravity to TOP|START for absolute positioning
         drawerParams?.gravity = Gravity.TOP or Gravity.START
-        drawerParams?.x = 0
-        drawerParams?.y = 0
+        
+        // Initial Center Calculation
+        val metrics = context.resources.displayMetrics
+        val screenWidth = metrics.widthPixels
+        val screenHeight = metrics.heightPixels
+        
+        // Approx Menu Size (320dp width + margins, ~400dp height)
+        val density = metrics.density
+        val menuW = (360 * density).toInt() 
+        val menuH = (400 * density).toInt()
+        
+        drawerParams?.x = (screenWidth - menuW) / 2
+        drawerParams?.y = (screenHeight - menuH) / 2
         
         // =========================
         // INTERACTION LOGIC
         // =========================
-        // 1. Background Click -> Close
-        drawerView?.setOnClickListener { 
-            hide() 
-        }
+        // 1. Background Click -> Removed (Handled by FLAG_NOT_TOUCH_MODAL)
         
         // 2. Menu Card Click -> Block (Consume)
         drawerView?.findViewById<View>(R.id.menu_container)?.setOnClickListener { 
             // Do nothing
+        }
+        
+        // 3. DRAG HANDLE LOGIC
+        val dragHandle = drawerView?.findViewById<View>(R.id.menu_drag_handle)
+        var initialX = 0
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+
+        dragHandle?.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = drawerParams!!.x
+                    initialY = drawerParams!!.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    drawerParams!!.x = initialX + (event.rawX - initialTouchX).toInt()
+                    drawerParams!!.y = initialY + (event.rawY - initialTouchY).toInt()
+                    
+                    try {
+                        windowManager.updateViewLayout(drawerView, drawerParams)
+                    } catch (e: Exception) {}
+                    true
+                }
+                else -> false
+            }
         }
     }
 

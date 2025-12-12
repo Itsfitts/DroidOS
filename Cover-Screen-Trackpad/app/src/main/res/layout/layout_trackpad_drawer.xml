@@ -22,10 +22,13 @@
             android:minHeight="300dp">
 
             <RelativeLayout
+                android:id="@+id/menu_drag_handle"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:background="#252525"
-                android:paddingEnd="12dp">
+                android:paddingEnd="12dp"
+                android:clickable="true"
+                android:focusable="true">
 
                 <TextView
                     android:layout_width="wrap_content"
