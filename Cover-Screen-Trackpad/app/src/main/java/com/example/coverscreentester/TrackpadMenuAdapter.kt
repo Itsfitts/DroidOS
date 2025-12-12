@@ -64,6 +64,7 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
         val item = items[position]
         
         // Reset Visibility & Style
+        (holder.itemView as android.view.ViewGroup).getChildAt(0).visibility = View.VISIBLE
         holder.valueText.visibility = View.GONE
         holder.switch.visibility = View.GONE
         holder.actionIcon.visibility = View.GONE
@@ -128,6 +129,7 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
                 holder.btnCenter.setOnClickListener { item.action?.invoke("CENTER") }
             }
             Type.INFO -> {
+                (holder.itemView as android.view.ViewGroup).getChildAt(0).visibility = View.GONE
                 holder.helpText.visibility = View.VISIBLE
                 holder.helpText.text = item.title 
                 holder.title.visibility = View.GONE 

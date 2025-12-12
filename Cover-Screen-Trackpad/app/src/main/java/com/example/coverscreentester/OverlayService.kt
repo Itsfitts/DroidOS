@@ -108,7 +108,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =========================
     class Prefs {
         var cursorSpeed = 2.5f
-        var scrollSpeed = 3.0f 
+        var scrollSpeed = 1.0f 
         var prefTapScroll = true 
         var prefVibrate = false
         var prefReverseScroll = true
@@ -1117,7 +1117,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     fun updatePref(key: String, value: Any) { 
         when(key) { 
             "cursor_speed" -> prefs.cursorSpeed = (value.toString().toFloatOrNull() ?: 2.5f)
-            "scroll_speed" -> prefs.scrollSpeed = (value.toString().toFloatOrNull() ?: 3.0f)
+            "scroll_speed" -> prefs.scrollSpeed = (value.toString().toFloatOrNull() ?: 1.0f)
             "tap_scroll" -> prefs.prefTapScroll = parseBoolean(value)
             "vibrate" -> prefs.prefVibrate = parseBoolean(value)
             "reverse_scroll" -> prefs.prefReverseScroll = parseBoolean(value)
@@ -1285,7 +1285,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun loadPrefs() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         prefs.cursorSpeed = p.getFloat("cursor_speed", 2.5f)
-        prefs.scrollSpeed = p.getFloat("scroll_speed", 3.0f)
+        prefs.scrollSpeed = p.getFloat("scroll_speed", 1.0f)
         prefs.prefTapScroll = p.getBoolean("tap_scroll", true)
         prefs.prefVibrate = p.getBoolean("vibrate", true)
         prefs.prefReverseScroll = p.getBoolean("reverse_scroll", true)
@@ -1660,19 +1660,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
    private fun updateLayoutSizes() { for (c in handleContainers) { val p = c.layoutParams; p.width = prefs.prefHandleTouchSize; p.height = prefs.prefHandleTouchSize; c.layoutParams = p } }
     private fun updateCursorSize() { val size = if (prefs.prefCursorSize > 0) prefs.prefCursorSize else 50; cursorView?.layoutParams?.let { it.width = size; it.height = size; cursorView?.layoutParams = it } }
     private fun updateBorderColor(strokeColor: Int) { 
-        // IGNORE the passed strokeColor (which carries debug/state colors)
-        // Always enforce the standard look with user-defined background opacity
         currentBorderColor = strokeColor 
         
         val bg = trackpadLayout?.background as? GradientDrawable ?: return
         
-        // Apply Background Fill: Black with user alpha
-        // 0 = Transparent, 255 = Opaque Black
+        // 1. Apply Background Fill (Black + User BG Alpha)
         val fillColor = (prefs.prefBgAlpha shl 24) or 0x000000
         bg.setColor(fillColor)
         
-        // Always use standard Grey Stroke (#44FFFFFF)
-        bg.setStroke(4, Color.parseColor("#44FFFFFF"))
+        // 2. Apply Border Stroke (State Color + User Border Alpha)
+        // Extract RGB from the state color (e.g., White, Green, Red)
+        val rgb = strokeColor and 0x00FFFFFF
+        // Combine with the Alpha from the slider
+        val finalStrokeColor = (prefs.prefAlpha shl 24) or rgb
+        
+        bg.setStroke(4, finalStrokeColor)
         
         trackpadLayout?.invalidate() 
     }
