@@ -619,12 +619,36 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         bubbleParams.y = prefs.prefBubbleY
         
         var initialX = 0; var initialY = 0; var initialTouchX = 0f; var initialTouchY = 0f; var isDrag = false
+        
+        // --- FIX: Long Press State Management ---
+        var isLongPressHandled = false
+        
+        val bubbleLongPressRunnable = Runnable {
+            if (!isDrag) {
+                vibrate()
+                menuManager?.toggle()
+                isLongPressHandled = true // Mark as handled so UP doesn't toggle trackpad
+            }
+        }
+
         bubbleView?.setOnTouchListener { _, event ->
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> { initialX = bubbleParams.x; initialY = bubbleParams.y; initialTouchX = event.rawX; initialTouchY = event.rawY; isDrag = false; handler.postDelayed({ if (!isDrag) { vibrate(); menuManager?.toggle() } }, 600); true }
+                MotionEvent.ACTION_DOWN -> { 
+                    initialX = bubbleParams.x; initialY = bubbleParams.y
+                    initialTouchX = event.rawX; initialTouchY = event.rawY
+                    isDrag = false
+                    isLongPressHandled = false
+                    
+                    // Schedule menu open (600ms)
+                    handler.postDelayed(bubbleLongPressRunnable, 600)
+                    true 
+                }
                 MotionEvent.ACTION_MOVE -> { 
                     if (abs(event.rawX - initialTouchX) > 10 || abs(event.rawY - initialTouchY) > 10) { 
                         isDrag = true
+                        // Cancel long press if dragging starts
+                        handler.removeCallbacks(bubbleLongPressRunnable)
+                        
                         bubbleParams.x = initialX + (event.rawX - initialTouchX).toInt()
                         bubbleParams.y = initialY + (event.rawY - initialTouchY).toInt()
                         windowManager?.updateViewLayout(bubbleView, bubbleParams) 
@@ -632,9 +656,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     true 
                 }
                 MotionEvent.ACTION_UP -> { 
-                    handler.removeCallbacksAndMessages(null)
-                    if (!isDrag) toggleTrackpad() 
-                    else {
+                    // Cancel pending long press if released early
+                    handler.removeCallbacks(bubbleLongPressRunnable)
+                    
+                    if (!isDrag) {
+                        // Only toggle if we didn't drag AND didn't already trigger the menu
+                        if (!isLongPressHandled) {
+                            handleBubbleTap() // Use the helper method (safe minimize)
+                        }
+                    } else {
+                        // Drag finished, save position
                         prefs.prefBubbleX = bubbleParams.x
                         prefs.prefBubbleY = bubbleParams.y
                         savePrefs()
