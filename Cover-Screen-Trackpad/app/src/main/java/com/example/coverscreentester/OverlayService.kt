@@ -1863,7 +1863,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     fun performRotation() { rotationAngle = (rotationAngle + 90) % 360; cursorView?.rotation = rotationAngle.toFloat() }
     fun getProfileKey(): String = "P_${uiScreenWidth}_${uiScreenHeight}"
-    // --- UPDATED SAVE LAYOUT (Includes Settings) ---
+    // --- UPDATED SAVE LAYOUT (Full Persistence) ---
     fun saveLayout() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
         val key = getProfileKey()
@@ -1875,7 +1875,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         p.putInt("H_$key", trackpadParams.height)
         
         // 2. Save User Settings (Presets)
-        // Format: cursor;scroll;tap;reverse;alpha;bgAlpha;kbAlpha;handle;hTouch;sTouch;sVisual;cursorSize;kbScale;auto;anchor;bubSize;bubAlpha
+        // Format: cursor;scroll;tap;reverse;alpha;bgAlpha;kbAlpha;handle;hTouch;sTouch;sVisual;cursorSize;kbScale;auto;anchor;bubSize;bubAlpha;bubIcon;bubX;bubY;vuT;vuD;vuH;vdT;vdD;vdH;pD;vBack;vHome;vFwd
         val s = StringBuilder()
         s.append("${prefs.cursorSpeed};")
         s.append("${prefs.scrollSpeed};")
@@ -1893,14 +1893,26 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         s.append("${if(prefs.prefAutomationEnabled) 1 else 0};")
         s.append("${if(prefs.prefAnchored) 1 else 0};")
         s.append("${prefs.prefBubbleSize};")
-        s.append("${prefs.prefBubbleAlpha}")
+        s.append("${prefs.prefBubbleAlpha};")
+        
+        // NEW PERSISTED FIELDS
+        s.append("${prefs.prefBubbleIconIndex};")
+        s.append("${prefs.prefBubbleX};")
+        s.append("${prefs.prefBubbleY};")
+        s.append("${prefs.hardkeyVolUpTap};")
+        s.append("${prefs.hardkeyVolUpDouble};")
+        s.append("${prefs.hardkeyVolUpHold};")
+        s.append("${prefs.hardkeyVolDownTap};")
+        s.append("${prefs.hardkeyVolDownDouble};")
+        s.append("${prefs.hardkeyVolDownHold};")
+        s.append("${prefs.hardkeyPowerDouble}") 
         
         p.putString("SETTINGS_$key", s.toString())
         p.apply()
         showToast("Layout & Presets Saved") 
     }
 
-    // --- UPDATED LOAD LAYOUT (Applies Settings) ---
+    // --- UPDATED LOAD LAYOUT (Full Persistence) ---
     public fun loadLayout() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         val key = getProfileKey()
@@ -1936,6 +1948,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     prefs.prefBubbleSize = parts[15].toInt()
                     prefs.prefBubbleAlpha = parts[16].toInt()
                     
+                    // LOAD NEW FIELDS (Backward Compatibility)
+                    if (parts.size >= 27) {
+                        prefs.prefBubbleIconIndex = parts[17].toInt()
+                        prefs.prefBubbleX = parts[18].toInt()
+                        prefs.prefBubbleY = parts[19].toInt()
+                        
+                        prefs.hardkeyVolUpTap = parts[20]
+                        prefs.hardkeyVolUpDouble = parts[21]
+                        prefs.hardkeyVolUpHold = parts[22]
+                        prefs.hardkeyVolDownTap = parts[23]
+                        prefs.hardkeyVolDownDouble = parts[24]
+                        prefs.hardkeyVolDownHold = parts[25]
+                        prefs.hardkeyPowerDouble = parts[26]
+                    }
+
                     // APPLY SETTINGS VISUALLY
                     scrollZoneThickness = prefs.prefScrollTouchSize
                     updateBorderColor(currentBorderColor)
@@ -1946,7 +1973,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     keyboardOverlay?.updateAlpha(prefs.prefKeyboardAlpha)
                     keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f)
                     keyboardOverlay?.setAnchored(prefs.prefAnchored)
-                    applyBubbleAppearance()
+                    
+                    // Apply Bubble Changes (Position & Appearance)
+                    if (bubbleView != null) {
+                        bubbleParams.x = prefs.prefBubbleX
+                        bubbleParams.y = prefs.prefBubbleY
+                        windowManager?.updateViewLayout(bubbleView, bubbleParams)
+                        applyBubbleAppearance()
+                        // Note: Icon visual might not update until restart/tap unless cycleBubbleIcon is refactored, 
+                        // but the index is saved/restored correctly.
+                    }
                     
                     showToast("Layout & Presets Loaded")
                 }
