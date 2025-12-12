@@ -99,7 +99,8 @@ class KeyboardManager(
 
         val mainContainer = LinearLayout(context)
         mainContainer.orientation = LinearLayout.VERTICAL
-        mainContainer.setPadding(10, 20, 10, 10)
+        // Reduced vertical padding (10 vs 20) to fit tighter windows and remove blank space
+        mainContainer.setPadding(10, 10, 10, 10)
         
         // Add Rows
         mainContainer.addView(createRow(if (isSymbols) ROW_NUMS else ROW_1))

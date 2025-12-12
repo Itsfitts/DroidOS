@@ -1106,34 +1106,32 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 updateLayoutSizes()
             }
             "scroll_size" -> {
-                // === FINE TUNING: Adjust multipliers here ===
                 val touchSize = (value.toString().toIntOrNull() ?: 80)
-                val visualSize = (touchSize * 8 / 80).coerceIn(4, 20) // Proportional scaling
-                // === END FINE TUNING ===
-                
+                val visualSize = (touchSize * 8 / 80).coerceIn(4, 20)
                 prefs.prefScrollTouchSize = touchSize
                 prefs.prefScrollVisualSize = visualSize
-                scrollZoneThickness = touchSize  // CRITICAL: Sync the touch detection zone!
+                scrollZoneThickness = touchSize
                 updateScrollSize()
             }
-           "cursor_size" -> { prefs.prefCursorSize = (value.toString().toIntOrNull() ?: 50); updateCursorSize() }
+            "cursor_size" -> { prefs.prefCursorSize = (value.toString().toIntOrNull() ?: 50); updateCursorSize() }
             "keyboard_key_scale" -> { prefs.prefKeyScale = (value.toString().toIntOrNull() ?: 100); keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f) }
             "use_alt_screen_off" -> prefs.prefUseAltScreenOff = parseBoolean(value) 
             "automation_enabled" -> prefs.prefAutomationEnabled = parseBoolean(value)
             "anchored" -> { 
                 prefs.prefAnchored = parseBoolean(value)
-                keyboardOverlay?.setAnchored(prefs.prefAnchored)  // Sync to keyboard overlay
+                keyboardOverlay?.setAnchored(prefs.prefAnchored)
             }
-             "bubble_size" -> { prefs.prefBubbleSize = (value.toString().toIntOrNull() ?: 100); applyBubbleAppearance() }
+            "bubble_size" -> { prefs.prefBubbleSize = (value.toString().toIntOrNull() ?: 100); applyBubbleAppearance() }
             "bubble_icon" -> { cycleBubbleIcon() }
             "bubble_alpha" -> { prefs.prefBubbleAlpha = (value.toString().toIntOrNull() ?: 255); applyBubbleAppearance() }
+            "persistent_service" -> prefs.prefPersistentService = parseBoolean(value) // FIXED: Added missing handler
             
-            // =========================
-            // HARDKEY TIMING PREFS - Double-tap speed and hold duration
-            // =========================
+            // Hardkey Timing
             "double_tap_ms" -> { prefs.doubleTapMs = (value.toString().toIntOrNull() ?: 300).coerceIn(150, 500) }
             "hold_duration_ms" -> { prefs.holdDurationMs = (value.toString().toIntOrNull() ?: 400).coerceIn(200, 800) }
             "display_off_mode" -> { prefs.displayOffMode = value.toString() }
+            
+            // Hardkey Actions
             "hardkey_vol_up_tap" -> { prefs.hardkeyVolUpTap = value.toString() }
             "hardkey_vol_up_double" -> { prefs.hardkeyVolUpDouble = value.toString() }
             "hardkey_vol_up_hold" -> { prefs.hardkeyVolUpHold = value.toString() }
@@ -1141,10 +1139,6 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             "hardkey_vol_down_double" -> { prefs.hardkeyVolDownDouble = value.toString() }
             "hardkey_vol_down_hold" -> { prefs.hardkeyVolDownHold = value.toString() }
             "hardkey_power_double" -> { prefs.hardkeyPowerDouble = value.toString() }
-            // =========================
-            // END HARDKEY TIMING PREFS
-            // =========================
-
         }
         savePrefs() 
     }
@@ -1168,56 +1162,62 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val h = uiScreenHeight
         val w = uiScreenWidth
         
+        // Trackpad Width: 95% of screen (Centered) - WIDER as requested
+        val tpWidth = (w * 0.95f).toInt()
+        val tpX = (w - tpWidth) / 2
+        
+        // Fixed scroll bar size for presets (80pts touch, ~8pts visual)
+        prefs.prefScrollTouchSize = 80
+        prefs.prefScrollVisualSize = 8
+        
+        // Keyboard Height: Reduced to 22% (approx 1/4 screen) to fit tighter
+        val kbH = (h * 0.22f).toInt() 
+        val kbW = (w * 0.95f).toInt() // Match trackpad width
+        val kbX = (w - kbW) / 2
+        
         when(type) {
             1 -> {
-                // Preset 1: KB Top 50%, TP Bottom 50%
-                trackpadParams.x = 0
-                trackpadParams.y = h / 2
-                trackpadParams.width = w
-                trackpadParams.height = h / 2
+                // Preset 1: KB Top / TP Bottom
                 
-                // KB: Width 90%, centered horizontal, bottom aligned in top half
-                val kbW = (w * 0.9f).toInt()
-                val kbH = (h * 0.4f).toInt()
-                val kbX = (w - kbW) / 2
-                val kbY = (h / 2) - kbH
+                // Trackpad: Bottom ~60%, 95% width
+                trackpadParams.width = tpWidth
+                trackpadParams.height = (h * 0.55f).toInt() 
+                trackpadParams.x = tpX
+                trackpadParams.y = (h * 0.40f).toInt() 
+                
+                // Keyboard: Top, tight fit (22% height)
+                val kbY = 50 // Small top margin
                 
                 keyboardOverlay?.setWindowBounds(kbX, kbY, kbW, kbH)
             }
             2 -> {
-                // Preset 2: TP Top 50%, KB Bottom 50%
-                trackpadParams.x = 0
-                trackpadParams.y = 0
-                trackpadParams.width = w
-                trackpadParams.height = h / 2
+                // Preset 2: TP Top / KB Bottom
                 
-                // KB: Width 90%, centered horizontal, at screen bottom
-                val kbW = (w * 0.9f).toInt()
-                val kbH = (h * 0.4f).toInt()
-                val kbX = (w - kbW) / 2
-                val kbY = h - kbH
+                // Trackpad: Top ~60%, 95% width
+                trackpadParams.width = tpWidth
+                trackpadParams.height = (h * 0.55f).toInt()
+                trackpadParams.x = tpX
+                trackpadParams.y = 50 
+                
+                // Keyboard: Bottom, tight fit (22% height)
+                val kbY = h - kbH - 20 // Bottom alignment
                 
                 keyboardOverlay?.setWindowBounds(kbX, kbY, kbW, kbH)
             }
         }
-                // === OPTIONAL: Use wider scroll bars for split presets ===
-        // When trackpad is smaller (split view), make scroll bars easier to hit
-        if (type == 1 || type == 2) {
-            prefs.prefScrollTouchSize = prefs.prefScrollTouchSize.coerceAtLeast(200) // At least 100px
-            prefs.prefScrollVisualSize = prefs.prefScrollVisualSize.coerceAtLeast(10) // At least 10px visible
-        }
-        // === END OPTIONAL ===
-        // Update trackpad window
+        
+        // Apply updates
         try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception){}
         
-        // === FIX: Refresh scroll bars after preset resize ===
+        // Refresh UI elements
         updateScrollSize()
         updateScrollPosition()
         updateHandleSize()
         updateLayoutSizes()
-        // === END FIX ===
         
-        // Don't call saveLayout for presets - they're temporary
+        // Save these temporary settings so they persist if app is restarted in this state
+        savePrefs() 
+        showToast("Preset Applied")
     }
     // =========================
     // END PRESETS LOGIC
