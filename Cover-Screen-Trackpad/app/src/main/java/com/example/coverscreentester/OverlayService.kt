@@ -78,6 +78,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     var windowManager: WindowManager? = null
     var displayManager: DisplayManager? = null
     var shellService: IShellService? = null
+    private var appWindowManager: WindowManager? = null // Fix: Dedicated WM for App Overlays
     private var isBound = false
     private val handler = Handler(Looper.getMainLooper())
 
@@ -130,6 +131,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         var prefBubbleSize = 100        // 50-200 range (percentage, 100 = standard)
         var prefBubbleIconIndex = 0     // Index into icon array
         var prefBubbleAlpha = 255       // 0-255 opacity
+        var prefPersistentService = false // Default OFF: Close service when app closes
         
         // =========================
         // HARDKEY BINDING PREFS - Configurable hardware key actions
@@ -596,6 +598,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     private fun setupBubble(context: Context) {
         bubbleView = LayoutInflater.from(context).inflate(R.layout.layout_trackpad_bubble, null)
+        
+        // XML background now handles the styling (Grey Border/Dark Grey Fill)
+        // No programmatic override needed.
+        
         bubbleParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -699,7 +705,46 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         cursorParams.gravity = Gravity.TOP or Gravity.LEFT; cursorParams.x = uiScreenWidth / 2; cursorParams.y = uiScreenHeight / 2; windowManager?.addView(cursorLayout, cursorParams)
     }
 
-    fun toggleTrackpad() { isTrackpadVisible = !isTrackpadVisible; trackpadLayout?.visibility = if (isTrackpadVisible) View.VISIBLE else View.GONE; if (isTrackpadVisible) updateBorderColor(currentBorderColor) }
+    // =========================
+    // TOGGLE TRACKPAD - Hides/Shows the main trackpad overlay
+    // Updated: Automatically hides keyboard (without screen off) when minimizing
+    // =========================
+    fun toggleTrackpad() { 
+        isTrackpadVisible = !isTrackpadVisible
+        trackpadLayout?.visibility = if (isTrackpadVisible) View.VISIBLE else View.GONE
+        
+        if (isTrackpadVisible) {
+            updateBorderColor(currentBorderColor) 
+        } else {
+            // Hiding trackpad (Minimizing via Bubble)
+            // If keyboard is visible, hide it too, but SUPPRESS the "Screen Off" automation
+            // because we are just minimizing the UI, not finishing a task.
+            if (isCustomKeyboardVisible) {
+                toggleCustomKeyboard(suppressAutomation = true)
+            }
+        }
+    }
+    
+    // ===============================================================
+    // FUNCTION: handleBubbleTap
+    // PURPOSE: Hides everything without triggering screen off automation
+    // ===============================================================
+    private fun handleBubbleTap() {
+        var didHideSomething = false
+
+        // 1. Hide Keyboard if visible (Bypass automation)
+        if (isCustomKeyboardVisible) {
+            toggleCustomKeyboard(suppressAutomation = true)
+            didHideSomething = true
+        }
+
+        // 2. Toggle Trackpad normally
+        // If trackpad was visible, we hide it. 
+        // If trackpad was hidden, we show it (unless we just hid the keyboard, in which case we might want to just clear the screen? 
+        // Standard behavior: Toggle Trackpad state.
+        
+        toggleTrackpad() 
+    }
     
     // =========================
     // EXECUTE HARDKEY ACTION - Central dispatcher for all hardkey-triggered actions
@@ -920,7 +965,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         val scale = prefs.prefBubbleSize / 100f
         
-        // Base sizes (standard = Launcher size: 60dp container, 40dp icon)
+        // Base sizes (Updated to match Launcher: 60dp container, 40dp icon)
         val baseContainerDp = 60
         val baseIconDp = 40
         
@@ -939,6 +984,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val iconView = bubbleView?.findViewById<ImageView>(R.id.bubble_icon)
         iconView?.let {
             val iconParams = it.layoutParams as? FrameLayout.LayoutParams
+            // Force Gravity Center to ensure icon stays centered in the resized bubble
+            iconParams?.gravity = Gravity.CENTER
             iconParams?.width = iconSize
             iconParams?.height = iconSize
             it.layoutParams = iconParams
@@ -971,6 +1018,37 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         if (isTrackpadVisible) toggleTrackpad()
     }
     
+    fun getSavedProfileList(): List<String> {
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        val allKeys = p.all.keys
+        val profiles = java.util.HashSet<String>()
+        val regex = Regex("X_P_(\\d+)_(\\d+)") // Matches X_P_1080_2640 (Position X key)
+        
+        for (key in allKeys) {
+            val match = regex.find(key)
+            if (match != null) {
+                val w = match.groupValues[1]
+                val h = match.groupValues[2]
+                profiles.add("$w x $h")
+            }
+        }
+        return profiles.sorted()
+    }
+
+    // =========================
+    // ON TASK REMOVED - Handles app swipe-away behavior
+    // If persistent mode is OFF, kill the service (and bubble)
+    // =========================
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        if (!prefs.prefPersistentService) {
+            // "Auto Launch when Closed" is OFF -> Kill service
+            Log.i(TAG, "Task removed and persistence OFF -> Stopping Service")
+            forceExit()
+        }
+    }
+
+
     // --- NEW FORCE EXIT LOGIC ---
     fun forceExit() {
         try {
@@ -1187,6 +1265,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         prefs.prefBubbleAlpha = p.getInt("bubble_alpha", 255)
         prefs.prefScrollTouchSize = p.getInt("scroll_touch_size", 80)
         prefs.prefScrollVisualSize = p.getInt("scroll_visual_size", 8)
+        prefs.prefPersistentService = p.getBoolean("persistent_service", false)
         
         // =========================
         // LOAD HARDKEY BINDINGS - Action mappings for hardware keys
@@ -1243,6 +1322,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         e.putInt("bubble_alpha", prefs.prefBubbleAlpha)
         e.putInt("scroll_touch_size", prefs.prefScrollTouchSize)
         e.putInt("scroll_visual_size", prefs.prefScrollVisualSize)
+        e.putBoolean("persistent_service", prefs.prefPersistentService)
         
         // =========================
         // SAVE HARDKEY BINDINGS - Action mappings for hardware keys
@@ -1297,7 +1377,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun initCustomKeyboard() { if (windowManager == null || shellService == null) return; keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId, { toggleScreen() }, { toggleScreenMode() }); keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentDisplayId) }
 
     // --- KEYBOARD AUTOMATION FIX ---
-    fun toggleCustomKeyboard() {
+    // =========================
+    // TOGGLE CUSTOM KEYBOARD - Manages keyboard overlay visibility
+    // Updated: Added suppressAutomation to prevent screen-off when minimizing app
+    // =========================
+    fun toggleCustomKeyboard(suppressAutomation: Boolean = false) {
         if (keyboardOverlay == null) initCustomKeyboard()
 
         val isNowVisible = if (keyboardOverlay?.isShowing() == true) {
@@ -1313,7 +1397,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // Enforce Stack: Keyboard just added, so move Bubble/Cursor to top
         enforceZOrder()
 
-        if (prefs.prefAutomationEnabled) {
+        if (prefs.prefAutomationEnabled && !suppressAutomation) {
             if (isNowVisible) turnScreenOn() else turnScreenOff()
         }
     }
@@ -1552,7 +1636,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =========================
    private fun updateLayoutSizes() { for (c in handleContainers) { val p = c.layoutParams; p.width = prefs.prefHandleTouchSize; p.height = prefs.prefHandleTouchSize; c.layoutParams = p } }
     private fun updateCursorSize() { val size = if (prefs.prefCursorSize > 0) prefs.prefCursorSize else 50; cursorView?.layoutParams?.let { it.width = size; it.height = size; cursorView?.layoutParams = it } }
-    private fun updateBorderColor(strokeColor: Int) { currentBorderColor = strokeColor; val bg = trackpadLayout?.background as? GradientDrawable ?: return; bg.setColor(Color.TRANSPARENT); val colorWithAlpha = (strokeColor and 0x00FFFFFF) or (prefs.prefAlpha shl 24); bg.setStroke(4, if (highlightAlpha) 0xFF00FF00.toInt() else colorWithAlpha); trackpadLayout?.invalidate() }
+    private fun updateBorderColor(strokeColor: Int) { 
+        // IGNORE the passed strokeColor (which carries debug/state colors)
+        // Always enforce the standard Grey look
+        currentBorderColor = strokeColor // Keep tracking internal state if needed, but don't show it
+        
+        val bg = trackpadLayout?.background as? GradientDrawable ?: return
+        bg.setColor(Color.TRANSPARENT)
+        
+        // Always use standard Grey Stroke (#44FFFFFF)
+        // This overrides Green (Debug), Orange (Drag), Red (Keyboard Mode), etc.
+        bg.setStroke(4, Color.parseColor("#44FFFFFF"))
+        
+        trackpadLayout?.invalidate() 
+    }
     
     private fun performSwipe(dx: Float, dy: Float) {
         Thread {

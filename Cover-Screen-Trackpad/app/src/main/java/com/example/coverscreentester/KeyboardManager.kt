@@ -93,6 +93,7 @@ class KeyboardManager(
         val bg = GradientDrawable()
         bg.setColor(Color.parseColor("#EE121212"))
         bg.cornerRadius = 20f
+        // Standard Grey Border
         bg.setStroke(2, Color.parseColor("#44FFFFFF"))
         root.background = bg
 

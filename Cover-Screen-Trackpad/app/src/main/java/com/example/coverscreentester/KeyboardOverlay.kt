@@ -105,10 +105,10 @@ class KeyboardOverlay(
             // 1. Update background container opacity
             val bg = keyboardContainer?.background as? GradientDrawable
             if (bg != null) {
-                val strokeColor = Color.parseColor("#3DDC84")
                 val fillColor = (alpha shl 24) or (0x1A1A1A)
                 bg.setColor(fillColor)
-                bg.setStroke(2, strokeColor)
+                // Standard Grey Border
+                bg.setStroke(2, Color.parseColor("#44FFFFFF"))
             }
             
             // 2. Update KeyboardView (keys) opacity
@@ -223,7 +223,9 @@ class KeyboardOverlay(
         val containerBg = GradientDrawable(); 
         val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
         containerBg.setColor(fillColor)
-        containerBg.cornerRadius = 16f; containerBg.setStroke(2, Color.parseColor("#3DDC84"))
+        containerBg.cornerRadius = 16f
+        // Standard Grey Border
+        containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
         keyboardContainer?.background = containerBg
         
         keyboardView = KeyboardView(context)

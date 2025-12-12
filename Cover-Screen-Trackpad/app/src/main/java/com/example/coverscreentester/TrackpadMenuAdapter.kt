@@ -66,13 +66,19 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
         holder.slider.visibility = View.GONE
         holder.dpadGrid.visibility = View.GONE
         holder.helpText.visibility = View.GONE
+        holder.title.visibility = View.VISIBLE
         
         holder.title.text = item.title
         holder.icon.setImageResource(item.iconRes)
+        
+        // Default text style
+        holder.title.setTypeface(null, android.graphics.Typeface.NORMAL)
+        holder.icon.visibility = View.VISIBLE
 
         when (item.type) {
             Type.ACTION -> {
-                holder.actionIcon.visibility = View.VISIBLE
+                // CLEANUP: Hide the "Play" icon for action items
+                holder.actionIcon.visibility = View.GONE
                 holder.itemView.setOnClickListener { item.action?.invoke(true) }
             }
             Type.TOGGLE -> {
@@ -124,13 +130,8 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
                 holder.title.visibility = View.VISIBLE
                 holder.title.text = item.title
                 holder.title.setTypeface(null, android.graphics.Typeface.BOLD)
+                // Headers have no icon and no click action
                 holder.icon.visibility = View.GONE
-                holder.valueText.visibility = View.GONE
-                holder.switch.visibility = View.GONE
-                holder.actionIcon.visibility = View.GONE
-                holder.slider.visibility = View.GONE
-                holder.dpadGrid.visibility = View.GONE
-                holder.helpText.visibility = View.GONE
                 holder.itemView.setOnClickListener(null)
             }
         }
