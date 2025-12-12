@@ -599,15 +599,14 @@ class TrackpadMenuManager(
         
         list.add(TrackpadMenuAdapter.MenuItem("Current: $currentRes", R.drawable.ic_tab_profiles, TrackpadMenuAdapter.Type.INFO))
         
-        list.add(TrackpadMenuAdapter.MenuItem("Save Layout", android.R.drawable.ic_menu_save, TrackpadMenuAdapter.Type.ACTION) { 
+        // CHANGED TITLE
+        list.add(TrackpadMenuAdapter.MenuItem("Save Layout and Presets", android.R.drawable.ic_menu_save, TrackpadMenuAdapter.Type.ACTION) { 
             service.saveLayout()
-            // Refresh tab after small delay to show new entry
             drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
         })
         
         list.add(TrackpadMenuAdapter.MenuItem("Delete Profile", android.R.drawable.ic_menu_delete, TrackpadMenuAdapter.Type.ACTION) { 
             service.deleteCurrentProfile()
-            // Refresh tab after small delay to remove entry
             drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
         })
         

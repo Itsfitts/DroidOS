@@ -629,9 +629,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             if (!isDrag) {
                 vibrate()
                 menuManager?.toggle()
-                isLongPressHandled = true 
-                
-                // ADDED: Enforce Z-Order immediately so Menu goes behind Bubble/Cursor
+                isLongPressHandled = true
+                // Z-ORDER FIX: Force reset when opening menu via long press
                 enforceZOrder()
             }
         }
@@ -1868,8 +1867,98 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     fun performRotation() { rotationAngle = (rotationAngle + 90) % 360; cursorView?.rotation = rotationAngle.toFloat() }
     fun getProfileKey(): String = "P_${uiScreenWidth}_${uiScreenHeight}"
-    fun saveLayout() { val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit(); p.putInt("X_${getProfileKey()}", trackpadParams.x); p.putInt("Y_${getProfileKey()}", trackpadParams.y); p.putInt("W_${getProfileKey()}", trackpadParams.width); p.putInt("H_${getProfileKey()}", trackpadParams.height); p.apply(); showToast("Layout Saved") }
-    private fun loadLayout() { val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE); trackpadParams.x = p.getInt("X_${getProfileKey()}", 100); trackpadParams.y = p.getInt("Y_${getProfileKey()}", 100); trackpadParams.width = p.getInt("W_${getProfileKey()}", 400); trackpadParams.height = p.getInt("H_${getProfileKey()}", 300); try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception){} }
+    // --- UPDATED SAVE LAYOUT (Includes Settings) ---
+    fun saveLayout() { 
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+        val key = getProfileKey()
+        
+        // 1. Save Window Bounds
+        p.putInt("X_$key", trackpadParams.x)
+        p.putInt("Y_$key", trackpadParams.y)
+        p.putInt("W_$key", trackpadParams.width)
+        p.putInt("H_$key", trackpadParams.height)
+        
+        // 2. Save User Settings (Presets)
+        // Format: cursor;scroll;tap;reverse;alpha;bgAlpha;kbAlpha;handle;hTouch;sTouch;sVisual;cursorSize;kbScale;auto;anchor;bubSize;bubAlpha
+        val s = StringBuilder()
+        s.append("${prefs.cursorSpeed};")
+        s.append("${prefs.scrollSpeed};")
+        s.append("${if(prefs.prefTapScroll) 1 else 0};")
+        s.append("${if(prefs.prefReverseScroll) 1 else 0};")
+        s.append("${prefs.prefAlpha};")
+        s.append("${prefs.prefBgAlpha};")
+        s.append("${prefs.prefKeyboardAlpha};")
+        s.append("${prefs.prefHandleSize};")
+        s.append("${prefs.prefHandleTouchSize};")
+        s.append("${prefs.prefScrollTouchSize};")
+        s.append("${prefs.prefScrollVisualSize};")
+        s.append("${prefs.prefCursorSize};")
+        s.append("${prefs.prefKeyScale};")
+        s.append("${if(prefs.prefAutomationEnabled) 1 else 0};")
+        s.append("${if(prefs.prefAnchored) 1 else 0};")
+        s.append("${prefs.prefBubbleSize};")
+        s.append("${prefs.prefBubbleAlpha}")
+        
+        p.putString("SETTINGS_$key", s.toString())
+        p.apply()
+        showToast("Layout & Presets Saved") 
+    }
+
+    // --- UPDATED LOAD LAYOUT (Applies Settings) ---
+    private fun loadLayout() { 
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        val key = getProfileKey()
+        
+        // 1. Load Bounds
+        trackpadParams.x = p.getInt("X_$key", 100)
+        trackpadParams.y = p.getInt("Y_$key", 100)
+        trackpadParams.width = p.getInt("W_$key", 400)
+        trackpadParams.height = p.getInt("H_$key", 300)
+        try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception){} 
+        
+        // 2. Load Settings Presets
+        val settings = p.getString("SETTINGS_$key", null)
+        if (settings != null) {
+            try {
+                val parts = settings.split(";")
+                if (parts.size >= 17) {
+                    prefs.cursorSpeed = parts[0].toFloat()
+                    prefs.scrollSpeed = parts[1].toFloat()
+                    prefs.prefTapScroll = parseBoolean(parts[2])
+                    prefs.prefReverseScroll = parseBoolean(parts[3])
+                    prefs.prefAlpha = parts[4].toInt()
+                    prefs.prefBgAlpha = parts[5].toInt()
+                    prefs.prefKeyboardAlpha = parts[6].toInt()
+                    prefs.prefHandleSize = parts[7].toInt()
+                    prefs.prefHandleTouchSize = parts[8].toInt()
+                    prefs.prefScrollTouchSize = parts[9].toInt()
+                    prefs.prefScrollVisualSize = parts[10].toInt()
+                    prefs.prefCursorSize = parts[11].toInt()
+                    prefs.prefKeyScale = parts[12].toInt()
+                    prefs.prefAutomationEnabled = parseBoolean(parts[13])
+                    prefs.prefAnchored = parseBoolean(parts[14])
+                    prefs.prefBubbleSize = parts[15].toInt()
+                    prefs.prefBubbleAlpha = parts[16].toInt()
+                    
+                    // APPLY SETTINGS VISUALLY
+                    scrollZoneThickness = prefs.prefScrollTouchSize
+                    updateBorderColor(currentBorderColor)
+                    updateLayoutSizes()
+                    updateScrollSize()
+                    updateHandleSize()
+                    updateCursorSize()
+                    keyboardOverlay?.updateAlpha(prefs.prefKeyboardAlpha)
+                    keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f)
+                    keyboardOverlay?.setAnchored(prefs.prefAnchored)
+                    applyBubbleAppearance()
+                    
+                    showToast("Layout & Presets Loaded")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading profile settings", e)
+            }
+        }
+    }
     fun deleteCurrentProfile() { /* Stub */ }
     fun resetTrackpadPosition() { trackpadParams.x = 100; trackpadParams.y = 100; trackpadParams.width = 400; trackpadParams.height = 300; windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }
     fun cycleInputTarget() { 
