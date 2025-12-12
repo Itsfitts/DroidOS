@@ -604,6 +604,12 @@ class TrackpadMenuManager(
             service.saveLayout()
             drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
         })
+
+        // NEW: Reload Profile
+        list.add(TrackpadMenuAdapter.MenuItem("Reload Profile", android.R.drawable.ic_popup_sync, TrackpadMenuAdapter.Type.ACTION) { 
+            service.loadLayout() // Reloads based on current resolution/display
+            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
+        })
         
         list.add(TrackpadMenuAdapter.MenuItem("Delete Profile", android.R.drawable.ic_menu_delete, TrackpadMenuAdapter.Type.ACTION) { 
             service.deleteCurrentProfile()

@@ -630,8 +630,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 vibrate()
                 menuManager?.toggle()
                 isLongPressHandled = true
-                // Z-ORDER FIX: Force reset when opening menu via long press
-                enforceZOrder()
+                
+                // Z-ORDER FIX: Delay slightly to allow Menu to attach, then force Bubble to top
+                handler.post { enforceZOrder() }
             }
         }
 
@@ -642,17 +643,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     initialTouchX = event.rawX; initialTouchY = event.rawY
                     isDrag = false
                     isLongPressHandled = false
-                    
-                    // Schedule menu open (600ms)
                     handler.postDelayed(bubbleLongPressRunnable, 600)
                     true 
                 }
                 MotionEvent.ACTION_MOVE -> { 
                     if (abs(event.rawX - initialTouchX) > 10 || abs(event.rawY - initialTouchY) > 10) { 
                         isDrag = true
-                        // Cancel long press if dragging starts
                         handler.removeCallbacks(bubbleLongPressRunnable)
-                        
                         bubbleParams.x = initialX + (event.rawX - initialTouchX).toInt()
                         bubbleParams.y = initialY + (event.rawY - initialTouchY).toInt()
                         windowManager?.updateViewLayout(bubbleView, bubbleParams) 
@@ -660,20 +657,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     true 
                 }
                 MotionEvent.ACTION_UP -> { 
-                    // Cancel pending long press if released early
                     handler.removeCallbacks(bubbleLongPressRunnable)
-                    
-                    if (!isDrag) {
-                        // Only toggle if we didn't drag AND didn't already trigger the menu
-                        if (!isLongPressHandled) {
-                            handleBubbleTap() // Use the helper method (safe minimize)
-                        }
-                    } else {
-                        // Drag finished, save position
+                    if (!isDrag && !isLongPressHandled) {
+                        handleBubbleTap()
+                    } else if (isDrag) {
                         prefs.prefBubbleX = bubbleParams.x
                         prefs.prefBubbleY = bubbleParams.y
                         savePrefs()
                     }
+                    
+                    // Z-ORDER SAFETY: Ensure Z-order is correct on release 
+                    // (Fixes cases where WindowManager blocks updates during active touch)
+                    handler.post { enforceZOrder() }
+                    
                     true 
                 }
                 else -> false
@@ -1905,7 +1901,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
 
     // --- UPDATED LOAD LAYOUT (Applies Settings) ---
-    private fun loadLayout() { 
+    public fun loadLayout() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         val key = getProfileKey()
         
