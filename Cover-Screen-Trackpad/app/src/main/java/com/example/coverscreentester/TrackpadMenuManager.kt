@@ -402,7 +402,13 @@ class TrackpadMenuManager(
         "toggle_keyboard" to "Toggle Keyboard",
         "toggle_trackpad" to "Toggle Trackpad",
         "open_menu" to "Open Menu",
-        "reset_cursor" to "Reset Cursor"
+        "reset_cursor" to "Reset Cursor",
+        // NEW ACTIONS
+        "action_back" to "Back",
+        "action_home" to "Home",
+        "action_forward" to "Forward (Browser)",
+        "action_vol_up" to "Volume Up",
+        "action_vol_down" to "Volume Down"
     )
     
     private fun getActionDisplayName(actionId: String): String {

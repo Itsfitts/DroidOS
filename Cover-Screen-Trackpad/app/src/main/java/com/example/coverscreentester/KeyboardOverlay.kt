@@ -195,6 +195,10 @@ class KeyboardOverlay(
     fun show() { 
         if (isVisible) return
         try { 
+            // FIX: Always reload alpha preference to ensure it applies current user settings
+            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            currentAlpha = prefs.getInt("keyboard_alpha", 200)
+
             createKeyboardWindow()
             isVisible = true
             if (currentRotation != 0) setRotation(currentRotation)
@@ -233,6 +237,10 @@ class KeyboardOverlay(
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
         val scale = prefs.getInt("keyboard_key_scale", 100) / 100f; keyboardView?.setScale(scale)
+        
+        // FIX: Apply transparency to the keys immediately
+        keyboardView?.alpha = currentAlpha / 255f
+        
         val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         kbParams.setMargins(6, 28, 6, 6)
         keyboardContainer?.addView(keyboardView, kbParams)

@@ -788,26 +788,23 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // Action IDs map to specific behaviors defined in HARDKEY_ACTIONS
     // =========================
     private fun executeHardkeyAction(actionId: String, keyEventAction: Int = KeyEvent.ACTION_UP) {
-    val actionName = if (keyEventAction == KeyEvent.ACTION_DOWN) "DOWN" else "UP"
-    android.util.Log.d("OverlayService", ">>> executeHardkeyAction: actionId=$actionId, keyEventAction=$actionName")
-    
-    when (actionId) {
+        // Only trigger single-shot actions on ACTION_UP to avoid repeating
+        val isUp = (keyEventAction == KeyEvent.ACTION_UP)
+        
+        when (actionId) {
             "none" -> { /* Do nothing */ }
             
             "left_click" -> {
                 if (keyEventAction == KeyEvent.ACTION_DOWN) {
-                    if (!volUpDragActive) { // Re-using state var to track physical press state
+                    if (!volUpDragActive) { 
                         volUpDragActive = true
                         startKeyDrag(MotionEvent.BUTTON_PRIMARY)
                     }
                 } else {
-                    // Handle UP event (Release)
                     if (volUpDragActive) {
-                        // Case A: We were holding/dragging (Direct Mode) -> Finish Drag
                         volUpDragActive = false
                         stopKeyDrag(MotionEvent.BUTTON_PRIMARY)
                     } else {
-                        // Case B: We were NOT dragging (Timer/Tap Mode) -> Atomic Click
                         performClick(false) // Left Click
                     }
                 }
@@ -820,54 +817,67 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         startKeyDrag(MotionEvent.BUTTON_SECONDARY)
                     }
                 } else {
-                    // Handle UP event (Release)
                     if (volDownDragActive) {
-                        // Case A: We were holding/dragging (Direct Mode) -> Finish Drag
                         volDownDragActive = false
                         stopKeyDrag(MotionEvent.BUTTON_SECONDARY)
                     } else {
-                        // Case B: We were NOT dragging (Timer/Tap Mode) -> Atomic Click
                         performClick(true) // Right Click
                     }
                 }
             }
             
-            // ... (rest of the actions remain the same, just wrapped in 'if (keyEventAction == ACTION_UP)')
+            // --- NEW NAVIGATION ACTIONS ---
+            "action_back" -> {
+                if (isUp) {
+                    Thread { try { shellService?.injectKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_DOWN, 0, currentDisplayId); Thread.sleep(20); shellService?.injectKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP, 0, currentDisplayId) } catch(e: Exception){} }.start()
+                }
+            }
+            "action_home" -> {
+                if (isUp) {
+                    Thread { try { shellService?.injectKey(KeyEvent.KEYCODE_HOME, KeyEvent.ACTION_DOWN, 0, currentDisplayId); Thread.sleep(20); shellService?.injectKey(KeyEvent.KEYCODE_HOME, KeyEvent.ACTION_UP, 0, currentDisplayId) } catch(e: Exception){} }.start()
+                }
+            }
+            "action_forward" -> {
+                if (isUp) {
+                    Thread { try { shellService?.injectKey(KeyEvent.KEYCODE_FORWARD, KeyEvent.ACTION_DOWN, 0, currentDisplayId); Thread.sleep(20); shellService?.injectKey(KeyEvent.KEYCODE_FORWARD, KeyEvent.ACTION_UP, 0, currentDisplayId) } catch(e: Exception){} }.start()
+                }
+            }
+            "action_vol_up" -> {
+                if (isUp) {
+                    Thread { try { shellService?.injectKey(KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.ACTION_DOWN, 0, currentDisplayId); Thread.sleep(20); shellService?.injectKey(KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.ACTION_UP, 0, currentDisplayId) } catch(e: Exception){} }.start()
+                }
+            }
+            "action_vol_down" -> {
+                if (isUp) {
+                    Thread { try { shellService?.injectKey(KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.ACTION_DOWN, 0, currentDisplayId); Thread.sleep(20); shellService?.injectKey(KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.ACTION_UP, 0, currentDisplayId) } catch(e: Exception){} }.start()
+                }
+            }
+            // --- END NEW ACTIONS ---
+
             "scroll_up" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
+                if (isUp) {
                     val dist = BASE_SWIPE_DISTANCE * prefs.scrollSpeed
                     performSwipe(0f, -dist)
                 }
             }
             "scroll_down" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
+                if (isUp) {
                     val dist = BASE_SWIPE_DISTANCE * prefs.scrollSpeed
                     performSwipe(0f, dist)
                 }
             }
             
             "display_toggle" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
-                    // Use preferred display off mode
+                if (isUp) {
                     when (prefs.displayOffMode) {
                         "standard" -> {
                             isScreenOff = !isScreenOff
-                            Thread {
-                                try {
-                                    if (isScreenOff) shellService?.setScreenOff(0, true)
-                                    else shellService?.setScreenOff(0, false)
-                                } catch (e: Exception) {}
-                            }.start()
+                            Thread { try { if (isScreenOff) shellService?.setScreenOff(0, true) else shellService?.setScreenOff(0, false) } catch (e: Exception) {} }.start()
                             showToast("Display ${if(isScreenOff) "Off" else "On"} (Std)")
                         }
                         else -> {
                             isScreenOff = !isScreenOff
-                            Thread {
-                                try {
-                                    if (isScreenOff) shellService?.setBrightness(-1)
-                                    else shellService?.setBrightness(128)
-                                } catch (e: Exception) {}
-                            }.start()
+                            Thread { try { if (isScreenOff) shellService?.setBrightness(-1) else shellService?.setBrightness(128) } catch (e: Exception) {} }.start()
                             showToast("Display ${if(isScreenOff) "Off" else "On"} (Alt)")
                         }
                     }
@@ -875,76 +885,27 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             }
             
             "display_toggle_alt" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
+                if (isUp) {
                     isScreenOff = !isScreenOff
-                    Thread {
-                        try {
-                            if (isScreenOff) shellService?.setBrightness(-1)
-                            else shellService?.setBrightness(128)
-                        } catch (e: Exception) {}
-                    }.start()
+                    Thread { try { if (isScreenOff) shellService?.setBrightness(-1) else shellService?.setBrightness(128) } catch (e: Exception) {} }.start()
                     showToast("Display ${if(isScreenOff) "Off" else "On"} (Alt)")
                 }
             }
             
             "display_toggle_std" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
+                if (isUp) {
                     isScreenOff = !isScreenOff
-                    Thread {
-                        try {
-                            if (isScreenOff) shellService?.setScreenOff(0, true)
-                            else shellService?.setScreenOff(0, false)
-                        } catch (e: Exception) {}
-                    }.start()
-                            showToast("Display ${if(isScreenOff) "Off" else "On"} (Std)")
+                    Thread { try { if (isScreenOff) shellService?.setScreenOff(0, true) else shellService?.setScreenOff(0, false) } catch (e: Exception) {} }.start()
+                    showToast("Display ${if(isScreenOff) "Off" else "On"} (Std)")
                 }
             }
             
-            "alt_position" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
-                    toggleKeyboardMode()
-                }
-            }
-            
-            "toggle_keyboard" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
-                    toggleCustomKeyboard()
-                }
-            }
-            
-            "toggle_trackpad" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
-                    toggleTrackpad()
-                }
-            }
-            
-            "open_menu" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
-                    menuManager?.toggle()
-                }
-            }
-            
-            "reset_cursor" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
-                    resetCursorCenter()
-                }
-            }
-            
-            "display_wake" -> {
-                if (keyEventAction == KeyEvent.ACTION_UP) {
-                    // Wake display if off
-                    if (isScreenOff) {
-                        isScreenOff = false
-                        Thread {
-                            try {
-                                shellService?.setBrightness(128)
-                                shellService?.setScreenOff(0, false)
-                            } catch (e: Exception) {}
-                        }.start()
-                        showToast("Display Woken")
-                    }
-                }
-            }
+            "alt_position" -> { if (isUp) toggleKeyboardMode() }
+            "toggle_keyboard" -> { if (isUp) toggleCustomKeyboard() }
+            "toggle_trackpad" -> { if (isUp) toggleTrackpad() }
+            "open_menu" -> { if (isUp) menuManager?.toggle() }
+            "reset_cursor" -> { if (isUp) resetCursorCenter() }
+            "display_wake" -> { if (isUp && isScreenOff) { isScreenOff = false; Thread { try { shellService?.setBrightness(128); shellService?.setScreenOff(0, false) } catch (e: Exception) {} }.start(); showToast("Display Woken") } }
         }
     }
     // =========================
