@@ -532,12 +532,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     
     private fun setupUI(displayId: Int) {
         try {
+            // Cleanup existing views from both managers
             if (windowManager != null) {
                 if (bubbleView != null) windowManager?.removeView(bubbleView)
-                if (trackpadLayout != null) windowManager?.removeView(trackpadLayout)
                 if (cursorLayout != null) windowManager?.removeView(cursorLayout)
             }
+            if (appWindowManager != null) {
+                if (trackpadLayout != null) appWindowManager?.removeView(trackpadLayout)
+            }
+            
+            // Cleanup Keyboard & Menu
+            keyboardOverlay?.hide()
+            keyboardOverlay = null
             menuManager?.hide()
+            menuManager = null
+            
         } catch (e: Exception) {}
 
         val display = displayManager?.getDisplay(displayId)
@@ -550,37 +559,52 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             // 1. Create Base Display Context
             val displayContext = createDisplayContext(display)
 
-            // 2. Trackpad Context (Accessibility Overlay) - High Z-Order
-            // We keep this specialized context for the Trackpad to ensure it sits on top
-            val trackpadContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                 displayContext.createWindowContext(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, null)
-            } else displayContext
-            val trackpadWM = trackpadContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            // 2. Create Contexts for different Z-Layers (Android 11/R+ requires this)
+            val accessContext: Context
+            val appContext: Context
 
-            // 3. Menu Context (Standard Display Context) - Application Overlay
-            // We use the raw displayContext here, matching FloatingLauncherService.
-            // This avoids BadTokenException when adding TYPE_APPLICATION_OVERLAY windows.
-            val menuWM = displayContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-
-            // Set global WindowManager to the Trackpad one (default for bubbles/cursor)
-            windowManager = trackpadWM
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // High Z-Order (Accessibility)
+                accessContext = displayContext.createWindowContext(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, null)
+                // Low Z-Order (Application)
+                appContext = displayContext.createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null)
+            } else {
+                accessContext = displayContext
+                appContext = displayContext
+            }
+            
+            // 3. Assign Window Managers
+            // windowManager = High Level (Bubble, Cursor, Menu)
+            windowManager = accessContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            
+            // appWindowManager = Low Level (Trackpad, Keyboard)
+            appWindowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
             currentDisplayId = displayId
             inputTargetDisplayId = displayId
 
             updateUiMetrics()
 
-            // Setup Trackpad components using Trackpad Context
-            setupBubble(trackpadContext)
-            setupTrackpad(trackpadContext)
-            setupCursor(trackpadContext)
-
-            // CRITICAL: Initialize MenuManager with the Display Context (not WindowContext)
-            menuManager = TrackpadMenuManager(displayContext, menuWM, this)
-
+            // --- Z-ORDER SETUP (Bottom to Top) ---
+            
+            // 1. Trackpad (Bottom - Application Layer)
+            setupTrackpad(appContext)
+            
+            // 2. Keyboard (Application Layer)
             if (shellService != null) initCustomKeyboard()
+            
+            // 3. Menu (Accessibility Layer)
+            // Note: We use displayContext for MenuManager to ensure it can create its own clean context if needed,
+            // but we pass the Accessibility WindowManager to ensure it sits on top.
+            menuManager = TrackpadMenuManager(displayContext, windowManager!!, this)
 
-            // Ensure correct initial stack
+            // 4. Bubble (Accessibility Layer)
+            setupBubble(accessContext)
+            
+            // 5. Cursor (Accessibility Layer)
+            setupCursor(accessContext)
+
+            // Enforce stack just in case
             enforceZOrder()
 
             showToast("Trackpad active on Display $displayId")
@@ -622,7 +646,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             if (!isDrag) {
                 vibrate()
                 menuManager?.toggle()
-                isLongPressHandled = true // Mark as handled so UP doesn't toggle trackpad
+                isLongPressHandled = true 
+                
+                // ADDED: Enforce Z-Order immediately so Menu goes behind Bubble/Cursor
+                enforceZOrder()
             }
         }
 
@@ -687,7 +714,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         trackpadParams = WindowManager.LayoutParams(
             400, 300, 
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, 
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, // Corrected Type
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or 
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or 
@@ -700,15 +727,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         trackpadParams.gravity = Gravity.TOP or Gravity.LEFT; loadLayout()
         val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() { 
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                // Let handleTrackpadTouch handle clicks
-                return false
-            }
- 
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean { return false }
         })
         
         trackpadLayout?.setOnTouchListener { _, event -> val devId = event.deviceId; val tool = event.getToolType(0); if (tool != MotionEvent.TOOL_TYPE_FINGER) return@setOnTouchListener false; when (event.actionMasked) { MotionEvent.ACTION_DOWN -> activeFingerDeviceId = devId; MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> { if (activeFingerDeviceId > 0 && devId != activeFingerDeviceId) return@setOnTouchListener false } }; gestureDetector.onTouchEvent(event); handleTrackpadTouch(event); true }
-        trackpadLayout?.visibility = View.GONE; windowManager?.addView(trackpadLayout, trackpadParams); updateBorderColor(currentBorderColor)
+        trackpadLayout?.visibility = View.GONE
+        
+        // FIX: Use appWindowManager for Application Overlay
+        appWindowManager?.addView(trackpadLayout, trackpadParams)
+        updateBorderColor(currentBorderColor)
     }
     
     private fun setupCursor(context: Context) {
@@ -1397,7 +1424,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 
-    private fun initCustomKeyboard() { if (windowManager == null || shellService == null) return; keyboardOverlay = KeyboardOverlay(this, windowManager!!, shellService, inputTargetDisplayId, { toggleScreen() }, { toggleScreenMode() }); keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentDisplayId) }
+    private fun initCustomKeyboard() { 
+        // FIX: Use appWindowManager for Keyboard (Application Overlay)
+        if (appWindowManager == null || shellService == null) return
+        keyboardOverlay = KeyboardOverlay(this, appWindowManager!!, shellService, inputTargetDisplayId, { toggleScreen() }, { toggleScreenMode() })
+        keyboardOverlay?.setScreenDimensions(uiScreenWidth, uiScreenHeight, currentDisplayId) 
+    }
 
     // --- KEYBOARD AUTOMATION FIX ---
     // =========================

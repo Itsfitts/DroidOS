@@ -49,6 +49,12 @@ class TrackpadMenuManager(
             windowManager.addView(drawerView, drawerParams)
             isVisible = true
             loadTab(currentTab)
+            
+            // CRITICAL FIX: Force Cursor and Bubble to top of stack
+            // Since Menu was just added, it is currently on top. 
+            // We must re-add the others to cover it.
+            service.enforceZOrder()
+            
         } catch (e: SecurityException) {
             android.widget.Toast.makeText(context, "Missing Overlay Permission! Open App to Fix.", android.widget.Toast.LENGTH_LONG).show()
             e.printStackTrace()

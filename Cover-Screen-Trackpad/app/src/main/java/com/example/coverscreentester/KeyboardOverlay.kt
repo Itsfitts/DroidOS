@@ -239,7 +239,14 @@ class KeyboardOverlay(
         addDragHandle(); addResizeHandle(); addCloseButton(); addTargetLabel()
         val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
         val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - keyboardHeight - 10)
-        keyboardParams = WindowManager.LayoutParams(keyboardWidth, keyboardHeight, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT)
+        // CHANGED: Use TYPE_APPLICATION_OVERLAY to match the Service's context and Z-Order tier
+        keyboardParams = WindowManager.LayoutParams(
+            keyboardWidth, 
+            keyboardHeight, 
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, 
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, 
+            PixelFormat.TRANSLUCENT
+        )
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
              keyboardParams?.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }

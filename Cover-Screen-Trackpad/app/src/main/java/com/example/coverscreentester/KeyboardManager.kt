@@ -204,7 +204,8 @@ class KeyboardManager(
         layoutParams = WindowManager.LayoutParams(
             keyboardWidth,
             WindowManager.LayoutParams.WRAP_CONTENT, // Height dynamic based on rows
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            // CHANGED: Use Application Overlay to ensure it stays below Accessibility layers
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or 
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
