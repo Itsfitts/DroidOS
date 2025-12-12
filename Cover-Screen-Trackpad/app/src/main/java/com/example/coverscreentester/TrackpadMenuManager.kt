@@ -119,10 +119,8 @@ class TrackpadMenuManager(
         // =========================
         // INTERACTION LOGIC
         // =========================
-        // 1. Background Click -> Close
-        drawerView?.setOnClickListener { 
-            hide() 
-        }
+        // 1. Background Click -> REMOVED (Menu is now persistent)
+        // We do NOT set a listener here, so clicks on the dim background will be ignored (consumed but no action)
         
         // 2. Menu Card Click -> Block (Consume)
         drawerView?.findViewById<View>(R.id.menu_container)?.setOnClickListener { 
