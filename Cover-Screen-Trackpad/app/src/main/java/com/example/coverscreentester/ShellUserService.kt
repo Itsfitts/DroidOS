@@ -354,5 +354,23 @@ class ShellUserService : IShellService.Stub() {
 
     override fun setWindowingMode(taskId: Int, mode: Int) {}
     override fun resizeTask(taskId: Int, left: Int, top: Int, right: Int, bottom: Int) {}
-    override fun runCommand(cmd: String): String { execShell(cmd); return "" }
+    override fun runCommand(cmd: String): String {
+        val token = Binder.clearCallingIdentity()
+        val output = StringBuilder()
+        try {
+            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                output.append(line).append("\n")
+            }
+            reader.close()
+            process.waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "runCommand failed: $cmd", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+        return output.toString()
+    }
 }
