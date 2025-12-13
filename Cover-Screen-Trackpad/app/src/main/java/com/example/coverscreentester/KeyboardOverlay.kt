@@ -460,13 +460,6 @@ class KeyboardOverlay(
     }
 
     private fun injectKey(keyCode: Int, metaState: Int) {
-        if (shellService == null) return
-        Thread {
-            try {
-                shellService.injectKey(keyCode, KeyEvent.ACTION_DOWN, metaState, targetDisplayId)
-                Thread.sleep(20)
-                shellService.injectKey(keyCode, KeyEvent.ACTION_UP, metaState, targetDisplayId)
-            } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
-        }.start()
+        (context as? OverlayService)?.injectKeyFromKeyboard(keyCode, metaState)
     }
 }

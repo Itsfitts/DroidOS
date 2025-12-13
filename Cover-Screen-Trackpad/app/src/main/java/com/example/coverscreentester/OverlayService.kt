@@ -158,27 +158,25 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // MANUAL SOFT KEYBOARD BLOCKING
     // =========================
     private fun setSoftKeyboardBlocking(enabled: Boolean) {
-        // 1. Accessibility Method (Preferred/Instant)
+        // 1. Accessibility Method (Cover Screen Only)
         if (Build.VERSION.SDK_INT >= 24) {
             try {
-                val mode = if (enabled) AccessibilityService.SHOW_MODE_HIDDEN else AccessibilityService.SHOW_MODE_AUTO
-                softKeyboardController.showMode = mode
-            } catch (e: Exception) { 
-                Log.e(TAG, "A11y Block Failed", e) 
-            }
+                if (currentDisplayId != 0) {
+                    val mode = if (enabled) AccessibilityService.SHOW_MODE_HIDDEN else AccessibilityService.SHOW_MODE_AUTO
+                    softKeyboardController.showMode = mode
+                } else {
+                    softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO
+                }
+            } catch (e: Exception) {}
         }
 
-        // 2. Shell Method (Robust Fallback)
+        // 2. Shell Method (Main Screen)
         Thread {
             val valStr = if (enabled) "0" else "1"
             shellService?.runCommand("settings put secure show_ime_with_hard_keyboard $valStr")
-            
-            // Inject dummy key to force system update if enabling block
             if (enabled) {
                 try { Thread.sleep(100) } catch(e: Exception){}
-                shellService?.injectKey(KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.ACTION_DOWN, 0, currentDisplayId)
-                try { Thread.sleep(20) } catch(e: Exception){}
-                shellService?.injectKey(KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.ACTION_UP, 0, currentDisplayId)
+                shellService?.injectDummyHardwareKey(currentDisplayId)
             }
         }.start()
         
@@ -1786,7 +1784,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =========================
    private fun keyboardHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_UP) toggleCustomKeyboard(); return true }
     private fun openMenuHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_DOWN) menuManager?.toggle(); return true }
-    private fun injectAction(action: Int, source: Int, button: Int, time: Long) { if (shellService == null) return; Thread { try { shellService?.injectMouse(action, cursorX, cursorY, inputTargetDisplayId, source, button, time) } catch(e: Exception){} }.start() }
+    private fun injectAction(action: Int, source: Int, button: Int, time: Long) { 
+        if (shellService == null) return; 
+        Thread { 
+            try { shellService?.injectMouse(action, cursorX, cursorY, inputTargetDisplayId, source, button, time) } catch(e: Exception){} 
+        }.start() 
+    }
     private fun injectScroll(hScroll: Float, vScroll: Float) { if (shellService == null) return; Thread { try { shellService?.injectScroll(cursorX, cursorY, vScroll / 10f, hScroll / 10f, inputTargetDisplayId) } catch(e: Exception){} }.start() }
     private fun performClick(right: Boolean) { if (shellService == null) return; Thread { try { if (right) shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId) else shellService?.execClick(cursorX, cursorY, inputTargetDisplayId) } catch(e: Exception){} }.start() }
     fun resetCursorCenter() { 
@@ -2059,6 +2062,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 windowManager?.addView(cursorLayout, cursorParams) 
             } catch (e: Exception) {}
         }
+    }
+
+    fun injectKeyFromKeyboard(keyCode: Int, metaState: Int) {
+        val deviceId = if (prefs.prefBlockSoftKeyboard && currentDisplayId == 0) 0 else -1
+        Thread {
+            try {
+                shellService?.injectKeyWithDevice(keyCode, KeyEvent.ACTION_DOWN, metaState, inputTargetDisplayId, deviceId)
+                Thread.sleep(20)
+                shellService?.injectKeyWithDevice(keyCode, KeyEvent.ACTION_UP, metaState, inputTargetDisplayId, deviceId)
+            } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
+        }.start()
     }
     // =========================
     // END Z-ORDER ENFORCEMENT

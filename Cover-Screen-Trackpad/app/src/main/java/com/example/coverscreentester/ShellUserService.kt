@@ -291,18 +291,20 @@ class ShellUserService : IShellService.Stub() {
         return false
     }
 
-    // --- INPUT INJECTION (UNCHANGED) ---
+    // --- INPUT INJECTION ---
     override fun injectKey(keyCode: Int, action: Int, metaState: Int, displayId: Int) {
+        // This is the standard implementation which respects the AIDL interface.
+        // It injects with deviceId = -1 (Virtual).
+        injectKeyWithDevice(keyCode, action, metaState, displayId, -1)
+    }
+
+    override fun injectKeyWithDevice(keyCode: Int, action: Int, metaState: Int, displayId: Int, deviceId: Int) {
         if (!this::inputManager.isInitialized) return
         val now = SystemClock.uptimeMillis()
         
-        // FIX: Added scanCode=1 and flags=8 (FLAG_FROM_SYSTEM)
-        // scanCode=0 is often treated as "Virtual" by the system, causing it to ignore 
-        // the "show_ime_with_hard_keyboard" setting. 
-        // Setting scanCode=1 and flags=8 simulates a real hardware key press.
         val event = KeyEvent(
             now, now, action, keyCode, 0, metaState, 
-            1, 1, 8, // deviceId=1, scancode=1, flags=8
+            deviceId, 0, 0, 
             InputDevice.SOURCE_KEYBOARD
         )
         
@@ -313,6 +315,23 @@ class ShellUserService : IShellService.Stub() {
         } catch (e: Exception) {
             if (action == KeyEvent.ACTION_DOWN) execShell("input keyevent $keyCode")
         }
+    }
+
+    override fun injectDummyHardwareKey(displayId: Int) {
+         if (!this::inputManager.isInitialized) return
+         val now = SystemClock.uptimeMillis()
+         // Use deviceId=0 (System) to robustly trigger "Physical Keyboard" state
+         val eventDown = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 0, 0, 0, InputDevice.SOURCE_KEYBOARD)
+         val eventUp = KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 0, 0, 0, InputDevice.SOURCE_KEYBOARD)
+         
+         try {
+            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
+            method.invoke(eventDown, displayId)
+            method.invoke(eventUp, displayId)
+            
+            injectInputEventMethod.invoke(inputManager, eventDown, INJECT_MODE_ASYNC)
+            injectInputEventMethod.invoke(inputManager, eventUp, INJECT_MODE_ASYNC)
+         } catch(e: Exception) {}
     }
 
     override fun injectMouse(action: Int, x: Float, y: Float, displayId: Int, source: Int, buttonState: Int, downTime: Long) {

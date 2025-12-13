@@ -8,6 +8,8 @@ interface IShellService {
     
     // Updated: Now accepts metaState (Ctrl/Alt) and displayId
     void injectKey(int keyCode, int action, int metaState, int displayId);
+    void injectKeyWithDevice(int keyCode, int action, int metaState, int displayId, int deviceId);
+    void injectDummyHardwareKey(int displayId);
     
     void setWindowingMode(int taskId, int mode);
     void resizeTask(int taskId, int left, int top, int right, int bottom);
