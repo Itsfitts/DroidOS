@@ -15,6 +15,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 class KeyboardManager(
     private val context: Context,
@@ -29,10 +30,12 @@ class KeyboardManager(
     private var isVisible = false
     
     // UI Constants
-    private val KEY_HEIGHT = 45.dp
+    private val BASE_KEY_HEIGHT = 45 // Base height in dp
+    private var scaleFactor = 1.0f
+    
     private val ROW_MARGIN = 2.dp
     private val KEY_MARGIN = 2.dp
-    private var keyboardWidth = 450 // Default, will resize
+    private var keyboardWidth = 450
     private var keyboardHeight = 350
     
     // Data Classes
@@ -83,7 +86,7 @@ class KeyboardManager(
     )
     
     private val ROW_SYMS = listOf(
-        KeyDef("@", KeyEvent.KEYCODE_AT), KeyDef("#", KeyEvent.KEYCODE_POUND), KeyDef("$", KeyEvent.KEYCODE_4), // $ shares 4 shift usually, simplified here
+        KeyDef("@", KeyEvent.KEYCODE_AT), KeyDef("#", KeyEvent.KEYCODE_POUND), KeyDef("$", KeyEvent.KEYCODE_4), 
         KeyDef("%", KeyEvent.KEYCODE_5), KeyDef("&", KeyEvent.KEYCODE_7), KeyDef("-", KeyEvent.KEYCODE_MINUS),
         KeyDef("+", KeyEvent.KEYCODE_PLUS), KeyDef("(", KeyEvent.KEYCODE_NUMPAD_LEFT_PAREN), KeyDef(")", KeyEvent.KEYCODE_NUMPAD_RIGHT_PAREN)
     )
@@ -93,16 +96,13 @@ class KeyboardManager(
         val bg = GradientDrawable()
         bg.setColor(Color.parseColor("#EE121212"))
         bg.cornerRadius = 20f
-        // Standard Grey Border
         bg.setStroke(2, Color.parseColor("#44FFFFFF"))
         root.background = bg
 
         val mainContainer = LinearLayout(context)
         mainContainer.orientation = LinearLayout.VERTICAL
-        // Reduced vertical padding (10 vs 20) to fit tighter windows and remove blank space
         mainContainer.setPadding(10, 10, 10, 10)
         
-        // Add Rows
         mainContainer.addView(createRow(if (isSymbols) ROW_NUMS else ROW_1))
         mainContainer.addView(createRow(if (isSymbols) ROW_SYMS else ROW_2))
         mainContainer.addView(createRow(ROW_3))
@@ -138,13 +138,16 @@ class KeyboardManager(
         row.orientation = LinearLayout.HORIZONTAL
         row.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         
+        // FIX: Use scalable key height
+        val dynamicHeight = (BASE_KEY_HEIGHT * scaleFactor).toInt().dp
+        
         for (k in keys) {
             val btn = TextView(context)
             val label = if (!isSymbols && isShifted && k.label.length == 1) k.label.uppercase() else k.label
             
             btn.text = label
             btn.setTextColor(Color.WHITE)
-            btn.textSize = 14f
+            btn.textSize = 14f * scaleFactor // Scale font too
             btn.gravity = Gravity.CENTER
             btn.typeface = Typeface.DEFAULT_BOLD
             
@@ -153,14 +156,13 @@ class KeyboardManager(
             keyBg.cornerRadius = 10f
             btn.background = keyBg
             
-            val params = LinearLayout.LayoutParams(0, KEY_HEIGHT)
+            val params = LinearLayout.LayoutParams(0, dynamicHeight)
             params.weight = k.weight
             params.setMargins(KEY_MARGIN, ROW_MARGIN, KEY_MARGIN, ROW_MARGIN)
             row.addView(btn, params)
             
             btn.setOnClickListener {
                 handleKeyPress(k)
-                // Visual feedback
                 btn.alpha = 0.5f
                 btn.postDelayed({ btn.alpha = 1.0f }, 50)
             }
@@ -170,41 +172,36 @@ class KeyboardManager(
 
     private fun handleKeyPress(k: KeyDef) {
         when (k.code) {
-            -1 -> { // SHIFT
-                isShifted = !isShifted
-                refreshLayout()
-            }
-            -2 -> { // SYMBOLS
-                isSymbols = !isSymbols
-                refreshLayout()
-            }
+            -1 -> { isShifted = !isShifted; refreshLayout() }
+            -2 -> { isSymbols = !isSymbols; refreshLayout() }
             else -> {
-                // If it's a letter and shifted, we rely on the injected keycode being consistent
-                // In a real key event injection, KeyCode_A + CapsLock/Shift state is needed.
-                // For simplicity, Shizuku injects the raw keycode. 
-                // To support true caps, we might need to inject CAPS_LOCK toggle or shift modifier.
-                // Current simplified approach: Just inject the code.
                 keyInjector(k.code)
-                
-                // Auto unshift after one char (standard mobile behavior)
-                if (isShifted) {
-                    isShifted = false
-                    refreshLayout()
-                }
+                if (isShifted) { isShifted = false; refreshLayout() }
             }
         }
     }
 
+    // --- NEW: Calculate exact content height ---
+    fun getContentHeight(scale: Float): Int {
+        val rows = 5 // Fixed rows
+        val rowHeight = (BASE_KEY_HEIGHT * scale).toInt().dp
+        val verticalPadding = 20 + (rows * ROW_MARGIN * 2) // Container padding + row margins
+        return (rows * rowHeight) + verticalPadding
+    }
+    
+    fun setScale(scale: Float) {
+        this.scaleFactor = scale.coerceIn(0.5f, 2.0f)
+        refreshLayout()
+    }
+
     fun show(width: Int, height: Int) {
         if (isVisible) return
-        
         keyboardWidth = width
         keyboardHeight = height
 
         layoutParams = WindowManager.LayoutParams(
             keyboardWidth,
-            WindowManager.LayoutParams.WRAP_CONTENT, // Height dynamic based on rows
-            // CHANGED: Use Application Overlay to ensure it stays below Accessibility layers
+            WindowManager.LayoutParams.WRAP_CONTENT, 
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or 
@@ -212,7 +209,7 @@ class KeyboardManager(
             android.graphics.PixelFormat.TRANSLUCENT
         )
         layoutParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-        layoutParams?.y = 50 // Margin from bottom
+        layoutParams?.y = 50 
 
         keyboardLayout = createView() as FrameLayout
         windowManager.addView(keyboardLayout, layoutParams)
@@ -221,16 +218,12 @@ class KeyboardManager(
 
     fun hide() {
         if (!isVisible) return
-        try {
-            windowManager.removeView(keyboardLayout)
-        } catch (e: Exception) {}
+        try { windowManager.removeView(keyboardLayout) } catch (e: Exception) {}
         isVisible = false
         keyboardLayout = null
     }
     
-    fun toggle(width: Int, height: Int) {
-        if (isVisible) hide() else show(width, height)
-    }
+    fun toggle(width: Int, height: Int) { if (isVisible) hide() else show(width, height) }
 
     private fun refreshLayout() {
         if (!isVisible) return
@@ -243,47 +236,20 @@ class KeyboardManager(
     // --- Helpers ---
     private val Int.dp: Int get() = (this * context.resources.displayMetrics.density).toInt()
     
-    private var initialX = 0
-    private var initialY = 0
-    private var initialTouchX = 0f
-    private var initialTouchY = 0f
+    // Pass events up to Overlay for global handling, or handle local logic?
+    // Since OverlayService manages window size, we delegate resize logic back to it via listeners if needed.
+    // But this class is for standalone activity usage mostly. OverlayService uses KeyboardOverlay.kt wrapper.
+    // We will leave local handlers for non-service usage but Overlay wrapper overrides them.
     
+    private var initialX = 0
+    private var initialTouchX = 0f
+    
+    // Local resize logic (if used standalone)
     private fun handleResize(event: MotionEvent): Boolean {
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                layoutParams?.let { initialX = it.width; initialY = it.height } // abusing x/y vars for w/h
-                return true
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val dx = (event.rawX - initialTouchX).toInt()
-                layoutParams?.width = (initialX + dx).coerceAtLeast(300)
-                // Height updates automatically due to WRAP_CONTENT, but we could force scale
-                windowManager.updateViewLayout(keyboardLayout, layoutParams)
-                return true
-            }
-        }
-        return false
+        return false // Handled by Overlay wrapper usually
     }
 
     private fun handleMove(event: MotionEvent): Boolean {
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                layoutParams?.let { initialX = it.x; initialY = it.y }
-                return true
-            }
-            MotionEvent.ACTION_MOVE -> {
-//                 val dx = (initialTouchX - event.rawX).toInt() // Inverse for bottom gravity sometimes depending on config
-                val dy = (initialTouchY - event.rawY).toInt()
-                // For Gravity.BOTTOM, positive Y moves UP
-                layoutParams?.y = (initialY + dy)
-                windowManager.updateViewLayout(keyboardLayout, layoutParams)
-                return true
-            }
-        }
-        return false
+        return false // Handled by Overlay wrapper usually
     }
 }

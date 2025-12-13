@@ -153,6 +153,30 @@ class KeyboardOverlay(
     // =========================
 
 
+    // Helper to allow Service to set position during Profile Load
+    fun updatePosition(x: Int, y: Int) {
+        if (keyboardContainer == null || keyboardParams == null) return
+        keyboardParams?.x = x
+        keyboardParams?.y = y
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            
+            // Sync with local prefs
+            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putInt("keyboard_x_d${currentDisplayId}", x)
+                .putInt("keyboard_y_d${currentDisplayId}", y)
+                .apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    
+    // Helpers for SaveLayout
+    fun getViewX(): Int = keyboardParams?.x ?: 0
+    fun getViewY(): Int = keyboardParams?.y ?: 0
+
+
     fun getWidth(): Int = keyboardWidth
     fun getHeight(): Int = keyboardHeight
     
@@ -327,9 +351,10 @@ class KeyboardOverlay(
     // =========================
     // HANDLE RESIZE - Processes keyboard overlay resize gestures
     // Returns early if anchored to prevent accidental resizing
+    // MODIFIED: Snaps Height to Scale to wrap content perfectly
     // =========================
     private fun handleResize(event: MotionEvent): Boolean {
-        if (isAnchored) return true  // Anchored: block resize
+        if (isAnchored) return true
         when (event.action) {
             MotionEvent.ACTION_DOWN -> { 
                 isResizing = true
@@ -340,10 +365,44 @@ class KeyboardOverlay(
             }
             MotionEvent.ACTION_MOVE -> { 
                 if (isResizing) { 
-                    keyboardParams?.width = max(280, initialWidth + (event.rawX - initialTouchX).toInt())
-                    keyboardParams?.height = max(180, initialHeight + (event.rawY - initialTouchY).toInt())
-                    keyboardWidth = keyboardParams?.width ?: keyboardWidth
-                    keyboardHeight = keyboardParams?.height ?: keyboardHeight
+                    val dy = (event.rawY - initialTouchY).toInt()
+                    val dx = (event.rawX - initialTouchX).toInt()
+                    
+                    // 1. Update Width normally
+                    val newWidth = max(280, initialWidth + dx)
+                    
+                    // 2. Calculate new Scale based on Height drag
+                    // Assume baseline height ~300px for 1.0 scale
+                    val currentScale = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).getInt("keyboard_key_scale", 100) / 100f
+                    val newTargetHeight = initialHeight + dy
+                    
+                    // Sensitivity factor: 400px height range corresponds to 0.5x - 2.0x scale
+                    val newScale = (newTargetHeight / 300f).coerceIn(0.5f, 2.0f)
+                    
+                    // 3. Update Keyboard with new scale
+                    keyboardView?.setScale(newScale)
+                    
+                    // 4. Update Window Params
+                    keyboardParams?.width = newWidth
+                    
+                    // SNAP HEIGHT to exact content size
+                    // We calculate what height the content *actually* needs at this scale
+                    // This prevents the window from being larger than the keys (whitespace)
+                    // or smaller than the keys (cutoff)
+                    // Base Height (approx 280dp) * Scale * Density
+                    val density = context.resources.displayMetrics.density
+                    val contentHeight = (280 * newScale * density).toInt() + 50 // + padding
+                    
+                    keyboardParams?.height = contentHeight
+                    
+                    keyboardWidth = newWidth
+                    keyboardHeight = contentHeight
+                    
+                    // Save Scale Pref immediately so it persists
+                    context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+                        .putInt("keyboard_key_scale", (newScale * 100).toInt())
+                        .apply()
+
                     try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} 
                 } 
             }

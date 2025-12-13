@@ -1864,67 +1864,73 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     fun performRotation() { rotationAngle = (rotationAngle + 90) % 360; cursorView?.rotation = rotationAngle.toFloat() }
     fun getProfileKey(): String = "P_${uiScreenWidth}_${uiScreenHeight}"
     // --- UPDATED SAVE LAYOUT (Full Persistence) ---
+    // [REPLACE FUNCTION] saveLayout
     fun saveLayout() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
         val key = getProfileKey()
         
-        // 1. Save Window Bounds
+        // 1. Trackpad Bounds
         p.putInt("X_$key", trackpadParams.x)
         p.putInt("Y_$key", trackpadParams.y)
         p.putInt("W_$key", trackpadParams.width)
         p.putInt("H_$key", trackpadParams.height)
         
-        // 2. Save User Settings (Presets)
-        // Format: cursor;scroll;tap;reverse;alpha;bgAlpha;kbAlpha;handle;hTouch;sTouch;sVisual;cursorSize;kbScale;auto;anchor;bubSize;bubAlpha;bubIcon;bubX;bubY;vuT;vuD;vuH;vdT;vdD;vdH;pD;vBack;vHome;vFwd
-        val s = StringBuilder()
-        s.append("${prefs.cursorSpeed};")
-        s.append("${prefs.scrollSpeed};")
-        s.append("${if(prefs.prefTapScroll) 1 else 0};")
-        s.append("${if(prefs.prefReverseScroll) 1 else 0};")
-        s.append("${prefs.prefAlpha};")
-        s.append("${prefs.prefBgAlpha};")
-        s.append("${prefs.prefKeyboardAlpha};")
-        s.append("${prefs.prefHandleSize};")
-        s.append("${prefs.prefHandleTouchSize};")
-        s.append("${prefs.prefScrollTouchSize};")
-        s.append("${prefs.prefScrollVisualSize};")
-        s.append("${prefs.prefCursorSize};")
-        s.append("${prefs.prefKeyScale};")
-        s.append("${if(prefs.prefAutomationEnabled) 1 else 0};")
-        s.append("${if(prefs.prefAnchored) 1 else 0};")
-        s.append("${prefs.prefBubbleSize};")
-        s.append("${prefs.prefBubbleAlpha};")
+        // 2. Keyboard Bounds
+        val kbX = keyboardOverlay?.getViewX() ?: 0
+        val kbY = keyboardOverlay?.getViewY() ?: 0
+        val kbW = keyboardOverlay?.getWidth() ?: 500
+        val kbH = keyboardOverlay?.getHeight() ?: 350
         
-        // NEW PERSISTED FIELDS
-        s.append("${prefs.prefBubbleIconIndex};")
-        s.append("${prefs.prefBubbleX};")
-        s.append("${prefs.prefBubbleY};")
-        s.append("${prefs.hardkeyVolUpTap};")
-        s.append("${prefs.hardkeyVolUpDouble};")
-        s.append("${prefs.hardkeyVolUpHold};")
-        s.append("${prefs.hardkeyVolDownTap};")
-        s.append("${prefs.hardkeyVolDownDouble};")
-        s.append("${prefs.hardkeyVolDownHold};")
-        s.append("${prefs.hardkeyPowerDouble}") 
+        // 3. Save Settings String
+        val s = StringBuilder()
+        s.append("${prefs.cursorSpeed};") // 0
+        s.append("${prefs.scrollSpeed};") // 1
+        s.append("${if(prefs.prefTapScroll) 1 else 0};") // 2
+        s.append("${if(prefs.prefReverseScroll) 1 else 0};") // 3
+        s.append("${prefs.prefAlpha};") // 4
+        s.append("${prefs.prefBgAlpha};") // 5
+        s.append("${prefs.prefKeyboardAlpha};") // 6
+        s.append("${prefs.prefHandleSize};") // 7
+        s.append("${prefs.prefHandleTouchSize};") // 8
+        s.append("${prefs.prefScrollTouchSize};") // 9
+        s.append("${prefs.prefScrollVisualSize};") // 10
+        s.append("${prefs.prefCursorSize};") // 11
+        s.append("${prefs.prefKeyScale};") // 12
+        s.append("${if(prefs.prefAutomationEnabled) 1 else 0};") // 13
+        s.append("${if(prefs.prefAnchored) 1 else 0};") // 14
+        s.append("${prefs.prefBubbleSize};") // 15
+        s.append("${prefs.prefBubbleAlpha};") // 16
+        s.append("${prefs.prefBubbleIconIndex};") // 17
+        s.append("${prefs.prefBubbleX};") // 18
+        s.append("${prefs.prefBubbleY};") // 19
+        s.append("${prefs.hardkeyVolUpTap};") // 20
+        s.append("${prefs.hardkeyVolUpDouble};") // 21
+        s.append("${prefs.hardkeyVolUpHold};") // 22
+        s.append("${prefs.hardkeyVolDownTap};") // 23
+        s.append("${prefs.hardkeyVolDownDouble};") // 24
+        s.append("${prefs.hardkeyVolDownHold};") // 25
+        s.append("${prefs.hardkeyPowerDouble};") // 26
+        s.append("$kbX;") // 27
+        s.append("$kbY;") // 28
+        s.append("$kbW;") // 29
+        s.append("$kbH")  // 30
         
         p.putString("SETTINGS_$key", s.toString())
         p.apply()
         showToast("Layout & Presets Saved") 
     }
 
-    // --- UPDATED LOAD LAYOUT (Full Persistence) ---
-    public fun loadLayout() { 
+    // [REPLACE FUNCTION] loadLayout
+    fun loadLayout() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         val key = getProfileKey()
         
-        // 1. Load Bounds
         trackpadParams.x = p.getInt("X_$key", 100)
         trackpadParams.y = p.getInt("Y_$key", 100)
         trackpadParams.width = p.getInt("W_$key", 400)
         trackpadParams.height = p.getInt("H_$key", 300)
         try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception){} 
         
-        // 2. Load Settings Presets
         val settings = p.getString("SETTINGS_$key", null)
         if (settings != null) {
             try {
@@ -1948,12 +1954,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     prefs.prefBubbleSize = parts[15].toInt()
                     prefs.prefBubbleAlpha = parts[16].toInt()
                     
-                    // LOAD NEW FIELDS (Backward Compatibility)
                     if (parts.size >= 27) {
                         prefs.prefBubbleIconIndex = parts[17].toInt()
                         prefs.prefBubbleX = parts[18].toInt()
                         prefs.prefBubbleY = parts[19].toInt()
-                        
                         prefs.hardkeyVolUpTap = parts[20]
                         prefs.hardkeyVolUpDouble = parts[21]
                         prefs.hardkeyVolUpHold = parts[22]
@@ -1962,8 +1966,22 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         prefs.hardkeyVolDownHold = parts[25]
                         prefs.hardkeyPowerDouble = parts[26]
                     }
+                    
+                    // LOAD KEYBOARD POS & SIZE
+                    if (parts.size >= 31) {
+                        val kbX = parts[27].toInt()
+                        val kbY = parts[28].toInt()
+                        val kbW = parts[29].toInt()
+                        val kbH = parts[30].toInt()
+                        keyboardOverlay?.setWindowBounds(kbX, kbY, kbW, kbH)
+                    } else if (parts.size >= 29) {
+                        // Backward compatibility for profiles without width/height
+                        val kbX = parts[27].toInt()
+                        val kbY = parts[28].toInt()
+                        keyboardOverlay?.updatePosition(kbX, kbY)
+                    }
 
-                    // APPLY SETTINGS VISUALLY
+                    // Apply Visuals
                     scrollZoneThickness = prefs.prefScrollTouchSize
                     updateBorderColor(currentBorderColor)
                     updateLayoutSizes()
@@ -1974,14 +1992,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f)
                     keyboardOverlay?.setAnchored(prefs.prefAnchored)
                     
-                    // Apply Bubble Changes (Position & Appearance)
                     if (bubbleView != null) {
                         bubbleParams.x = prefs.prefBubbleX
                         bubbleParams.y = prefs.prefBubbleY
                         windowManager?.updateViewLayout(bubbleView, bubbleParams)
                         applyBubbleAppearance()
-                        // Note: Icon visual might not update until restart/tap unless cycleBubbleIcon is refactored, 
-                        // but the index is saved/restored correctly.
                     }
                     
                     showToast("Layout & Presets Loaded")
