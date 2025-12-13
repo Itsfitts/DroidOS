@@ -1317,6 +1317,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         e.putInt("scroll_touch_size", prefs.prefScrollTouchSize)
         e.putInt("scroll_visual_size", prefs.prefScrollVisualSize)
         e.putBoolean("persistent_service", prefs.prefPersistentService)
+        e.putInt("keyboard_key_scale", prefs.prefKeyScale) // Fixed: Added missing persistence
         
         // Hardkeys
         e.putString("hardkey_vol_up_tap", prefs.hardkeyVolUpTap)
