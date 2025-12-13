@@ -1,29 +1,3 @@
-/*
- * ======================================================================================
- * CRITICAL REGRESSION CHECKLIST - SHELL SERVICE
- * ======================================================================================
- * 1. REFLECTION LOGIC (Android 14+ Support):
- * - `getDisplayControlClass()` MUST use `ClassLoaderFactory` to load `com.android.server.display.DisplayControl`.
- * - Do NOT simplify this to just `Class.forName()` or it will break on Android 14.
- *
- * 2. BRIGHTNESS CONTROL (Alternate Mode):
- * - `setBrightness(-1)` MUST set `screen_brightness_float` to `-1.0f`.
- * - It MUST call `setBrightnessViaDisplayManager(id, -1.0f)` to trigger the OLED off driver state.
- *
- * 3. SCREEN OFF (Standard Mode):
- * - `setScreenOff` MUST use `SurfaceControl.setDisplayPowerMode`.
- * - It MUST iterate `getAllPhysicalDisplayTokens()` to find the correct display (Cover vs Main).
- *
- * 4. INPUT INJECTION:
- * - Primary method: `InputManager.injectInputEvent` (Reflection) for low latency.
- * - Fallback method: `Runtime.getRuntime().exec("input ...")` must remain in catch blocks.
- * - `injectScroll` requires `MotionEvent.obtain` with valid pointer properties.
- *
- * 5. WINDOW MANAGEMENT:
- * - `repositionTask` must use `am task resize` shell commands.
- * ======================================================================================
- */
-
 package com.example.coverscreentester
 
 import android.os.Binder
@@ -287,24 +261,23 @@ class ShellUserService : IShellService.Stub() {
     }
     
     override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean {
-        // Fallback interface compliance
         return false
     }
 
     // --- INPUT INJECTION ---
-    override fun injectKey(keyCode: Int, action: Int, metaState: Int, displayId: Int) {
-        // This is the standard implementation which respects the AIDL interface.
-        // It injects with deviceId = -1 (Virtual).
-        injectKeyWithDevice(keyCode, action, metaState, displayId, -1)
-    }
-
-    override fun injectKeyWithDevice(keyCode: Int, action: Int, metaState: Int, displayId: Int, deviceId: Int) {
+    override fun injectKey(keyCode: Int, action: Int, metaState: Int, displayId: Int, deviceId: Int) {
         if (!this::inputManager.isInitialized) return
         val now = SystemClock.uptimeMillis()
         
+        // DUAL STRATEGY:
+        // Any non-negative ID is treated as "Hardware" (scanCode=1, flags=8).
+        // Negative IDs are treated as "Virtual" (scanCode=0, flags=0).
+        val finalScanCode = if (deviceId >= 0) 1 else 0
+        val finalFlags = if (deviceId >= 0) 8 else 0 // 8 = FLAG_FROM_SYSTEM
+        
         val event = KeyEvent(
             now, now, action, keyCode, 0, metaState, 
-            deviceId, 0, 0, 
+            deviceId, finalScanCode, finalFlags, 
             InputDevice.SOURCE_KEYBOARD
         )
         
@@ -317,12 +290,13 @@ class ShellUserService : IShellService.Stub() {
         }
     }
 
+    // Trigger to force system to update "Hardware Keyboard" status immediately
     override fun injectDummyHardwareKey(displayId: Int) {
          if (!this::inputManager.isInitialized) return
          val now = SystemClock.uptimeMillis()
-         // Use deviceId=0 (System) to robustly trigger "Physical Keyboard" state
-         val eventDown = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 0, 0, 0, InputDevice.SOURCE_KEYBOARD)
-         val eventUp = KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 0, 0, 0, InputDevice.SOURCE_KEYBOARD)
+         // Use deviceId=1 (Spoof Hardware) + SHIFT
+         val eventDown = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
+         val eventUp = KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
          
          try {
             val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
