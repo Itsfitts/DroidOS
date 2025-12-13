@@ -1869,19 +1869,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
         val key = getProfileKey()
         
-        // 1. Trackpad Bounds
         p.putInt("X_$key", trackpadParams.x)
         p.putInt("Y_$key", trackpadParams.y)
         p.putInt("W_$key", trackpadParams.width)
         p.putInt("H_$key", trackpadParams.height)
         
-        // 2. Keyboard Bounds
+        // Save Keyboard Position & Size
         val kbX = keyboardOverlay?.getViewX() ?: 0
         val kbY = keyboardOverlay?.getViewY() ?: 0
-        val kbW = keyboardOverlay?.getWidth() ?: 500
-        val kbH = keyboardOverlay?.getHeight() ?: 350
+        val kbW = keyboardOverlay?.getViewWidth() ?: 0
+        val kbH = keyboardOverlay?.getViewHeight() ?: 0
         
-        // 3. Save Settings String
         val s = StringBuilder()
         s.append("${prefs.cursorSpeed};") // 0
         s.append("${prefs.scrollSpeed};") // 1
@@ -1920,7 +1918,6 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         showToast("Layout & Presets Saved") 
     }
 
-    // [REPLACE FUNCTION] loadLayout
     fun loadLayout() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         val key = getProfileKey()
@@ -1973,9 +1970,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         val kbY = parts[28].toInt()
                         val kbW = parts[29].toInt()
                         val kbH = parts[30].toInt()
-                        keyboardOverlay?.setWindowBounds(kbX, kbY, kbW, kbH)
+                        keyboardOverlay?.updatePosition(kbX, kbY)
+                        keyboardOverlay?.updateSize(kbW, kbH)
                     } else if (parts.size >= 29) {
-                        // Backward compatibility for profiles without width/height
+                        // Backward compatibility (Position only)
                         val kbX = parts[27].toInt()
                         val kbY = parts[28].toInt()
                         keyboardOverlay?.updatePosition(kbX, kbY)

@@ -14,21 +14,6 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import kotlin.math.max
 
-/*
- * ======================================================================================
- * CRITICAL REGRESSION CHECKLIST - KEYBOARD OVERLAY
- * ======================================================================================
- * 1. ROTATION LOGIC:
- * - `setRotation(angle)` MUST SWAP width/height for 90°/270° orientations.
- * - Child view translation (X/Y) is required to center the rotated view in the swapped window.
- * 2. WINDOW FLAGS: FLAG_LAYOUT_NO_LIMITS + LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES.
- * 3. INPUT INJECTION: Use shellService.injectKey / runCommand("input text").
- * 4. SCALING & RESIZING: updateScale modifies height. Resize handle works.
- * 5. ALPHA: Support independent opacity via updateAlpha().
- * 6. PRESETS: Support absolute positioning via setWindowBounds().
- * ======================================================================================
- */
-
 class KeyboardOverlay(
     private val context: Context,
     private val windowManager: WindowManager,
@@ -43,87 +28,79 @@ class KeyboardOverlay(
     private var keyboardParams: WindowManager.LayoutParams? = null
     private var isVisible = false
 
-    // =========================
-    // KEYBOARD OVERLAY STATE VARIABLES
-    // isAnchored blocks handle drag/resize when true
-    // =========================
+    // State Variables
     private var isMoving = false
     private var isResizing = false
-    private var isAnchored = false  // NEW: Anchor mode to disable handle drag/resize
+    private var isAnchored = false
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var initialWindowX = 0
     private var initialWindowY = 0
     private var initialWidth = 0
     private var initialHeight = 0
-    // =========================
-    // END STATE VARIABLES
-    // =========================
+
     private val TAG = "KeyboardOverlay"
+    
+    // FIX: Default height to WRAP_CONTENT (-2) to avoid cutting off rows
     private var keyboardWidth = 500
-    private var keyboardHeight = 260
+    private var keyboardHeight = WindowManager.LayoutParams.WRAP_CONTENT 
+    
     private var screenWidth = 720
     private var screenHeight = 748
     private var currentRotation = 0
     private var currentAlpha = 200
-    
     private var currentDisplayId = 0
 
     fun setScreenDimensions(width: Int, height: Int, displayId: Int = 0) {
         screenWidth = width
         screenHeight = height
         currentDisplayId = displayId
+        
         loadKeyboardSizeForDisplay(displayId)
+        
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         currentAlpha = prefs.getInt("keyboard_alpha", 200)
+        
+        // Only set defaults if nothing is saved
         if (!prefs.contains("keyboard_width_d$displayId")) {
             keyboardWidth = (width * 0.95f).toInt().coerceIn(300, 650)
-            keyboardHeight = (height * 0.36f).toInt().coerceIn(180, 320) 
+            // Keep height as WRAP_CONTENT by default
+            keyboardHeight = WindowManager.LayoutParams.WRAP_CONTENT
         }
     }
 
     fun updateScale(scale: Float) {
         if (keyboardView == null) return
         keyboardView?.setScale(scale)
-        val newHeight = (320 * scale).toInt().coerceAtLeast(180)
-        keyboardHeight = newHeight
+        
+        // If user scales, we might want to reset to WRAP_CONTENT to ensure fit,
+        // or calculate a minimum. For now, WRAP_CONTENT is safest.
+        keyboardHeight = WindowManager.LayoutParams.WRAP_CONTENT
+        
         if (isVisible && keyboardParams != null) {
-            keyboardParams?.height = newHeight
-            try { windowManager.updateViewLayout(keyboardContainer, keyboardParams); saveKeyboardSize() } catch (e: Exception) {}
+            keyboardParams?.height = keyboardHeight
+            try { 
+                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                saveKeyboardSize() 
+            } catch (e: Exception) {}
         }
     }
     
-    // --- RESTORED: Opacity Control ---
-    // =========================
-    // UPDATE ALPHA - Applies opacity to BOTH background container AND key views
-    // This allows users to see apps behind the keyboard
-    // Alpha range: 0-255 (0 = fully transparent, 255 = fully opaque)
-    // =========================
     fun updateAlpha(alpha: Int) {
         currentAlpha = alpha
         if (isVisible && keyboardContainer != null) {
-            // 1. Update background container opacity
             val bg = keyboardContainer?.background as? GradientDrawable
             if (bg != null) {
                 val fillColor = (alpha shl 24) or (0x1A1A1A)
                 bg.setColor(fillColor)
-                // Standard Grey Border
                 bg.setStroke(2, Color.parseColor("#44FFFFFF"))
             }
-            
-            // 2. Update KeyboardView (keys) opacity
-            // Convert 0-255 to 0.0-1.0 for View.setAlpha()
             val normalizedAlpha = alpha / 255f
             keyboardView?.alpha = normalizedAlpha
-            
             keyboardContainer?.invalidate()
         }
     }
-    // =========================
-    // END UPDATE ALPHA
-    // =========================
     
-    // --- RESTORED: Preset Positioning ---
     fun setWindowBounds(x: Int, y: Int, width: Int, height: Int) {
         keyboardWidth = width
         keyboardHeight = height
@@ -137,73 +114,98 @@ class KeyboardOverlay(
                 saveKeyboardPosition()
                 saveKeyboardSize()
             } catch (e: Exception) {}
+        } else {
+            // Even if hidden, save the new bounds so they apply on next show
+            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putInt("keyboard_x_d$currentDisplayId", x)
+                .putInt("keyboard_y_d$currentDisplayId", y)
+                .putInt("keyboard_width_d$currentDisplayId", width)
+                .putInt("keyboard_height_d$currentDisplayId", height)
+                .apply()
         }
     }
    
-
-// =========================
-    // SET ANCHORED - Called from OverlayService when anchor toggle changes
-    // Blocks keyboard handle drag/resize when true
-    // =========================
     fun setAnchored(anchored: Boolean) {
         isAnchored = anchored
     }
-    // =========================
-    // END SET ANCHORED
-    // =========================
 
-
-    // Helper to allow Service to set position during Profile Load
+    // Helper for OverlayService Profile Load
     fun updatePosition(x: Int, y: Int) {
-        if (keyboardContainer == null || keyboardParams == null) return
+        if (keyboardContainer == null || keyboardParams == null) {
+            // Save to prefs if hidden
+            context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+                .putInt("keyboard_x_d$currentDisplayId", x)
+                .putInt("keyboard_y_d$currentDisplayId", y)
+                .apply()
+            return
+        }
         keyboardParams?.x = x
         keyboardParams?.y = y
         try {
             windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-            
-            // Sync with local prefs
-            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            prefs.edit()
-                .putInt("keyboard_x_d${currentDisplayId}", x)
-                .putInt("keyboard_y_d${currentDisplayId}", y)
-                .apply()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+            saveKeyboardPosition()
+        } catch (e: Exception) { e.printStackTrace() }
     }
-    
-    // Helpers for SaveLayout
-    fun getViewX(): Int = keyboardParams?.x ?: 0
-    fun getViewY(): Int = keyboardParams?.y ?: 0
 
-
-    fun getWidth(): Int = keyboardWidth
-    fun getHeight(): Int = keyboardHeight
-    
-    fun setRotation(angle: Int) {
-        if (!isVisible || keyboardContainer == null || keyboardParams == null) {
-            currentRotation = angle 
+    // Helper for OverlayService Profile Load
+    fun updateSize(w: Int, h: Int) {
+        keyboardWidth = w
+        keyboardHeight = h
+        
+        if (keyboardContainer == null || keyboardParams == null) {
+            saveKeyboardSize()
             return
         }
-
+        keyboardParams?.width = w
+        keyboardParams?.height = h
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardSize()
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+    
+    // Robust Getters: Return live values if visible, otherwise return saved Prefs
+    fun getViewX(): Int {
+        if (keyboardParams != null) return keyboardParams!!.x
+        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            .getInt("keyboard_x_d$currentDisplayId", 0)
+    }
+    
+    fun getViewY(): Int {
+        if (keyboardParams != null) return keyboardParams!!.y
+        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            .getInt("keyboard_y_d$currentDisplayId", 0)
+    }
+    
+    fun getViewWidth(): Int = keyboardWidth
+    fun getViewHeight(): Int = keyboardHeight
+    
+    fun setRotation(angle: Int) {
         currentRotation = angle
+        if (!isVisible || keyboardContainer == null || keyboardParams == null) return
+
         val isPortrait = (angle == 90 || angle == 270)
-        
+        // If rotated, we swap dimension constraints roughly
         val targetW = if (isPortrait) keyboardHeight else keyboardWidth
         val targetH = if (isPortrait) keyboardWidth else keyboardHeight
         
-        keyboardParams?.width = targetW
-        keyboardParams?.height = targetH
+        // Use wrap content if dimensions are unset
+        keyboardParams?.width = if (targetW == -2) WindowManager.LayoutParams.WRAP_CONTENT else targetW
+        keyboardParams?.height = if (targetH == -2) WindowManager.LayoutParams.WRAP_CONTENT else targetH
         
         keyboardContainer?.rotation = angle.toFloat()
         
+        // Adjust inner view translation if needed
         if (keyboardView != null) {
             val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
             if (isPortrait) {
-                lp.width = keyboardWidth
-                lp.height = keyboardHeight
-                keyboardView?.translationX = (targetW - keyboardWidth) / 2f
-                keyboardView?.translationY = (targetH - keyboardHeight) / 2f
+                // This logic assumes fixed sizes. With WRAP_CONTENT it's tricky.
+                // Resetting to match parent is usually safest for rotation in this simple implementation
+                lp.width = FrameLayout.LayoutParams.WRAP_CONTENT
+                lp.height = FrameLayout.LayoutParams.WRAP_CONTENT
+                keyboardView?.translationX = 0f
+                keyboardView?.translationY = 0f
             } else {
                 lp.width = FrameLayout.LayoutParams.MATCH_PARENT
                 lp.height = FrameLayout.LayoutParams.MATCH_PARENT
@@ -219,7 +221,6 @@ class KeyboardOverlay(
     fun show() { 
         if (isVisible) return
         try { 
-            // FIX: Always reload alpha preference to ensure it applies current user settings
             val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
             currentAlpha = prefs.getInt("keyboard_alpha", 200)
 
@@ -229,7 +230,16 @@ class KeyboardOverlay(
         } catch (e: Exception) { Log.e(TAG, "Failed to show keyboard", e) } 
     }
     
-    fun hide() { if (!isVisible) return; try { windowManager.removeView(keyboardContainer); keyboardContainer = null; keyboardView = null; isVisible = false } catch (e: Exception) { Log.e(TAG, "Failed to hide keyboard", e) } }
+    fun hide() { 
+        if (!isVisible) return
+        try { 
+            windowManager.removeView(keyboardContainer)
+            keyboardContainer = null
+            keyboardView = null
+            isVisible = false 
+        } catch (e: Exception) { Log.e(TAG, "Failed to hide keyboard", e) } 
+    }
+    
     fun toggle() { if (isVisible) hide() else show() }
     fun isShowing(): Boolean = isVisible
 
@@ -241,8 +251,24 @@ class KeyboardOverlay(
     
     fun resizeWindow(dw: Int, dh: Int) {
          if (!isVisible || keyboardParams == null) return
-         keyboardParams!!.width = max(280, keyboardParams!!.width + dw); keyboardParams!!.height = max(180, keyboardParams!!.height + dh)
-         keyboardWidth = keyboardParams!!.width; keyboardHeight = keyboardParams!!.height
+         
+         // If current height is WRAP_CONTENT (-2), start from current measured height
+         var currentH = keyboardParams!!.height
+         if (currentH == WindowManager.LayoutParams.WRAP_CONTENT) {
+             currentH = keyboardContainer?.height ?: 260
+         }
+         
+         var currentW = keyboardParams!!.width
+         if (currentW == WindowManager.LayoutParams.WRAP_CONTENT) {
+             currentW = keyboardContainer?.width ?: 500
+         }
+
+         keyboardParams!!.width = max(280, currentW + dw)
+         keyboardParams!!.height = max(180, currentH + dh)
+         
+         keyboardWidth = keyboardParams!!.width
+         keyboardHeight = keyboardParams!!.height
+         
          try { windowManager.updateViewLayout(keyboardContainer, keyboardParams); saveKeyboardSize() } catch (e: Exception) {}
     }
 
@@ -252,7 +278,6 @@ class KeyboardOverlay(
         val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
         containerBg.setColor(fillColor)
         containerBg.cornerRadius = 16f
-        // Standard Grey Border
         containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
         keyboardContainer?.background = containerBg
         
@@ -262,16 +287,18 @@ class KeyboardOverlay(
         keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
         val scale = prefs.getInt("keyboard_key_scale", 100) / 100f; keyboardView?.setScale(scale)
         
-        // FIX: Apply transparency to the keys immediately
         keyboardView?.alpha = currentAlpha / 255f
         
         val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         kbParams.setMargins(6, 28, 6, 6)
         keyboardContainer?.addView(keyboardView, kbParams)
         addDragHandle(); addResizeHandle(); addCloseButton(); addTargetLabel()
+        
         val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
-        val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - keyboardHeight - 10)
-        // CHANGED: Revert to Accessibility Overlay
+        val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - 350 - 10)
+        
+        // FIX: Use variable keyboardHeight instead of hardcoded WRAP_CONTENT
+        // This ensures loaded profiles with specific sizes are respected.
         keyboardParams = WindowManager.LayoutParams(
             keyboardWidth, 
             keyboardHeight, 
@@ -279,6 +306,7 @@ class KeyboardOverlay(
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, 
             PixelFormat.TRANSLUCENT
         )
+        
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
              keyboardParams?.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
@@ -315,12 +343,8 @@ class KeyboardOverlay(
         keyboardContainer?.addView(label, labelParams)
     }
 
-    // =========================
-    // HANDLE DRAG - Processes keyboard overlay drag/move gestures
-    // Returns early if anchored to prevent accidental movement
-    // =========================
     private fun handleDrag(event: MotionEvent): Boolean {
-        if (isAnchored) return true  // Anchored: block drag
+        if (isAnchored) return true
         when (event.action) {
             MotionEvent.ACTION_DOWN -> { 
                 isMoving = true
@@ -343,16 +367,7 @@ class KeyboardOverlay(
         }
         return true
     }
-    // =========================
-    // END HANDLE DRAG
-    // =========================
 
-
-    // =========================
-    // HANDLE RESIZE - Processes keyboard overlay resize gestures
-    // Returns early if anchored to prevent accidental resizing
-    // MODIFIED: Snaps Height to Scale to wrap content perfectly
-    // =========================
     private fun handleResize(event: MotionEvent): Boolean {
         if (isAnchored) return true
         when (event.action) {
@@ -365,44 +380,13 @@ class KeyboardOverlay(
             }
             MotionEvent.ACTION_MOVE -> { 
                 if (isResizing) { 
-                    val dy = (event.rawY - initialTouchY).toInt()
-                    val dx = (event.rawX - initialTouchX).toInt()
+                    val newW = max(280, initialWidth + (event.rawX - initialTouchX).toInt())
+                    val newH = max(180, initialHeight + (event.rawY - initialTouchY).toInt())
                     
-                    // 1. Update Width normally
-                    val newWidth = max(280, initialWidth + dx)
-                    
-                    // 2. Calculate new Scale based on Height drag
-                    // Assume baseline height ~300px for 1.0 scale
-                    val currentScale = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).getInt("keyboard_key_scale", 100) / 100f
-                    val newTargetHeight = initialHeight + dy
-                    
-                    // Sensitivity factor: 400px height range corresponds to 0.5x - 2.0x scale
-                    val newScale = (newTargetHeight / 300f).coerceIn(0.5f, 2.0f)
-                    
-                    // 3. Update Keyboard with new scale
-                    keyboardView?.setScale(newScale)
-                    
-                    // 4. Update Window Params
-                    keyboardParams?.width = newWidth
-                    
-                    // SNAP HEIGHT to exact content size
-                    // We calculate what height the content *actually* needs at this scale
-                    // This prevents the window from being larger than the keys (whitespace)
-                    // or smaller than the keys (cutoff)
-                    // Base Height (approx 280dp) * Scale * Density
-                    val density = context.resources.displayMetrics.density
-                    val contentHeight = (280 * newScale * density).toInt() + 50 // + padding
-                    
-                    keyboardParams?.height = contentHeight
-                    
-                    keyboardWidth = newWidth
-                    keyboardHeight = contentHeight
-                    
-                    // Save Scale Pref immediately so it persists
-                    context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-                        .putInt("keyboard_key_scale", (newScale * 100).toInt())
-                        .apply()
-
+                    keyboardParams?.width = newW
+                    keyboardParams?.height = newH
+                    keyboardWidth = newW
+                    keyboardHeight = newH
                     try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} 
                 } 
             }
@@ -413,10 +397,6 @@ class KeyboardOverlay(
         }
         return true
     }
-    // =========================
-    // END HANDLE RESIZE
-    // =========================
-
 
     private fun saveKeyboardSize() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_width_d$currentDisplayId", keyboardWidth).putInt("keyboard_height_d$currentDisplayId", keyboardHeight).apply() }
     private fun saveKeyboardPosition() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_x_d$currentDisplayId", keyboardParams?.x ?: 0).putInt("keyboard_y_d$currentDisplayId", keyboardParams?.y ?: 0).apply() }
@@ -464,11 +444,14 @@ class KeyboardOverlay(
         if (shellService == null) return
         Thread {
             try {
+                // FIXED: Now relies on shellService.runCommand returning output
                 val output = shellService.runCommand("ime list -a -s")
                 val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) }
                     ?: output.lines().find { it.contains("voice", true) }
                 if (voiceIme != null) {
                     shellService.runCommand("ime set $voiceIme")
+                } else {
+                    Log.w(TAG, "Voice IME not found in output: $output")
                 }
             } catch (e: Exception) { Log.e(TAG, "Voice Switch Failed", e) }
         }.start()
