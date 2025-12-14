@@ -17,23 +17,25 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. AUTO-START CHECK
-        // If all permissions are already granted, start service and exit immediately.
+        // 1. AUTO-START CHECK (Instant)
         if (checkAllPermissions()) {
             startOverlayService()
             finish()
             return
         }
 
-        // 2. Show Landing Page (Only if permissions are missing)
+        // 2. Show Landing Page (Fallback)
         setContentView(R.layout.activity_main)
         setupUI()
 
-        // 3. Add Listener to detect Shizuku (if it starts late)
+        // 3. Add Listener: Auto-start immediately when Shizuku connects
         try {
             Shizuku.addBinderReceivedListener {
-                runOnUiThread {
-                    Toast.makeText(this, "Shizuku Connected!", Toast.LENGTH_SHORT).show()
+                if (checkAllPermissions()) {
+                    runOnUiThread {
+                        startOverlayService()
+                        finish()
+                    }
                 }
             }
         } catch (e: Throwable) {

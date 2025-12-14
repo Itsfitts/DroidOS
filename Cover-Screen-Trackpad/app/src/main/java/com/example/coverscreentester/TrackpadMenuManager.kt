@@ -217,7 +217,6 @@ class TrackpadMenuManager(
 
     // =========================
     // GET MAIN ITEMS - Generates main menu items list
-    // Includes Anchor toggle to lock trackpad/keyboard position
     // =========================
     private fun getMainItems(): List<TrackpadMenuAdapter.MenuItem> {
         val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
@@ -225,20 +224,27 @@ class TrackpadMenuManager(
         
         list.add(TrackpadMenuAdapter.MenuItem("MAIN CONTROLS", 0, TrackpadMenuAdapter.Type.HEADER))
         
-        // --- NEW SWITCH BUTTON ---
+        // --- COMMENTED OUT PER REQUEST ---
+        /*
         list.add(TrackpadMenuAdapter.MenuItem("Switch Screen (0 <-> 1)", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { 
             service.switchDisplay() 
             hide()
         })
-        // -------------------------
+        */
+        // ---------------------------------
 
         list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_myplaces, TrackpadMenuAdapter.Type.ACTION) { 
             service.resetBubblePosition()
             hide()
         })
         
+        // --- COMMENTED OUT PER REQUEST ---
+        /*
         list.add(TrackpadMenuAdapter.MenuItem("Move Trackpad Here", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { service.forceMoveToCurrentDisplay(); hide() })
-        list.add(TrackpadMenuAdapter.MenuItem("Target: ${if(service.inputTargetDisplayId == service.currentDisplayId) "Local" else "Remote"}", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) { service.cycleInputTarget(); loadTab(TAB_MAIN) })
+        */
+        
+        // Renamed: "Target: ..." -> "Toggle Remote Display"
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Remote Display", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) { service.cycleInputTarget(); loadTab(TAB_MAIN) })
         
         // --- ANCHOR TOGGLE: Locks trackpad and keyboard position/size ---
         list.add(TrackpadMenuAdapter.MenuItem("Anchor (Lock Position)", 
@@ -252,8 +258,12 @@ class TrackpadMenuManager(
         
         list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { service.toggleCustomKeyboard() })
         list.add(TrackpadMenuAdapter.MenuItem("Reset Cursor", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { service.resetCursorCenter() })
-        list.add(TrackpadMenuAdapter.MenuItem("Hide App", android.R.drawable.ic_menu_close_clear_cancel, TrackpadMenuAdapter.Type.ACTION) { service.hideApp() })
-        list.add(TrackpadMenuAdapter.MenuItem("Force Kill Service", android.R.drawable.ic_delete, TrackpadMenuAdapter.Type.ACTION) { service.forceExit() })
+        
+        // Renamed: "Hide App" -> "Hide All"
+        list.add(TrackpadMenuAdapter.MenuItem("Hide All", android.R.drawable.ic_menu_close_clear_cancel, TrackpadMenuAdapter.Type.ACTION) { service.hideApp() })
+        
+        // Renamed: "Force Kill Service" -> "Close/Restart App"
+        list.add(TrackpadMenuAdapter.MenuItem("Close/Restart App", android.R.drawable.ic_delete, TrackpadMenuAdapter.Type.ACTION) { service.forceExit() })
         return list
     }
     // =========================
@@ -415,7 +425,7 @@ class TrackpadMenuManager(
         "toggle_trackpad" to "Toggle Trackpad",
         "open_menu" to "Open Menu",
         "reset_cursor" to "Reset Cursor",
-        // NEW ACTIONS
+        "toggle_bubble" to "Launcher Bubble", // <--- NEW ITEM
         "action_back" to "Back",
         "action_home" to "Home",
         "action_forward" to "Forward (Browser)",

@@ -302,6 +302,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var volDownHoldTriggered = false
     private var volUpDragActive = false
     private var volDownDragActive = false
+    private var lastManualSwitchTime: Long = 0L
     
     private val volUpHoldRunnable = Runnable {
         volUpHoldTriggered = true
@@ -449,7 +450,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     override fun onInterrupt() {}
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (isPreviewMode || !isTrackpadVisible) return super.onKeyEvent(event)
+        // 1. Identify if this is a "Rescue" capable key (Volume Keys)
+        val isVolKey = event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
+        
+        // 2. Guard Clause:
+        // - If in Preview Mode: Block everything (pass to system)
+        // - If Trackpad is HIDDEN: Block everything EXCEPT Volume Keys
+        if (isPreviewMode || (!isTrackpadVisible && !isVolKey)) {
+            return super.onKeyEvent(event)
+        }
         
         val action = event.action
         val keyCode = event.keyCode
@@ -763,6 +772,24 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             "open_menu" -> if (isUp) menuManager?.toggle()
             "reset_cursor" -> if (isUp) resetCursorCenter()
             "display_wake" -> if (isUp && isScreenOff) { isScreenOff = false; Thread { try { shellService?.setBrightness(128); shellService?.setScreenOff(0, false) } catch (e: Exception) {} }.start(); showToast("Display Woken") }
+            
+            // "Launcher Bubble" Keybind Action - Force Toggle/Swap
+            "toggle_bubble" -> if (isUp) {
+                // Simply toggle between 0 and 1. 
+                // If we are on 1, go to 0. If on 0, go to 1.
+                // This guarantees movement if the user presses it.
+                val targetId = if (currentDisplayId == 0) 1 else 0
+                
+                try {
+                    showToast("Force Switch to $targetId")
+                    setupUI(targetId)
+                    resetBubblePosition()
+                    menuManager?.show()
+                    enforceZOrder()
+                } catch (e: Exception) {
+                    showToast("Error: ${e.message}")
+                }
+            }
         }
     }
 
@@ -1104,7 +1131,46 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun setPreviewMode(preview: Boolean) { isPreviewMode = preview; trackpadLayout?.alpha = if (preview) 0.5f else 1.0f }
     override fun onDisplayAdded(displayId: Int) {}
     override fun onDisplayRemoved(displayId: Int) {}
-    override fun onDisplayChanged(displayId: Int) {}
+    override fun onDisplayChanged(displayId: Int) {
+        // We only monitor the Main Screen (0) state changes to determine "Open/Closed"
+        if (displayId == 0) {
+            val display = displayManager?.getDisplay(0)
+            val isDebounced = (System.currentTimeMillis() - lastManualSwitchTime > 5000)
+            
+            if (display != null && isDebounced) {
+                // CASE A: Phone Opened (Display 0 turned ON) -> Move to Main (0)
+                if (display.state == Display.STATE_ON && currentDisplayId != 0) {
+                    handler.postDelayed({
+                        try {
+                            if (System.currentTimeMillis() - lastManualSwitchTime > 5000) {
+                                setupUI(0)
+                                resetBubblePosition()
+                                // showToast("Phone Opened: Moved to Main Screen") // Removed debug toast
+                            }
+                        } catch(e: Exception) {}
+                    }, 500)
+                }
+                // CASE B: Phone Closed (Display 0 turned OFF/DOZE) -> Move to Cover (1)
+                else if (display.state != Display.STATE_ON && currentDisplayId == 0) {
+                    handler.postDelayed({
+                        try {
+                            // Double-check state (ensure it didn't just flicker)
+                            val d0 = displayManager?.getDisplay(0)
+                            if (d0?.state != Display.STATE_ON && 
+                                System.currentTimeMillis() - lastManualSwitchTime > 5000) {
+                                
+                                setupUI(1)
+                                // We don't reset bubble pos here to avoid it jumping if you just locked the screen
+                                // But we do ensure menu is hidden if it was open
+                                menuManager?.hide() 
+                                // showToast("Phone Closed: Moved to Cover Screen") // Removed debug toast
+                            }
+                        } catch(e: Exception) {}
+                    }, 500)
+                }
+            }
+        }
+    }
     
     override fun onDestroy() { 
         super.onDestroy()
