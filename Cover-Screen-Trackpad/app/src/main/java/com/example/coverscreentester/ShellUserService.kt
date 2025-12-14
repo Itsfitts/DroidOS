@@ -269,35 +269,38 @@ class ShellUserService : IShellService.Stub() {
         if (!this::inputManager.isInitialized) return
         val now = SystemClock.uptimeMillis()
         
-        // CRITICAL UPDATE:
-        // Use standard injection for ALL IDs.
-        // We rely on the OverlayService to pass ID 1 for blocking triggers and ID -1 for text.
-        
-        val finalScanCode = if (deviceId >= 0) 1 else 0
-        val finalFlags = if (deviceId >= 0) 8 else 0 // 8 = FLAG_FROM_SYSTEM
+        // CRITICAL CONFIGURATION:
+        // Device ID = 1 (Mimics the "Hardware Keyboard" we use to block soft-kb)
+        // Scan Code = 0 (Generic/Ignore). Setting this to 1 caused the buffering/reject issue.
+        val forcedDeviceId = 1 
+        val finalScanCode = 0 
+        val finalFlags = 8 // FLAG_FROM_SYSTEM
         
         val event = KeyEvent(
             now, now, action, keyCode, 0, metaState, 
-            deviceId, finalScanCode, finalFlags, 
+            forcedDeviceId, finalScanCode, finalFlags, 
             InputDevice.SOURCE_KEYBOARD
         )
         
         try {
+            // Restore Display Targeting
+            // We MUST target the display where the user is looking.
             val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
             method.invoke(event, displayId)
+            
             injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
         } catch (e: Exception) {
+            // Fallback
             if (action == KeyEvent.ACTION_DOWN) execShell("input keyevent $keyCode")
         }
     }
 
     // Trigger to force system to update "Hardware Keyboard" status immediately
-    // UPDATED: Uses ID 1 (External) to be distinct from System ID 0.
     override fun injectDummyHardwareKey(displayId: Int) {
          if (!this::inputManager.isInitialized) return
          val now = SystemClock.uptimeMillis()
          
-         // Use ID 1 (Fake External Keyboard) + SHIFT
+         // Use SAME ID (1) as the text injection to maintain consistency
          val eventDown = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
          val eventUp = KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
          
