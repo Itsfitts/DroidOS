@@ -386,7 +386,6 @@ class TrackpadMenuManager(
 
     // =========================
     // GET TUNE ITEMS - Keyboard configuration settings
-    // Contains Keyboard Opacity, Scale, and Auto Display Off
     // =========================
     private fun getTuneItems(): List<TrackpadMenuAdapter.MenuItem> {
         val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
@@ -394,9 +393,22 @@ class TrackpadMenuManager(
         
         list.add(TrackpadMenuAdapter.MenuItem("KEYBOARD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
         
-        // NEW: Manual Soft Keyboard Blocker
         list.add(TrackpadMenuAdapter.MenuItem("Block Soft Keyboard", android.R.drawable.ic_lock_lock, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefBlockSoftKeyboard) 1 else 0) { v -> 
             service.updatePref("block_soft_kb", v) 
+        })
+
+        // NEW: Launch Proxy Activity for Picker
+        list.add(TrackpadMenuAdapter.MenuItem("Change Keyboard (System)", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
+            service.forceSystemKeyboardVisible()
+            hide() // Close menu
+            
+            try {
+                val intent = android.content.Intent(context, KeyboardPickerActivity::class.java)
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch(e: Exception) {
+                android.widget.Toast.makeText(context, "Error launching picker", android.widget.Toast.LENGTH_SHORT).show()
+            }
         })
         
         list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha, 255) { v -> service.updatePref("keyboard_alpha", v) })

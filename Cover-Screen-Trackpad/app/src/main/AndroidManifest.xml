@@ -66,6 +66,14 @@
             android:excludeFromRecents="true"
             android:noHistory="true" />
 
+        <activity
+            android:name=".KeyboardPickerActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance"
+            android:exported="false" />
+
         <service
             android:name=".OverlayService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"

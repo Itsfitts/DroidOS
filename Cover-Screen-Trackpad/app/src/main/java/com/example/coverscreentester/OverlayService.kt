@@ -127,8 +127,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // KEY INJECTION
     // =========================
     private fun injectKey(keyCode: Int, action: Int = KeyEvent.ACTION_DOWN, metaState: Int = 0) {
-        // Use Virtual ID (-1) for text to prevent buffering
-        shellService?.injectKey(keyCode, action, metaState, inputTargetDisplayId, -1)
+        // Dynamic Device ID:
+        // Blocking ON: Use 1 (Physical) to maintain "Hardware Keyboard" state.
+        // Blocking OFF: Use -1 (Virtual). ID 0 is often ignored by Gboard. -1 is standard software injection.
+        val deviceId = if (prefs.prefBlockSoftKeyboard) 1 else -1
+        shellService?.injectKey(keyCode, action, metaState, inputTargetDisplayId, deviceId)
     }
 
     // =========================
@@ -1238,6 +1241,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         Thread { shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1") }.start()
         try { unregisterReceiver(switchReceiver) } catch(e: Exception){}; 
         if (isBound) ShizukuBinder.unbind(ComponentName(packageName, ShellUserService::class.java.name), userServiceConnection) 
+    }
+
+    fun forceSystemKeyboardVisible() {
+        Thread {
+            try {
+                // Force setting to 1 (Show)
+                shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
+            } catch(e: Exception) {}
+        }.start()
     }
 
     private fun showToast(msg: String) { handler.post { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show() } }
