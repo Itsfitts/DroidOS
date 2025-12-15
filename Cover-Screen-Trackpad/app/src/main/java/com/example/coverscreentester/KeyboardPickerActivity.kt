@@ -10,42 +10,51 @@ import android.view.inputmethod.InputMethodManager
 
 class KeyboardPickerActivity : Activity() {
     
-    private var isPickerLaunched = false
+    private var hasLaunchedPicker = false
+    private var pickerWasOpened = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 1. Set a transparent view to ensure window attachment
+        // Transparent touchable view
         val view = View(this)
-        view.setBackgroundColor(0x00000000) // Fully transparent
+        view.setBackgroundColor(0x00000000) 
         view.isClickable = true
-        // Close if user taps the empty space (cancelled picker)
+        
+        // Safety Net: If logic fails, user can tap screen to close
         view.setOnClickListener { finish() }
         setContentView(view)
+        
+        // Launch picker after window is ready
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (!isFinishing) launchPicker()
+        }, 300)
     }
 
-    override fun onResume() {
-        super.onResume()
+    private fun launchPicker() {
+        if (hasLaunchedPicker) return
+        try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showInputMethodPicker()
+            hasLaunchedPicker = true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            finish()
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
         
-        // 2. Launch Picker only once, slightly delayed to ensure Window Focus
-        if (!isPickerLaunched) {
-            Handler(Looper.getMainLooper()).postDelayed({
-                try {
-                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showInputMethodPicker()
-                    isPickerLaunched = true
-                    
-                    // 3. Close self after a delay allows the dialog to take over
-                    // If we close too fast, the system dialog might be cancelled.
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        finish()
-                    }, 1000)
-                    
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    finish()
-                }
-            }, 200)
+        if (hasLaunchedPicker) {
+            if (!hasFocus) {
+                // We lost focus -> The Picker Dialog is now showing
+                pickerWasOpened = true
+            } else if (hasFocus && pickerWasOpened) {
+                // We regained focus -> The Picker Dialog just closed
+                // We are done.
+                finish()
+            }
         }
     }
 }
