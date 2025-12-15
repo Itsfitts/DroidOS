@@ -159,59 +159,86 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         Thread {
             try {
+                // 1. Find correct ID dynamically
+                val listOutput = shellService?.runCommand("ime list -a -s") ?: ""
+                val myImeId = listOutput.lines().firstOrNull { 
+                    it.contains(packageName) && it.contains("NullInputMethodService") 
+                }?.trim()
+
+                if (myImeId.isNullOrEmpty()) {
+                    handler.post { showToast("Error: Null Keyboard not found. Please re-install.") }
+                    return@Thread
+                }
+
                 if (enabled) {
-                    // --- BLOCKING LOGIC ---
+                    // --- BLOCKING (Switch to Null) ---
                     
-                    // 1. Save current IME (if it's not us/null)
-                    val output = shellService?.runCommand("settings get secure default_input_method") ?: ""
-                    val current = output.trim()
-                    
-                    // Don't save if we are already the null keyboard (prevents overwriting the backup)
+                    // Save current (if not us)
+                    val current = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
                     if (current.isNotEmpty() && !current.contains("NullInputMethodService")) {
                         previousImeId = current
                     }
 
-                    // 2. Enable & Set Null Keyboard
-                    val myImeId = "$packageName/.NullInputMethodService"
+                    // Attempt Shell Switch
                     shellService?.runCommand("ime enable $myImeId")
                     shellService?.runCommand("ime set $myImeId")
-                    
-                    // 3. Optional: Ensure hard keyboard setting doesn't fight us
-                    // (Actually, keeping it 0 is safer while blocked)
                     shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
+
+                    // Verify & Fallback
+                    Thread.sleep(500)
+                    val newDefault = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
                     
-                    handler.post { showToast("Keyboard Blocked (Null IME)") }
+                    if (newDefault.contains("NullInputMethodService")) {
+                        handler.post { showToast("Blocked: Null Keyboard Active") }
+                    } else {
+                        // FALLBACK: Open Picker
+                        handler.post { 
+                            showToast("Select 'DroidOS Null Keyboard'")
+                            try {
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                                imm.showInputMethodPicker()
+                            } catch(e: Exception){}
+                        }
+                    }
                     
                 } else {
-                    // --- RESTORE LOGIC ---
+                    // --- UNBLOCKING (Restore Gboard) ---
                     
-                    // 1. CRITICAL: Force System to Show Soft Keyboard
-                    // This fixes the issue where Gboard is selected but stays hidden
                     shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
                     
-                    // 2. Determine target IME
+                    // Determine Target
                     var targetIme = previousImeId
-                    
-                    // Fallback: If we lost the ID, try to find Gboard or Samsung
                     if (targetIme.isNullOrEmpty()) {
                         val list = shellService?.runCommand("ime list -s") ?: ""
-                        targetIme = list.lines().firstOrNull { it.contains("com.google.android.inputmethod.latin") } // Gboard
-                            ?: list.lines().firstOrNull { it.contains("com.sec.android.inputmethod") } // Samsung
-                            ?: list.lines().firstOrNull { it.contains("com.samsung.android.honeyboard") } // Samsung Newer
+                        targetIme = list.lines().firstOrNull { it.contains("com.google.android.inputmethod.latin") } 
+                            ?: list.lines().firstOrNull { it.contains("com.sec.android.inputmethod") }
+                            ?: list.lines().firstOrNull { it.contains("honeyboard") }
                     }
 
-                    // 3. Apply Restore
                     if (!targetIme.isNullOrEmpty()) {
+                        // Try Broadcast first (Clean Handoff)
+                        val intent = Intent("com.example.coverscreentester.RESTORE_IME")
+                        intent.setPackage(packageName)
+                        intent.putExtra("target_ime", targetIme)
+                        sendBroadcast(intent)
+                        
+                        // Blast Shell too just in case
+                        shellService?.runCommand("ime enable $targetIme")
                         shellService?.runCommand("ime set $targetIme")
+                        
                         handler.post { showToast("Restored: $targetIme") }
                     } else {
-                        // Last Resort: Reset prompts the picker
-                        shellService?.runCommand("ime reset")
-                        handler.post { showToast("Keyboard Reset (Check Settings)") }
+                        handler.post { 
+                            showToast("Select your normal keyboard")
+                            try {
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                                imm.showInputMethodPicker()
+                            } catch(e: Exception){}
+                        }
                     }
                 }
             } catch (e: Exception) {
-                handler.post { showToast("Keyboard Toggle Failed: ${e.message}") }
+                handler.post { showToast("Error: ${e.message}") }
             }
         }.start()
     }
@@ -1226,10 +1253,28 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     fun injectKeyFromKeyboard(keyCode: Int, metaState: Int) {
         Thread {
             try {
-                injectKey(keyCode, KeyEvent.ACTION_DOWN, metaState)
-                Thread.sleep(20)
-                injectKey(keyCode, KeyEvent.ACTION_UP, metaState)
-            } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
+                // 1. CHECK ACTUAL SYSTEM STATE
+                // Don't trust our internal boolean. Trust the Android Settings.
+                val currentIme = android.provider.Settings.Secure.getString(contentResolver, "default_input_method") ?: ""
+                val isNullKeyboardActive = currentIme.contains(packageName) && currentIme.contains("NullInputMethodService")
+
+                if (isNullKeyboardActive) {
+                    // STRATEGY A: NATIVE (Cleanest)
+                    // Only works if we successfully switched to our keyboard
+                    val intent = Intent("com.example.coverscreentester.INJECT_KEY")
+                    intent.setPackage(packageName)
+                    intent.putExtra("keyCode", keyCode)
+                    sendBroadcast(intent)
+                } else {
+                    // STRATEGY B: SHIZUKU INJECTION (Fallback / Gboard Active)
+                    // Works even if switching failed. Uses Device ID 1 to mimic hardware.
+                    shellService?.injectKey(keyCode, KeyEvent.ACTION_DOWN, metaState, inputTargetDisplayId, 1)
+                    Thread.sleep(10)
+                    shellService?.injectKey(keyCode, KeyEvent.ACTION_UP, metaState, inputTargetDisplayId, 1)
+                }
+            } catch (e: Exception) { 
+                Log.e(TAG, "Key injection failed", e) 
+            }
         }.start()
     }
 
