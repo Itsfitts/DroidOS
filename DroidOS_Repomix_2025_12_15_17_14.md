@@ -162,6 +162,7 @@ Cover-Screen-Trackpad/
                 KeyboardActivity.kt
                 KeyboardManager.kt
                 KeyboardOverlay.kt
+                KeyboardPickerActivity.kt
                 KeyboardUtils.kt
                 KeyboardView.kt
                 MainActivity.kt
@@ -240,25 +241,15 @@ Cover-Screen-Trackpad/
   README.md
   settings.gradle.kts
 CHANGELOG.md
-cleanup_ui_and_toasts.md
 cover_recording.mp4
-fix_keyboard_buffering.md
-fix_keyboard_clean_handoff.md
-fix_keyboard_global_focus.md
-fix_keyboard_pm_disable.md
-fix_keyboard_restore_aggressive.md
-fix_keyboard_scancode.md
-fix_restore_keyboard.md
 GEMINI.md
-implement_null_keyboard.md
 README.md
-update_help_text.md
 ```
 
 # Files
 
 ## File: .claude/settings.local.json
-````json
+```json
 {
   "permissions": {
     "allow": [
@@ -267,10 +258,10 @@ update_help_text.md
     ]
   }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/IconPickerActivity.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.app.Activity
@@ -311,10 +302,10 @@ class IconPickerActivity : ComponentActivity() {
         }
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.content.Intent
@@ -368,10 +359,10 @@ class MainActivity : AppCompatActivity() {
         finish() 
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MenuActivity.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.app.Activity
@@ -517,10 +508,10 @@ class MenuActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
         Shizuku.removeRequestPermissionResultListener(this)
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/QuadrantActivity.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.app.Activity
@@ -713,10 +704,10 @@ class QuadrantActivity : AppCompatActivity() {
         }
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShizukuBinder.java
-````java
+```java
 package com.example.quadrantlauncher;
 
 import android.content.ComponentName;
@@ -743,10 +734,10 @@ public class ShizukuBinder {
         Shizuku.unbindUserService(args, connection, true); 
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShizukuHelper.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.content.pm.PackageManager
@@ -820,10 +811,10 @@ object ShizukuHelper {
         runShellCommand("am force-stop $packageName")
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/SplitActivity.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.app.Activity
@@ -1031,10 +1022,10 @@ class SplitActivity : AppCompatActivity() {
         }
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/TriSplitActivity.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.app.Activity
@@ -1202,36 +1193,36 @@ class TriSplitActivity : AppCompatActivity() {
         }
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/bg_bubble.xml
-````xml
+```xml
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
     <solid android:color="#444444"/>
     <stroke android:width="2dp" android:color="#888888"/>
 </shape>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/bg_drawer.xml
-````xml
+```xml
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="#2D2D2D"/>
     <corners android:radius="16dp"/>
     <stroke android:width="1dp" android:color="#444444"/>
 </shape>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/bg_item_active.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="#00A0E9"/>
     <corners android:radius="8dp"/>
 </shape>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/bg_item_press.xml
-````xml
+```xml
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
@@ -1245,10 +1236,10 @@ class TriSplitActivity : AppCompatActivity() {
         </shape>
     </item>
 </selector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_box_outline.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -1260,18 +1251,18 @@ class TriSplitActivity : AppCompatActivity() {
         android:strokeWidth="2"
         android:pathData="M3,3h18v18H3z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_cover_final_scale.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/wolf_cover_icon"
     android:inset="70dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_launcher_foreground_scaled.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/ic_launcher"
@@ -1279,10 +1270,10 @@ class TriSplitActivity : AppCompatActivity() {
     android:insetRight="15dp"
     android:insetTop="15dp"
     android:insetBottom="15dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_lock_closed.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -1293,10 +1284,10 @@ class TriSplitActivity : AppCompatActivity() {
       android:fillColor="#FFFFFFFF"
       android:pathData="M18,8h-1V6c0,-2.76 -2.24,-5 -5,-5S7,3.24 7,6v2H6c-1.1,0 -2,0.9 -2,2v10c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V10C20,8.9 19.1,8 18,8zM12,17c-1.1,0 -2,-0.9 -2,-2c0,-1.1 0.9,-2 2,-2s2,0.9 2,2C14,16.1 13.1,17 12,17zM9,8V6c0,-1.66 1.34,-3 3,-3s3,1.34 3,3v2H9z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_lock_open.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -1307,10 +1298,10 @@ class TriSplitActivity : AppCompatActivity() {
       android:fillColor="#FFFFFFFF"
       android:pathData="M12,17c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2s-2,0.9 -2,2S10.9,17 12,17zM18,8h-1V6c0,-2.76 -2.24,-5 -5,-5S7,3.24 7,6h1.9c0,-1.71 1.39,-3.1 3.1,-3.1c1.71,0 3.1,1.39 3.1,3.1v2H6c-1.1,0 -2,0.9 -2,2v10c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V10C20,8.9 19.1,8 18,8z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_mode_dpi.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -1320,10 +1311,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:fillColor="#FFFFFF"
         android:pathData="M17,2H7C5.9,2 5,2.9 5,4v16c0,1.1 0.9,2 2,2h10c1.1,0 2,-0.9 2,-2V4C19,2.9 18.1,2 17,2z M17,20H7V4h10V20z M9,6h6v2H9V6z M9,10h6v2H9V10z M9,14h6v2H9V14z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_mode_profiles.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -1333,10 +1324,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:fillColor="#FFFFFF"
         android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,5c1.66,0 3,1.34 3,3s-1.34,3 -3,3 -3,-1.34 -3,-3 1.34,-3 3,-3zM12,19.2c-2.5,0 -4.71,-1.28 -6,-3.22 0.03,-1.99 4,-3.08 6,-3.08 1.99,0 5.97,1.09 6,3.08 -1.29,1.94 -3.5,3.22 -6,3.22z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_mode_resolution.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -1346,34 +1337,34 @@ class TriSplitActivity : AppCompatActivity() {
         android:fillColor="#FFFFFF"
         android:pathData="M21,4H3C2.45,4 2,4.45 2,5v14c0,0.55 0.45,1 1,1h18c0.55,0 1,-0.45 1,-1V5C22,4.45 21.55,4 21,4z M20,18H4V6h16V18z M5.5,7h2v2h-2V7z M8.5,7h2v2h-2V7z M5.5,10h2v2h-2V10z M8.5,10h2v2h-2V10z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_scaler_bubble.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/img_wolf_logo"
     android:inset="35dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_scaler_cover_final.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/wolf_cover_icon"
     android:inset="80dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_scaler_cover_tiny.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/img_wolf_logo"
     android:inset="65dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_star_border.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -1384,10 +1375,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:fillColor="#888888"
         android:pathData="M22,9.24l-7.19,-0.62L12,2 9.19,8.63 2,9.24l5.46,4.73L5.82,21 12,17.27 18.18,21l-1.63,-7.03L22,9.24zM12,15.4l-3.76,2.27 1,-4.28 -3.32,-2.88 4.38,-0.38L12,6.1l1.71,4.01 4.38,0.38 -3.32,2.88 1,4.28L12,15.4z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_star_filled.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -1398,58 +1389,58 @@ class TriSplitActivity : AppCompatActivity() {
         android:fillColor="#FFD700"
         android:pathData="M12,17.27L18.18,21l-1.64,-7.03L22,9.24l-7.19,-0.61L12,2 9.19,8.63 2,9.24l5.46,4.73L5.82,21z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_window_split.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
     <path android:fillColor="#FFFFFF" android:pathData="M4,4h16v16H4V4z M12,4v16 M4,12h16"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_wolf_cover.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/img_wolf_logo"
     android:inset="80dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_wolf_main.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/img_wolf_logo"
     android:inset="25dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/scaler_bubble.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/img_wolf_logo"
     android:inset="120dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/scaler_cover.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/img_wolf_logo"
     android:inset="120dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/drawable/scaler_main.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/img_wolf_logo"
     android:inset="20dp" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_main.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -1529,10 +1520,10 @@ class TriSplitActivity : AppCompatActivity() {
     </FrameLayout>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_menu.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -1568,10 +1559,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:text="3-App Split-Screen (Row)" />
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_quadrant.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -1617,10 +1608,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:layout_height="wrap_content"
         android:text="LAUNCH"
         style="@style/Widget.AppCompat.Button.Colored" /> </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_split.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -1657,10 +1648,10 @@ class TriSplitActivity : AppCompatActivity() {
         style="@style/Widget.AppCompat.Button.Colored" />
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_tri_split.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -1702,10 +1693,10 @@ class TriSplitActivity : AppCompatActivity() {
         style="@style/Widget.AppCompat.Button.Colored" />
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_app_rofi.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -1739,10 +1730,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:visibility="gone" />
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_custom_resolution.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -1798,10 +1789,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:background="?attr/selectableItemBackgroundBorderless"/>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_font_size.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -1855,10 +1846,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:background="?attr/selectableItemBackgroundBorderless"/>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_height_setting.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -1912,10 +1903,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:background="?attr/selectableItemBackgroundBorderless"/>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_icon_setting.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -1944,10 +1935,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:clipToOutline="true"/>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_layout_option.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/layout_option_container"
@@ -2000,10 +1991,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:focusable="true" />
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_profile_rich.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -2063,10 +2054,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:textSize="12sp" />
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_selected_app.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="48dp"
@@ -2082,10 +2073,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:padding="2dp"
         android:clipToOutline="true"/>
 </FrameLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_width_setting.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -2139,10 +2130,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:background="?attr/selectableItemBackgroundBorderless"/>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/layout_bubble.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="60dp"
@@ -2158,10 +2149,10 @@ class TriSplitActivity : AppCompatActivity() {
         android:src="@mipmap/ic_launcher_round" 
         android:clipToOutline="true"/>
 </FrameLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/layout_rofi_drawer.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -2302,10 +2293,10 @@ class TriSplitActivity : AppCompatActivity() {
 
     </LinearLayout>
 </FrameLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/list_item_app.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -2334,91 +2325,91 @@ class TriSplitActivity : AppCompatActivity() {
         android:text="App Name" />
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/mipmap-anydpi-v26/ic_bubble_icon.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/black" />
     <foreground android:drawable="@drawable/ic_scaler_bubble" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/mipmap-anydpi-v26/ic_bubble.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/black" />
     <foreground android:drawable="@drawable/scaler_bubble" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/mipmap-anydpi-v26/ic_cover_tiny.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/black" />
     <foreground android:drawable="@drawable/ic_scaler_cover_tiny" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/mipmap-anydpi-v26/ic_cover_v2.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/black" />
     <foreground android:drawable="@drawable/scaler_cover" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/mipmap-anydpi-v26/ic_launcher_adaptive.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@android:color/black" />
     <foreground android:drawable="@drawable/ic_launcher_foreground_scaled" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/mipmap-anydpi-v26/ic_launcher_cover_final.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/black" />
     <foreground android:drawable="@drawable/ic_scaler_cover_final" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/black" />
     <foreground android:drawable="@drawable/ic_wolf_cover" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/black" />
     <foreground android:drawable="@drawable/ic_wolf_main" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/values/colors.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/values/themes.xml
-````xml
+```xml
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.QuadrantLauncher" parent="Theme.Material3.DayNight.NoActionBar">
@@ -2428,10 +2419,10 @@ class TriSplitActivity : AppCompatActivity() {
 
     <style name="Theme.QuadrantLauncher" parent="Base.Theme.QuadrantLauncher" />
 </resources>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/values-night/themes.xml
-````xml
+```xml
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.QuadrantLauncher" parent="Theme.Material3.DayNight.NoActionBar">
@@ -2439,10 +2430,10 @@ class TriSplitActivity : AppCompatActivity() {
         <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
     </style>
 </resources>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/xml/accessibility_service_config.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
@@ -2453,10 +2444,10 @@ class TriSplitActivity : AppCompatActivity() {
     android:canPerformGestures="true" 
     android:canRequestFilterKeyEvents="true" 
     android:accessibilityFlags="flagRequestTouchExplorationMode|flagRequestFilterKeyEvents|flagRetrieveInteractiveWindows" />
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/xml/backup_rules.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?><!--
    Sample backup rules file; uncomment and customize as necessary.
    See https://developer.android.com/guide/topics/data/autobackup
@@ -2470,10 +2461,10 @@ class TriSplitActivity : AppCompatActivity() {
    <exclude domain="sharedpref" path="device.xml"/>
 -->
 </full-backup-content>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/xml/data_extraction_rules.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?><!--
    Sample data extraction rules file; uncomment and customize as necessary.
    See https://developer.android.com/about/versions/12/backup-restore#xml-changes
@@ -2493,22 +2484,22 @@ class TriSplitActivity : AppCompatActivity() {
     </device-transfer>
     -->
 </data-extraction-rules>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/.gitignore
-````
+```
 /build
-````
+```
 
 ## File: Cover-Screen-Launcher/app/proguard-rules.pro
-````
+```
 -keep class com.example.quadrantlauncher.ShellUserService { *; }
 -keep class com.example.quadrantlauncher.IShellService { *; }
 -keep interface com.example.quadrantlauncher.IShellService { *; }
-````
+```
 
 ## File: Cover-Screen-Launcher/gradle/wrapper/gradle-wrapper.properties
-````
+```
 #Fri Nov 14 06:51:56 EST 2025
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
@@ -2517,10 +2508,10 @@ networkTimeout=10000
 validateDistributionUrl=true
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
-````
+```
 
 ## File: Cover-Screen-Launcher/gradle/libs.versions.toml
-````toml
+```toml
 [versions]
 agp = "8.13.1"
 kotlin = "2.0.21"
@@ -2546,10 +2537,10 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-````
+```
 
 ## File: Cover-Screen-Launcher/.gitignore
-````
+```
 *.iml
 .gradle
 /local.properties
@@ -2574,26 +2565,26 @@ local.properties
 /captures
 .externalNativeBuild
 .cxx
-````
+```
 
 ## File: Cover-Screen-Launcher/build.gradle.kts
-````
+```
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/gradle.properties
-````
+```
 org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
 android.useAndroidX=true
 android.aapt2FromMavenOverride=/data/data/com.termux/files/usr/bin/aapt2
-````
+```
 
 ## File: Cover-Screen-Launcher/gradlew
-````
+```
 #!/bin/sh
 
 #
@@ -2845,10 +2836,10 @@ eval "set -- $(
     )" '"$@"'
 
 exec "$JAVACMD" "$@"
-````
+```
 
 ## File: Cover-Screen-Launcher/gradlew.bat
-````
+```
 @rem
 @rem Copyright 2015 the original author or authors.
 @rem
@@ -2943,15 +2934,15 @@ exit /b %EXIT_CODE%
 if "%OS%"=="Windows_NT" endlocal
 
 :omega
-````
+```
 
 ## File: Cover-Screen-Launcher/multidex-keep.txt
-````
+```
 rikka/shizuku/
-````
+```
 
 ## File: Cover-Screen-Launcher/README.md
-````markdown
+```markdown
 # CoverScreen Launcher & Tiling Manager
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-blue.svg) ![Platform](https://img.shields.io/badge/Platform-Android%2014%2B-green.svg) ![Status](https://img.shields.io/badge/Status-Experimental-orange.svg)
@@ -3052,10 +3043,10 @@ Pull requests are welcome!
 ## 📄 License
 
 [MIT License](LICENSE)
-````
+```
 
 ## File: Cover-Screen-Launcher/settings.gradle.kts
-````
+```
 pluginManagement {
     repositories {
         google {
@@ -3083,10 +3074,10 @@ rootProject.name = "CoverScreenLauncher"
 include(":app")
 
 // DELETE ALL LINES BELOW THIS ONE
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardActivity.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.app.Activity
@@ -3162,10 +3153,10 @@ class KeyboardActivity : Activity() {
         sendBroadcast(intent)
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardUtils.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.view.KeyEvent
@@ -3247,10 +3238,10 @@ object KeyboardUtils {
         KeyDef("►", KEY_RIGHT)
     )
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ProfilesActivity.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.app.Activity
@@ -3348,10 +3339,10 @@ class ProfilesActivity : Activity() {
         tvList.text = sb.toString()
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShizukuBinder.java
-````java
+```java
 package com.example.coverscreentester;
 
 import android.content.ComponentName;
@@ -3378,19 +3369,19 @@ public class ShizukuBinder {
         Shizuku.unbindUserService(args, connection, true); 
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/bg_item_active.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="#00A0E9"/>
     <corners android:radius="8dp"/>
 </shape>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/bg_item_press.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
@@ -3405,10 +3396,10 @@ public class ShizukuBinder {
         </shape>
     </item>
 </selector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_cursor.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -3420,10 +3411,10 @@ public class ShizukuBinder {
         android:strokeWidth="1"
         android:pathData="M7,2L19,13L12,13L11,20L7,2Z" />
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_launcher_background.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -3594,10 +3585,10 @@ public class ShizukuBinder {
         android:strokeWidth="0.8"
         android:strokeColor="#33FFFFFF" />
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_launcher_foreground.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -3628,10 +3619,10 @@ public class ShizukuBinder {
         android:strokeWidth="1"
         android:strokeColor="#00000000" />
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_lock_closed.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -3642,10 +3633,10 @@ public class ShizukuBinder {
       android:fillColor="#FFFFFFFF"
       android:pathData="M18,8h-1V6c0,-2.76 -2.24,-5 -5,-5S7,3.24 7,6v2H6c-1.1,0 -2,0.9 -2,2v10c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V10C20,8.9 19.1,8 18,8zM12,17c-1.1,0 -2,-0.9 -2,-2c0,-1.1 0.9,-2 2,-2s2,0.9 2,2C14,16.1 13.1,17 12,17zM9,8V6c0,-1.66 1.34,-3 3,-3s3,1.34 3,3v2H9z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_lock_open.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -3656,10 +3647,10 @@ public class ShizukuBinder {
       android:fillColor="#FFFFFFFF"
       android:pathData="M12,17c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2s-2,0.9 -2,2S10.9,17 12,17zM18,8h-1V6c0,-2.76 -2.24,-5 -5,-5S7,3.24 7,6h1.9c0,-1.71 1.39,-3.1 3.1,-3.1c1.71,0 3.1,1.39 3.1,3.1v2H6c-1.1,0 -2,0.9 -2,2v10c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V10C20,8.9 19.1,8 18,8z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/red_border.xml
-````xml
+```xml
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <stroke
@@ -3667,10 +3658,10 @@ public class ShizukuBinder {
         android:color="#80FF0000" />
     <solid android:color="#00000000" />
 </shape>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_keyboard.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -3741,10 +3732,10 @@ public class ShizukuBinder {
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_menu.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -3777,10 +3768,10 @@ public class ShizukuBinder {
         android:enabled="false" />
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_profiles.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -3880,10 +3871,10 @@ public class ShizukuBinder {
 
     </LinearLayout>
 </ScrollView>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -3926,10 +3917,10 @@ public class ShizukuBinder {
 
     </LinearLayout>
 </FrameLayout>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/service_overlay.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -3954,74 +3945,74 @@ public class ShizukuBinder {
         android:textColor="#FFFFFF" />
 
 </FrameLayout>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
     <monochrome android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
     <monochrome android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/mipmap-anydpi-v26/ic_trackpad_adaptive.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@android:color/black" />
     <foreground android:drawable="@drawable/ic_trackpad_foreground_scaled" />
 </adaptive-icon>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/values/colors.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/values/strings.xml
-````xml
+```xml
 <resources>
     <string name="app_name">DroidOS Trackpad</string>
     <string name="accessibility_service_description">DroidOS Input Service</string>
 </resources>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/values/themes.xml
-````xml
+```xml
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Base.Theme.CoverScreenTester" parent="Theme.Material3.DayNight.NoActionBar">
     </style>
 
     <style name="Theme.CoverScreenTester" parent="Base.Theme.CoverScreenTester" />
 </resources>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/values-night/themes.xml
-````xml
+```xml
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Base.Theme.CoverScreenTester" parent="Theme.Material3.DayNight.NoActionBar">
         </style>
 </resources>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/xml/accessibility_service_config.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
@@ -4032,29 +4023,29 @@ public class ShizukuBinder {
     android:canPerformGestures="false" 
     android:canRequestFilterKeyEvents="true" 
     android:accessibilityFlags="flagRequestTouchExplorationMode|flagRequestFilterKeyEvents" />
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/xml/backup_rules.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?><full-backup-content>
     </full-backup-content>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/xml/data_extraction_rules.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?><data-extraction-rules>
     <cloud-backup>
         </cloud-backup>
     </data-extraction-rules>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/.gitignore
-````
+```
 /build
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/proguard-rules.pro
-````
+```
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.
@@ -4076,10 +4067,10 @@ public class ShizukuBinder {
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
-````
+```
 
 ## File: Cover-Screen-Trackpad/gradle/wrapper/gradle-wrapper.properties
-````
+```
 #Fri Nov 21 07:45:00 EST 2025
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
@@ -4088,10 +4079,10 @@ networkTimeout=10000
 validateDistributionUrl=true
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
-````
+```
 
 ## File: Cover-Screen-Trackpad/gradle/libs.versions.toml
-````toml
+```toml
 [versions]
 agp = "8.13.1"
 kotlin = "1.9.23"
@@ -4121,10 +4112,10 @@ shizuku-aidl = { group = "dev.rikka.shizuku", name = "aidl", version.ref = "shiz
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-````
+```
 
 ## File: Cover-Screen-Trackpad/.gitignore
-````
+```
 *.iml
 .gradle
 /local.properties
@@ -4140,26 +4131,26 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 .externalNativeBuild
 .cxx
 local.properties
-````
+```
 
 ## File: Cover-Screen-Trackpad/build.gradle.kts
-````
+```
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/gradle.properties
-````
+```
 org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8
 android.useAndroidX=true
 android.aapt2FromMavenOverride=/data/data/com.termux/files/usr/bin/aapt2
-````
+```
 
 ## File: Cover-Screen-Trackpad/gradlew
-````
+```
 #!/bin/sh
 APP_HOME=${0%/*}
 APP_NAME=$(basename $0)
@@ -4176,10 +4167,10 @@ if [ ! -x "$JAVA_EXE" ] ; then
 fi
 CLASSPATH="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
 exec "$JAVA_EXE" -Dorg.gradle.appname="$APP_BASE_NAME" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
-````
+```
 
 ## File: Cover-Screen-Trackpad/gradlew.bat
-````
+```
 @if "%DEBUG%"=="" @echo off
 setlocal
 set DIRNAME=%~dp0
@@ -4190,10 +4181,10 @@ if defined JAVA_HOME set JAVA_EXE="%JAVA_HOME%\bin\java.exe"
 set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
 "%JAVA_EXE%" -Dorg.gradle.appname=%~n0 -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %*
 endlocal
-````
+```
 
 ## File: Cover-Screen-Trackpad/README.md
-````markdown
+```markdown
 # CoverScreen Trackpad 🖱️
 
 **Turn your Samsung Flip cover screen into a fully functional mouse trackpad.**
@@ -4246,10 +4237,10 @@ Open the app menu (Bottom-Left handle) to configure:
 
 ## ⚠️ Disclaimer
 This project is currently in **Alpha**. It is intended for testing and development purposes. Use at your own risk.
-````
+```
 
 ## File: Cover-Screen-Trackpad/settings.gradle.kts
-````
+```
 pluginManagement {
     repositories {
         google {
@@ -4275,864 +4266,10 @@ dependencyResolutionManagement {
 
 rootProject.name = "CoverScreenTrackpad"
 include(":app")
-````
-
-## File: cleanup_ui_and_toasts.md
-````markdown
-# Code Update: Cleanup Debug Toasts and Rename Menu Items
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
-
-### Replacement Block 1: executeHardkeyAction (Launcher Bubble Case)
-**Action:** Replace the `toggle_bubble` case.
-**Reason:** Removes the success toast ("Force Switch to...").
-
-```kotlin
-            // "Launcher Bubble" Keybind Action - Force Toggle with Debounce
-            "toggle_bubble" -> if (isUp) {
-                // Set manual switch timestamp to block auto-move for a few seconds
-                lastManualSwitchTime = System.currentTimeMillis()
-                
-                val targetId = if (currentDisplayId == 0) 1 else 0
-                
-                try {
-                    // showToast("Force Switch to $targetId") // Removed debug toast
-                    setupUI(targetId)
-                    resetBubblePosition()
-                    menuManager?.show()
-                    enforceZOrder()
-                } catch (e: Exception) {
-                    showToast("Error: ${e.message}")
-                }
-            }
 ```
-
-### Replacement Block 2: onDisplayChanged
-**Action:** Replace the `onDisplayChanged` function.
-**Reason:** Removes "Phone Opened/Closed" debug toasts.
-
-```kotlin
-    override fun onDisplayChanged(displayId: Int) {
-        // We only monitor the Main Screen (0) state changes to determine "Open/Closed"
-        if (displayId == 0) {
-            val display = displayManager?.getDisplay(0)
-            val isDebounced = (System.currentTimeMillis() - lastManualSwitchTime > 5000)
-            
-            if (display != null && isDebounced) {
-                // CASE A: Phone Opened (Display 0 turned ON) -> Move to Main (0)
-                if (display.state == Display.STATE_ON && currentDisplayId != 0) {
-                    handler.postDelayed({
-                        try {
-                            if (System.currentTimeMillis() - lastManualSwitchTime > 5000) {
-                                setupUI(0)
-                                resetBubblePosition()
-                                // showToast("Phone Opened: Moved to Main Screen") // Removed debug toast
-                            }
-                        } catch(e: Exception) {}
-                    }, 500)
-                }
-                // CASE B: Phone Closed (Display 0 turned OFF/DOZE) -> Move to Cover (1)
-                else if (display.state != Display.STATE_ON && currentDisplayId == 0) {
-                    handler.postDelayed({
-                        try {
-                            // Double-check state (ensure it didn't just flicker)
-                            val d0 = displayManager?.getDisplay(0)
-                            if (d0?.state != Display.STATE_ON && 
-                                System.currentTimeMillis() - lastManualSwitchTime > 5000) {
-                                
-                                setupUI(1)
-                                // We don't reset bubble pos here to avoid it jumping if you just locked the screen
-                                // But we do ensure menu is hidden if it was open
-                                menuManager?.hide() 
-                                // showToast("Phone Closed: Moved to Cover Screen") // Removed debug toast
-                            }
-                        } catch(e: Exception) {}
-                    }, 500)
-                }
-            }
-        }
-    }
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuManager.kt
-
-### Replacement Block: getMainItems
-**Action:** Replace the `getMainItems` function.
-**Reason:** Renames items and comments out requested buttons.
-
-```kotlin
-    // =========================
-    // GET MAIN ITEMS - Generates main menu items list
-    // =========================
-    private fun getMainItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("MAIN CONTROLS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // --- COMMENTED OUT PER REQUEST ---
-        /*
-        list.add(TrackpadMenuAdapter.MenuItem("Switch Screen (0 <-> 1)", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { 
-            service.switchDisplay() 
-            hide()
-        })
-        */
-        // ---------------------------------
-
-        list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_myplaces, TrackpadMenuAdapter.Type.ACTION) { 
-            service.resetBubblePosition()
-            hide()
-        })
-        
-        // --- COMMENTED OUT PER REQUEST ---
-        /*
-        list.add(TrackpadMenuAdapter.MenuItem("Move Trackpad Here", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { service.forceMoveToCurrentDisplay(); hide() })
-        */
-        
-        // Renamed: "Target: ..." -> "Toggle Remote Display"
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Remote Display", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) { service.cycleInputTarget(); loadTab(TAB_MAIN) })
-        
-        // --- ANCHOR TOGGLE: Locks trackpad and keyboard position/size ---
-        list.add(TrackpadMenuAdapter.MenuItem("Anchor (Lock Position)", 
-            if(p.prefAnchored) R.drawable.ic_lock_closed else R.R.drawable.ic_lock_open, 
-            TrackpadMenuAdapter.Type.TOGGLE, 
-            if(p.prefAnchored) 1 else 0) { v ->
-            service.updatePref("anchored", v)
-            loadTab(TAB_MAIN)  // Refresh to update icon
-        })
-        // --- END ANCHOR TOGGLE ---
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { service.toggleCustomKeyboard() })
-        list.add(TrackpadMenuAdapter.MenuItem("Reset Cursor", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { service.resetCursorCenter() })
-        
-        // Renamed: "Hide App" -> "Hide All"
-        list.add(TrackpadMenuAdapter.MenuItem("Hide All", android.R.drawable.ic_menu_close_clear_cancel, TrackpadMenuAdapter.Type.ACTION) { service.hideApp() })
-        
-        // Renamed: "Force Kill Service" -> "Close/Restart App"
-        list.add(TrackpadMenuAdapter.MenuItem("Close/Restart App", android.R.drawable.ic_delete, TrackpadMenuAdapter.Type.ACTION) { service.forceExit() })
-        return list
-    }
-```
-````
-
-## File: fix_keyboard_buffering.md
-````markdown
-# Code Update: Fix Text Buffering by Unifying Device ID
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShellUserService.kt
-
-### Replacement Block: injectKey
-**Action:** Replace the `injectKey` function.
-**Reason:** Forces all key events to use `deviceId = 1` and `scanCode = 1`. This aligns the typed text with the "dummy hardware key" signal, preventing Android from buffering the input as "secondary/virtual" data.
-
-```kotlin
-    // --- INPUT INJECTION ---
-    override fun injectKey(keyCode: Int, action: Int, metaState: Int, displayId: Int, deviceId: Int) {
-        if (!this::inputManager.isInitialized) return
-        val now = SystemClock.uptimeMillis()
-        
-        // CRITICAL FIX: Force Device ID 1 (Physical/External)
-        // This ensures the OS treats this input as coming from the "Hardware Keyboard" 
-        // that we used to suppress the soft keyboard.
-        val forcedDeviceId = 1 
-        val finalScanCode = 1
-        val finalFlags = 8 // FLAG_FROM_SYSTEM
-        
-        val event = KeyEvent(
-            now, now, action, keyCode, 0, metaState, 
-            forcedDeviceId, finalScanCode, finalFlags, 
-            InputDevice.SOURCE_KEYBOARD
-        )
-        
-        try {
-            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-            method.invoke(event, displayId)
-            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
-        } catch (e: Exception) {
-            // Fallback for critical keys if reflection fails
-            if (action == KeyEvent.ACTION_DOWN) execShell("input keyevent $keyCode")
-        }
-    }
-```
-
-### Replacement Block: injectDummyHardwareKey
-**Action:** Replace `injectDummyHardwareKey` function.
-**Reason:** Ensures the "Keep Alive" signal also uses the exact same `deviceId = 1` signature.
-
-```kotlin
-    // Trigger to force system to update "Hardware Keyboard" status immediately
-    override fun injectDummyHardwareKey(displayId: Int) {
-         if (!this::inputManager.isInitialized) return
-         val now = SystemClock.uptimeMillis()
-         
-         // Use SAME ID (1) as the text injection to maintain consistency
-         val eventDown = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
-         val eventUp = KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
-         
-         try {
-            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-            method.invoke(eventDown, displayId)
-            method.invoke(eventUp, displayId)
-            
-            injectInputEventMethod.invoke(inputManager, eventDown, INJECT_MODE_ASYNC)
-            injectInputEventMethod.invoke(inputManager, eventUp, INJECT_MODE_ASYNC)
-         } catch(e: Exception) {}
-    }
-```
-````
-
-## File: fix_keyboard_clean_handoff.md
-````markdown
-# Code Update: Clean IME Handoff (Internal Switch)
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/NullInputMethodService.kt
-
-### Update Class Body
-**Action:** Replace the entire class content.
-**Reason:** Adds a BroadcastReceiver to listen for the "Switch" command and execute it using internal permissions (`setInputMethod`). This prevents the system "zombie keyboard" state.
-
-```kotlin
-package com.example.coverscreentester
-
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.inputmethodservice.InputMethodService
-import android.view.View
-import android.view.inputmethod.InputMethodManager
-import android.os.Build
-
-class NullInputMethodService : InputMethodService() {
-
-    // Receiver to handle "Restore" requests from the OverlayService
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == "com.example.coverscreentester.RESTORE_IME") {
-                val targetIme = intent.getStringExtra("target_ime")
-                if (!targetIme.isNullOrEmpty()) {
-                    try {
-                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        // Using the Service's Token proves we are the active IME and have permission to switch
-                        val token = window?.window?.attributes?.token
-                        if (token != null) {
-                            imm.setInputMethod(token, targetIme)
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-            }
-        }
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        val filter = IntentFilter("com.example.coverscreentester.RESTORE_IME")
-        // Register receiver with appropriate flags for newer Android versions
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(receiver, filter)
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        try {
-            unregisterReceiver(receiver)
-        } catch (e: Exception) {}
-    }
-
-    override fun onCreateInputView(): View {
-        // Return a view with 0 height to make the keyboard invisible
-        val view = View(this)
-        view.layoutParams = android.view.ViewGroup.LayoutParams(0, 0)
-        return view
-    }
-    
-    override fun onEvaluateInputViewShown(): Boolean {
-        // Tell system we don't want to show a standard UI
-        return true
-    }
-}
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
-
-### Replacement Block: setSoftKeyboardBlocking
-**Action:** Replace the `setSoftKeyboardBlocking` function.
-**Reason:** Removes `pm disable`. Uses the new Broadcast mechanism to request a clean switch, followed by Shell commands as a backup.
-
-```kotlin
-    private fun setSoftKeyboardBlocking(enabled: Boolean) {
-        if (shellService == null) {
-            showToast("Shizuku required for Keyboard Blocking")
-            return
-        }
-
-        Thread {
-            try {
-                val myPackage = packageName
-                val nullImeComponent = "$myPackage/.NullInputMethodService"
-
-                if (enabled) {
-                    // --- BLOCKING (Enable & Switch) ---
-                    
-                    // 1. Save current IME
-                    val output = shellService?.runCommand("settings get secure default_input_method") ?: ""
-                    val current = output.trim()
-                    if (current.isNotEmpty() && !current.contains("NullInputMethodService")) {
-                        previousImeId = current
-                    }
-
-                    // 2. Ensure Enabled
-                    shellService?.runCommand("pm enable $nullImeComponent")
-                    shellService?.runCommand("ime enable $nullImeComponent")
-                    
-                    // 3. Switch via Shell
-                    shellService?.runCommand("ime set $nullImeComponent")
-                    
-                    // 4. Force setting to 0 (Hide Soft KB)
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
-                    
-                    handler.post { showToast("Keyboard Blocked") }
-                    
-                } else {
-                    // --- UNBLOCKING (Clean Handoff) ---
-                    
-                    // 1. Force System to Show Soft Keyboard
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
-
-                    // 2. Find Target IME
-                    var targetIme = previousImeId
-                    if (targetIme.isNullOrEmpty()) {
-                        val list = shellService?.runCommand("ime list -s -a") ?: ""
-                        targetIme = list.lines().firstOrNull { it.contains("com.google.android.inputmethod.latin") } // Gboard
-                            ?: list.lines().firstOrNull { it.contains("com.sec.android.inputmethod") } // Samsung
-                            ?: list.lines().firstOrNull { it.contains("honeyboard") } // Samsung Newer
-                    }
-
-                    if (!targetIme.isNullOrEmpty()) {
-                        // 3. Request Internal Handoff (The Clean Way)
-                        // If NullKeyboard is running, this tells it to switch smoothly
-                        val intent = Intent("com.example.coverscreentester.RESTORE_IME")
-                        intent.putExtra("target_ime", targetIme)
-                        intent.setPackage(packageName)
-                        sendBroadcast(intent)
-                        
-                        // 4. Shell Backup (Just in case NullKeyboard wasn't running)
-                        Thread.sleep(100)
-                        shellService?.runCommand("ime enable $targetIme")
-                        shellService?.runCommand("ime set $targetIme")
-                        
-                        handler.post { showToast("Restored: $targetIme") }
-                    } else {
-                        shellService?.runCommand("ime reset")
-                        handler.post { showToast("Keyboard Reset") }
-                    }
-                }
-            } catch (e: Exception) {
-                handler.post { showToast("Toggle Failed: ${e.message}") }
-            }
-        }.start()
-    }
-```
-````
-
-## File: fix_keyboard_global_focus.md
-````markdown
-# Code Update: Make Keyboard Input Global (Remove Display Lock)
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShellUserService.kt
-
-### Replacement Block: injectKey
-**Action:** Replace the `injectKey` function.
-**Reason:** Removes `setDisplayId` for KeyEvents. This makes the input "Global," allowing Android's WindowManager to route it to the currently focused app automatically, solving the buffering/focus issue.
-
-```kotlin
-    // --- INPUT INJECTION ---
-    override fun injectKey(keyCode: Int, action: Int, metaState: Int, displayId: Int, deviceId: Int) {
-        if (!this::inputManager.isInitialized) return
-        val now = SystemClock.uptimeMillis()
-        
-        // Use ID 1 to match the "Dummy Hardware Keyboard" signal
-        val forcedDeviceId = 1 
-        val finalScanCode = 1
-        val finalFlags = 8 // FLAG_FROM_SYSTEM
-        
-        val event = KeyEvent(
-            now, now, action, keyCode, 0, metaState, 
-            forcedDeviceId, finalScanCode, finalFlags, 
-            InputDevice.SOURCE_KEYBOARD
-        )
-        
-        try {
-            // CRITICAL FIX: DO NOT set Display ID for KeyEvents.
-            // Hardware keyboards are global. Setting a display ID restricts the event
-            // to that specific display stack. If the OS thinks focus is elsewhere (even slightly),
-            // the event is dropped or buffered.
-            // By skipping this, we let Android route it to the "Current Focus".
-            
-            // val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-            // method.invoke(event, displayId)
-            
-            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
-        } catch (e: Exception) {
-            // Fallback
-            if (action == KeyEvent.ACTION_DOWN) execShell("input keyevent $keyCode")
-        }
-    }
-```
-````
-
-## File: fix_keyboard_pm_disable.md
-````markdown
-# Code Update: Use PM Disable to Force Keyboard Release
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
-
-### Replacement Block: setSoftKeyboardBlocking
-**Action:** Replace the `setSoftKeyboardBlocking` function.
-**Reason:** Uses `pm disable` to forcibly invalidate the Null Keyboard component. This mimics the "kill app" effect, forcing Android to immediately fall back to the next valid keyboard (Gboard).
-
-```kotlin
-    private fun setSoftKeyboardBlocking(enabled: Boolean) {
-        if (shellService == null) {
-            showToast("Shizuku required for Keyboard Blocking")
-            return
-        }
-
-        Thread {
-            try {
-                val myPackage = packageName
-                val nullImeComponent = "$myPackage/.NullInputMethodService"
-
-                if (enabled) {
-                    // --- BLOCKING (Enable & Switch) ---
-                    
-                    // 1. Save current IME
-                    val output = shellService?.runCommand("settings get secure default_input_method") ?: ""
-                    val current = output.trim()
-                    if (current.isNotEmpty() && !current.contains("NullInputMethodService")) {
-                        previousImeId = current
-                    }
-
-                    // 2. ENABLE the component (in case it was disabled)
-                    shellService?.runCommand("pm enable $nullImeComponent")
-                    
-                    // 3. Enable & Set as active IME
-                    shellService?.runCommand("ime enable $nullImeComponent")
-                    shellService?.runCommand("ime set $nullImeComponent")
-                    
-                    // 4. Force setting to 0 (Hide Soft KB)
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
-                    
-                    handler.post { showToast("Keyboard Blocked") }
-                    
-                } else {
-                    // --- UNBLOCKING (Disable & Fallback) ---
-                    
-                    // 1. DISABLE the component
-                    // This is the "Nuclear Option": It makes the system think the keyboard app "died"
-                    // forcing an immediate fallback to the next valid keyboard (Gboard).
-                    shellService?.runCommand("pm disable $nullImeComponent")
-                    
-                    // 2. Force System to Show Soft Keyboard (Critical)
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
-
-                    // 3. Optional: Explicitly restore previous IME (just to be safe)
-                    if (!previousImeId.isNullOrEmpty()) {
-                        shellService?.runCommand("ime set $previousImeId")
-                    } else {
-                        shellService?.runCommand("ime reset")
-                    }
-                    
-                    handler.post { showToast("Keyboard Restored") }
-                }
-            } catch (e: Exception) {
-                handler.post { showToast("Toggle Failed: ${e.message}") }
-            }
-        }.start()
-    }
-```
-````
-
-## File: fix_keyboard_restore_aggressive.md
-````markdown
-# Code Update: Aggressive Keyboard Restoration
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
-
-### Replacement Block: setSoftKeyboardBlocking
-**Action:** Replace the `setSoftKeyboardBlocking` function.
-**Reason:** Adds a "Disable" step for the Null Keyboard and runs the `settings put` command twice to ensure the system respects the "Show Keyboard" flag.
-
-```kotlin
-    private fun setSoftKeyboardBlocking(enabled: Boolean) {
-        if (shellService == null) {
-            showToast("Shizuku required for Keyboard Blocking")
-            return
-        }
-
-        Thread {
-            try {
-                val nullImeId = "$packageName/.NullInputMethodService"
-
-                if (enabled) {
-                    // --- BLOCKING ---
-                    // 1. Save current IME
-                    val output = shellService?.runCommand("settings get secure default_input_method") ?: ""
-                    val current = output.trim()
-                    if (current.isNotEmpty() && !current.contains("NullInputMethodService")) {
-                        previousImeId = current
-                    }
-
-                    // 2. Enable & Set Null Keyboard
-                    shellService?.runCommand("ime enable $nullImeId")
-                    shellService?.runCommand("ime set $nullImeId")
-                    
-                    // 3. Hide Soft Keyboard Overlay (Optional but cleaner)
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
-                    
-                    handler.post { showToast("Keyboard Blocked") }
-                    
-                } else {
-                    // --- UNBLOCKING ---
-                    
-                    // 1. FORCE SHOW SETTING (First Attempt)
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
-                    
-                    // 2. Find Target IME
-                    var targetIme = previousImeId
-                    if (targetIme.isNullOrEmpty()) {
-                        val list = shellService?.runCommand("ime list -s -a") ?: ""
-                        targetIme = list.lines().firstOrNull { it.contains("com.google.android.inputmethod.latin") } // Gboard
-                            ?: list.lines().firstOrNull { it.contains("com.sec.android.inputmethod") } // Samsung
-                            ?: list.lines().firstOrNull { it.contains("honeyboard") } // Samsung Newer
-                    }
-
-                    // 3. Restore Target
-                    if (!targetIme.isNullOrEmpty()) {
-                        shellService?.runCommand("ime enable $targetIme") // Ensure enabled
-                        shellService?.runCommand("ime set $targetIme")
-                        handler.post { showToast("Restored: $targetIme") }
-                    } else {
-                        shellService?.runCommand("ime reset")
-                        handler.post { showToast("Keyboard Reset") }
-                    }
-
-                    // 4. DISABLE Null Keyboard (Forces OS to drop it)
-                    shellService?.runCommand("ime disable $nullImeId")
-
-                    // 5. FORCE SHOW SETTING (Second Attempt - Critical)
-                    // We run this again because switching IMEs can sometimes reset this flag on Samsung devices.
-                    Thread.sleep(200)
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
-                }
-            } catch (e: Exception) {
-                handler.post { showToast("Toggle Failed: ${e.message}") }
-            }
-        }.start()
-    }
-```
-````
-
-## File: fix_keyboard_scancode.md
-````markdown
-# Code Update: Fix Invalid ScanCode and Restore Display Targeting
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShellUserService.kt
-
-### Replacement Block: injectKey
-**Action:** Replace the `injectKey` function.
-**Reason:** Sets `scanCode` to 0 (valid generic) to prevent Android dropping the events. Restores `setDisplayId` to ensure input reaches the correct screen.
-
-```kotlin
-    // --- INPUT INJECTION ---
-    override fun injectKey(keyCode: Int, action: Int, metaState: Int, displayId: Int, deviceId: Int) {
-        if (!this::inputManager.isInitialized) return
-        val now = SystemClock.uptimeMillis()
-        
-        // CRITICAL CONFIGURATION:
-        // Device ID = 1 (Mimics the "Hardware Keyboard" we use to block soft-kb)
-        // Scan Code = 0 (Generic/Ignore). Setting this to 1 caused the buffering/reject issue.
-        val forcedDeviceId = 1 
-        val finalScanCode = 0 
-        val finalFlags = 8 // FLAG_FROM_SYSTEM
-        
-        val event = KeyEvent(
-            now, now, action, keyCode, 0, metaState, 
-            forcedDeviceId, finalScanCode, finalFlags, 
-            InputDevice.SOURCE_KEYBOARD
-        )
-        
-        try {
-            // Restore Display Targeting
-            // We MUST target the display where the user is looking.
-            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-            method.invoke(event, displayId)
-            
-            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
-        } catch (e: Exception) {
-            // Fallback
-            if (action == KeyEvent.ACTION_DOWN) execShell("input keyevent $keyCode")
-        }
-    }
-```
-````
-
-## File: fix_restore_keyboard.md
-````markdown
-# Code Update: Fix Keyboard Restoration (Force Show)
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
-
-### Replacement Block: setSoftKeyboardBlocking
-**Action:** Replace the `setSoftKeyboardBlocking` function.
-**Reason:** Forces `show_ime_with_hard_keyboard` to `1` when disabling logic. Also adds a smarter fallback search to find Gboard or Samsung Keyboard if the saved ID is lost.
-
-```kotlin
-    private fun setSoftKeyboardBlocking(enabled: Boolean) {
-        if (shellService == null) {
-            showToast("Shizuku required for Keyboard Blocking")
-            return
-        }
-
-        Thread {
-            try {
-                if (enabled) {
-                    // --- BLOCKING LOGIC ---
-                    
-                    // 1. Save current IME (if it's not us/null)
-                    val output = shellService?.runCommand("settings get secure default_input_method") ?: ""
-                    val current = output.trim()
-                    
-                    // Don't save if we are already the null keyboard (prevents overwriting the backup)
-                    if (current.isNotEmpty() && !current.contains("NullInputMethodService")) {
-                        previousImeId = current
-                    }
-
-                    // 2. Enable & Set Null Keyboard
-                    val myImeId = "$packageName/.NullInputMethodService"
-                    shellService?.runCommand("ime enable $myImeId")
-                    shellService?.runCommand("ime set $myImeId")
-                    
-                    // 3. Optional: Ensure hard keyboard setting doesn't fight us
-                    // (Actually, keeping it 0 is safer while blocked)
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
-                    
-                    handler.post { showToast("Keyboard Blocked (Null IME)") }
-                    
-                } else {
-                    // --- RESTORE LOGIC ---
-                    
-                    // 1. CRITICAL: Force System to Show Soft Keyboard
-                    // This fixes the issue where Gboard is selected but stays hidden
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
-                    
-                    // 2. Determine target IME
-                    var targetIme = previousImeId
-                    
-                    // Fallback: If we lost the ID, try to find Gboard or Samsung
-                    if (targetIme.isNullOrEmpty()) {
-                        val list = shellService?.runCommand("ime list -s") ?: ""
-                        targetIme = list.lines().firstOrNull { it.contains("com.google.android.inputmethod.latin") } // Gboard
-                            ?: list.lines().firstOrNull { it.contains("com.sec.android.inputmethod") } // Samsung
-                            ?: list.lines().firstOrNull { it.contains("com.samsung.android.honeyboard") } // Samsung Newer
-                    }
-
-                    // 3. Apply Restore
-                    if (!targetIme.isNullOrEmpty()) {
-                        shellService?.runCommand("ime set $targetIme")
-                        handler.post { showToast("Restored: $targetIme") }
-                    } else {
-                        // Last Resort: Reset prompts the picker
-                        shellService?.runCommand("ime reset")
-                        handler.post { showToast("Keyboard Reset (Check Settings)") }
-                    }
-                }
-            } catch (e: Exception) {
-                handler.post { showToast("Keyboard Toggle Failed: ${e.message}") }
-            }
-        }.start()
-    }
-```
-````
-
-## File: implement_null_keyboard.md
-````markdown
-# Code Update: Implement Null Keyboard for Reliable Blocking
-
-## File: Cover-Screen-Trackpad/app/src/main/res/xml/method.xml
-
-**Action:** Create file.
-**Reason:** Required configuration file for any Android Input Method Service.
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<input-method xmlns:android="[http://schemas.android.com/apk/res/android](http://schemas.android.com/apk/res/android)" />
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/NullInputMethodService.kt
-**Action:** Create file.
-**Reason:** A minimal keyboard service that renders nothing, effectively hiding the UI while keeping the input connection alive.
-```kotlin
-package com.example.coverscreentester
-
-import android.inputmethodservice.InputMethodService
-import android.view.View
-
-class NullInputMethodService : InputMethodService() {
-    override fun onCreateInputView(): View {
-        // Return a view with 0 height to make the keyboard invisible
-        val view = View(this)
-        view.layoutParams = android.view.ViewGroup.LayoutParams(0, 0)
-        return view
-    }
-    
-    override fun onEvaluateInputViewShown(): Boolean {
-        // Tell system we don't want to show a standard UI
-        // We handle visibility ourselves (by being 0 height)
-        return true
-    }
-}
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/AndroidManifest.xml
-### Add Service Declaration
-**Action:** Add the service block inside the `<application>` tag (e.g., after OverlayService).
-**Reason:** Registers the keyboard with the system.
-```xml
-        <service
-            android:name=".NullInputMethodService"
-            android:label="DroidOS Null Keyboard"
-            android:permission="android.permission.BIND_INPUT_METHOD"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.view.InputMethod" />
-            </intent-filter>
-            <meta-data
-                android:name="android.view.im"
-                android:resource="@xml/method" />
-        </service>
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
-### 1. Add Previous IME Variable
-**Action:** Add this variable to the class properties.
-```kotlin
-    private var previousImeId: String? = null
-```
-
-### 2. Update setSoftKeyboardBlocking
-**Action:** Replace the `setSoftKeyboardBlocking` function.
-**Reason:** Uses Shizuku to force-switch the active keyboard to our Null IME, guaranteeing the soft keyboard stays hidden.
-```kotlin
-    private fun setSoftKeyboardBlocking(enabled: Boolean) {
-        if (shellService == null) {
-            showToast("Shizuku required for Keyboard Blocking")
-            return
-        }
-
-        Thread {
-            try {
-                if (enabled) {
-                    // 1. Get current default IME so we can restore it later
-                    val output = shellService?.runCommand("settings get secure default_input_method") ?: ""
-                    val current = output.trim()
-                    
-                    // Don't save if we are already the null keyboard (prevents overwriting the backup)
-                    if (current.isNotEmpty() && !current.contains("NullInputMethodService")) {
-                        previousImeId = current
-                    }
-
-                    // 2. Enable our IME (Required before setting)
-                    val myImeId = "$packageName/.NullInputMethodService"
-                    shellService?.runCommand("ime enable $myImeId")
-                    
-                    // 3. Set as Active
-                    shellService?.runCommand("ime set $myImeId")
-                    
-                    handler.post { showToast("Keyboard Blocked (Null IME)") }
-                } else {
-                    // Restore previous
-                    if (previousImeId != null && previousImeId!!.isNotEmpty()) {
-                        shellService?.runCommand("ime set $previousImeId")
-                        handler.post { showToast("Keyboard Restored") }
-                    } else {
-                        // Fallback: Let system pick default
-                        shellService?.runCommand("ime reset")
-                        handler.post { showToast("Keyboard Reset") }
-                    }
-                }
-            } catch (e: Exception) {
-                handler.post { showToast("Keyboard Toggle Failed: ${e.message}") }
-            }
-        }.start()
-    }
-```
-
-### 3. Disable Old Heartbeat
-**Action:** Replace `blockingHeartbeat` with an empty runnable.
-**Reason:** We no longer need to constantly enforce settings since the IME switch is persistent.
-```kotlin
-    private val blockingHeartbeat = object : Runnable {
-        override fun run() {
-            // No-op: Null Keyboard handles blocking natively
-        }
-    }
-```
-````
-
-## File: update_help_text.md
-````markdown
-# Code Update: Update Help Text and Bubble Behavior Description
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuManager.kt
-
-### Replacement Block: getHelpItems
-**Action:** Replace the `getHelpItems` function.
-**Reason:** Updates the instructions to match the actual control scheme (Vol Down for Right Click) and the new Bubble behavior (Tap toggles both, Long Press opens menu).
-
-```kotlin
-    private fun getHelpItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        
-        list.add(TrackpadMenuAdapter.MenuItem("INSTRUCTIONS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        val text = 
-            "TRACKPAD CONTROLS\n" +
-            "• Tap: Left Click\n" +
-            "• Vol Down: Right Click (Default)\n" +
-            "• Hold + Slide: Drag & Drop\n" +
-            "• Edge (Top/Bottom): V-Scroll\n" +
-            "• Edge (Left/Right): H-Scroll\n\n" +
-            "KEYBOARD OVERLAY\n" +
-            "• Drag Top Bar: Move Window\n" +
-            "• Drag Bottom-Right: Resize\n" +
-            "• Hold Corner: Toggle Key/Mouse\n\n" +
-            "HARDWARE KEYS\n" +
-            "• Map Volume Keys in 'Keybinds' tab\n" +
-            "  to Click, Scroll, or Screen Off."
-            
-        list.add(TrackpadMenuAdapter.MenuItem(text, 0, TrackpadMenuAdapter.Type.INFO))
-        
-        list.add(TrackpadMenuAdapter.MenuItem("LAUNCHER BUBBLE", 0, TrackpadMenuAdapter.Type.HEADER))
-        val text2 = 
-            "• Tap: Toggle Trackpad & Keyboard\n" +
-            "• Long Press: Open this Menu\n" +
-            "• Drag: Move Bubble Position"
-        list.add(TrackpadMenuAdapter.MenuItem(text2, 0, TrackpadMenuAdapter.Type.INFO))
-        
-        return list
-    }
-
-```
-````
 
 ## File: Cover-Screen-Launcher/app/src/main/aidl/com/example/quadrantlauncher/IShellService.aidl.minimize
-````
+```
 package com.example.quadrantlauncher;
 
 interface IShellService {
@@ -5153,10 +4290,10 @@ interface IShellService {
     boolean setBrightnessViaDisplayManager(int displayId, float brightness);
     void setBrightness(int value);
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/FloatingLauncherService.kt.displayoff
-````
+```
 package com.example.quadrantlauncher
 
 import android.app.ActivityManager
@@ -5783,10 +4920,10 @@ class FloatingLauncherService : Service() {
         override fun getItemCount() = displayList.size
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/FloatingLauncherService.kt.minimize
-````
+```
 package com.example.quadrantlauncher
 
 import android.app.ActivityManager
@@ -6383,10 +5520,10 @@ class FloatingLauncherService : Service() {
         override fun getItemCount() = displayList.size
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt.displayoff
-````
+```
 package com.example.quadrantlauncher
 
 import android.os.IBinder
@@ -6783,10 +5920,10 @@ class ShellUserService : IShellService.Stub() {
     override fun isAutoBrightness(): Boolean = true
     override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt.minimize
-````
+```
 package com.example.quadrantlauncher
 
 import android.content.ContentResolver
@@ -7059,10 +6196,10 @@ class ShellUserService : IShellService.Stub() {
     }
     override fun isAutoBrightness(): Boolean = true
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/ShellUserService.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.content.ContentResolver
@@ -7314,10 +6451,10 @@ class ShellUserService : IShellService.Stub() {
     override fun getTaskId(packageName: String): Int = -1
     override fun moveTaskToBack(taskId: Int) {}
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ManualAdjustActivity.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.app.Activity
@@ -7413,34 +6550,10 @@ class ManualAdjustActivity : Activity() {
         startService(intent)
     }
 }
-````
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/NullInputMethodService.kt
-````kotlin
-package com.example.coverscreentester
-
-import android.inputmethodservice.InputMethodService
-import android.view.View
-
-class NullInputMethodService : InputMethodService() {
-    override fun onCreateInputView(): View {
-        // Return a view with 0 height to make the keyboard invisible
-        val view = View(this)
-        view.layoutParams = android.view.ViewGroup.LayoutParams(0, 0)
-        return view
-    }
-    
-    override fun onEvaluateInputViewShown(): Boolean {
-        super.onEvaluateInputViewShown()
-        // Tell system we don't want to show a standard UI
-        // We handle visibility ourselves (by being 0 height)
-        return true
-    }
-}
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShizukuInputHandler.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.util.Log
@@ -7479,10 +6592,10 @@ object ShizukuInputHandler {
         }
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadService.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.app.Service
@@ -7559,60 +6672,60 @@ class TrackpadService : Service() {
         Toast.makeText(this, "Trackpad Overlay Stopped", Toast.LENGTH_SHORT).show()
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/bg_trackpad_drawer.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="#1E1E1E"/>
     <corners android:radius="16dp"/>
     <stroke android:width="1dp" android:color="#444444"/>
 </shape>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_tab_help.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
     <path android:fillColor="#FFFFFF" android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zm1,17h-2v-2h2v2zm2.07,-7.75l-0.9,0.92C13.45,12.9 13,13.5 13,15h-2v-0.5c0,-1.1 0.45,-2.1 1.17,-2.83l1.24,-1.26c0.37,-0.36 0.59,-0.86 0.59,-1.41 0,-1.1 -0.9,-2 -2,-2s-2,0.9 -2,2H8c0,-2.21 1.79,-4 4,-4s4,1.79 4,4c0,0.88 -0.36,1.68 -0.93,2.25z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_tab_keyboard.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
     <path android:fillColor="#FFFFFF" android:pathData="M20,5H4c-1.1,0 -1.99,0.9 -1.99,2L2,17c0,1.1 0.9,2 2,2h16c1.1,0 2,-0.9 2,-2V7c0,-1.1 -0.9,-2 -2,-2zm-9,3h2v2h-2V8zm0,3h2v2h-2v-2zM8,8h2v2H8V8zm0,3h2v2H8v-2zm-1,2H5v-2h2v2zm0,-3H5V8h2v2zm9,7H8v-2h8v2zm0,-4h-2v-2h2v2zm0,-3h-2V8h2v2zm3,3h-2v-2h2v2zm0,-3h-2V8h2v2z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_tab_main.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
     <path android:fillColor="#FFFFFF" android:pathData="M10,20v-6h4v6h5v-8h3L12,3 2,12h3v8z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_tab_profiles.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
     <path android:fillColor="#FFFFFF" android:pathData="M17,3H5c-1.11,0 -2,0.9 -2,2v14c0,1.1 0.89,2 2,2h14c1.1,0 2,-0.9 2,-2V7l-4,-4zm-5,16c-1.66,0 -3,-1.34 -3,-3s1.34,-3 3,-3 3,1.34 3,3 -1.34,3 -3,3zm3,-10H5V5h10v4z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_tab_settings.xml
-````xml
+```xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
     <path android:fillColor="#FFFFFF" android:pathData="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.43,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"/>
 </vector>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_trackpad_foreground_scaled.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/ic_trackpad_logo"
@@ -7620,10 +6733,10 @@ class TrackpadService : Service() {
     android:insetRight="4dp"
     android:insetTop="4dp"
     android:insetBottom="4dp" />
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_manual_adjust.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -7781,10 +6894,10 @@ class TrackpadService : Service() {
         android:textStyle="bold"/>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/item_dpi_custom.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -7835,16 +6948,16 @@ class TrackpadService : Service() {
         android:background="?attr/selectableItemBackgroundBorderless"/>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/xml/method.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <input-method xmlns:android="http://schemas.android.com/apk/res/android" />
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/build.gradle.kts
-````
+```
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7908,10 +7021,10 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
-````
+```
 
 ## File: GEMINI.md
-````markdown
+```markdown
 CLI AGENT CONTEXT INSTRUCTIONS
 
 Role: You are an autonomous DevOps and Coding Agent operating in a Termux Android environment.
@@ -7940,10 +7053,216 @@ Operational Guidelines:
 After making all instructed changes, build to check if errors. if errors, check if all updates applied correctly based on instructions. In particular check for syntax issues. If build errors seem to be out of scope of instructions, create a repomid with alias CleanBuildTrackpad if we are making updates in /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Trackpad or use alias CleanBuildLauncher for updates in /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher
 
 If build success, commit to local with appropriate description (refer to instructions for summary if existing)
-````
+```
+
+## File: README.md
+```markdown
+DroidOS 📱🚀
+<br>
+<br>
+
+---
+
+DroidOS is a suite of advanced system tools designed to give "superpowers" to the standard Android experience.
+It functions as a universal Samsung DeX replacement, a tiling window manager, and an unrestricted app launcher that works on any Android device. Whether you are using a Foldable, a Flip phone, AR Glasses, or a secondary monitor, DroidOS unlocks the full potential of your hardware.
+
+![Screenshot_20251130_185618_Discord](https://github.com/user-attachments/assets/dca14a11-21e6-439c-b653-7ce9f8e73a87)
+
+Video Demonstration : https://youtu.be/aOzkV3t7wFM
+
+<br>
+<br>
+
+---
+
+✨ Core Features
+
+🖥️ Universal Desktop Mode (DeX Replacement)
+Unlike proprietary solutions locked to specific brands, DroidOS provides a desktop-class experience on any Android phone:
+ * Window Management: Force apps into specific tiling layouts (Split-screen, Quadrants, Tri-split) on external displays.
+ * Input Control: Turn your phone screen into a fully functional trackpad and keyboard while viewing content on a larger screen.
+🕶️ AR Glasses & Virtual Screens
+Optimized for users of XREAL, Rokid, Viture, and other AR glasses:
+ * "Headless" Mode: Turn off your phone's physical screen to save battery and reduce heat while the system continues running on the glasses.
+ * Blind Navigation: The Trackpad module allows you to control the AR interface without looking at your phone.
+📱 Foldable & Cover Screen Enhancements
+Unleash the full power of your Galaxy Z Flip, Fold, or other foldable devices:
+ * Unrestricted Launching: Launch any app on the cover screen, bypassing system "Good Lock" allowlists.
+ * Orientation Control: Force landscape or portrait orientations on screens that don't natively support them.
+🛠️ How It Works
+DroidOS utilizes Shizuku to access elevated system APIs without requiring root access. This allows it to:
+ * Inject raw input events (Mouse/Keyboard) directly into the system input stream.
+ * Manage window sizes, positions, and display power states via hidden Android APIs (Reflection).
+ * Launch activities on specific display IDs (Cover screens, Virtual displays).
+
+<br>
+<br>
+
+---
+
+🚀 Getting Started
+
+Prerequisites
+ * Shizuku: Must be installed and running on your device.
+ * Developer Options: "Force activities to be resizable" and "Enable freeform windows" must be enabled.
+
+Installation
+You can download the latest APKs for both modules from the Releases page.
+ * Install DroidOS Launcher to manage your apps and windows.
+ * Install DroidOS Trackpad Keyboard to control the cursor.
+ * Grant Shizuku permissions when prompted in each app.
+ * I reccomend this fork of shizuku https://github.com/thedjchi/Shizuku once you set it up. It has a watchdog feature to autorestart whenever it gets turned off. Once you turn it on, even if you lose wireless adb you can still turn shizuku back on without it. Also has an auto start on boot feature. Does not require root.
+ * Grant accessibility permissions to the trackpad when prompted.
+
+ * DroidOS Launcher can be exited by swiping the bubble icon away.
+
+<br>
+<br>
+
+---
+
+🤝 Contributing
+
+We welcome contributions! 
+
+Please note that this is a Monorepo.
+ * If you are fixing a bug in the Launcher, make your Pull Request against the Cover-Screen-Launcher directory.
+ * If you are improving the Trackpad, work within the Cover-Screen-Trackpad directory.
+
+<br>
+<br>
+
+---
+
+🚀 DroidOS Launcher Usage Guide
+
+The DroidOS Launcher is designed to manage multi-window tiling and control display resolutions, primarily using Shizuku for elevated permissions.
+1. The Two Operational Modes
+The Launcher operates primarily using an app queue combined with your selected window layout. The core difference lies in how aggressively the launcher manages apps after initialization.
+>
+| Mode | Key Feature | Execution Action | Ideal For |
+|---|---|---|---|
+| Instant Mode | Live, dynamic window management. | Windows are launched/resized automatically every time you adjust the queue (add/remove/hide apps). The Green Play/Execute button is hidden. | Quick adjustments, experimental resizing, or when fine-tuning a small layout. |
+| Launcher Mode | Traditional "batch" execution. | Changes to the queue or layout only take effect when you explicitly press the Green Play/Execute button. | Large, complex setups (3+ apps) where manual timing is better, or minimizing system resource drain. |
+> Switch Mode: Go to the Settings tab (Gear Icon) and toggle "Instant Mode (Live Changes)".
+> 
+2. Managing the App Queue (The Dock)
+The App Queue (the horizontal list of icons at the top of the main drawer) determines which apps are launched and where they are placed in your chosen layout.
+>
+| Action | How To | Result |
+|---|---|---|
+| Adding an App | 1. Navigate to the Search tab. 2. Tap an app listed in the main recycler view. | The app is added to the right end of the App Queue. If in Instant Mode, the layout is applied immediately. |
+| Adding a Spacer | Tap "(Blank Space)" in the search list. | Inserts a blank placeholder into the queue. This ensures an empty tile space in your final layout (e.g., in a 4-Quadrant layout, you can use 2 apps and 2 blanks). |
+| Reordering/Moving | Drag and drop an app icon horizontally within the queue. | Changes the app's position in the queue, which dictates its screen placement (Tiling order). |
+| Toggling Hide/Minimize | Tap an app icon in the App Queue. | The app's icon turns slightly transparent (minimized). The app is moved to the background using its Task ID. The app is skipped during subsequent tiling calculations. |
+| Closing/Killing App | Swipe the app icon up or down in the App Queue. | The app is removed from the queue and a force-stop shell command is executed to kill the app. |
+| Favoriting (Global) | Long-press an app in the main search list or swipe the app left/right in the search list. | Toggles the star icon and adds/removes the app from your global favorites list. |
+3. Tiling Position & Order
+Tiling positions are determined strictly from left-to-right in the App Queue to top-to-bottom, left-to-right in the selected screen layout.
+ * The leftmost app in your queue corresponds to the first defined window tile in your layout.
+ * The second app corresponds to the second tile, and so on.
+Example: 4-Quadrant Layout
+ * Tile 1 (Top-Left): Corresponds to the 1st app in the queue.
+ * Tile 2 (Top-Right): Corresponds to the 2nd app in the queue.
+ * Tile 3 (Bottom-Left): Corresponds to the 3rd app in the queue.
+ * Tile 4 (Bottom-Right): Corresponds to the 4th app in the queue.
+You can ensure an app lands in a specific tile by dragging it to the corresponding position in the App Queue.
+
+<br>
+<br>
+
+---
+
+🕶️ DroidOS Virtual Display Setup
+
+This guide outlines the steps to activate and control a virtual, tiled desktop environment when using AR glasses (such as XREAL) connected to your Android device. This process relies on having Shizuku running with permissions granted to both the CoverScreen Launcher and CoverScreen Trackpad applications.
+
+Part 1: Create and Switch to Virtual Display (Launcher App)
+The goal of this phase is to create a new virtual screen and move the Launcher's target focus from your physical phone screen to that new screen.
+ * Set Initial Resolution (Optional but Recommended):
+   * Open the CoverScreen Launcher floating bubble.
+   * Navigate to the Resolution Mode (Icon: Rectangle with dots) tab.
+   * Select "Default (Reset)".
+   * Note: The developer often sets a custom resolution (like 1080p) here to ensure the display from the glasses (e.g., Beam Pro) is usable, as the physical screen itself may be too tiny for the mirrored content.
+ * Enable Virtual Display:
+   * Navigate to the Settings Mode (Icon: Gear/Preferences) tab.
+   * Toggle the "Virtual Display (1080p)" option.
+ * Switch Launch Target:
+   * Press the "Switch Display (Current [ID])" button immediately below the Virtual Display toggle.
+   * Result: Your physical phone screen should become mostly blank, showing only the Launcher bubble (or the main screen if still open). The virtual screen on the glasses should now show the output.
+
+Part 2: Gaining Cursor Control (Trackpad App)
+Now that the system is outputting to the glasses, you must redirect your phone's touch input to control the cursor on the remote screen.
+ * Launch Trackpad App:
+   * Open the CoverScreen Trackpad application on your physical phone screen.
+   * Note: The trackpad functions as an overlay on your physical phone screen, allowing you to use your phone's surface to control the larger remote display.
+ * Redirect Input:
+   * Press the "Target: Switch Local/Remote" button.
+   * Result: You should now see a cursor moving on the glasses display corresponding to your touch input on the phone.
+ * Activate Headless/Extinguish Mode (Optional):
+   * Return to the CoverScreen Launcher (Settings Tab).
+   * Toggle "Display Off (Touch on)" to turn off the physical screen entirely.
+🖱️ Trackpad Overlay Controls
+The Trackpad overlay provides dedicated controls accessible through its corners and edges:
+| Control Point | Action | Result | Source |
+|---|---|---|---|
+| Top-Right Corner Handle | Drag finger | Moves (repositions) the trackpad overlay on the physical screen. |  |
+| Bottom-Right Corner Handle | Drag finger | Resizes the trackpad overlay. |  |
+| Bottom-Left Corner | Tap (Click) | Opens the manual adjust menu, allowing you to resize and reposition using a controller instead of dragging. |  |
+| Edges (Top/Bottom) | Finger near edge + Move Up/Down | Performs Vertical Scrolling in the remote screen. |  |
+| Edges (Left/Right) | Finger near edge + Move Left/Right | Performs Horizontal Scrolling in the remote screen. |  |
+Scrolling Note: Ensure the trackpad overlay is not positioned too close to the edges of your phone's physical screen for the scrolling zones to work reliably.
+
+<br>
+<br>
+
+---
+
+Want to donate to support the development of this project? https://ko-fi.com/katsuyamaki
+
+📂 Project Structure (Monorepo)
+This repository is a Monorepo containing two distinct but complementary Android applications.
+> ⚠️ Developer Note: Do not open this root folder directly in Android Studio. You must open each project folder individually.
+> 
+| Project | Description | Path |
+|---|---|---|
+| DroidOS Launcher | An advanced tiling window manager and app launcher. Bypasses cover screen restrictions and manages multi-window layouts. | /Cover-Screen-Launcher |
+| DroidOS Trackpad Keyboard | A virtual mouse trackpad and custom keyboard overlay. Turns your phone into a precision input device for external displays. | /Cover-Screen-Trackpad |
+
+
+📄 License
+This project is licensed under the GNU General Public License v3.0 (GPLv3).
+You are free to use, modify, and distribute this software, but all modifications must remain open source. See the LICENSE file for details.
+
+<br>
+<br>
+
+---
+
+![Screenshot_20251130_125934_Reddit](https://github.com/user-attachments/assets/a4644964-8371-4f39-9a03-df88e4a8524a)
+
+![Screenshot_20251130_185403_Discord](https://github.com/user-attachments/assets/6a876a1e-67c5-4968-84ff-2ed36411c54a)
+
+![Screenshot_20251130_185026_Discord](https://github.com/user-attachments/assets/c89110b9-0a0b-47ed-83e9-9d54a150beae)
+
+![Screenshot_20251130_130005_Reddit](https://github.com/user-attachments/assets/24ceaf2f-5212-4fe6-b027-e5941164ca93)
+
+![Screenshot_20251130_125958_Reddit](https://github.com/user-attachments/assets/3809df01-7d7a-4383-b5f3-f9aa85998685)
+
+![Screenshot_20251130_125940_Reddit](https://github.com/user-attachments/assets/fd1ab37f-3158-4b01-a342-9c5f82423b89)
+
+![Screenshot_20251130_125922_Reddit](https://github.com/user-attachments/assets/2af9a4f6-8dd2-48da-9551-943845a28613)
+
+![Screenshot_20251130_125807_One UI Cover Home](https://github.com/user-attachments/assets/eb08e879-6c55-45f6-a175-a19791588337)
+
+<br>
+<br>
+
+---
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/item_dpi_custom.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -7993,18 +7312,18 @@ If build success, commit to local with appropriate description (refer to instruc
         android:background="?attr/selectableItemBackgroundBorderless"/>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/res/values/strings.xml
-````xml
+```xml
 <resources>
     <string name="app_name">DroidOS Launcher</string>
     <string name="accessibility_service_description">DroidOS Launcher Service</string>
 </resources>
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/AndroidManifest.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -8062,19 +7381,167 @@ If build success, commit to local with appropriate description (refer to instruc
 
     </application>
 </manifest>
-````
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardPickerActivity.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.app.Activity
+import android.content.Context
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+
+class KeyboardPickerActivity : Activity() {
+    
+    private var hasLaunchedPicker = false
+    private var pickerWasOpened = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // Transparent touchable view
+        val view = View(this)
+        view.setBackgroundColor(0x00000000) 
+        view.isClickable = true
+        
+        // Safety Net: If logic fails, user can tap screen to close
+        view.setOnClickListener { finish() }
+        setContentView(view)
+        
+        // Launch picker after window is ready
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (!isFinishing) launchPicker()
+        }, 300)
+    }
+
+    private fun launchPicker() {
+        if (hasLaunchedPicker) return
+        try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showInputMethodPicker()
+            hasLaunchedPicker = true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            finish()
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        
+        if (hasLaunchedPicker) {
+            if (!hasFocus) {
+                // We lost focus -> The Picker Dialog is now showing
+                pickerWasOpened = true
+            } else if (hasFocus && pickerWasOpened) {
+                // We regained focus -> The Picker Dialog just closed
+                // We are done.
+                finish()
+            }
+        }
+    }
+}
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/NullInputMethodService.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.inputmethodservice.InputMethodService
+import android.view.KeyEvent
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.os.Build
+import androidx.core.content.ContextCompat
+
+class NullInputMethodService : InputMethodService() {
+
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                // COMMAND 1: SWITCH KEYBOARD (Restore Gboard)
+                "com.example.coverscreentester.RESTORE_IME" -> {
+                    val targetIme = intent.getStringExtra("target_ime")
+                    if (!targetIme.isNullOrEmpty()) {
+                        try {
+                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                            // Using the Service's Token proves we are the active IME and have permission to switch
+                            val token = window?.window?.attributes?.token
+                            if (token != null) {
+                                imm.setInputMethod(token, targetIme)
+                            }
+                        } catch (e: Exception) { e.printStackTrace() }
+                    }
+                }
+                
+                // COMMAND 2: TYPE KEY (Native Input)
+                "com.example.coverscreentester.INJECT_KEY" -> {
+                    val keyCode = intent.getIntExtra("keyCode", 0)
+                    if (keyCode != 0 && currentInputConnection != null) {
+                        val now = System.currentTimeMillis()
+                        // Send DOWN
+                        currentInputConnection.sendKeyEvent(
+                            KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0)
+                        )
+                        // Send UP
+                        currentInputConnection.sendKeyEvent(
+                            KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        val filter = IntentFilter().apply {
+            addAction("com.example.coverscreentester.RESTORE_IME")
+            addAction("com.example.coverscreentester.INJECT_KEY")
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(receiver) } catch (e: Exception) {}
+    }
+
+    override fun onCreateInputView(): View {
+        return View(this).apply { layoutParams = android.view.ViewGroup.LayoutParams(0, 0) }
+    }
+    
+    override fun onEvaluateInputViewShown(): Boolean {
+        super.onEvaluateInputViewShown()
+        return true
+    }
+    override fun onEvaluateFullscreenMode(): Boolean = false // Important: Never take over full screen
+}
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/drawable/bg_trackpad_bubble.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
     <solid android:color="#444444"/>
     <stroke android:width="2dp" android:color="#888888"/>
 </shape>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_settings.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -8315,10 +7782,10 @@ If build success, commit to local with appropriate description (refer to instruc
 
     </LinearLayout>
 </ScrollView>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/item_trackpad_menu.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -8418,10 +7885,10 @@ If build success, commit to local with appropriate description (refer to instruc
         android:padding="4dp"/>
 
 </LinearLayout>
-````
+```
 
 ## File: Cover-Screen-Trackpad/crash_log.txt
-````
+```
 11-28 13:41:08.240 14842 14842 E AndroidRuntime: FATAL EXCEPTION: main
 11-28 13:41:08.240 14842 14842 E AndroidRuntime: Process: com.example.com.katsuyamaki.coverscreenlauncher, PID: 14842
 11-28 13:41:08.240 14842 14842 E AndroidRuntime: java.lang.RuntimeException: Unable to start activity ComponentInfo{com.example.com.katsuyamaki.coverscreenlauncher/com.example.quadrantlauncher.MainActivity}: java.lang.IllegalStateException: binder haven't been received
@@ -8902,216 +8369,10 @@ If build success, commit to local with appropriate description (refer to instruc
 11-28 19:31:35.891 27747 27747 E AndroidRuntime: 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1524)
 11-28 19:31:35.891 27747 27747 E AndroidRuntime: 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4622)
 11-28 19:31:35.891 27747 27747 E AndroidRuntime: 	... 13 more
-````
-
-## File: README.md
-````markdown
-DroidOS 📱🚀
-<br>
-<br>
-
----
-
-DroidOS is a suite of advanced system tools designed to give "superpowers" to the standard Android experience.
-It functions as a universal Samsung DeX replacement, a tiling window manager, and an unrestricted app launcher that works on any Android device. Whether you are using a Foldable, a Flip phone, AR Glasses, or a secondary monitor, DroidOS unlocks the full potential of your hardware.
-
-![Screenshot_20251130_185618_Discord](https://github.com/user-attachments/assets/dca14a11-21e6-439c-b653-7ce9f8e73a87)
-
-Video Demonstration : https://youtu.be/aOzkV3t7wFM
-
-<br>
-<br>
-
----
-
-✨ Core Features
-
-🖥️ Universal Desktop Mode (DeX Replacement)
-Unlike proprietary solutions locked to specific brands, DroidOS provides a desktop-class experience on any Android phone:
- * Window Management: Force apps into specific tiling layouts (Split-screen, Quadrants, Tri-split) on external displays.
- * Input Control: Turn your phone screen into a fully functional trackpad and keyboard while viewing content on a larger screen.
-🕶️ AR Glasses & Virtual Screens
-Optimized for users of XREAL, Rokid, Viture, and other AR glasses:
- * "Headless" Mode: Turn off your phone's physical screen to save battery and reduce heat while the system continues running on the glasses.
- * Blind Navigation: The Trackpad module allows you to control the AR interface without looking at your phone.
-📱 Foldable & Cover Screen Enhancements
-Unleash the full power of your Galaxy Z Flip, Fold, or other foldable devices:
- * Unrestricted Launching: Launch any app on the cover screen, bypassing system "Good Lock" allowlists.
- * Orientation Control: Force landscape or portrait orientations on screens that don't natively support them.
-🛠️ How It Works
-DroidOS utilizes Shizuku to access elevated system APIs without requiring root access. This allows it to:
- * Inject raw input events (Mouse/Keyboard) directly into the system input stream.
- * Manage window sizes, positions, and display power states via hidden Android APIs (Reflection).
- * Launch activities on specific display IDs (Cover screens, Virtual displays).
-
-<br>
-<br>
-
----
-
-🚀 Getting Started
-
-Prerequisites
- * Shizuku: Must be installed and running on your device.
- * Developer Options: "Force activities to be resizable" and "Enable freeform windows" must be enabled.
-
-Installation
-You can download the latest APKs for both modules from the Releases page.
- * Install DroidOS Launcher to manage your apps and windows.
- * Install DroidOS Trackpad Keyboard to control the cursor.
- * Grant Shizuku permissions when prompted in each app.
- * I reccomend this fork of shizuku https://github.com/thedjchi/Shizuku once you set it up. It has a watchdog feature to autorestart whenever it gets turned off. Once you turn it on, even if you lose wireless adb you can still turn shizuku back on without it. Also has an auto start on boot feature. Does not require root.
- * Grant accessibility permissions to the trackpad when prompted.
-
- * DroidOS Launcher can be exited by swiping the bubble icon away.
-
-<br>
-<br>
-
----
-
-🤝 Contributing
-
-We welcome contributions! 
-
-Please note that this is a Monorepo.
- * If you are fixing a bug in the Launcher, make your Pull Request against the Cover-Screen-Launcher directory.
- * If you are improving the Trackpad, work within the Cover-Screen-Trackpad directory.
-
-<br>
-<br>
-
----
-
-🚀 DroidOS Launcher Usage Guide
-
-The DroidOS Launcher is designed to manage multi-window tiling and control display resolutions, primarily using Shizuku for elevated permissions.
-1. The Two Operational Modes
-The Launcher operates primarily using an app queue combined with your selected window layout. The core difference lies in how aggressively the launcher manages apps after initialization.
->
-| Mode | Key Feature | Execution Action | Ideal For |
-|---|---|---|---|
-| Instant Mode | Live, dynamic window management. | Windows are launched/resized automatically every time you adjust the queue (add/remove/hide apps). The Green Play/Execute button is hidden. | Quick adjustments, experimental resizing, or when fine-tuning a small layout. |
-| Launcher Mode | Traditional "batch" execution. | Changes to the queue or layout only take effect when you explicitly press the Green Play/Execute button. | Large, complex setups (3+ apps) where manual timing is better, or minimizing system resource drain. |
-> Switch Mode: Go to the Settings tab (Gear Icon) and toggle "Instant Mode (Live Changes)".
-> 
-2. Managing the App Queue (The Dock)
-The App Queue (the horizontal list of icons at the top of the main drawer) determines which apps are launched and where they are placed in your chosen layout.
->
-| Action | How To | Result |
-|---|---|---|
-| Adding an App | 1. Navigate to the Search tab. 2. Tap an app listed in the main recycler view. | The app is added to the right end of the App Queue. If in Instant Mode, the layout is applied immediately. |
-| Adding a Spacer | Tap "(Blank Space)" in the search list. | Inserts a blank placeholder into the queue. This ensures an empty tile space in your final layout (e.g., in a 4-Quadrant layout, you can use 2 apps and 2 blanks). |
-| Reordering/Moving | Drag and drop an app icon horizontally within the queue. | Changes the app's position in the queue, which dictates its screen placement (Tiling order). |
-| Toggling Hide/Minimize | Tap an app icon in the App Queue. | The app's icon turns slightly transparent (minimized). The app is moved to the background using its Task ID. The app is skipped during subsequent tiling calculations. |
-| Closing/Killing App | Swipe the app icon up or down in the App Queue. | The app is removed from the queue and a force-stop shell command is executed to kill the app. |
-| Favoriting (Global) | Long-press an app in the main search list or swipe the app left/right in the search list. | Toggles the star icon and adds/removes the app from your global favorites list. |
-3. Tiling Position & Order
-Tiling positions are determined strictly from left-to-right in the App Queue to top-to-bottom, left-to-right in the selected screen layout.
- * The leftmost app in your queue corresponds to the first defined window tile in your layout.
- * The second app corresponds to the second tile, and so on.
-Example: 4-Quadrant Layout
- * Tile 1 (Top-Left): Corresponds to the 1st app in the queue.
- * Tile 2 (Top-Right): Corresponds to the 2nd app in the queue.
- * Tile 3 (Bottom-Left): Corresponds to the 3rd app in the queue.
- * Tile 4 (Bottom-Right): Corresponds to the 4th app in the queue.
-You can ensure an app lands in a specific tile by dragging it to the corresponding position in the App Queue.
-
-<br>
-<br>
-
----
-
-🕶️ DroidOS Virtual Display Setup
-
-This guide outlines the steps to activate and control a virtual, tiled desktop environment when using AR glasses (such as XREAL) connected to your Android device. This process relies on having Shizuku running with permissions granted to both the CoverScreen Launcher and CoverScreen Trackpad applications.
-
-Part 1: Create and Switch to Virtual Display (Launcher App)
-The goal of this phase is to create a new virtual screen and move the Launcher's target focus from your physical phone screen to that new screen.
- * Set Initial Resolution (Optional but Recommended):
-   * Open the CoverScreen Launcher floating bubble.
-   * Navigate to the Resolution Mode (Icon: Rectangle with dots) tab.
-   * Select "Default (Reset)".
-   * Note: The developer often sets a custom resolution (like 1080p) here to ensure the display from the glasses (e.g., Beam Pro) is usable, as the physical screen itself may be too tiny for the mirrored content.
- * Enable Virtual Display:
-   * Navigate to the Settings Mode (Icon: Gear/Preferences) tab.
-   * Toggle the "Virtual Display (1080p)" option.
- * Switch Launch Target:
-   * Press the "Switch Display (Current [ID])" button immediately below the Virtual Display toggle.
-   * Result: Your physical phone screen should become mostly blank, showing only the Launcher bubble (or the main screen if still open). The virtual screen on the glasses should now show the output.
-
-Part 2: Gaining Cursor Control (Trackpad App)
-Now that the system is outputting to the glasses, you must redirect your phone's touch input to control the cursor on the remote screen.
- * Launch Trackpad App:
-   * Open the CoverScreen Trackpad application on your physical phone screen.
-   * Note: The trackpad functions as an overlay on your physical phone screen, allowing you to use your phone's surface to control the larger remote display.
- * Redirect Input:
-   * Press the "Target: Switch Local/Remote" button.
-   * Result: You should now see a cursor moving on the glasses display corresponding to your touch input on the phone.
- * Activate Headless/Extinguish Mode (Optional):
-   * Return to the CoverScreen Launcher (Settings Tab).
-   * Toggle "Display Off (Touch on)" to turn off the physical screen entirely.
-🖱️ Trackpad Overlay Controls
-The Trackpad overlay provides dedicated controls accessible through its corners and edges:
-| Control Point | Action | Result | Source |
-|---|---|---|---|
-| Top-Right Corner Handle | Drag finger | Moves (repositions) the trackpad overlay on the physical screen. |  |
-| Bottom-Right Corner Handle | Drag finger | Resizes the trackpad overlay. |  |
-| Bottom-Left Corner | Tap (Click) | Opens the manual adjust menu, allowing you to resize and reposition using a controller instead of dragging. |  |
-| Edges (Top/Bottom) | Finger near edge + Move Up/Down | Performs Vertical Scrolling in the remote screen. |  |
-| Edges (Left/Right) | Finger near edge + Move Left/Right | Performs Horizontal Scrolling in the remote screen. |  |
-Scrolling Note: Ensure the trackpad overlay is not positioned too close to the edges of your phone's physical screen for the scrolling zones to work reliably.
-
-<br>
-<br>
-
----
-
-Want to donate to support the development of this project? https://ko-fi.com/katsuyamaki
-
-📂 Project Structure (Monorepo)
-This repository is a Monorepo containing two distinct but complementary Android applications.
-> ⚠️ Developer Note: Do not open this root folder directly in Android Studio. You must open each project folder individually.
-> 
-| Project | Description | Path |
-|---|---|---|
-| DroidOS Launcher | An advanced tiling window manager and app launcher. Bypasses cover screen restrictions and manages multi-window layouts. | /Cover-Screen-Launcher |
-| DroidOS Trackpad Keyboard | A virtual mouse trackpad and custom keyboard overlay. Turns your phone into a precision input device for external displays. | /Cover-Screen-Trackpad |
-
-
-📄 License
-This project is licensed under the GNU General Public License v3.0 (GPLv3).
-You are free to use, modify, and distribute this software, but all modifications must remain open source. See the LICENSE file for details.
-
-<br>
-<br>
-
----
-
-![Screenshot_20251130_125934_Reddit](https://github.com/user-attachments/assets/a4644964-8371-4f39-9a03-df88e4a8524a)
-
-![Screenshot_20251130_185403_Discord](https://github.com/user-attachments/assets/6a876a1e-67c5-4968-84ff-2ed36411c54a)
-
-![Screenshot_20251130_185026_Discord](https://github.com/user-attachments/assets/c89110b9-0a0b-47ed-83e9-9d54a150beae)
-
-![Screenshot_20251130_130005_Reddit](https://github.com/user-attachments/assets/24ceaf2f-5212-4fe6-b027-e5941164ca93)
-
-![Screenshot_20251130_125958_Reddit](https://github.com/user-attachments/assets/3809df01-7d7a-4383-b5f3-f9aa85998685)
-
-![Screenshot_20251130_125940_Reddit](https://github.com/user-attachments/assets/fd1ab37f-3158-4b01-a342-9c5f82423b89)
-
-![Screenshot_20251130_125922_Reddit](https://github.com/user-attachments/assets/2af9a4f6-8dd2-48da-9551-943845a28613)
-
-![Screenshot_20251130_125807_One UI Cover Home](https://github.com/user-attachments/assets/eb08e879-6c55-45f6-a175-a19791588337)
-
-<br>
-<br>
-
----
-````
+```
 
 ## File: Cover-Screen-Launcher/app/build.gradle.kts
-````
+```
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -9170,10 +8431,10 @@ dependencies {
     implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("dev.rikka.shizuku:aidl:13.1.5")
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/SettingsActivity.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.app.Activity
@@ -9308,10 +8569,10 @@ class SettingsActivity : Activity() {
         override fun onStopTrackingTouch(s: SeekBar) {}
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad_bubble.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -9341,133 +8602,10 @@ class SettingsActivity : Activity() {
         android:visibility="gone" />
 
 </FrameLayout>
-````
-
-## File: Cover-Screen-Trackpad/app/src/main/AndroidManifest.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-
-    <queries>
-        <package android:name="moe.shizuku.privileged.api" />
-        <package android:name="rikka.shizuku.ui" />
-        <intent>
-            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VOICE_COMMAND" />
-        </intent>
-        <package android:name="com.google.android.googlequicksearchbox" />
-    </queries>
-
-    <application
-        android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_trackpad_adaptive"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_trackpad_adaptive"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.CoverScreenTester"
-        android:resizeableActivity="true"> 
-        
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|density|smallestScreenSize"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            
-            <meta-data android:name="android.max_aspect" android:value="4.0" />
-        </activity>
-
-        <activity 
-            android:name=".SettingsActivity"
-            android:exported="false" 
-            android:theme="@style/Theme.CoverScreenTester" />
-
-        <activity 
-            android:name=".ProfilesActivity"
-            android:exported="false" 
-            android:theme="@style/Theme.CoverScreenTester" />
-
-        <activity 
-            android:name=".ManualAdjustActivity"
-            android:exported="false" 
-            android:theme="@style/Theme.CoverScreenTester" />
-            
-        <activity 
-            android:name=".KeyboardActivity"
-            android:exported="false" 
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:excludeFromRecents="true"
-            android:noHistory="true" />
-
-        <service
-            android:name=".OverlayService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true"
-            android:foregroundServiceType="specialUse">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-                <action android:name="PREVIEW_UPDATE" />
-                <action android:name="RESET_POSITION" />
-                <action android:name="ROTATE" />
-                <action android:name="SAVE_LAYOUT" />
-                <action android:name="LOAD_LAYOUT" />
-                <action android:name="RELOAD_PREFS" />
-                <action android:name="DELETE_PROFILE" />
-                <action android:name="MANUAL_ADJUST" /> 
-                <action android:name="CYCLE_INPUT_TARGET" />
-                <action android:name="RESET_CURSOR" />
-                <action android:name="TOGGLE_DEBUG" />
-                <action android:name="FORCE_KEYBOARD" />
-                <action android:name="TOGGLE_CUSTOM_KEYBOARD" />
-                <action android:name="SET_TRACKPAD_VISIBILITY" />
-                <action android:name="SET_PREVIEW_MODE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-
-        <service
-            android:name=".NullInputMethodService"
-            android:label="DroidOS Null Keyboard"
-            android:permission="android.permission.BIND_INPUT_METHOD"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.view.InputMethod" />
-            </intent-filter>
-            <meta-data
-                android:name="android.view.im"
-                android:resource="@xml/method" />
-        </service>
-
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            android:authorities="${applicationId}.shizuku"
-            android:enabled="true"
-            android:exported="true"
-            android:multiprocess="false" />
-
-    </application>
-
-</manifest>
-````
+```
 
 ## File: CHANGELOG.md
-````markdown
+```markdown
 # Changelog
 
 ## [2.1] - 2025-12-05
@@ -9478,10 +8616,10 @@ class SettingsActivity : Activity() {
     - Restored `execShellCommand` for system-level operations.
     - Fixed `getAllPhysicalDisplayTokens` reflection logic for Android 14.
 - **Display Control**: Fixed `setBrightness` and `setScreenOff` implementations to correctly target the Cover Screen (Display 1) without crashing the main interface.
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/aidl/com/example/coverscreentester/IShellService.aidl
-````
+```
 package com.example.coverscreentester;
 
 interface IShellService {
@@ -9505,10 +8643,10 @@ interface IShellService {
     void setBrightness(int value);
     boolean setBrightnessViaDisplayManager(int displayId, float brightness);
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_main.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -9598,10 +8736,141 @@ interface IShellService {
 
     </LinearLayout>
 </ScrollView>
-````
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/AndroidManifest.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="rikka.shizuku.ui" />
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VOICE_COMMAND" />
+        </intent>
+        <package android:name="com.google.android.googlequicksearchbox" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_trackpad_adaptive"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_trackpad_adaptive"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CoverScreenTester"
+        android:resizeableActivity="true"> 
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|density|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            
+            <meta-data android:name="android.max_aspect" android:value="4.0" />
+        </activity>
+
+        <activity 
+            android:name=".SettingsActivity"
+            android:exported="false" 
+            android:theme="@style/Theme.CoverScreenTester" />
+
+        <activity 
+            android:name=".ProfilesActivity"
+            android:exported="false" 
+            android:theme="@style/Theme.CoverScreenTester" />
+
+        <activity 
+            android:name=".ManualAdjustActivity"
+            android:exported="false" 
+            android:theme="@style/Theme.CoverScreenTester" />
+            
+        <activity 
+            android:name=".KeyboardActivity"
+            android:exported="false" 
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true" />
+
+        <activity
+            android:name=".KeyboardPickerActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance"
+            android:exported="false" />
+
+        <service
+            android:name=".OverlayService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+                <action android:name="PREVIEW_UPDATE" />
+                <action android:name="RESET_POSITION" />
+                <action android:name="ROTATE" />
+                <action android:name="SAVE_LAYOUT" />
+                <action android:name="LOAD_LAYOUT" />
+                <action android:name="RELOAD_PREFS" />
+                <action android:name="DELETE_PROFILE" />
+                <action android:name="MANUAL_ADJUST" /> 
+                <action android:name="CYCLE_INPUT_TARGET" />
+                <action android:name="RESET_CURSOR" />
+                <action android:name="TOGGLE_DEBUG" />
+                <action android:name="FORCE_KEYBOARD" />
+                <action android:name="TOGGLE_CUSTOM_KEYBOARD" />
+                <action android:name="SET_TRACKPAD_VISIBILITY" />
+                <action android:name="SET_PREVIEW_MODE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <service
+            android:name=".NullInputMethodService"
+            android:label="DroidOS Null Keyboard"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false" />
+
+    </application>
+
+</manifest>
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/AppPreferences.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.content.Context
@@ -9960,10 +9229,10 @@ object AppPreferences {
         return getPrefs(context).getBoolean(KEY_REORDER_METHOD_SCROLL, true) // Default Enabled
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardManager.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.content.Context
@@ -10219,10 +9488,10 @@ class KeyboardManager(
         return false // Handled by Overlay wrapper usually
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardView.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.content.Context
@@ -10770,10 +10039,10 @@ class KeyboardView @JvmOverloads constructor(
         stopRepeat()
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuAdapter.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.graphics.Color
@@ -10935,10 +10204,10 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
 
     override fun getItemCount(): Int = items.size
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/aidl/com/example/quadrantlauncher/IShellService.aidl
-````
+```
 package com.example.quadrantlauncher;
 
 interface IShellService {
@@ -10965,10 +10234,10 @@ interface IShellService {
     // NEW: Alternate Display Off Logic (Targeted)
     void setBrightness(int displayId, int value);
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad_drawer.xml
-````xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -11129,10 +10398,10 @@ interface IShellService {
 
     </LinearLayout>
 </FrameLayout>
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShellUserService.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.os.Binder
@@ -11518,10 +10787,10 @@ class ShellUserService : IShellService.Stub() {
         return output.toString()
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/FloatingLauncherService.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.app.ActivityManager
@@ -12116,10 +11385,10 @@ class FloatingLauncherService : Service() {
         override fun getItemCount() = displayList.size
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/MainActivity.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.content.Intent
@@ -12261,10 +11530,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
-````
+```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt
-````kotlin
+```kotlin
 package com.example.quadrantlauncher
 
 import android.content.ContentResolver
@@ -12732,10 +12001,10 @@ override fun getWindowLayouts(displayId: Int): List<String> {
     override fun isAutoBrightness(): Boolean = true
     override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardOverlay.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.content.Context
@@ -13201,10 +12470,10 @@ class KeyboardOverlay(
         (context as? OverlayService)?.injectKeyFromKeyboard(keyCode, metaState)
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuManager.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.content.Context
@@ -13593,7 +12862,6 @@ class TrackpadMenuManager(
 
     // =========================
     // GET TUNE ITEMS - Keyboard configuration settings
-    // Contains Keyboard Opacity, Scale, and Auto Display Off
     // =========================
     private fun getTuneItems(): List<TrackpadMenuAdapter.MenuItem> {
         val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
@@ -13601,9 +12869,22 @@ class TrackpadMenuManager(
         
         list.add(TrackpadMenuAdapter.MenuItem("KEYBOARD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
         
-        // NEW: Manual Soft Keyboard Blocker
         list.add(TrackpadMenuAdapter.MenuItem("Block Soft Keyboard", android.R.drawable.ic_lock_lock, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefBlockSoftKeyboard) 1 else 0) { v -> 
             service.updatePref("block_soft_kb", v) 
+        })
+
+        // NEW: Launch Proxy Activity for Picker
+        list.add(TrackpadMenuAdapter.MenuItem("Change Keyboard (System)", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
+            service.forceSystemKeyboardVisible()
+            hide() // Close menu
+            
+            try {
+                val intent = android.content.Intent(context, KeyboardPickerActivity::class.java)
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch(e: Exception) {
+                android.widget.Toast.makeText(context, "Error launching picker", android.widget.Toast.LENGTH_SHORT).show()
+            }
         })
         
         list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha, 255) { v -> service.updatePref("keyboard_alpha", v) })
@@ -13892,10 +13173,10 @@ class TrackpadMenuManager(
         return list
     }
 }
-````
+```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
-````kotlin
+```kotlin
 package com.example.coverscreentester
 
 import android.accessibilityservice.AccessibilityService
@@ -14025,8 +13306,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // KEY INJECTION
     // =========================
     private fun injectKey(keyCode: Int, action: Int = KeyEvent.ACTION_DOWN, metaState: Int = 0) {
-        // Use Virtual ID (-1) for text to prevent buffering
-        shellService?.injectKey(keyCode, action, metaState, inputTargetDisplayId, -1)
+        // Dynamic Device ID:
+        // Blocking ON: Use 1 (Physical) to maintain "Hardware Keyboard" state.
+        // Blocking OFF: Use -1 (Virtual). ID 0 is often ignored by Gboard. -1 is standard software injection.
+        val deviceId = if (prefs.prefBlockSoftKeyboard) 1 else -1
+        shellService?.injectKey(keyCode, action, metaState, inputTargetDisplayId, deviceId)
     }
 
     // =========================
@@ -14057,59 +13341,86 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         Thread {
             try {
+                // 1. Find correct ID dynamically
+                val listOutput = shellService?.runCommand("ime list -a -s") ?: ""
+                val myImeId = listOutput.lines().firstOrNull { 
+                    it.contains(packageName) && it.contains("NullInputMethodService") 
+                }?.trim()
+
+                if (myImeId.isNullOrEmpty()) {
+                    handler.post { showToast("Error: Null Keyboard not found. Please re-install.") }
+                    return@Thread
+                }
+
                 if (enabled) {
-                    // --- BLOCKING LOGIC ---
+                    // --- BLOCKING (Switch to Null) ---
                     
-                    // 1. Save current IME (if it's not us/null)
-                    val output = shellService?.runCommand("settings get secure default_input_method") ?: ""
-                    val current = output.trim()
-                    
-                    // Don't save if we are already the null keyboard (prevents overwriting the backup)
+                    // Save current (if not us)
+                    val current = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
                     if (current.isNotEmpty() && !current.contains("NullInputMethodService")) {
                         previousImeId = current
                     }
 
-                    // 2. Enable & Set Null Keyboard
-                    val myImeId = "$packageName/.NullInputMethodService"
+                    // Attempt Shell Switch
                     shellService?.runCommand("ime enable $myImeId")
                     shellService?.runCommand("ime set $myImeId")
-                    
-                    // 3. Optional: Ensure hard keyboard setting doesn't fight us
-                    // (Actually, keeping it 0 is safer while blocked)
                     shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
+
+                    // Verify & Fallback
+                    Thread.sleep(500)
+                    val newDefault = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
                     
-                    handler.post { showToast("Keyboard Blocked (Null IME)") }
+                    if (newDefault.contains("NullInputMethodService")) {
+                        handler.post { showToast("Blocked: Null Keyboard Active") }
+                    } else {
+                        // FALLBACK: Open Picker
+                        handler.post { 
+                            showToast("Select 'DroidOS Null Keyboard'")
+                            try {
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                                imm.showInputMethodPicker()
+                            } catch(e: Exception){}
+                        }
+                    }
                     
                 } else {
-                    // --- RESTORE LOGIC ---
+                    // --- UNBLOCKING (Restore Gboard) ---
                     
-                    // 1. CRITICAL: Force System to Show Soft Keyboard
-                    // This fixes the issue where Gboard is selected but stays hidden
                     shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
                     
-                    // 2. Determine target IME
+                    // Determine Target
                     var targetIme = previousImeId
-                    
-                    // Fallback: If we lost the ID, try to find Gboard or Samsung
                     if (targetIme.isNullOrEmpty()) {
                         val list = shellService?.runCommand("ime list -s") ?: ""
-                        targetIme = list.lines().firstOrNull { it.contains("com.google.android.inputmethod.latin") } // Gboard
-                            ?: list.lines().firstOrNull { it.contains("com.sec.android.inputmethod") } // Samsung
-                            ?: list.lines().firstOrNull { it.contains("com.samsung.android.honeyboard") } // Samsung Newer
+                        targetIme = list.lines().firstOrNull { it.contains("com.google.android.inputmethod.latin") } 
+                            ?: list.lines().firstOrNull { it.contains("com.sec.android.inputmethod") }
+                            ?: list.lines().firstOrNull { it.contains("honeyboard") }
                     }
 
-                    // 3. Apply Restore
                     if (!targetIme.isNullOrEmpty()) {
+                        // Try Broadcast first (Clean Handoff)
+                        val intent = Intent("com.example.coverscreentester.RESTORE_IME")
+                        intent.setPackage(packageName)
+                        intent.putExtra("target_ime", targetIme)
+                        sendBroadcast(intent)
+                        
+                        // Blast Shell too just in case
+                        shellService?.runCommand("ime enable $targetIme")
                         shellService?.runCommand("ime set $targetIme")
+                        
                         handler.post { showToast("Restored: $targetIme") }
                     } else {
-                        // Last Resort: Reset prompts the picker
-                        shellService?.runCommand("ime reset")
-                        handler.post { showToast("Keyboard Reset (Check Settings)") }
+                        handler.post { 
+                            showToast("Select your normal keyboard")
+                            try {
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                                imm.showInputMethodPicker()
+                            } catch(e: Exception){}
+                        }
                     }
                 }
             } catch (e: Exception) {
-                handler.post { showToast("Keyboard Toggle Failed: ${e.message}") }
+                handler.post { showToast("Error: ${e.message}") }
             }
         }.start()
     }
@@ -15111,6 +14422,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         if (isBound) ShizukuBinder.unbind(ComponentName(packageName, ShellUserService::class.java.name), userServiceConnection) 
     }
 
+    fun forceSystemKeyboardVisible() {
+        Thread {
+            try {
+                // Force setting to 1 (Show)
+                shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
+            } catch(e: Exception) {}
+        }.start()
+    }
+
     private fun showToast(msg: String) { handler.post { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show() } }
     private fun updateTargetMetrics(displayId: Int) { val display = displayManager?.getDisplay(displayId) ?: return; val metrics = android.util.DisplayMetrics(); display.getRealMetrics(metrics); targetScreenWidth = metrics.widthPixels; targetScreenHeight = metrics.heightPixels }
     
@@ -15124,10 +14444,28 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     fun injectKeyFromKeyboard(keyCode: Int, metaState: Int) {
         Thread {
             try {
-                injectKey(keyCode, KeyEvent.ACTION_DOWN, metaState)
-                Thread.sleep(20)
-                injectKey(keyCode, KeyEvent.ACTION_UP, metaState)
-            } catch (e: Exception) { Log.e(TAG, "Key injection failed", e) }
+                // 1. CHECK ACTUAL SYSTEM STATE
+                // Don't trust our internal boolean. Trust the Android Settings.
+                val currentIme = android.provider.Settings.Secure.getString(contentResolver, "default_input_method") ?: ""
+                val isNullKeyboardActive = currentIme.contains(packageName) && currentIme.contains("NullInputMethodService")
+
+                if (isNullKeyboardActive) {
+                    // STRATEGY A: NATIVE (Cleanest)
+                    // Only works if we successfully switched to our keyboard
+                    val intent = Intent("com.example.coverscreentester.INJECT_KEY")
+                    intent.setPackage(packageName)
+                    intent.putExtra("keyCode", keyCode)
+                    sendBroadcast(intent)
+                } else {
+                    // STRATEGY B: SHIZUKU INJECTION (Fallback / Gboard Active)
+                    // Works even if switching failed. Uses Device ID 1 to mimic hardware.
+                    shellService?.injectKey(keyCode, KeyEvent.ACTION_DOWN, metaState, inputTargetDisplayId, 1)
+                    Thread.sleep(10)
+                    shellService?.injectKey(keyCode, KeyEvent.ACTION_UP, metaState, inputTargetDisplayId, 1)
+                }
+            } catch (e: Exception) { 
+                Log.e(TAG, "Key injection failed", e) 
+            }
         }.start()
     }
 
@@ -15146,4 +14484,4 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 }
-````
+```

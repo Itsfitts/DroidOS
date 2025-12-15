@@ -74,15 +74,22 @@ class KeyboardOverlay(
         if (keyboardView == null) return
         keyboardView?.setScale(scale)
         
-        // If user scales, we might want to reset to WRAP_CONTENT to ensure fit,
-        // or calculate a minimum. For now, WRAP_CONTENT is safest.
-        keyboardHeight = WindowManager.LayoutParams.WRAP_CONTENT
+        // FIX: Removed forced reset of keyboardHeight to WRAP_CONTENT.
+        // We now respect the existing keyboardHeight (whether it's fixed pixels from a manual resize
+        // or WRAP_CONTENT from default).
         
         if (isVisible && keyboardParams != null) {
-            keyboardParams?.height = keyboardHeight
+            // If the window is set to WRAP_CONTENT, we might need to poke the WM to re-measure
+            // effectively, but we shouldn't change the param value itself if it's already -2.
+            // If it is fixed pixels, we leave it alone.
+            
+            // We only need to update layout if we want to ensure constraints are met,
+            // but simply invalidating the view is usually enough for internal changes.
+            // To be safe, we update the view layout with the *current* params.
             try { 
                 windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-                saveKeyboardSize() 
+                // Do NOT call saveKeyboardSize() here. Scaling shouldn't change the 
+                // "Window Size Preference" (Container), only the content scale.
             } catch (e: Exception) {}
         }
     }
