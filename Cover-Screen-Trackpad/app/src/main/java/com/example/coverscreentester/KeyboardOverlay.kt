@@ -4,6 +4,11 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioManager
+import android.media.AudioRecordingConfiguration
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
@@ -481,32 +486,78 @@ class KeyboardOverlay(
         injectKey(keyCode, metaState)
     }
 
+    private fun injectKey(keyCode: Int, metaState: Int) {
+        (context as? OverlayService)?.injectKeyFromKeyboard(keyCode, metaState)
+    }
+
+    // --- Voice Logic & Mic Check Loop ---
+    
+    // Handler for the 1-second loop
+    private val micCheckHandler = Handler(Looper.getMainLooper())
+    
+    // Runnable that checks if the Microphone is currently recording
+    private val micCheckRunnable = object : Runnable {
+        override fun run() {
+            try {
+                val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+                
+                // Use activeRecordingConfigurations (API 24+) to check if any app is recording
+                var isMicOn = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    if (audioManager.activeRecordingConfigurations.isNotEmpty()) {
+                        isMicOn = true
+                    }
+                }
+                
+                if (isMicOn) {
+                    // Still recording, check again in 1 second
+                    micCheckHandler.postDelayed(this, 1000)
+                } else {
+                    // Mic stopped (or not supported), turn off the green light
+                    keyboardView?.setVoiceActive(false)
+                }
+            } catch (e: Exception) {
+                // If check fails, fail safe to off
+                keyboardView?.setVoiceActive(false)
+            }
+        }
+    }
+
     private fun triggerVoiceTyping() {
         if (shellService == null) return
+
+        // 1. UI: Turn Button Green Immediately
+        keyboardView?.setVoiceActive(true)
         
-        // 1. Notify Service to stop blocking IMMEDIATELY
+        // 2. Start Monitoring Loop
+        // Delay 3 seconds to allow the Voice IME to open and start recording
+        micCheckHandler.removeCallbacks(micCheckRunnable)
+        micCheckHandler.postDelayed(micCheckRunnable, 3000)
+
+        // 3. Notify Service to stop blocking touches
         val intent = android.content.Intent("VOICE_TYPE_TRIGGERED")
         intent.setPackage(context.packageName)
         context.sendBroadcast(intent)
-        
-        // 2. Perform Switch
+
+        // 4. Perform IME Switch via Shell
         Thread {
             try {
-                // Fetch IME list and find Google Voice
-                val output = shellService.runCommand("ime list -a -s")
-                val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) }
+                // Fetch IME list and find Google Voice Typing
+                val output = shellService?.runCommand("ime list -a -s") ?: ""
+                val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) } 
                     ?: output.lines().find { it.contains("voice", true) }
                 
                 if (voiceIme != null) {
-                    shellService.runCommand("ime set $voiceIme")
+                    shellService?.runCommand("ime set $voiceIme")
                 } else {
-                    Log.w(TAG, "Voice IME not found")
+                    android.util.Log.w(TAG, "Voice IME not found")
+                    // If IME missing, turn off light
+                    micCheckHandler.post { keyboardView?.setVoiceActive(false) }
                 }
-            } catch (e: Exception) { Log.e(TAG, "Voice Switch Failed", e) }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Voice Switch Failed", e)
+                micCheckHandler.post { keyboardView?.setVoiceActive(false) }
+            }
         }.start()
-    }
-
-    private fun injectKey(keyCode: Int, metaState: Int) {
-        (context as? OverlayService)?.injectKeyFromKeyboard(keyCode, metaState)
     }
 }

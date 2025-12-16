@@ -393,8 +393,10 @@ class KeyboardView @JvmOverloads constructor(
         if (key == "ALT" && isAltActive) return Color.parseColor("#3DDC84")
         
         // NEW: Voice Active Indicator
+        // UPDATED: Voice Key Color
+        // Green if active, standard dark gray if inactive (removed red alert color)
         if (key == "MIC") {
-            return if (isVoiceActive) Color.parseColor("#3DDC84") else Color.parseColor("#FF5555")
+            return if (isVoiceActive) Color.parseColor("#3DDC84") else Color.parseColor("#252525")
         }
 
         if (key == "SCREEN") {
