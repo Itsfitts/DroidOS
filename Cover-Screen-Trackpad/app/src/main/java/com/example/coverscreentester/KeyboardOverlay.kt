@@ -268,6 +268,17 @@ class KeyboardOverlay(
         }
     }
 
+    // =================================================================================
+    // FUNCTION: setVoiceActive
+    // SUMMARY: Passes the voice state down to the keyboard view.
+    // =================================================================================
+    fun setVoiceActive(active: Boolean) {
+        keyboardView?.setVoiceActive(active)
+    }
+    // =================================================================================
+    // END BLOCK: setVoiceActive
+    // =================================================================================
+
     fun moveWindow(dx: Int, dy: Int) {
         if (!isVisible || keyboardParams == null) return
         keyboardParams!!.x += dx; keyboardParams!!.y += dy

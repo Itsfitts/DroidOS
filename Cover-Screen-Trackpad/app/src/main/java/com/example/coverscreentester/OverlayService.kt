@@ -410,6 +410,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     //          REMOVED the logic that restored 'setOverlayFocusable(true)'.
     //          The overlay must remain NOT_FOCUSABLE so Termux retains input focus.
     // =================================================================================
+    // =================================================================================
+    // SECTION: BroadcastReceiver (Voice Trigger)
+    // SUMMARY: Turns the indicator GREEN when Voice is triggered.
+    //          Sets isVoiceActive = true immediately.
+    // =================================================================================
     private val switchReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -432,16 +437,14 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 "VOICE_TYPE_TRIGGERED" -> {
                     isVoiceActive = true
                     
-                    // CRITICAL: Force overlay to be NOT focusable.
-                    // This allows the System to give focus to the app below (Termux).
+                    // UPDATE UI: Turn Mic Green
+                    keyboardOverlay?.setVoiceActive(true)
+                    
+                    // Force overlay to be NOT focusable (Termux Focus Fix)
                     setOverlayFocusable(false)
 
-                    // Click the input field to ensure the OS recognizes the Editor
+                    // Click the input field (Focus Wakeup)
                     handler.postDelayed({ attemptRefocusInput() }, 300)
-                    
-                    // NOTE: Timeout removed. 
-                    // isVoiceActive will now be reset by checkAndDismissVoice() (on touch)
-                    // or by onAccessibilityEvent() (on window change).
                 }
                 
                 Intent.ACTION_SCREEN_ON -> triggerAggressiveBlocking()
@@ -486,23 +489,28 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     //           FIX 1: Uses performGlobalAction(GLOBAL_ACTION_BACK) for reliable closing.
     //           FIX 2: Adds a small delay to ensure the action registers.
     // =================================================================================
+    // =================================================================================
+    // FUNCTION: checkAndDismissVoice
+    // SUMMARY:  Called when user touches Trackpad/Keyboard.
+    //           Turns the indicator OFF (Red) and Resets Flag.
+    //           Injects BACK key to close Google Voice.
+    // =================================================================================
     private fun checkAndDismissVoice() {
         if (isVoiceActive) {
             isVoiceActive = false 
             
+            // IMMEDIATE UI UPDATE: Turn Mic Off
+            keyboardOverlay?.setVoiceActive(false)
+            
+            // Standard Dismissal Logic (Back Button)
             Thread {
                 try {
-                    // Attempt clean dismissal via Accessibility Service (Preferred)
                     val success = performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-                    
-                    // Fallback to Key Injection if Global Action fails
                     if (!success) {
                         injectKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_DOWN)
                         Thread.sleep(50)
                         injectKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
                     }
-
-                    // Re-enable blocking setting
                     if (prefs.prefBlockSoftKeyboard) {
                         triggerAggressiveBlocking()
                     }

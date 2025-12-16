@@ -55,6 +55,8 @@ class KeyboardView @JvmOverloads constructor(
     private var isCtrlActive = false
     private var isAltActive = false
     
+    private var isVoiceActive = false
+    
     private val BASE_KEY_HEIGHT = 40
     private val BASE_FONT_SIZE = 14f
     private var scaleFactor = 1.0f
@@ -148,6 +150,19 @@ class KeyboardView @JvmOverloads constructor(
         this.keyHeight = (BASE_KEY_HEIGHT * scaleFactor).toInt()
         this.fontSize = BASE_FONT_SIZE * scaleFactor
         buildKeyboard()
+    }
+
+    fun setVoiceActive(active: Boolean) {
+        if (isVoiceActive != active) {
+            isVoiceActive = active
+            // Try to find and update just the MIC key to save resources
+            val micView = findViewWithTag<View>("MIC")
+            if (micView != null) {
+                setKeyVisual(micView, false, "MIC")
+            } else {
+                invalidate() // Fallback: Redraw full view
+            }
+        }
     }
 
     private fun buildKeyboard() {
@@ -377,11 +392,15 @@ class KeyboardView @JvmOverloads constructor(
         if (key == "CTRL" && isCtrlActive) return Color.parseColor("#3DDC84")
         if (key == "ALT" && isAltActive) return Color.parseColor("#3DDC84")
         
-        // Special color for Screen/Mode Key
-        if (key == "SCREEN") {
-            return if (isSymbolsActive()) Color.parseColor("#FF9800") else Color.parseColor("#FF5555") 
+        // NEW: Voice Active Indicator
+        if (key == "MIC") {
+            return if (isVoiceActive) Color.parseColor("#3DDC84") else Color.parseColor("#FF5555")
         }
 
+        if (key == "SCREEN") {
+            return if (isSymbolsActive()) Color.parseColor("#FF9800") else Color.parseColor("#FF5555")
+        }
+        
         if (key in arrowRow || key in navRow) return Color.parseColor("#252525")
         
         return when (key) {
