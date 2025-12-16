@@ -264,39 +264,42 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }.start()
     }
 
-    // =========================
-    // ACCESSIBILITY EVENT (DEBUG FOCUS WATCHDOG)
-    // =========================
+    // =================================================================================
+    // FUNCTION: onAccessibilityEvent
+    // SUMMARY:  Monitors window events.
+    //           CRITICAL FIX: Removed the 'isVoiceActive = false' check that was
+    //           killing the flag immediately when the Google Voice window appeared.
+    // =================================================================================
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         
-        // EXCEPTION: Google Voice Typing Detection
         val pkg = event.packageName?.toString() ?: ""
         
-        // Check for Google App (Voice) or Gboard (Voice Subtype)
+        // 1. Detect Google Voice UI
         if (pkg.contains("google.android.googlequicksearchbox") || 
             pkg.contains("com.google.android.voicesearch") ||
             pkg.contains("com.google.android.tts")) {
             
-            isVoiceActive = true
-            
-            // Immediately force settings to allow Voice UI
+            // Allow Voice UI to show by unblocking settings temporarily
             if (prefs.prefBlockSoftKeyboard && shellService != null) {
                 Thread { 
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1") 
+                    try { shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1") } catch(e: Exception){}
                 }.start()
             }
             return
-        } else if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // If we switched to a standard app window, disable voice flag
-            isVoiceActive = false
-        }
+        } 
         
-        // Catch Focus, Window State, and Window Content changes
+        // 2. Standard Event Handling
+        // REMOVED: The block that auto-reset isVoiceActive = false on WINDOW_STATE_CHANGED.
+        // We now rely on checkAndDismissVoice() (via user touch) to reset the flag.
+
+        // Catch changes that might mean we need to re-assert our keyboard blocking
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
             event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
             
+            // Only block if we are NOT currently in Voice Mode
+            // (Because if Voice IS active, we want the system to allow the Voice Window)
             if (prefs.prefBlockSoftKeyboard && !isVoiceActive) {
                 triggerAggressiveBlocking()
                 
@@ -403,9 +406,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     // =================================================================================
     // SECTION: BroadcastReceiver & Window Focus Logic
-    // SUMMARY: modified VOICE_TYPE_TRIGGERED to set FLAG_NOT_FOCUSABLE.
-    //          This prevents the overlay from stealing focus back from the Text Input
-    //          when the Voice IME tries to open.
+    // SUMMARY: Updates VOICE_TYPE_TRIGGERED.
+    //          REMOVED the logic that restored 'setOverlayFocusable(true)'.
+    //          The overlay must remain NOT_FOCUSABLE so Termux retains input focus.
     // =================================================================================
     private val switchReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -429,19 +432,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 "VOICE_TYPE_TRIGGERED" -> {
                     isVoiceActive = true
                     
-                    // CRITICAL FIX: Make overlay NOT focusable immediately.
-                    // This forces the System to give focus to the app below (Termux),
-                    // ensuring the Voice IME sees a valid editor connection.
+                    // CRITICAL: Force overlay to be NOT focusable.
+                    // This allows the System to give focus to the app below (Termux).
                     setOverlayFocusable(false)
 
-                    // Run the click simulation to wake up the input field
+                    // Click the input field to ensure the OS recognizes the Editor
                     handler.postDelayed({ attemptRefocusInput() }, 300)
                     
-                    // Re-enable normal behavior after a delay (enough time for Voice to start)
-                    handler.postDelayed({ 
-                        isVoiceActive = false
-                        setOverlayFocusable(true) // Optional: Restore if you need overlay focus later
-                    }, 5000)
+                    // NOTE: Timeout removed. 
+                    // isVoiceActive will now be reset by checkAndDismissVoice() (on touch)
+                    // or by onAccessibilityEvent() (on window change).
                 }
                 
                 Intent.ACTION_SCREEN_ON -> triggerAggressiveBlocking()
@@ -479,6 +479,39 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =================================================================================
     // END BLOCK: BroadcastReceiver & Window Focus Logic
     // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: checkAndDismissVoice
+    // SUMMARY:  Dismisses Voice Input.
+    //           FIX 1: Uses performGlobalAction(GLOBAL_ACTION_BACK) for reliable closing.
+    //           FIX 2: Adds a small delay to ensure the action registers.
+    // =================================================================================
+    private fun checkAndDismissVoice() {
+        if (isVoiceActive) {
+            isVoiceActive = false 
+            
+            Thread {
+                try {
+                    // Attempt clean dismissal via Accessibility Service (Preferred)
+                    val success = performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                    
+                    // Fallback to Key Injection if Global Action fails
+                    if (!success) {
+                        injectKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_DOWN)
+                        Thread.sleep(50)
+                        injectKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
+                    }
+
+                    // Re-enable blocking setting
+                    if (prefs.prefBlockSoftKeyboard) {
+                        triggerAggressiveBlocking()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }.start()
+        }
+    }
 
     companion object {
         private const val TAG = "OverlayService"
@@ -1230,6 +1263,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                // NEW: dismiss Voice if active
+                checkAndDismissVoice()
+
                 handler.removeCallbacks(releaseDebounceRunnable); isReleaseDebouncing = false
                 touchDownTime = SystemClock.uptimeMillis(); touchDownX = event.x; touchDownY = event.y; lastTouchX = event.x; lastTouchY = event.y; isTouchDragging = false
                 val actualZoneV = min(scrollZoneThickness, (viewWidth * 0.15f).toInt()); val actualZoneH = min(scrollZoneThickness, (viewHeight * 0.15f).toInt())
@@ -1447,6 +1483,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
 
     fun injectKeyFromKeyboard(keyCode: Int, metaState: Int) {
+        // NEW: dismiss Voice if active
+        checkAndDismissVoice()
+
         Thread {
             try {
                 // 1. CHECK ACTUAL SYSTEM STATE
