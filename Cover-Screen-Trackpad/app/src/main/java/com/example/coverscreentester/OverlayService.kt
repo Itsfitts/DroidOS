@@ -34,6 +34,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityEvent
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -400,6 +401,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         volDownTapCount = 0
     }
 
+    // =================================================================================
+    // SECTION: BroadcastReceiver & Window Focus Logic
+    // SUMMARY: modified VOICE_TYPE_TRIGGERED to set FLAG_NOT_FOCUSABLE.
+    //          This prevents the overlay from stealing focus back from the Text Input
+    //          when the Voice IME tries to open.
+    // =================================================================================
     private val switchReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -418,16 +425,60 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 }
                 "SET_PREVIEW_MODE" -> setPreviewMode(intent.getBooleanExtra("PREVIEW_MODE", false))
                 
-                // NEW: Manual Trigger from Keyboard Button
+                // ACTION: Voice Input Triggered
                 "VOICE_TYPE_TRIGGERED" -> {
                     isVoiceActive = true
-                    triggerAggressiveBlocking() // Run logic to UNBLOCK
+                    
+                    // CRITICAL FIX: Make overlay NOT focusable immediately.
+                    // This forces the System to give focus to the app below (Termux),
+                    // ensuring the Voice IME sees a valid editor connection.
+                    setOverlayFocusable(false)
+
+                    // Run the click simulation to wake up the input field
+                    handler.postDelayed({ attemptRefocusInput() }, 300)
+                    
+                    // Re-enable normal behavior after a delay (enough time for Voice to start)
+                    handler.postDelayed({ 
+                        isVoiceActive = false
+                        setOverlayFocusable(true) // Optional: Restore if you need overlay focus later
+                    }, 5000)
                 }
                 
                 Intent.ACTION_SCREEN_ON -> triggerAggressiveBlocking()
             }
         }
     }
+
+    // Helper to dynamically update window flags
+    private fun setOverlayFocusable(focusable: Boolean) {
+        try {
+            keyboardOverlay?.setFocusable(focusable)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    
+    // NEW FUNCTION: Finds the focused input field and performs a click
+    private fun attemptRefocusInput() {
+        try {
+            // Requires canRetrieveWindowContent="true" in accessibility xml
+            val root = rootInActiveWindow ?: return
+            
+            // Find the node that currently has input focus
+            val focus = root.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
+            
+            if (focus != null) {
+                // Simulate a tap on the text box to refresh the InputConnection
+                focus.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+                focus.recycle()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    // =================================================================================
+    // END BLOCK: BroadcastReceiver & Window Focus Logic
+    // =================================================================================
 
     companion object {
         private const val TAG = "OverlayService"

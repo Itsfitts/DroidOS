@@ -251,6 +251,23 @@ class KeyboardOverlay(
     fun toggle() { if (isVisible) hide() else show() }
     fun isShowing(): Boolean = isVisible
 
+    fun setFocusable(focusable: Boolean) {
+        try {
+            if (keyboardContainer == null || keyboardParams == null) return
+
+            if (focusable) {
+                // Remove NOT_FOCUSABLE (Make it focusable)
+                keyboardParams?.flags = keyboardParams?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
+            } else {
+                // Add NOT_FOCUSABLE (Make it click-through for focus purposes)
+                keyboardParams?.flags = keyboardParams?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+            }
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun moveWindow(dx: Int, dy: Int) {
         if (!isVisible || keyboardParams == null) return
         keyboardParams!!.x += dx; keyboardParams!!.y += dy
