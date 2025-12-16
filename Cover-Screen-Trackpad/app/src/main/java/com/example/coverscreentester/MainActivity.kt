@@ -14,33 +14,40 @@ import rikka.shizuku.Shizuku
 
 class MainActivity : AppCompatActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // 1. AUTO-START CHECK (Instant)
+    // Listener to handle Shizuku connection asynchronously
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
         if (checkAllPermissions()) {
             startOverlayService()
             finish()
-            return
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Register the listener immediately
+        Shizuku.addBinderReceivedListener(binderReceivedListener)
+
+        // 1. AUTO-START CHECK (Instant)
+        // Wrapped in try-catch to prevent crashes if Shizuku isn't ready
+        try {
+            if (Shizuku.pingBinder() && checkAllPermissions()) {
+                startOverlayService()
+                finish()
+                return
+            }
+        } catch (e: Exception) {
+            // Ignore error, wait for listener
         }
 
         // 2. Show Landing Page (Fallback)
         setContentView(R.layout.activity_main)
         setupUI()
+    }
 
-        // 3. Add Listener: Auto-start immediately when Shizuku connects
-        try {
-            Shizuku.addBinderReceivedListener {
-                if (checkAllPermissions()) {
-                    runOnUiThread {
-                        startOverlayService()
-                        finish()
-                    }
-                }
-            }
-        } catch (e: Throwable) {
-            // Ignore
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        Shizuku.removeBinderReceivedListener(binderReceivedListener)
     }
 
     // Helper: Returns true ONLY if Overlay + Shizuku are both ready
@@ -50,14 +57,14 @@ class MainActivity : AppCompatActivity() {
         
         // B. Check Shizuku
         return try {
-            Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            if (!Shizuku.pingBinder()) return false
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
         } catch (e: Throwable) {
             false
         }
     }
 
     private fun setupUI() {
-        // Button 1: App Info
         findViewById<Button>(R.id.btn_fix_restricted).setOnClickListener {
             try {
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
@@ -70,7 +77,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Button 2: Accessibility
         findViewById<Button>(R.id.btn_open_accessibility).setOnClickListener {
             try {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -79,14 +85,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Button 3: Check & Start (The Manual Way)
         findViewById<Button>(R.id.btn_start_check).setOnClickListener {
             manualStartCheck()
         }
     }
 
     private fun manualStartCheck() {
-        // 1. Check Overlay Permission
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "⚠️ Please Grant 'Display Over Apps'", Toast.LENGTH_LONG).show()
             try {
@@ -96,20 +100,20 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // 2. Check Shizuku (TRY-CATCH IS MANDATORY)
         try {
             if (!Shizuku.pingBinder()) {
                 Toast.makeText(this, "⚠️ Shizuku Not Running!", Toast.LENGTH_SHORT).show()
-                // Don't block launch, just warn
-            } else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+            if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
                 Shizuku.requestPermission(0)
                 return
             }
         } catch (e: Throwable) {
             Toast.makeText(this, "⚠️ Shizuku Error: ${e.message}", Toast.LENGTH_LONG).show()
+            return
         }
 
-        // 3. Start Service
         startOverlayService()
         finish()
     }
@@ -125,7 +129,6 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {}
 
-        // Send 'OPEN_MENU' + 'FORCE_MOVE' to bring UI to this screen
         val intent = Intent(this, OverlayService::class.java).apply {
             action = "OPEN_MENU"
             putExtra("DISPLAY_ID", targetDisplayId)

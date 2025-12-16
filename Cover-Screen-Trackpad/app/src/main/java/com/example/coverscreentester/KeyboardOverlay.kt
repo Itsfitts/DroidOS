@@ -455,16 +455,24 @@ class KeyboardOverlay(
 
     private fun triggerVoiceTyping() {
         if (shellService == null) return
+        
+        // 1. Notify Service to stop blocking IMMEDIATELY
+        val intent = android.content.Intent("VOICE_TYPE_TRIGGERED")
+        intent.setPackage(context.packageName)
+        context.sendBroadcast(intent)
+        
+        // 2. Perform Switch
         Thread {
             try {
-                // FIXED: Now relies on shellService.runCommand returning output
+                // Fetch IME list and find Google Voice
                 val output = shellService.runCommand("ime list -a -s")
                 val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) }
                     ?: output.lines().find { it.contains("voice", true) }
+                
                 if (voiceIme != null) {
                     shellService.runCommand("ime set $voiceIme")
                 } else {
-                    Log.w(TAG, "Voice IME not found in output: $output")
+                    Log.w(TAG, "Voice IME not found")
                 }
             } catch (e: Exception) { Log.e(TAG, "Voice Switch Failed", e) }
         }.start()

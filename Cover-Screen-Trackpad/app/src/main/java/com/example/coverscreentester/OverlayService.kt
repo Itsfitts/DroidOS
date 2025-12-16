@@ -78,6 +78,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var pendingRestoreTrackpad = false
     private var pendingRestoreKeyboard = false
     private var hasPendingRestore = false
+
+    private var isVoiceActive = false
+    
     
     
     // Heartbeat to keep hardware state alive AND enforce settings
@@ -148,6 +151,14 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         Thread {
             try {
+                // 1. VOICE DETECTED? ABORT BLOCKING
+                // If we know voice is active, force the system to ALLOW soft keyboards (so voice UI shows)
+                if (isVoiceActive) {
+                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
+                    return@Thread
+                }
+
+                // 2. STANDARD BLOCKING LOGIC
                 shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
                 shellService?.injectDummyHardwareKey(0) 
                 if (currentDisplayId != 0) shellService?.injectDummyHardwareKey(currentDisplayId)
@@ -258,38 +269,36 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         
+        // EXCEPTION: Google Voice Typing Detection
+        val pkg = event.packageName?.toString() ?: ""
+        
+        // Check for Google App (Voice) or Gboard (Voice Subtype)
+        if (pkg.contains("google.android.googlequicksearchbox") || 
+            pkg.contains("com.google.android.voicesearch") ||
+            pkg.contains("com.google.android.tts")) {
+            
+            isVoiceActive = true
+            
+            // Immediately force settings to allow Voice UI
+            if (prefs.prefBlockSoftKeyboard && shellService != null) {
+                Thread { 
+                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1") 
+                }.start()
+            }
+            return
+        } else if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            // If we switched to a standard app window, disable voice flag
+            isVoiceActive = false
+        }
+        
         // Catch Focus, Window State, and Window Content changes
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
             event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
             
-            if (prefs.prefBlockSoftKeyboard) {
-                // DEBUG: Announce Focus Change (Optional, reduces spam)
-                // val pkgName = event.packageName?.toString() ?: "System/Unknown"
-                // if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                //    showToast("Focus: $pkgName")
-                // }
+            if (prefs.prefBlockSoftKeyboard && !isVoiceActive) {
+                triggerAggressiveBlocking()
                 
-                if (shellService != null) {
-                    Thread {
-                        try {
-                            // Re-assert settings
-                            shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
-                            
-                            // Fire Hardware Signal (ID 0 & ID 1)
-                            shellService?.injectDummyHardwareKey(0)
-                            shellService?.injectKey(KeyEvent.KEYCODE_UNKNOWN, KeyEvent.ACTION_DOWN, 0, 0, 1)
-                            shellService?.injectKey(KeyEvent.KEYCODE_UNKNOWN, KeyEvent.ACTION_UP, 0, 0, 1)
-                            
-                            if (currentDisplayId != 0) shellService?.injectDummyHardwareKey(currentDisplayId)
-                            
-                        } catch(e: Exception) {
-                            // handler.post { showToast("HW Signal: Failed") }
-                        }
-                    }.start()
-                }
-                
-                // Re-enforce Accessibility Hidden Mode if it got reset
                 if (Build.VERSION.SDK_INT >= 24) {
                     try {
                         if (softKeyboardController.showMode != AccessibilityService.SHOW_MODE_HIDDEN) {
@@ -394,7 +403,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private val switchReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                "SWITCH_DISPLAY" -> switchDisplay() // <--- NEW ACTION
+                "SWITCH_DISPLAY" -> switchDisplay() 
                 "CYCLE_INPUT_TARGET" -> cycleInputTarget()
                 "RESET_CURSOR" -> resetCursorCenter()
                 "TOGGLE_DEBUG" -> toggleDebugMode()
@@ -408,6 +417,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     else { if (menuDisplayId == -1 || menuDisplayId == currentDisplayId) setTrackpadVisibility(false) }
                 }
                 "SET_PREVIEW_MODE" -> setPreviewMode(intent.getBooleanExtra("PREVIEW_MODE", false))
+                
+                // NEW: Manual Trigger from Keyboard Button
+                "VOICE_TYPE_TRIGGERED" -> {
+                    isVoiceActive = true
+                    triggerAggressiveBlocking() // Run logic to UNBLOCK
+                }
+                
                 Intent.ACTION_SCREEN_ON -> triggerAggressiveBlocking()
             }
         }
@@ -460,6 +476,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             addAction("SET_TRACKPAD_VISIBILITY")
             addAction("SET_PREVIEW_MODE") 
             addAction("OPEN_MENU")
+            addAction("VOICE_TYPE_TRIGGERED") // <--- Add this
             addAction(Intent.ACTION_SCREEN_ON)
         }
         ContextCompat.registerReceiver(this, switchReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
