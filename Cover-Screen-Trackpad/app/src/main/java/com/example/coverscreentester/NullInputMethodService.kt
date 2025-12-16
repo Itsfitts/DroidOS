@@ -69,12 +69,18 @@ class NullInputMethodService : InputMethodService() {
     }
 
     override fun onCreateInputView(): View {
-        return View(this).apply { layoutParams = android.view.ViewGroup.LayoutParams(0, 0) }
+        // Return a zero-sized, hidden view
+        return View(this).apply { 
+            layoutParams = android.view.ViewGroup.LayoutParams(0, 0)
+            visibility = View.GONE
+        }
     }
     
     override fun onEvaluateInputViewShown(): Boolean {
         super.onEvaluateInputViewShown()
-        return true
+        // Crucial: Tell system NOT to allocate screen space for this keyboard
+        return false 
     }
+    
     override fun onEvaluateFullscreenMode(): Boolean = false // Important: Never take over full screen
 }

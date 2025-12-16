@@ -74,6 +74,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var isPreviewMode = false
     private var previousImeId: String? = null
     
+    // --- SMART RESTORE STATE ---
+    private var pendingRestoreTrackpad = false
+    private var pendingRestoreKeyboard = false
+    private var hasPendingRestore = false
+    
+    
     // Heartbeat to keep hardware state alive AND enforce settings
     private val blockingHeartbeat = object : Runnable {
         override fun run() {
@@ -773,12 +779,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     
     private fun handleBubbleTap() {
-        var didHideSomething = false
-        if (isCustomKeyboardVisible) {
-            toggleCustomKeyboard(suppressAutomation = true)
-            didHideSomething = true
+        val anythingVisible = isTrackpadVisible || isCustomKeyboardVisible
+        if (anythingVisible) {
+            performSmartHide()
+        } else {
+            performSmartRestore()
         }
-        toggleTrackpad() 
     }
     
     private fun executeHardkeyAction(actionId: String, keyEventAction: Int = KeyEvent.ACTION_UP) {
@@ -1189,9 +1195,40 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 
+    // --- SMART VISIBILITY LOGIC ---
+    fun performSmartHide() {
+        pendingRestoreTrackpad = isTrackpadVisible
+        pendingRestoreKeyboard = isCustomKeyboardVisible
+        hasPendingRestore = true
+        
+        // Hide components (Automation logic inside toggleCustomKeyboard will handle screen off if enabled)
+        if (isCustomKeyboardVisible) toggleCustomKeyboard()
+        if (isTrackpadVisible) toggleTrackpad()
+        
+        handler.post { Toast.makeText(this, "Hidden (Tap Bubble to Restore)", Toast.LENGTH_SHORT).show() }
+    }
+
+    fun performSmartRestore() {
+        if (!hasPendingRestore) {
+            // Fallback: Just show Trackpad if no state saved
+            if (!isTrackpadVisible) toggleTrackpad()
+            return
+        }
+        
+        if (pendingRestoreTrackpad && !isTrackpadVisible) toggleTrackpad()
+        if (pendingRestoreKeyboard && !isCustomKeyboardVisible) toggleCustomKeyboard()
+        
+        hasPendingRestore = false
+    }
+
     private fun moveWindow(event: MotionEvent): Boolean { if (prefs.prefAnchored) return true; if (event.action == MotionEvent.ACTION_MOVE) { trackpadParams.x += (event.rawX - lastTouchX).toInt(); trackpadParams.y += (event.rawY - lastTouchY).toInt(); windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }; lastTouchX = event.rawX; lastTouchY = event.rawY; return true }
     private fun resizeWindow(event: MotionEvent): Boolean { if (prefs.prefAnchored) return true; if (event.action == MotionEvent.ACTION_MOVE) { trackpadParams.width += (event.rawX - lastTouchX).toInt(); trackpadParams.height += (event.rawY - lastTouchY).toInt(); windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }; lastTouchX = event.rawX; lastTouchY = event.rawY; return true }
-    private fun keyboardHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_UP) toggleCustomKeyboard(); return true }
+    private fun keyboardHandle(event: MotionEvent): Boolean { 
+        if (event.action == MotionEvent.ACTION_UP) {
+            performSmartHide()
+        } 
+        return true 
+    }
     private fun openMenuHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_DOWN) menuManager?.toggle(); return true }
     private fun injectAction(action: Int, source: Int, button: Int, time: Long) { if (shellService == null) return; Thread { try { shellService?.injectMouse(action, cursorX, cursorY, inputTargetDisplayId, source, button, time) } catch(e: Exception){} }.start() }
     private fun injectScroll(hScroll: Float, vScroll: Float) { if (shellService == null) return; Thread { try { shellService?.injectScroll(cursorX, cursorY, vScroll / 10f, hScroll / 10f, inputTargetDisplayId) } catch(e: Exception){} }.start() }

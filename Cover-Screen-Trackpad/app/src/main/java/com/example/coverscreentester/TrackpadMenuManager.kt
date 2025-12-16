@@ -256,7 +256,10 @@ class TrackpadMenuManager(
         })
         // --- END ANCHOR TOGGLE ---
         
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { service.toggleCustomKeyboard() })
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
+            if (service.isCustomKeyboardVisible) service.performSmartHide()
+            else service.toggleCustomKeyboard()
+        })
         list.add(TrackpadMenuAdapter.MenuItem("Reset Cursor", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { service.resetCursorCenter() })
         
         // Renamed: "Hide App" -> "Hide All"
