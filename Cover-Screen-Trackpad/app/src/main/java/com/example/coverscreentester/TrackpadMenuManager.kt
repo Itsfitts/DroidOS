@@ -329,12 +329,15 @@ class TrackpadMenuManager(
                 "DOWN" -> service.manualAdjust(isKeyboard, isResizeMode, 0, step)
                 "LEFT" -> service.manualAdjust(isKeyboard, isResizeMode, -step, 0)
                 "RIGHT" -> service.manualAdjust(isKeyboard, isResizeMode, step, 0)
-                "CENTER" -> service.resetTrackpadPosition()
+                "CENTER" -> {
+                    if (isKeyboard) service.resetKeyboardPosition() else service.resetTrackpadPosition()
+                }
             }
         })
         
-        list.add(TrackpadMenuAdapter.MenuItem("Rotate 90°", android.R.drawable.ic_menu_rotate, 
-            TrackpadMenuAdapter.Type.ACTION) { service.performRotation() })
+        list.add(TrackpadMenuAdapter.MenuItem("Rotate 90°", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) {
+            if (isKeyboard) service.rotateKeyboard() else service.performRotation()
+        })
             
         if (isKeyboard) {
             val p = service.prefs
