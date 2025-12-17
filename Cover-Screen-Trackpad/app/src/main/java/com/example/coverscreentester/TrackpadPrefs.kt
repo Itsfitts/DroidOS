@@ -2,14 +2,14 @@ package com.example.coverscreentester
 
 class TrackpadPrefs {
     var cursorSpeed = 2.5f
-    var scrollSpeed = 1.0f
+    var scrollSpeed = 6.0f
     var prefTapScroll = true
     var prefVibrate = false
-    var prefReverseScroll = true
-    var prefAlpha = 200
-    var prefBgAlpha = 0
-    var prefKeyboardAlpha = 200
-    var prefHandleSize = 60
+    var prefReverseScroll = false
+    var prefAlpha = 50
+    var prefBgAlpha = 220
+    var prefKeyboardAlpha = 255
+    var prefHandleSize = 14
     var prefVPosLeft = false
     var prefHPosTop = false
     var prefLocked = false
@@ -17,7 +17,7 @@ class TrackpadPrefs {
     var prefScrollTouchSize = 80
     var prefScrollVisualSize = 4
     var prefCursorSize = 50
-    var prefKeyScale = 100
+    var prefKeyScale = 135
     var prefUseAltScreenOff = true
     var prefAutomationEnabled = true
     var prefBubbleX = 50
@@ -30,11 +30,11 @@ class TrackpadPrefs {
     var prefBlockSoftKeyboard = false
 
     var hardkeyVolUpTap = "left_click"
-    var hardkeyVolUpDouble = "none"
+    var hardkeyVolUpDouble = "left_click"
     var hardkeyVolUpHold = "left_click"
-    var hardkeyVolDownTap = "right_click"
-    var hardkeyVolDownDouble = "display_toggle"
-    var hardkeyVolDownHold = "alt_position"
+    var hardkeyVolDownTap = "toggle_keyboard"
+    var hardkeyVolDownDouble = "open_menu"
+    var hardkeyVolDownHold = "action_back"
     var hardkeyPowerDouble = "none"
     var doubleTapMs = 300
     var holdDurationMs = 400
