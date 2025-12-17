@@ -400,7 +400,7 @@ class TrackpadMenuManager(
         list.add(TrackpadMenuAdapter.MenuItem("KEYBOARD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
         
         // NEW: Launch Proxy Activity for Picker
-        list.add(TrackpadMenuAdapter.MenuItem("Change Keyboard (System)", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
+        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Picker (Null KB to block default)", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
             service.forceSystemKeyboardVisible()
             hide() // Close menu
             
@@ -415,11 +415,13 @@ class TrackpadMenuManager(
         
         list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha, 255) { v -> service.updatePref("keyboard_alpha", v) })
         list.add(TrackpadMenuAdapter.MenuItem("Keyboard Scale", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyScale, 200) { v -> service.updatePref("keyboard_key_scale", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Auto Display Off", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefAutomationEnabled) 1 else 0) { v -> service.updatePref("automation_enabled", v) })
+                list.add(TrackpadMenuAdapter.MenuItem("Auto Display Off", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefAutomationEnabled) 1 else 0) {
+                    v -> service.updatePref("automation_enabled", v as Boolean)
+                })
 
         // MOVED & RENAMED: Cover Screen KB Blocker
-        list.add(TrackpadMenuAdapter.MenuItem("Cover Screen KB Blocker", android.R.drawable.ic_lock_lock, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefBlockSoftKeyboard) 1 else 0) { v -> 
-            service.updatePref("block_soft_kb", v) 
+        list.add(TrackpadMenuAdapter.MenuItem("Cover Screen KB blocker (restart app after reverting)", android.R.drawable.ic_lock_lock, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefBlockSoftKeyboard) 1 else 0) {
+            v -> service.updatePref("block_soft_kb", v as Boolean)
         })
 
         return list
