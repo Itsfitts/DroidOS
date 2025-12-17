@@ -1121,7 +1121,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun loadPrefs() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         prefs.cursorSpeed = p.getFloat("cursor_speed", 2.5f)
-        prefs.scrollSpeed = p.getFloat("scroll_speed", 6.0f) // CHANGED: Default 6.0
+        prefs.scrollSpeed = p.getFloat("scroll_speed", 0.6f) // CHANGED: Default 0.6f (Slider 6)
         prefs.prefTapScroll = p.getBoolean("tap_scroll", true)
         prefs.prefVibrate = p.getBoolean("vibrate", true)
         prefs.prefReverseScroll = p.getBoolean("reverse_scroll", false) // CHANGED: Default false

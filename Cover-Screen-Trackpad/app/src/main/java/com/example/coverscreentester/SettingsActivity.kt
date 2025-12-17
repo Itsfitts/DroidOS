@@ -47,7 +47,7 @@ class SettingsActivity : Activity() {
         seekBarCursor.progress = (cSpeed * 10).toInt()
         tvCursor.text = "Cursor Speed: "
 
-        val sSpeed = prefs.getFloat("scroll_speed", 6.0f) // CHANGED: Default 6.0
+        val sSpeed = prefs.getFloat("scroll_speed", 0.6f) // CHANGED: Default 0.6f
         seekBarScroll.progress = (sSpeed * 10).toInt()
         tvScroll.text = "Scroll Distance: "
 
