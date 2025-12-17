@@ -87,7 +87,6 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
         }
 
         // Enable Start button only if Overlay is granted (Absolute minimum)
-        // Accessibility is harder to check strictly without loop, but we can warn.
         btnStart.isEnabled = Settings.canDrawOverlays(this)
     }
 
