@@ -127,6 +127,39 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="16dp"/>
 
+        <!-- NEW: Step for Null Keyboard -->
+        <TextView
+            android:id="@+id/tvStepNullKeyboardTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 3.5: Enable Null Keyboard"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Required for keyboard input handling without blocking the screen. Enable 'DroidOS Null Keyboard' in the next screen."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStepNullKeyboardEnable"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Null Keyboard"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
         <TextView
             android:id="@+id/tvStep4Title"
             android:layout_width="wrap_content"

@@ -21,6 +21,7 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
     private lateinit var tvStep3: TextView
     private lateinit var tvStep4: TextView
     private lateinit var tvStep5: TextView
+    private lateinit var tvStepNullKeyboardTitle: TextView // NEW
 
     private lateinit var btnStart: Button
     private lateinit var btnSettings: Button
@@ -35,12 +36,14 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
         tvStep3 = findViewById(R.id.tvStep3Title)
         tvStep4 = findViewById(R.id.tvStep4Title)
         tvStep5 = findViewById(R.id.tvStep5Title)
+        tvStepNullKeyboardTitle = findViewById(R.id.tvStepNullKeyboardTitle) // NEW
 
         val btnStep1 = findViewById<Button>(R.id.btnStep1Trigger)
         val btnStep2 = findViewById<Button>(R.id.btnStep2Unblock)
         val btnStep3 = findViewById<Button>(R.id.btnStep3Enable)
         val btnStep4 = findViewById<Button>(R.id.btnStep4Overlay)
         val btnStep5 = findViewById<Button>(R.id.btnStep5Shizuku)
+        val btnStepNullKeyboardEnable = findViewById<Button>(R.id.btnStepNullKeyboardEnable) // NEW
 
         btnStart = findViewById(R.id.btnStartApp)
         btnSettings = findViewById(R.id.btnOpenSettings)
@@ -60,6 +63,12 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
         // Step 3: Enable (Open Accessibility)
         btnStep3.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+
+        // Step 3.5: Enable Null Keyboard (NEW)
+        btnStepNullKeyboardEnable.setOnClickListener {
+            val intent = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
+            startActivity(intent)
         }
 
         // Step 4: Overlay
@@ -120,12 +129,17 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
         tvStep2.text = "Step 2: Allow Restricted Settings  $accessSymbol"
         tvStep3.text = "Step 3: Enable Accessibility  $accessSymbol"
 
-        // 2. Overlay Check (Step 4)
+        // 2. Null Keyboard Check (NEW)
+        val imeEnabled = isImeEnabled()
+        val imeSymbol = if (imeEnabled) "✅" else "❌"
+        tvStepNullKeyboardTitle.text = "Step 3.5: Enable Null Keyboard  $imeSymbol"
+
+        // 3. Overlay Check (Step 4)
         val overlayGranted = Settings.canDrawOverlays(this)
         val overlaySymbol = if (overlayGranted) "✅" else "❌"
         tvStep4.text = "Step 4: Overlay Permission  $overlaySymbol"
 
-        // 3. Shizuku Check (Step 5)
+        // 4. Shizuku Check (Step 5)
         val shizukuGranted = try {
             Shizuku.getBinder() != null && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
         } catch (e: Exception) { false }
@@ -146,9 +160,25 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
         return false
     }
 
+    // NEW: Check if Null Keyboard is enabled
+    private fun isImeEnabled(): Boolean {
+        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        val enabledMethods = imm.enabledInputMethodList
+        // Check if our package is in the list of enabled IMEs
+        return enabledMethods.any { it.packageName == packageName }
+    }
+
     private fun checkCriticalPermissions(): Boolean {
+        if (!isAccessibilityEnabled()) { // ADDED check
+            Toast.makeText(this, "Accessibility Service is required!", Toast.LENGTH_SHORT).show()
+            return false
+        }
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "Overlay Permission is required!", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        if (!isImeEnabled()) { // ADDED check
+            Toast.makeText(this, "Null Keyboard needs to be enabled!", Toast.LENGTH_SHORT).show()
             return false
         }
         return true
