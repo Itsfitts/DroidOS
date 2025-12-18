@@ -273,14 +273,16 @@ class FloatingLauncherService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        displayManager?.unregisterDisplayListener(displayListener)
         isScreenOffState = false
         wakeUp()
         try { Shizuku.removeBinderReceivedListener(shizukuBinderListener); Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener); unregisterReceiver(commandReceiver) } catch (e: Exception) {}
         
-        // Robust cleanup
+        // Robust cleanup using attached manager
         try { 
-            if (bubbleView != null) attachedWindowManager?.removeView(bubbleView) 
+            if (bubbleView != null) {
+                val wm = attachedWindowManager ?: windowManager
+                wm.removeView(bubbleView) 
+            }
         } catch (e: Exception) {}
         
         try { 
@@ -438,9 +440,7 @@ class FloatingLauncherService : Service() {
             bubbleView?.visibility = View.VISIBLE; 
             isExpanded = false 
         } else { 
-            // DELETE THIS LINE: setupDisplayContext(currentDisplayId); 
-            // We must use the existing windowManager. Creating a new one disconnects us from the Bubble.
-            
+            // FIXED: Removed setupDisplayContext() to stop creating new WindowManagers
             updateDrawerHeight(false); 
             try { windowManager.addView(drawerView, drawerParams) } catch(e: Exception) {}; 
             bubbleView?.visibility = View.GONE; 
@@ -503,13 +503,14 @@ class FloatingLauncherService : Service() {
         val currentIdx = displays.indexOfFirst { it.displayId == currentDisplayId }; val nextIdx = if (currentIdx == -1) 0 else (currentIdx + 1) % displays.size; performDisplayChange(displays[nextIdx].displayId)
     }
     private fun performDisplayChange(newId: Int) {
+        lastManualSwitchTime = System.currentTimeMillis()
         val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         val targetDisplay = dm.getDisplay(newId) ?: return
         
-        // 1. CLEANUP: Use the attachedWindowManager to ensure we remove the old bubble
+        // 1. CLEANUP using the captured manager
         try { 
             if (bubbleView != null) {
-                // Try the specific manager first, fall back to current
+                // Use the specific manager that added it, fallback to current
                 val wm = attachedWindowManager ?: windowManager
                 wm.removeView(bubbleView)
             }
@@ -521,7 +522,7 @@ class FloatingLauncherService : Service() {
             }
         } catch (e: Exception) {}
 
-        // 2. SWITCH CONTEXT
+        // 2. SWITCH
         currentDisplayId = newId
         setupDisplayContext(currentDisplayId)
         targetDisplayIndex = currentDisplayId
