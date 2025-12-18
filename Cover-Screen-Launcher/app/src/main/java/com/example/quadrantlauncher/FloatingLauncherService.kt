@@ -77,47 +77,57 @@ class FloatingLauncherService : Service() {
     }
 
     private lateinit var windowManager: WindowManager
+    // Track the specific WM used to add the bubble to ensure we can remove it later
+    private var attachedWindowManager: WindowManager? = null 
     private var displayManager: DisplayManager? = null
+    
     private var displayContext: Context? = null
     private var currentDisplayId = 0
     private var lastPhysicalDisplayId = Display.DEFAULT_DISPLAY 
     
     // Debounce for display switch to prevent flickering
-    private var lastManualSwitchTime = 0L 
+    private var lastManualSwitchTime = 0L
+    private var switchRunnable: Runnable? = null
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {}
-        
         override fun onDisplayRemoved(displayId: Int) {
             if (displayId == currentDisplayId) {
                 // If current display disconnects (e.g. glasses), revert to Default
                 performDisplayChange(Display.DEFAULT_DISPLAY)
             }
         }
-        
         override fun onDisplayChanged(displayId: Int) {
             // Logic to detect Fold/Unfold events monitoring Display 0 (Main)
             if (displayId == 0) {
                 val display = displayManager?.getDisplay(0)
+                // Only auto-switch if user hasn't manually switched recently
                 val isDebounced = (System.currentTimeMillis() - lastManualSwitchTime > 2000)
                 
                 if (display != null && isDebounced) {
+                    // Cancel any pending switch to prevent double-execution
+                    if (switchRunnable != null) {
+                        uiHandler.removeCallbacks(switchRunnable!!)
+                    }
+
                     // CASE A: Phone Opened (Display 0 turned ON) -> Move to Main
                     if (display.state == Display.STATE_ON && currentDisplayId != 0) {
-                        uiHandler.postDelayed({
-                            try { performDisplayChange(0) } catch(e: Exception) {}
-                        }, 500)
-                    }
+                        switchRunnable = Runnable { 
+                            try { performDisplayChange(0) } catch(e: Exception) {} 
+                        }
+                        uiHandler.postDelayed(switchRunnable!!, 500)
+                    } 
                     // CASE B: Phone Closed (Display 0 turned OFF/DOZE) -> Move to Cover (1)
                     else if (display.state != Display.STATE_ON && currentDisplayId == 0) {
-                        uiHandler.postDelayed({
+                        switchRunnable = Runnable {
                             try { 
                                 val d0 = displayManager?.getDisplay(0)
-                                if (d0?.state != Display.STATE_ON) {
+                                if (d0?.state != Display.STATE_ON) { 
                                     performDisplayChange(1) 
                                 }
                             } catch(e: Exception) {}
-                        }, 500)
+                        }
+                        uiHandler.postDelayed(switchRunnable!!, 500)
                     }
                 }
             }
@@ -267,7 +277,16 @@ class FloatingLauncherService : Service() {
         isScreenOffState = false
         wakeUp()
         try { Shizuku.removeBinderReceivedListener(shizukuBinderListener); Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener); unregisterReceiver(commandReceiver) } catch (e: Exception) {}
-        try { if (bubbleView != null) windowManager.removeView(bubbleView); if (isExpanded) windowManager.removeView(drawerView) } catch (e: Exception) {}
+        
+        // Robust cleanup
+        try { 
+            if (bubbleView != null) attachedWindowManager?.removeView(bubbleView) 
+        } catch (e: Exception) {}
+        
+        try { 
+            if (isExpanded) windowManager.removeView(drawerView) 
+        } catch (e: Exception) {}
+
         if (isBound) { try { ShizukuBinder.unbind(ComponentName(packageName, ShellUserService::class.java.name), userServiceConnection); isBound = false } catch (e: Exception) {} }
     }
     
@@ -317,13 +336,18 @@ class FloatingLauncherService : Service() {
     private fun setupBubble() {
         val context = displayContext ?: this
         val themeContext = ContextThemeWrapper(context, R.style.Theme_QuadrantLauncher)
+        // ... (existing layout params setup) ...
+        
         bubbleView = LayoutInflater.from(themeContext).inflate(R.layout.layout_bubble, null)
         bubbleView?.isClickable = true; bubbleView?.isFocusable = true 
         bubbleParams = WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH, PixelFormat.TRANSLUCENT)
         bubbleParams.gravity = Gravity.TOP or Gravity.START; bubbleParams.x = 50; bubbleParams.y = 200
+        
+        // ... (Keep TouchListener logic as is) ...
         var velocityTracker: VelocityTracker? = null
         bubbleView?.setOnTouchListener(object : View.OnTouchListener {
-            var initialX = 0; var initialY = 0; var initialTouchX = 0f; var initialTouchY = 0f; var isDrag = false
+             // ... (Keep existing onTouch logic) ...
+             var initialX = 0; var initialY = 0; var initialTouchX = 0f; var initialTouchY = 0f; var isDrag = false
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 if (velocityTracker == null) velocityTracker = VelocityTracker.obtain(); velocityTracker?.addMovement(event)
                 when (event.action) {
@@ -335,7 +359,14 @@ class FloatingLauncherService : Service() {
                 return false
             }
         })
-        windowManager.addView(bubbleView, bubbleParams)
+
+        // NEW: Add to window and store reference
+        try {
+            windowManager.addView(bubbleView, bubbleParams)
+            attachedWindowManager = windowManager // Capture the specific instance
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding bubble", e)
+        }
     }
     
     private fun launchShizuku() { try { val intent = packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api"); if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(intent) } else { safeToast("Shizuku app not found") } } catch(e: Exception) { safeToast("Failed to launch Shizuku") } }
@@ -402,7 +433,25 @@ class FloatingLauncherService : Service() {
     }
 
     private fun toggleDrawer() {
-        if (isExpanded) { try { windowManager.removeView(drawerView) } catch(e: Exception) {}; bubbleView?.visibility = View.VISIBLE; isExpanded = false } else { setupDisplayContext(currentDisplayId); updateDrawerHeight(false); try { windowManager.addView(drawerView, drawerParams) } catch(e: Exception) {}; bubbleView?.visibility = View.GONE; isExpanded = true; switchMode(MODE_SEARCH); val et = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); et?.setText(""); et?.clearFocus(); updateSelectedAppsDock(); if (isInstantMode) fetchRunningApps() }
+        if (isExpanded) { 
+            try { windowManager.removeView(drawerView) } catch(e: Exception) {}; 
+            bubbleView?.visibility = View.VISIBLE; 
+            isExpanded = false 
+        } else { 
+            // DELETE THIS LINE: setupDisplayContext(currentDisplayId); 
+            // We must use the existing windowManager. Creating a new one disconnects us from the Bubble.
+            
+            updateDrawerHeight(false); 
+            try { windowManager.addView(drawerView, drawerParams) } catch(e: Exception) {}; 
+            bubbleView?.visibility = View.GONE; 
+            isExpanded = true; 
+            switchMode(MODE_SEARCH); 
+            val et = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); 
+            et?.setText(""); 
+            et?.clearFocus(); 
+            updateSelectedAppsDock(); 
+            if (isInstantMode) fetchRunningApps() 
+        }
     }
     private fun updateGlobalFontSize() { val searchBar = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); searchBar?.textSize = currentFontSize; drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged() }
     private fun loadInstalledApps() { 
@@ -454,8 +503,38 @@ class FloatingLauncherService : Service() {
         val currentIdx = displays.indexOfFirst { it.displayId == currentDisplayId }; val nextIdx = if (currentIdx == -1) 0 else (currentIdx + 1) % displays.size; performDisplayChange(displays[nextIdx].displayId)
     }
     private fun performDisplayChange(newId: Int) {
-        lastManualSwitchTime = System.currentTimeMillis() // Update timestamp
-        val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; val targetDisplay = dm.getDisplay(newId) ?: return; try { if (bubbleView != null && bubbleView!!.isAttachedToWindow) windowManager.removeView(bubbleView); if (drawerView != null && drawerView!!.isAttachedToWindow) windowManager.removeView(drawerView) } catch (e: Exception) {}; currentDisplayId = newId; setupDisplayContext(currentDisplayId); targetDisplayIndex = currentDisplayId; AppPreferences.setTargetDisplayIndex(this, targetDisplayIndex); setupBubble(); setupDrawer(); loadDisplaySettings(currentDisplayId); updateBubbleIcon(); isExpanded = false; safeToast("Switched to Display $currentDisplayId (${targetDisplay.name})")
+        val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val targetDisplay = dm.getDisplay(newId) ?: return
+        
+        // 1. CLEANUP: Use the attachedWindowManager to ensure we remove the old bubble
+        try { 
+            if (bubbleView != null) {
+                // Try the specific manager first, fall back to current
+                val wm = attachedWindowManager ?: windowManager
+                wm.removeView(bubbleView)
+            }
+        } catch (e: Exception) { Log.e(TAG, "Failed to remove bubble", e) }
+        
+        try {
+            if (drawerView != null && isExpanded) {
+                windowManager.removeView(drawerView)
+            }
+        } catch (e: Exception) {}
+
+        // 2. SWITCH CONTEXT
+        currentDisplayId = newId
+        setupDisplayContext(currentDisplayId)
+        targetDisplayIndex = currentDisplayId
+        AppPreferences.setTargetDisplayIndex(this, targetDisplayIndex)
+        
+        // 3. REBUILD
+        setupBubble()
+        setupDrawer()
+        
+        loadDisplaySettings(currentDisplayId)
+        updateBubbleIcon()
+        isExpanded = false
+        safeToast("Switched to Display $currentDisplayId (${targetDisplay.name})")
     }
     private fun toggleVirtualDisplay(enable: Boolean) { isVirtualDisplayActive = enable; Thread { try { if (enable) { shellService?.runCommand("settings put global overlay_display_devices \"1920x1080/320\""); uiHandler.post { safeToast("Creating Virtual Display... Wait a moment, then Switch Display.") } } else { shellService?.runCommand("settings delete global overlay_display_devices"); uiHandler.post { safeToast("Destroying Virtual Display...") } } } catch (e: Exception) { Log.e(TAG, "Virtual Display Toggle Failed", e) } }.start(); if (currentMode == MODE_SETTINGS) uiHandler.postDelayed({ switchMode(MODE_SETTINGS) }, 500) }
 
