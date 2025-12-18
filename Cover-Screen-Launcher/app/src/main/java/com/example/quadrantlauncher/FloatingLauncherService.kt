@@ -249,24 +249,27 @@ class FloatingLauncherService : AccessibilityService() {
         override fun onServiceDisconnected(name: ComponentName?) { shellService = null; isBound = false; updateExecuteButtonColor(false); updateBubbleIcon() }
     }
 
+
+
+
+
     private fun restartTrackpad() {
-        safeToast("Auto-Starting Trackpad...")
+        safeToast("Restarting Trackpad...")
         Thread {
             try {
-                // 1. Kill existing instance (if any) to reset Z-Order
-                if (shellService != null) {
-                    shellService?.forceStop(PACKAGE_TRACKPAD)
-                    Thread.sleep(800) // Wait for process to die
-                }
+                // Use pkill to kill by package name since runCommand doesn't return output
+                // -9 ensures a hard kill to preserve permissions logic (system restart)
+                shellService?.runCommand("pkill -9 -f $PACKAGE_TRACKPAD")
+                
+                Thread.sleep(1000) // Wait for kill
 
-                // 2. Launch fresh instance (Will be top of Accessibility Stack)
+                // Launch Activity to ensure it comes back up
                 uiHandler.post {
-                    // Bypass the "is running" check by manually calling the launch logic if needed,
-                    // but forceStop should have cleared it, so launchTrackpad() is safe.
                     launchTrackpad()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to auto-restart trackpad", e)
+                Log.e(TAG, "Soft Restart Failed", e)
+                uiHandler.post { launchTrackpad() } // Fallback
             }
         }.start()
     }
@@ -333,10 +336,17 @@ class FloatingLauncherService : AccessibilityService() {
         safeToast("Launcher Ready")
     }
 
+
     // AccessibilityService is managed by system - onStartCommand not used for init
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
+        val targetDisplayId = intent?.getIntExtra("DISPLAY_ID", Display.DEFAULT_DISPLAY) ?: Display.DEFAULT_DISPLAY
+        if (bubbleView != null && targetDisplayId != currentDisplayId) { 
+            try { windowManager.removeView(bubbleView); if (isExpanded) windowManager.removeView(drawerView) } catch (e: Exception) {}; setupDisplayContext(targetDisplayId); setupBubble(); setupDrawer(); updateBubbleIcon(); loadDisplaySettings(currentDisplayId); isExpanded = false; safeToast("Moved to Display $targetDisplayId") 
+        } 
+        else if (bubbleView == null) { try { setupDisplayContext(targetDisplayId); setupBubble(); setupDrawer(); selectedLayoutType = AppPreferences.getLastLayout(this); activeCustomLayoutName = AppPreferences.getLastCustomLayoutName(this); updateGlobalFontSize(); updateBubbleIcon(); loadDisplaySettings(currentDisplayId); uiHandler.postDelayed({ launchTrackpad() }, 2000); if (selectedLayoutType == LAYOUT_CUSTOM_DYNAMIC && activeCustomLayoutName != null) { val data = AppPreferences.getCustomLayoutData(this, activeCustomLayoutName!!); if (data != null) { val rects = mutableListOf<Rect>(); val rectParts = data.split("|"); for (rp in rectParts) { val coords = rp.split(","); if (coords.size == 4) rects.add(Rect(coords[0].toInt(), coords[1].toInt(), coords[2].toInt(), coords[3].toInt())) }; activeCustomRects = rects } }; try { if (shellService == null && rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) bindShizuku() } catch (e: Exception) {} } catch (e: Exception) { stopSelf() } }
+        return START_NOT_STICKY
     }
+
     
     private fun loadDisplaySettings(displayId: Int) { selectedResolutionIndex = AppPreferences.getDisplayResolution(this, displayId); currentDpiSetting = AppPreferences.getDisplayDpi(this, displayId) }
 
@@ -577,9 +587,56 @@ class FloatingLauncherService : AccessibilityService() {
         allAppsList.sortBy { it.label.lowercase() } 
     }
     
+
     private fun launchTrackpad() {
-        if (isTrackpadRunning()) { safeToast("Trackpad is already active"); return }
-        try { val intent = packageManager.getLaunchIntentForPackage(PACKAGE_TRACKPAD); if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); val dm = DisplayMetrics(); val display = displayContext?.display ?: windowManager.defaultDisplay; display.getRealMetrics(dm); val w = dm.widthPixels; val h = dm.heightPixels; val targetW = (w * 0.5f).toInt(); val targetH = (h * 0.5f).toInt(); val left = (w - targetW) / 2; val top = (h - targetH) / 2; val bounds = Rect(left, top, left + targetW, top + targetH); val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(bounds); try { val method = android.app.ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType); method.invoke(options, 5) } catch (e: Exception) {}; startActivity(intent, options.toBundle()); toggleDrawer(); if (shellService != null) { uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(PACKAGE_TRACKPAD, left, top, left+targetW, top+targetH) } catch(e: Exception) { Log.e(TAG, "Shell launch failed", e) } }.start() }, 400) } } else { safeToast("Trackpad App not found") } } catch (e: Exception) { safeToast("Error launching Trackpad") }
+        // Removed isTrackpadRunning check to allow bringing to front if hidden
+        // Removed forceStop to preserve Accessibility Permissions
+        try { 
+            val intent = packageManager.getLaunchIntentForPackage(PACKAGE_TRACKPAD)
+            if (intent != null) { 
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                
+                val dm = DisplayMetrics()
+                val display = displayContext?.display ?: windowManager.defaultDisplay
+                display.getRealMetrics(dm)
+                val w = dm.widthPixels
+                val h = dm.heightPixels
+                
+                val targetW = (w * 0.5f).toInt()
+                val targetH = (h * 0.5f).toInt()
+                val left = (w - targetW) / 2
+                val top = (h - targetH) / 2
+                val bounds = Rect(left, top, left + targetW, top + targetH)
+                
+                val options = android.app.ActivityOptions.makeBasic()
+                options.setLaunchDisplayId(currentDisplayId)
+                options.setLaunchBounds(bounds)
+                
+                try { 
+                    val method = android.app.ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType)
+                    method.invoke(options, 5) 
+                } catch (e: Exception) {}
+                
+                startActivity(intent, options.toBundle())
+                toggleDrawer() 
+                
+                if (shellService != null) { 
+                    uiHandler.postDelayed({ 
+                        Thread { 
+                            try { 
+                                shellService?.repositionTask(PACKAGE_TRACKPAD, left, top, left+targetW, top+targetH) 
+                            } catch(e: Exception) { 
+                                Log.e(TAG, "Shell launch failed", e) 
+                            } 
+                        }.start() 
+                    }, 400) 
+                } 
+            } else { 
+                safeToast("Trackpad App not found") 
+            } 
+        } catch (e: Exception) { 
+            safeToast("Error launching Trackpad") 
+        }
     }
 
     private fun isTrackpadRunning(): Boolean { try { val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager; val runningApps = am.runningAppProcesses; if (runningApps != null) { for (info in runningApps) { if (info.processName == PACKAGE_TRACKPAD) return true } } } catch (e: Exception) {}; return false }
@@ -696,11 +753,118 @@ class FloatingLauncherService : AccessibilityService() {
     private fun pickIcon() { toggleDrawer(); try { refreshDisplayId(); val intent = Intent(this, IconPickerActivity::class.java); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); val metrics = windowManager.maximumWindowMetrics; val w = 1000; val h = (metrics.bounds.height() * 0.7).toInt(); val x = (metrics.bounds.width() - w) / 2; val y = (metrics.bounds.height() - h) / 2; val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(Rect(x, y, x+w, y+h)); startActivity(intent, options.toBundle()) } catch (e: Exception) { safeToast("Error launching picker: ${e.message}") } }
     private fun saveProfile() { var name = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.text?.toString()?.trim(); if (name.isNullOrEmpty()) { val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()); name = "Profile_$timestamp" }; val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveProfile(this, name, selectedLayoutType, selectedResolutionIndex, currentDpiSetting, pkgs); safeToast("Saved: $name"); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText(""); switchMode(MODE_PROFILES) }
     private fun loadProfile(name: String) { val data = AppPreferences.getProfileData(this, name) ?: return; try { val parts = data.split("|"); selectedLayoutType = parts[0].toInt(); selectedResolutionIndex = parts[1].toInt(); currentDpiSetting = parts[2].toInt(); val pkgList = parts[3].split(","); selectedAppsQueue.clear(); for (pkg in pkgList) { if (pkg.isNotEmpty()) { if (pkg == PACKAGE_BLANK) { selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)) } else { val app = allAppsList.find { it.packageName == pkg }; if (app != null) selectedAppsQueue.add(app) } } }; AppPreferences.saveLastLayout(this, selectedLayoutType); AppPreferences.saveDisplayResolution(this, currentDisplayId, selectedResolutionIndex); AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting); activeProfileName = name; updateSelectedAppsDock(); safeToast("Loaded: $name"); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() } catch (e: Exception) { Log.e(TAG, "Failed to load profile", e) } }
-    
+
     private fun executeLaunch(layoutType: Int, closeDrawer: Boolean) { 
-        if (closeDrawer) toggleDrawer(); refreshDisplayId(); val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveLastQueue(this, pkgs)
-        Thread { try { val resCmd = getResolutionCommand(selectedResolutionIndex); shellService?.runCommand(resCmd); if (currentDpiSetting > 0) { val dpiCmd = "wm density $currentDpiSetting -d $currentDisplayId"; shellService?.runCommand(dpiCmd) } else { if (currentDpiSetting == -1) shellService?.runCommand("wm density reset -d $currentDisplayId") }; Thread.sleep(800); val targetDim = getTargetDimensions(selectedResolutionIndex); var w = 0; var h = 0; if (targetDim != null) { w = targetDim.first; h = targetDim.second } else { val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; val display = dm.getDisplay(currentDisplayId); if (display != null) { val metrics = DisplayMetrics(); display.getRealMetrics(metrics); w = metrics.widthPixels; h = metrics.heightPixels } else { val bounds = windowManager.maximumWindowMetrics.bounds; w = bounds.width(); h = bounds.height() } }; val rects = mutableListOf<Rect>(); when (layoutType) { LAYOUT_FULL -> { rects.add(Rect(0, 0, w, h)) }; LAYOUT_SIDE_BY_SIDE -> { rects.add(Rect(0, 0, w/2, h)); rects.add(Rect(w/2, 0, w, h)) }; LAYOUT_TOP_BOTTOM -> { rects.add(Rect(0, 0, w, h/2)); rects.add(Rect(0, h/2, w, h)) }; LAYOUT_TRI_EVEN -> { val third = w / 3; rects.add(Rect(0, 0, third, h)); rects.add(Rect(third, 0, third * 2, h)); rects.add(Rect(third * 2, 0, w, h)) }; LAYOUT_CORNERS -> { rects.add(Rect(0, 0, w/2, h/2)); rects.add(Rect(w/2, 0, w, h/2)); rects.add(Rect(0, h/2, w/2, h)); rects.add(Rect(w/2, h/2, w, h)) }; LAYOUT_TRI_SIDE_MAIN_SIDE -> { val quarter = w / 4; rects.add(Rect(0, 0, quarter, h)); rects.add(Rect(quarter, 0, quarter * 3, h)); rects.add(Rect(quarter * 3, 0, w, h)) }; LAYOUT_QUAD_ROW_EVEN -> { val quarter = w / 4; rects.add(Rect(0, 0, quarter, h)); rects.add(Rect(quarter, 0, quarter * 2, h)); rects.add(Rect(quarter * 2, 0, quarter * 3, h)); rects.add(Rect(quarter * 3, 0, w, h)) }; LAYOUT_CUSTOM_DYNAMIC -> { if (activeCustomRects != null) { rects.addAll(activeCustomRects!!) } else { rects.add(Rect(0, 0, w/2, h)); rects.add(Rect(w/2, 0, w, h)) } } }; if (selectedAppsQueue.isNotEmpty()) { val minimizedApps = selectedAppsQueue.filter { it.isMinimized }; for (app in minimizedApps) { if (app.packageName != PACKAGE_BLANK) { try { val tid = shellService?.getTaskId(app.packageName) ?: -1; if (tid != -1) shellService?.moveTaskToBack(tid) } catch (e: Exception) { Log.e(TAG, "Failed to minimize ${app.packageName}", e) } } }; val activeApps = selectedAppsQueue.filter { !it.isMinimized }; if (killAppOnExecute) { for (app in activeApps) { if (app.packageName != PACKAGE_BLANK) { shellService?.forceStop(app.packageName) } }; Thread.sleep(400) } else { Thread.sleep(100) }; val count = Math.min(activeApps.size, rects.size); for (i in 0 until count) { val pkg = activeApps[i].packageName; val bounds = rects[i]; if (pkg == PACKAGE_BLANK) continue; uiHandler.postDelayed({ launchViaApi(pkg, bounds) }, (i * 150).toLong()); uiHandler.postDelayed({ launchViaShell(pkg) }, (i * 150 + 50).toLong()); if (!killAppOnExecute) { uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(pkg, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start() }, (i * 150 + 150).toLong()) }; uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(pkg, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start() }, (i * 150 + 800).toLong()) }; if (closeDrawer) { uiHandler.post { selectedAppsQueue.clear(); updateSelectedAppsDock() } } } } catch (e: Exception) { Log.e(TAG, "Execute Failed", e); safeToast("Execute Failed: ${e.message}") } }.start(); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText("") 
+        if (closeDrawer) toggleDrawer()
+        refreshDisplayId()
+        val pkgs = selectedAppsQueue.map { it.packageName }
+        AppPreferences.saveLastQueue(this, pkgs)
+        
+        Thread { 
+            try { 
+                val resCmd = getResolutionCommand(selectedResolutionIndex)
+                shellService?.runCommand(resCmd)
+                if (currentDpiSetting > 0) { 
+                    val dpiCmd = "wm density $currentDpiSetting -d $currentDisplayId"
+                    shellService?.runCommand(dpiCmd) 
+                } else { 
+                    if (currentDpiSetting == -1) shellService?.runCommand("wm density reset -d $currentDisplayId") 
+                }
+                Thread.sleep(800)
+                
+                val targetDim = getTargetDimensions(selectedResolutionIndex)
+                var w = 0
+                var h = 0
+                if (targetDim != null) { 
+                    w = targetDim.first
+                    h = targetDim.second 
+                } else { 
+                    val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+                    val display = dm.getDisplay(currentDisplayId)
+                    if (display != null) { 
+                        val metrics = DisplayMetrics()
+                        display.getRealMetrics(metrics)
+                        w = metrics.widthPixels
+                        h = metrics.heightPixels 
+                    } else { 
+                        val bounds = windowManager.maximumWindowMetrics.bounds
+                        w = bounds.width()
+                        h = bounds.height() 
+                    } 
+                }
+                
+                val rects = mutableListOf<Rect>()
+                when (layoutType) { 
+                    LAYOUT_FULL -> { rects.add(Rect(0, 0, w, h)) }
+                    LAYOUT_SIDE_BY_SIDE -> { rects.add(Rect(0, 0, w/2, h)); rects.add(Rect(w/2, 0, w, h)) }
+                    LAYOUT_TOP_BOTTOM -> { rects.add(Rect(0, 0, w, h/2)); rects.add(Rect(0, h/2, w, h)) }
+                    LAYOUT_TRI_EVEN -> { val third = w / 3; rects.add(Rect(0, 0, third, h)); rects.add(Rect(third, 0, third * 2, h)); rects.add(Rect(third * 2, 0, w, h)) }
+                    LAYOUT_CORNERS -> { rects.add(Rect(0, 0, w/2, h/2)); rects.add(Rect(w/2, 0, w, h/2)); rects.add(Rect(0, h/2, w/2, h)); rects.add(Rect(w/2, h/2, w, h)) }
+                    LAYOUT_TRI_SIDE_MAIN_SIDE -> { val quarter = w / 4; rects.add(Rect(0, 0, quarter, h)); rects.add(Rect(quarter, 0, quarter * 3, h)); rects.add(Rect(quarter * 3, 0, w, h)) }
+                    LAYOUT_QUAD_ROW_EVEN -> { val quarter = w / 4; rects.add(Rect(0, 0, quarter, h)); rects.add(Rect(quarter, 0, quarter * 2, h)); rects.add(Rect(quarter * 2, 0, quarter * 3, h)); rects.add(Rect(quarter * 3, 0, w, h)) }
+                    LAYOUT_CUSTOM_DYNAMIC -> { if (activeCustomRects != null) { rects.addAll(activeCustomRects!!) } else { rects.add(Rect(0, 0, w/2, h)); rects.add(Rect(w/2, 0, w, h)) } } 
+                }
+                
+                if (selectedAppsQueue.isNotEmpty()) { 
+                    val minimizedApps = selectedAppsQueue.filter { it.isMinimized }
+                    for (app in minimizedApps) { 
+                        if (app.packageName != PACKAGE_BLANK) { 
+                            try { 
+                                val tid = shellService?.getTaskId(app.packageName) ?: -1
+                                if (tid != -1) shellService?.moveTaskToBack(tid) 
+                            } catch (e: Exception) { 
+                                Log.e(TAG, "Failed to minimize ${app.packageName}", e) 
+                            } 
+                        } 
+                    }
+                    
+                    val activeApps = selectedAppsQueue.filter { !it.isMinimized }
+                    
+                    if (killAppOnExecute) { 
+                        for (app in activeApps) { 
+                            // CHANGE: Never kill the trackpad or blank spacer to preserve accessibility permissions
+                            if (app.packageName != PACKAGE_BLANK && app.packageName != PACKAGE_TRACKPAD) { 
+                                shellService?.forceStop(app.packageName) 
+                            } 
+                        }
+                        Thread.sleep(400) 
+                    } else { 
+                        Thread.sleep(100) 
+                    }
+                    
+                    val count = Math.min(activeApps.size, rects.size)
+                    for (i in 0 until count) { 
+                        val pkg = activeApps[i].packageName
+                        val bounds = rects[i]
+                        if (pkg == PACKAGE_BLANK) continue
+                        
+                        uiHandler.postDelayed({ launchViaApi(pkg, bounds) }, (i * 150).toLong())
+                        uiHandler.postDelayed({ launchViaShell(pkg) }, (i * 150 + 50).toLong())
+                        
+                        if (!killAppOnExecute) { 
+                            uiHandler.postDelayed({ 
+                                Thread { try { shellService?.repositionTask(pkg, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start() 
+                            }, (i * 150 + 150).toLong()) 
+                        }
+                        
+                        uiHandler.postDelayed({ 
+                            Thread { try { shellService?.repositionTask(pkg, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start() 
+                        }, (i * 150 + 800).toLong()) 
+                    }
+                    
+                    if (closeDrawer) { 
+                        uiHandler.post { selectedAppsQueue.clear(); updateSelectedAppsDock() } 
+                    } 
+                } 
+            } catch (e: Exception) { 
+                Log.e(TAG, "Execute Failed", e)
+                safeToast("Execute Failed: ${e.message}") 
+            } 
+        }.start()
+        
+        drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText("") 
     }
+
     
     private fun calculateGCD(a: Int, b: Int): Int { return if (b == 0) a else calculateGCD(b, a % b) }
 
