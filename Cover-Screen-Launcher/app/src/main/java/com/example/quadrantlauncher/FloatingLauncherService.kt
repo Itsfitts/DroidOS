@@ -1,7 +1,9 @@
 package com.example.quadrantlauncher
 
+import android.accessibilityservice.AccessibilityService
 import android.app.ActivityManager
 import android.app.Service
+import android.view.accessibility.AccessibilityEvent
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -49,7 +51,7 @@ import java.io.InputStreamReader
 import kotlin.math.hypot
 import kotlin.math.min
 
-class FloatingLauncherService : Service() {
+class FloatingLauncherService : AccessibilityService() {
 
     companion object {
         const val MODE_SEARCH = 0
@@ -77,9 +79,62 @@ class FloatingLauncherService : Service() {
     }
 
     private lateinit var windowManager: WindowManager
+    // Track the specific WM used to add the bubble to ensure we can remove it later
+    private var attachedWindowManager: WindowManager? = null 
+    private var displayManager: DisplayManager? = null
+    
     private var displayContext: Context? = null
     private var currentDisplayId = 0
     private var lastPhysicalDisplayId = Display.DEFAULT_DISPLAY 
+    
+    // Debounce for display switch to prevent flickering
+    private var lastManualSwitchTime = 0L
+    private var switchRunnable: Runnable? = null
+
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {}
+        override fun onDisplayRemoved(displayId: Int) {
+            if (displayId == currentDisplayId) {
+                // If current display disconnects (e.g. glasses), revert to Default
+                performDisplayChange(Display.DEFAULT_DISPLAY)
+            }
+        }
+        override fun onDisplayChanged(displayId: Int) {
+            // Logic to detect Fold/Unfold events monitoring Display 0 (Main)
+            if (displayId == 0) {
+                val display = displayManager?.getDisplay(0)
+                // Only auto-switch if user hasn't manually switched recently
+                val isDebounced = (System.currentTimeMillis() - lastManualSwitchTime > 2000)
+                
+                if (display != null && isDebounced) {
+                    // Cancel any pending switch to prevent double-execution
+                    if (switchRunnable != null) {
+                        uiHandler.removeCallbacks(switchRunnable!!)
+                    }
+
+                    // CASE A: Phone Opened (Display 0 turned ON) -> Move to Main
+                    if (display.state == Display.STATE_ON && currentDisplayId != 0) {
+                        switchRunnable = Runnable { 
+                            try { performDisplayChange(0) } catch(e: Exception) {} 
+                        }
+                        uiHandler.postDelayed(switchRunnable!!, 500)
+                    } 
+                    // CASE B: Phone Closed (Display 0 turned OFF/DOZE) -> Move to Cover (1)
+                    else if (display.state != Display.STATE_ON && currentDisplayId == 0) {
+                        switchRunnable = Runnable {
+                            try { 
+                                val d0 = displayManager?.getDisplay(0)
+                                if (d0?.state != Display.STATE_ON) { 
+                                    performDisplayChange(1) 
+                                }
+                            } catch(e: Exception) {}
+                        }
+                        uiHandler.postDelayed(switchRunnable!!, 500)
+                    }
+                }
+            }
+        }
+    }
 
     private var bubbleView: View? = null
     private var drawerView: View? = null
@@ -182,34 +237,70 @@ class FloatingLauncherService : Service() {
         override fun onServiceDisconnected(name: ComponentName?) { shellService = null; isBound = false; updateExecuteButtonColor(false); updateBubbleIcon() }
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    // AccessibilityService required overrides
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onInterrupt() {}
 
-    override fun onCreate() {
-        super.onCreate()
-        startForegroundService()
-        try { Shizuku.addBinderReceivedListener(shizukuBinderListener); Shizuku.addRequestPermissionResultListener(shizukuPermissionListener) } catch (e: Exception) {}
-        val filter = IntentFilter().apply { 
+    // AccessibilityService entry point - called when user enables service in Settings
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        Log.d(TAG, "Accessibility Service Connected")
+
+        // Initialize WindowManager
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        displayManager?.registerDisplayListener(displayListener, uiHandler)
+
+        // Register receivers
+        val filter = IntentFilter().apply {
             addAction(ACTION_OPEN_DRAWER)
             addAction(ACTION_UPDATE_ICON)
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
         }
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(commandReceiver, filter, Context.RECEIVER_EXPORTED) else registerReceiver(commandReceiver, filter)
+
+        // Shizuku setup
+        try { Shizuku.addBinderReceivedListener(shizukuBinderListener); Shizuku.addRequestPermissionResultListener(shizukuPermissionListener) } catch (e: Exception) {}
         try { if (rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) bindShizuku() } catch (e: Exception) {}
-        
+
+        // Load preferences
         loadInstalledApps(); currentFontSize = AppPreferences.getFontSize(this)
         killAppOnExecute = AppPreferences.getKillOnExecute(this); targetDisplayIndex = AppPreferences.getTargetDisplayIndex(this)
         isInstantMode = AppPreferences.getInstantMode(this); showShizukuWarning = AppPreferences.getShowShizukuWarning(this)
         useAltScreenOff = AppPreferences.getUseAltScreenOff(this); isReorderDragEnabled = AppPreferences.getReorderDrag(this)
         isReorderTapEnabled = AppPreferences.getReorderTap(this); currentDrawerHeightPercent = AppPreferences.getDrawerHeightPercent(this)
         currentDrawerWidthPercent = AppPreferences.getDrawerWidthPercent(this); autoResizeEnabled = AppPreferences.getAutoResizeKeyboard(this)
+
+        // Build UI
+        val targetDisplayId = targetDisplayIndex
+        setupDisplayContext(targetDisplayId)
+        setupBubble()
+        setupDrawer()
+        selectedLayoutType = AppPreferences.getLastLayout(this)
+        activeCustomLayoutName = AppPreferences.getLastCustomLayoutName(this)
+        if (selectedLayoutType == LAYOUT_CUSTOM_DYNAMIC && activeCustomLayoutName != null) {
+            val data = AppPreferences.getCustomLayoutData(this, activeCustomLayoutName!!)
+            if (data != null) {
+                val rects = mutableListOf<Rect>()
+                val rectParts = data.split("|")
+                for (rp in rectParts) {
+                    val coords = rp.split(",")
+                    if (coords.size == 4) rects.add(Rect(coords[0].toInt(), coords[1].toInt(), coords[2].toInt(), coords[3].toInt()))
+                }
+                activeCustomRects = rects
+            }
+        }
+        updateGlobalFontSize()
+        updateBubbleIcon()
+        loadDisplaySettings(currentDisplayId)
+
+        safeToast("Launcher Ready")
     }
 
+    // AccessibilityService is managed by system - onStartCommand not used for init
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val targetDisplayId = intent?.getIntExtra("DISPLAY_ID", Display.DEFAULT_DISPLAY) ?: Display.DEFAULT_DISPLAY
-        if (bubbleView != null && targetDisplayId != currentDisplayId) { try { windowManager.removeView(bubbleView); if (isExpanded) windowManager.removeView(drawerView) } catch (e: Exception) {}; setupDisplayContext(targetDisplayId); setupBubble(); setupDrawer(); updateBubbleIcon(); loadDisplaySettings(currentDisplayId); isExpanded = false; safeToast("Moved to Display $targetDisplayId") } 
-        else if (bubbleView == null) { try { setupDisplayContext(targetDisplayId); setupBubble(); setupDrawer(); selectedLayoutType = AppPreferences.getLastLayout(this); activeCustomLayoutName = AppPreferences.getLastCustomLayoutName(this); updateGlobalFontSize(); updateBubbleIcon(); loadDisplaySettings(currentDisplayId); if (selectedLayoutType == LAYOUT_CUSTOM_DYNAMIC && activeCustomLayoutName != null) { val data = AppPreferences.getCustomLayoutData(this, activeCustomLayoutName!!); if (data != null) { val rects = mutableListOf<Rect>(); val rectParts = data.split("|"); for (rp in rectParts) { val coords = rp.split(","); if (coords.size == 4) rects.add(Rect(coords[0].toInt(), coords[1].toInt(), coords[2].toInt(), coords[3].toInt())) }; activeCustomRects = rects } }; try { if (shellService == null && rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) bindShizuku() } catch (e: Exception) {} } catch (e: Exception) { stopSelf() } }
-        return START_NOT_STICKY
+        return START_STICKY
     }
     
     private fun loadDisplaySettings(displayId: Int) { selectedResolutionIndex = AppPreferences.getDisplayResolution(this, displayId); currentDpiSetting = AppPreferences.getDisplayDpi(this, displayId) }
@@ -219,7 +310,19 @@ class FloatingLauncherService : Service() {
         isScreenOffState = false
         wakeUp()
         try { Shizuku.removeBinderReceivedListener(shizukuBinderListener); Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener); unregisterReceiver(commandReceiver) } catch (e: Exception) {}
-        try { if (bubbleView != null) windowManager.removeView(bubbleView); if (isExpanded) windowManager.removeView(drawerView) } catch (e: Exception) {}
+        
+        // Robust cleanup using attached manager
+        try { 
+            if (bubbleView != null) {
+                val wm = attachedWindowManager ?: windowManager
+                wm.removeView(bubbleView) 
+            }
+        } catch (e: Exception) {}
+        
+        try { 
+            if (isExpanded) windowManager.removeView(drawerView) 
+        } catch (e: Exception) {}
+
         if (isBound) { try { ShizukuBinder.unbind(ComponentName(packageName, ShellUserService::class.java.name), userServiceConnection); isBound = false } catch (e: Exception) {} }
     }
     
@@ -244,9 +347,23 @@ class FloatingLauncherService : Service() {
     }
 
     private fun setupDisplayContext(displayId: Int) {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; val display = displayManager.getDisplay(displayId)
-        if (display == null) { windowManager = getSystemService(WINDOW_SERVICE) as WindowManager; return }
-        currentDisplayId = displayId; displayContext = createDisplayContext(display); windowManager = displayContext!!.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val display = dm.getDisplay(displayId)
+        if (display == null) { 
+            windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+            return 
+        }
+        currentDisplayId = displayId
+        
+        val baseContext = createDisplayContext(display)
+        // Use TYPE_ACCESSIBILITY_OVERLAY (2032) for AccessibilityService
+        displayContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            baseContext.createWindowContext(2032, null)
+        } else {
+            baseContext
+        }
+        
+        windowManager = displayContext!!.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     }
     private fun refreshDisplayId() { val id = displayContext?.display?.displayId ?: Display.DEFAULT_DISPLAY; currentDisplayId = id }
     private fun startForegroundService() { val channelId = if (android.os.Build.VERSION.SDK_INT >= 26) { val channel = android.app.NotificationChannel(CHANNEL_ID, "Floating Launcher", android.app.NotificationManager.IMPORTANCE_LOW); getSystemService(android.app.NotificationManager::class.java).createNotificationChannel(channel); CHANNEL_ID } else ""; val notification = NotificationCompat.Builder(this, channelId).setContentTitle("CoverScreen Launcher Active").setSmallIcon(R.drawable.ic_launcher_bubble).setPriority(NotificationCompat.PRIORITY_MIN).build(); if (android.os.Build.VERSION.SDK_INT >= 34) startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(1, notification) }
@@ -258,8 +375,23 @@ class FloatingLauncherService : Service() {
         val themeContext = ContextThemeWrapper(context, R.style.Theme_QuadrantLauncher)
         bubbleView = LayoutInflater.from(themeContext).inflate(R.layout.layout_bubble, null)
         bubbleView?.isClickable = true; bubbleView?.isFocusable = true 
-        bubbleParams = WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH, PixelFormat.TRANSLUCENT)
+        
+        // Z-ORDER UPDATE: Try ACCESSIBILITY_OVERLAY (2032) + FLAG_LAYOUT_NO_LIMITS
+        val targetType = if (Build.VERSION.SDK_INT >= 26) 2032 else WindowManager.LayoutParams.TYPE_PHONE 
+        
+        bubbleParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT, 
+            WindowManager.LayoutParams.WRAP_CONTENT, 
+            targetType, 
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or 
+            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH, 
+            PixelFormat.TRANSLUCENT
+        )
         bubbleParams.gravity = Gravity.TOP or Gravity.START; bubbleParams.x = 50; bubbleParams.y = 200
+        
+        // ... (Keep existing OnTouchListener logic here) ...
         var velocityTracker: VelocityTracker? = null
         bubbleView?.setOnTouchListener(object : View.OnTouchListener {
             var initialX = 0; var initialY = 0; var initialTouchX = 0f; var initialTouchY = 0f; var isDrag = false
@@ -274,7 +406,20 @@ class FloatingLauncherService : Service() {
                 return false
             }
         })
-        windowManager.addView(bubbleView, bubbleParams)
+
+        // Z-ORDER UPDATE: Try High Z-Order, Fallback to App Overlay if denied
+        try {
+            windowManager.addView(bubbleView, bubbleParams)
+            attachedWindowManager = windowManager
+        } catch (e: Exception) {
+            try {
+                bubbleParams.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                windowManager.addView(bubbleView, bubbleParams)
+                attachedWindowManager = windowManager
+            } catch (e2: Exception) {
+                Log.e(TAG, "Error adding bubble", e2)
+            }
+        }
     }
     
     private fun launchShizuku() { try { val intent = packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api"); if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(intent) } else { safeToast("Shizuku app not found") } } catch(e: Exception) { safeToast("Failed to launch Shizuku") } }
@@ -286,15 +431,27 @@ class FloatingLauncherService : Service() {
         val themeContext = ContextThemeWrapper(context, R.style.Theme_QuadrantLauncher)
         drawerView = LayoutInflater.from(themeContext).inflate(R.layout.layout_rofi_drawer, null)
         drawerView!!.fitsSystemWindows = true 
-        drawerParams = WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT)
+        
+        // Z-ORDER UPDATE: Match Bubble settings
+        val targetType = if (Build.VERSION.SDK_INT >= 26) 2032 else WindowManager.LayoutParams.TYPE_PHONE 
+
+        drawerParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT, 
+            WindowManager.LayoutParams.MATCH_PARENT, 
+            targetType, 
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, 
+            PixelFormat.TRANSLUCENT
+        )
         drawerParams.gravity = Gravity.TOP or Gravity.START; drawerParams.x = 0; drawerParams.y = 0
         drawerParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         
+        // FIXED: Ensure container is defined and logical
         val container = drawerView?.findViewById<LinearLayout>(R.id.drawer_container)
-        if (container != null) { 
+        if (container != null) {
             val lp = container.layoutParams as? FrameLayout.LayoutParams
             if (lp != null) { lp.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; lp.topMargin = 100; container.layoutParams = lp }
-            
+
             debugStatusView = TextView(context)
             debugStatusView?.text = "Ready"
             debugStatusView?.setTextColor(Color.GREEN)
@@ -341,7 +498,33 @@ class FloatingLauncherService : Service() {
     }
 
     private fun toggleDrawer() {
-        if (isExpanded) { try { windowManager.removeView(drawerView) } catch(e: Exception) {}; bubbleView?.visibility = View.VISIBLE; isExpanded = false } else { setupDisplayContext(currentDisplayId); updateDrawerHeight(false); try { windowManager.addView(drawerView, drawerParams) } catch(e: Exception) {}; bubbleView?.visibility = View.GONE; isExpanded = true; switchMode(MODE_SEARCH); val et = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); et?.setText(""); et?.clearFocus(); updateSelectedAppsDock(); if (isInstantMode) fetchRunningApps() }
+        if (isExpanded) { 
+            try { windowManager.removeView(drawerView) } catch(e: Exception) {}; 
+            bubbleView?.visibility = View.VISIBLE; 
+            isExpanded = false 
+        } else { 
+            // Removed setupDisplayContext()
+            updateDrawerHeight(false); 
+            
+            // Z-ORDER UPDATE: Try adding with High Priority, Fallback if fails
+            try { 
+                windowManager.addView(drawerView, drawerParams) 
+            } catch(e: Exception) {
+                try {
+                    drawerParams.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    windowManager.addView(drawerView, drawerParams)
+                } catch(e2: Exception) {}
+            }; 
+            
+            bubbleView?.visibility = View.GONE; 
+            isExpanded = true; 
+            switchMode(MODE_SEARCH); 
+            val et = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); 
+            et?.setText(""); 
+            et?.clearFocus(); 
+            updateSelectedAppsDock(); 
+            if (isInstantMode) fetchRunningApps() 
+        }
     }
     private fun updateGlobalFontSize() { val searchBar = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); searchBar?.textSize = currentFontSize; drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged() }
     private fun loadInstalledApps() { 
@@ -393,7 +576,39 @@ class FloatingLauncherService : Service() {
         val currentIdx = displays.indexOfFirst { it.displayId == currentDisplayId }; val nextIdx = if (currentIdx == -1) 0 else (currentIdx + 1) % displays.size; performDisplayChange(displays[nextIdx].displayId)
     }
     private fun performDisplayChange(newId: Int) {
-        val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; val targetDisplay = dm.getDisplay(newId) ?: return; try { if (bubbleView != null && bubbleView!!.isAttachedToWindow) windowManager.removeView(bubbleView); if (drawerView != null && drawerView!!.isAttachedToWindow) windowManager.removeView(drawerView) } catch (e: Exception) {}; currentDisplayId = newId; setupDisplayContext(currentDisplayId); targetDisplayIndex = currentDisplayId; AppPreferences.setTargetDisplayIndex(this, targetDisplayIndex); setupBubble(); setupDrawer(); loadDisplaySettings(currentDisplayId); updateBubbleIcon(); isExpanded = false; safeToast("Switched to Display $currentDisplayId (${targetDisplay.name})")
+        lastManualSwitchTime = System.currentTimeMillis()
+        val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val targetDisplay = dm.getDisplay(newId) ?: return
+        
+        // 1. CLEANUP using the captured manager
+        try { 
+            if (bubbleView != null) {
+                // Use the specific manager that added it, fallback to current
+                val wm = attachedWindowManager ?: windowManager
+                wm.removeView(bubbleView)
+            }
+        } catch (e: Exception) { Log.e(TAG, "Failed to remove bubble", e) }
+        
+        try {
+            if (drawerView != null && isExpanded) {
+                windowManager.removeView(drawerView)
+            }
+        } catch (e: Exception) {}
+
+        // 2. SWITCH
+        currentDisplayId = newId
+        setupDisplayContext(currentDisplayId)
+        targetDisplayIndex = currentDisplayId
+        AppPreferences.setTargetDisplayIndex(this, targetDisplayIndex)
+        
+        // 3. REBUILD
+        setupBubble()
+        setupDrawer()
+        
+        loadDisplaySettings(currentDisplayId)
+        updateBubbleIcon()
+        isExpanded = false
+        safeToast("Switched to Display $currentDisplayId (${targetDisplay.name})")
     }
     private fun toggleVirtualDisplay(enable: Boolean) { isVirtualDisplayActive = enable; Thread { try { if (enable) { shellService?.runCommand("settings put global overlay_display_devices \"1920x1080/320\""); uiHandler.post { safeToast("Creating Virtual Display... Wait a moment, then Switch Display.") } } else { shellService?.runCommand("settings delete global overlay_display_devices"); uiHandler.post { safeToast("Destroying Virtual Display...") } } } catch (e: Exception) { Log.e(TAG, "Virtual Display Toggle Failed", e) } }.start(); if (currentMode == MODE_SETTINGS) uiHandler.postDelayed({ switchMode(MODE_SETTINGS) }, 500) }
 

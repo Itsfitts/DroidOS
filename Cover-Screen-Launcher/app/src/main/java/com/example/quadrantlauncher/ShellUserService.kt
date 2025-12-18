@@ -337,7 +337,72 @@ override fun setBrightness(displayId: Int, brightness: Int) {
         return list
     }
 
-    override fun getWindowLayouts(displayId: Int): List<String> = ArrayList()
+override fun getWindowLayouts(displayId: Int): List<String> {
+    val results = ArrayList<String>()
+    val token = Binder.clearCallingIdentity()
+    try {
+        val p = Runtime.getRuntime().exec("dumpsys activity activities")
+        val r = BufferedReader(InputStreamReader(p.inputStream))
+        var line: String?
+        
+        var currentDisplayId = -1
+        var currentTaskBounds: String? = null
+        var foundPackages = mutableSetOf<String>()
+        
+        val displayPattern = Pattern.compile("Display #(\\d+)")
+        val boundsPattern = Pattern.compile("bounds=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
+        val rectPattern = Pattern.compile("mBounds=Rect\\((\\d+), (\\d+) - (\\d+), (\\d+)\\)")
+        val activityPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
+
+        while (r.readLine().also { line = it } != null) {
+            val l = line!!
+            
+            val displayMatcher = displayPattern.matcher(l)
+            if (displayMatcher.find()) {
+                currentDisplayId = displayMatcher.group(1)?.toIntOrNull() ?: -1
+            }
+            
+            if (currentDisplayId != displayId) continue
+            
+            val boundsMatcher = boundsPattern.matcher(l)
+            if (boundsMatcher.find()) {
+                val left = boundsMatcher.group(1)
+                val top = boundsMatcher.group(2)
+                val right = boundsMatcher.group(3)
+                val bottom = boundsMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            val rectMatcher = rectPattern.matcher(l)
+            if (rectMatcher.find()) {
+                val left = rectMatcher.group(1)
+                val top = rectMatcher.group(2)
+                val right = rectMatcher.group(3)
+                val bottom = rectMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            if (l.contains("ActivityRecord{") && currentTaskBounds != null) {
+                val activityMatcher = activityPattern.matcher(l)
+                if (activityMatcher.find()) {
+                    val pkg = activityMatcher.group(1)
+                    if (pkg != null && isUserApp(pkg) && !foundPackages.contains(pkg)) {
+                        results.add("$pkg|$currentTaskBounds")
+                        foundPackages.add(pkg)
+                    }
+                }
+            }
+        }
+        
+        r.close()
+        p.waitFor()
+    } catch (e: Exception) {
+        Log.e(TAG, "getWindowLayouts failed", e)
+    } finally {
+        Binder.restoreCallingIdentity(token)
+    }
+    return results
+}
 
     override fun getTaskId(packageName: String): Int {
         var taskId = -1
