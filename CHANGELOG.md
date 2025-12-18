@@ -1,10 +1,32 @@
 # Changelog
 
-## [2.1] - 2025-12-05
+## [v3.0] - DroidOS Trackpad (2025-12-18)
+### Major Features
+- **Hardkey Mapping:** Map Volume Up/Down keys to actions (Click, Scroll, Toggle UI) with Single Tap, Double Tap, and Hold gestures.
+- **Profile Management:** Save and load specific layout/scaling profiles for different scenarios (e.g., Cover Screen vs. AR Glasses).
+- **Bubble Customization:**
+  - Adjust Floating Bubble size (50% - 200%).
+  - Change Opacity.
+  - Cycle through different icon styles.
+- **Smart Keyboard Overlay:**
+  - "Block Soft Keyboard" mode to prevent system keyboard from taking over the cover screen.
+  - Adjustable Scale and Opacity.
+  - Auto-hide logic when switching modes.
+- **Screen Off Modes:**
+  - **Standard:** Uses SurfaceControl (Root-like behavior via Shizuku).
+  - **Alternate:** Uses Brightness Extinguish (-1) for devices where SurfaceControl freezes the display.
+- **UI & UX:**
+  - **Anchor Mode:** Lock the trackpad position to prevent accidental drags.
+  - **Z-Order Enforcement:** Ensures trackpad remains visible over other system overlays.
+  - **Manual Tune:** D-Pad interface for pixel-perfect window positioning.
 
-### Fixed
-- **Overflow App Management**: Restored `repositionTask` functionality in `ShellUserService`. This allows the launcher to correctly resize and position "overflow" apps into freeform windows using shell commands (`am task resize`).
-- **App Minimization & Stability**: Resolved critical compilation errors in `ShellUserService.kt` that prevented the shell service from running.
-    - Restored `execShellCommand` for system-level operations.
-    - Fixed `getAllPhysicalDisplayTokens` reflection logic for Android 14.
-- **Display Control**: Fixed `setBrightness` and `setScreenOff` implementations to correctly target the Cover Screen (Display 1) without crashing the main interface.
+## [v2.1] - DroidOS Launcher
+### Updates
+- **Compatibility:** Updated Intent targeting to match Trackpad v3.0 package ID.
+- **Stability:** improved `setBrightness` handling for Alternate Screen Off mode.
+
+---
+
+## [v2.0] - Initial Monorepo Structure
+- Split project into Launcher and Trackpad applications.
+- Added Shizuku integration for non-root shell execution.
