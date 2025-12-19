@@ -59,5 +59,10 @@
 
         <activity android:name=".SplitActivity" android:exported="false" />
 
+        <activity
+            android:name=".PermissionActivity"
+            android:theme="@android:style/Theme.NoTitleBar"
+            android:screenOrientation="portrait" />
+
     </application>
 </manifest>

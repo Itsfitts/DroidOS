@@ -19,8 +19,17 @@ class MenuActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Shizuku Permission Check
-        checkShizukuPermission()
+        // --- NEW: PERMISSION CHECK LANDING PAGE LOGIC ---
+        if (!hasRequiredPermissions()) {
+            val intent = Intent(this, PermissionActivity::class.java)
+            startActivity(intent)
+            finish() // Close MenuActivity so user can't go back without perms
+            return
+        }
+        // ------------------------------------------------
+
+        // 1. Shizuku Permission Check (Existing logic can remain or be removed as double-check)
+        checkShizukuPermission() 
 
         // 2. Main Layout Container (Dark Theme)
         val mainLayout = LinearLayout(this).apply {
@@ -111,6 +120,20 @@ class MenuActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
         mainLayout.addView(btnSplit)
 
         setContentView(mainLayout)
+    }
+
+    // Helper function to check all required permissions
+    private fun hasRequiredPermissions(): Boolean {
+        val hasOverlay = android.provider.Settings.canDrawOverlays(this)
+        val hasShizuku = try { 
+            rikka.shizuku.Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED 
+        } catch(e: Exception) { false }
+        
+        val hasNotif = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else true
+
+        return hasOverlay && hasShizuku && hasNotif
     }
 
     private fun checkShizukuPermission() {
