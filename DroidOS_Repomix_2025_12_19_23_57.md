@@ -246,7 +246,6 @@ Cover-Screen-Trackpad/
 CHANGELOG.md
 cover_recording.mp4
 GEMINI.md
-logcat.md
 README.md
 ```
 
@@ -9079,491 +9078,6 @@ You are free to use, modify, and distribute this software, but all modifications
 ---
 ```
 
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.content.ContentResolver
-import android.content.Context
-import android.content.ContextWrapper
-import android.os.Binder
-import android.os.IBinder
-import android.provider.Settings
-import android.util.Log
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.util.ArrayList
-import java.util.regex.Pattern
-import android.os.Build
-
-class ShellUserService : IShellService.Stub() {
-
-    private val TAG = "ShellUserService"
-
-    companion object {
-        const val POWER_MODE_OFF = 0
-        const val POWER_MODE_NORMAL = 2
-        
-        @Volatile private var displayControlClass: Class<*>? = null
-        @Volatile private var displayControlClassLoaded = false
-    }
-
-    private val surfaceControlClass: Class<*> by lazy {
-        Class.forName("android.view.SurfaceControl")
-    }
-
-    private fun getDisplayControlClass(): Class<*>? {
-        if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
-        
-        return try {
-            val classLoaderFactoryClass = Class.forName("com.android.internal.os.ClassLoaderFactory")
-            val createClassLoaderMethod = classLoaderFactoryClass.getDeclaredMethod(
-                "createClassLoader",
-                String::class.java,
-                String::class.java,
-                String::class.java,
-                ClassLoader::class.java,
-                Int::class.javaPrimitiveType,
-                Boolean::class.javaPrimitiveType,
-                String::class.java
-            )
-            val classLoader = createClassLoaderMethod.invoke(
-                null, "/system/framework/services.jar", null, null,
-                ClassLoader.getSystemClassLoader(), 0, true, null
-            ) as ClassLoader
-
-            val loadedClass = classLoader.loadClass("com.android.server.display.DisplayControl").also {
-                val loadMethod = Runtime::class.java.getDeclaredMethod(
-                    "loadLibrary0",
-                    Class::class.java,
-                    String::class.java
-                )
-                loadMethod.isAccessible = true
-                loadMethod.invoke(Runtime.getRuntime(), it, "android_servers")
-            }
-            
-            displayControlClass = loadedClass
-            displayControlClassLoaded = true
-            loadedClass
-        } catch (e: Exception) {
-            Log.w(TAG, "DisplayControl not available", e)
-            null
-        }
-    }
-
-    private fun getAllPhysicalDisplayTokens(): List<IBinder> {
-        val tokens = ArrayList<IBinder>()
-        try {
-            val physicalIds: LongArray = if (Build.VERSION.SDK_INT >= 34) {
-                val controlClass = getDisplayControlClass()
-                if (controlClass != null) {
-                    controlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-                } else {
-                     try {
-                        surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-                     } catch (e: Exception) { LongArray(0) }
-                }
-            } else {
-                surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-            }
-
-            if (physicalIds.isEmpty()) {
-                getSurfaceControlInternalToken()?.let { tokens.add(it) }
-                return tokens
-            }
-
-            for (id in physicalIds) {
-                try {
-                    val token: IBinder? = if (Build.VERSION.SDK_INT >= 34) {
-                        val controlClass = getDisplayControlClass()
-                        if (controlClass != null) {
-                             controlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                                .invoke(null, id) as? IBinder
-                        } else {
-                            surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                                .invoke(null, id) as? IBinder
-                        }
-                    } else {
-                        surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                            .invoke(null, id) as? IBinder
-                    }
-                    
-                    if (token != null) tokens.add(token)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to get token for physical ID $id", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Critical failure getting display tokens", e)
-        }
-        return tokens
-    }
-
-    private fun getSurfaceControlInternalToken(): IBinder? {
-        return try {
-            if (Build.VERSION.SDK_INT < 29) {
-                surfaceControlClass.getMethod("getBuiltInDisplay", Int::class.java).invoke(null, 0) as IBinder
-            } else {
-                surfaceControlClass.getMethod("getInternalDisplayToken").invoke(null) as IBinder
-            }
-        } catch (e: Exception) { null }
-    }
-
-    private fun setPowerModeOnToken(token: IBinder, mode: Int) {
-        try {
-            val method = surfaceControlClass.getMethod(
-                "setDisplayPowerMode",
-                IBinder::class.java,
-                Int::class.javaPrimitiveType
-            )
-            method.invoke(null, token, mode)
-        } catch (e: Exception) {
-            Log.e(TAG, "setDisplayPowerMode failed for token $token", e)
-        }
-    }
-
-    private fun setDisplayBrightnessOnToken(token: IBinder, brightness: Float): Boolean {
-        try {
-            val method = surfaceControlClass.getMethod(
-                "setDisplayBrightness",
-                IBinder::class.java,
-                Float::class.javaPrimitiveType
-            )
-            method.invoke(null, token, brightness)
-            return true
-        } catch (e: Exception) {
-             try {
-                val method = surfaceControlClass.getMethod(
-                    "setDisplayBrightness",
-                    IBinder::class.java,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType
-                )
-                method.invoke(null, token, brightness, brightness, brightness, brightness)
-                return true
-            } catch (e2: Exception) {
-                return false
-            }
-        }
-    }
-
-    private fun setDisplayBrightnessInternal(displayId: Int, brightness: Float): Boolean {
-        // Legacy shim for single-target calls
-        val tokens = getAllPhysicalDisplayTokens()
-        if (tokens.isNotEmpty()) return setDisplayBrightnessOnToken(tokens[0], brightness)
-        return false
-    }
-
-    private val shLock = Object()
-    private var _shProcess: Process? = null
-    private val shProcess: Process
-        get() = synchronized(shLock) {
-            if (_shProcess?.isAlive == true) _shProcess!!
-            else Runtime.getRuntime().exec(arrayOf("sh")).also { _shProcess = it }
-        }
-
-    private fun execShellCommand(command: String) {
-        synchronized(shLock) {
-            try {
-                val output = shProcess.outputStream
-                output.write("$command\n".toByteArray())
-                output.flush()
-            } catch (e: Exception) {
-                Log.e(TAG, "Shell command failed", e)
-            }
-        }
-    }
-
-    // ============================================================
-    // AIDL Interface Implementations
-    // ============================================================
-
-    
-override fun setBrightness(displayId: Int, brightness: Int) {
-        Log.d(TAG, "setBrightness(Global Broadcast, Value: $brightness)")
-        val token = Binder.clearCallingIdentity()
-        try {
-            if (brightness < 0) {
-                // === SCREEN OFF ===
-                execShellCommand("settings put system screen_brightness_mode 0")
-                
-                // Get ALL tokens, but ONLY apply to the first 2 (Main + Cover)
-                // This prevents killing the Glasses (which would be index 2+)
-                val tokens = getAllPhysicalDisplayTokens()
-                val safeTokens = tokens.take(2)
-                
-                for (t in safeTokens) {
-                    setDisplayBrightnessOnToken(t, -1.0f)
-                }
-                
-                execShellCommand("settings put system screen_brightness_float -1.0")
-                execShellCommand("settings put system screen_brightness -1")
-            } else {
-                // === SCREEN ON ===
-                val floatVal = brightness.toFloat() / 255.0f
-                
-                // Restore ALL tokens (safety, in case user replugged glasses)
-                val tokens = getAllPhysicalDisplayTokens()
-                for (t in tokens) {
-                    setDisplayBrightnessOnToken(t, floatVal)
-                }
-                
-                execShellCommand("settings put system screen_brightness_float $floatVal")
-                execShellCommand("settings put system screen_brightness $brightness")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "setBrightness failed", e)
-        } finally {
-             Binder.restoreCallingIdentity(token)
-        }
-    }
-
-    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
-        Log.d(TAG, "setScreenOff(Global Broadcast, TurnOff: $turnOff)")
-        val token = Binder.clearCallingIdentity()
-        try {
-            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
-            
-            // Same safety limit: Only affect first 2 physical screens
-            val tokens = getAllPhysicalDisplayTokens()
-            val safeTokens = tokens.take(2)
-            
-            for (t in safeTokens) {
-                setPowerModeOnToken(t, mode)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "setScreenOff failed", e)
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-    }
-    // --- V1.0 LOGIC: Window Management (Retained for Tiling/Minimizing) ---
-    
-
-    override fun forceStop(packageName: String) {
-        val token = Binder.clearCallingIdentity()
-        try { 
-            val realPkg = if (packageName.contains(":")) packageName.substringBefore(":") else packageName
-            Runtime.getRuntime().exec("am force-stop $realPkg").waitFor() 
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-    }
-
-
-    override fun runCommand(command: String) {
-        val token = Binder.clearCallingIdentity()
-        try { Runtime.getRuntime().exec(command).waitFor() } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-    }
-
-
-    override fun repositionTask(packageName: String, left: Int, top: Int, right: Int, bottom: Int) {
-        val token = Binder.clearCallingIdentity()
-        try {
-            var searchStr = packageName
-            if (packageName.endsWith(":gemini")) searchStr = "robin.main.MainActivity"
-
-            val cmd = arrayOf("sh", "-c", "dumpsys activity top | grep -E 'TASK.*id=|ACTIVITY.*$searchStr'")
-            val process = Runtime.getRuntime().exec(cmd)
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            var line: String?; var targetTaskId = -1
-            while (reader.readLine().also { line = it } != null) {
-                if (line!!.contains("TASK") && line!!.contains("id=")) {
-                     val match = Regex("id=(\\d+)").find(line!!)
-                     if (match != null) targetTaskId = match.groupValues[1].toInt()
-                }
-                if (targetTaskId != -1 && line!!.contains(searchStr)) break
-            }
-            reader.close(); process.waitFor()
-            if (targetTaskId != -1) {
-                Runtime.getRuntime().exec("am task set-windowing-mode $targetTaskId 5").waitFor()
-                Runtime.getRuntime().exec("am task resize $targetTaskId $left $top $right $bottom").waitFor()
-            }
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-    }
-
-
-    override fun getVisiblePackages(displayId: Int): List<String> {
-        val list = ArrayList<String>()
-        val token = Binder.clearCallingIdentity()
-        try {
-            val p = Runtime.getRuntime().exec("dumpsys window windows")
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            var currentPkg: String? = null
-            var isVisible = false
-            var onCorrectDisplay = false
-            val windowPattern = Pattern.compile("Window\\{[0-9a-f]+ u\\d+ ([^\\}/ ]+)")
-
-            while (r.readLine().also { line = it } != null) {
-                val l = line!!.trim()
-                if (l.startsWith("Window #")) {
-                    currentPkg = null; isVisible = false; onCorrectDisplay = false
-                    val matcher = windowPattern.matcher(l)
-                    if (matcher.find()) currentPkg = matcher.group(1)
-                }
-                if (l.contains("displayId=$displayId") || l.contains("mDisplayId=$displayId")) onCorrectDisplay = true
-                if (l.contains("mViewVisibility=0x0")) isVisible = true
-
-                if (currentPkg != null && isVisible && onCorrectDisplay) {
-                    if (isUserApp(currentPkg!!) && !list.contains(currentPkg!!)) list.add(currentPkg!!)
-                    currentPkg = null
-                }
-            }
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        return list
-    }
-
-    override fun getAllRunningPackages(): List<String> {
-        val list = ArrayList<String>()
-        val token = Binder.clearCallingIdentity()
-        try {
-            val p = Runtime.getRuntime().exec("dumpsys activity activities")
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            val recordPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
-            while (r.readLine().also { line = it } != null) {
-                if (line!!.contains("ActivityRecord{")) {
-                    val m = recordPattern.matcher(line!!)
-                    if (m.find()) { val pkg = m.group(1); if (pkg != null && !list.contains(pkg) && isUserApp(pkg)) list.add(pkg) }
-                }
-            }
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        return list
-    }
-
-override fun getWindowLayouts(displayId: Int): List<String> {
-    val results = ArrayList<String>()
-    val token = Binder.clearCallingIdentity()
-    try {
-        val p = Runtime.getRuntime().exec("dumpsys activity activities")
-        val r = BufferedReader(InputStreamReader(p.inputStream))
-        var line: String?
-        
-        var currentDisplayId = -1
-        var currentTaskBounds: String? = null
-        var foundPackages = mutableSetOf<String>()
-        
-        val displayPattern = Pattern.compile("Display #(\\d+)")
-        val boundsPattern = Pattern.compile("bounds=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
-        val rectPattern = Pattern.compile("mBounds=Rect\\((\\d+), (\\d+) - (\\d+), (\\d+)\\)")
-        val activityPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
-
-        while (r.readLine().also { line = it } != null) {
-            val l = line!!
-            
-            val displayMatcher = displayPattern.matcher(l)
-            if (displayMatcher.find()) {
-                currentDisplayId = displayMatcher.group(1)?.toIntOrNull() ?: -1
-            }
-            
-            if (currentDisplayId != displayId) continue
-            
-            val boundsMatcher = boundsPattern.matcher(l)
-            if (boundsMatcher.find()) {
-                val left = boundsMatcher.group(1)
-                val top = boundsMatcher.group(2)
-                val right = boundsMatcher.group(3)
-                val bottom = boundsMatcher.group(4)
-                currentTaskBounds = "$left,$top,$right,$bottom"
-            }
-            
-            val rectMatcher = rectPattern.matcher(l)
-            if (rectMatcher.find()) {
-                val left = rectMatcher.group(1)
-                val top = rectMatcher.group(2)
-                val right = rectMatcher.group(3)
-                val bottom = rectMatcher.group(4)
-                currentTaskBounds = "$left,$top,$right,$bottom"
-            }
-            
-            if (l.contains("ActivityRecord{") && currentTaskBounds != null) {
-                val activityMatcher = activityPattern.matcher(l)
-                if (activityMatcher.find()) {
-                    val pkg = activityMatcher.group(1)
-                    if (pkg != null && isUserApp(pkg) && !foundPackages.contains(pkg)) {
-                        results.add("$pkg|$currentTaskBounds")
-                        foundPackages.add(pkg)
-                    }
-                }
-            }
-        }
-        
-        r.close()
-        p.waitFor()
-    } catch (e: Exception) {
-        Log.e(TAG, "getWindowLayouts failed", e)
-    } finally {
-        Binder.restoreCallingIdentity(token)
-    }
-    return results
-}
-
-
-    override fun getTaskId(packageName: String): Int {
-        var taskId = -1; val token = Binder.clearCallingIdentity()
-        try {
-            var searchStr = packageName
-            if (packageName.endsWith(":gemini")) searchStr = "robin.main.MainActivity"
-            val cmd = arrayOf("sh", "-c", "dumpsys activity activities | grep -E 'Task id|$searchStr'")
-            val p = Runtime.getRuntime().exec(cmd); val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            while (r.readLine().also { line = it } != null) {
-                if (line!!.contains(searchStr)) {
-                    if (line!!.startsWith("* Task{") || line!!.startsWith("Task{")) { val m = Regex("#(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break } }
-                    if (line!!.contains("ActivityRecord")) { val m = Regex("t(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break } }
-                }
-            }
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        return taskId
-    }
-
-
-    override fun moveTaskToBack(taskId: Int) {
-        val token = Binder.clearCallingIdentity()
-        try {
-            val atmClass = Class.forName("android.app.ActivityTaskManager")
-            val serviceMethod = atmClass.getMethod("getService")
-            val atm = serviceMethod.invoke(null)
-            val moveMethod = atm.javaClass.getMethod("moveTaskToBack", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
-            moveMethod.invoke(atm, taskId, true)
-        } catch (e: Exception) {
-            try {
-                val am = Class.forName("android.app.ActivityManagerNative").getMethod("getDefault").invoke(null)
-                val moveMethod = am.javaClass.getMethod("moveTaskToBack", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
-                moveMethod.invoke(am, taskId, true)
-            } catch (e2: Exception) {}
-        } finally { Binder.restoreCallingIdentity(token) }
-    }
-
-    private fun isUserApp(pkg: String): Boolean {
-        if (pkg == "com.android.systemui") return false
-        if (pkg == "com.android.launcher3") return false 
-        if (pkg == "com.sec.android.app.launcher") return false 
-        if (pkg == "com.example.quadrantlauncher") return false
-        if (pkg == "com.example.com.katsuyamaki.coverscreenlauncher") return false
-        if (pkg == "com.example.coverscreentester") return false 
-        if (pkg == "com.katsuyamaki.trackpad") return false
-        if (pkg.contains("inputmethod")) return false
-        if (pkg.contains("navigationbar")) return false
-        if (pkg == "ScreenDecorOverlayCover") return false
-        if (pkg == "RecentsTransitionOverlay") return false
-        if (pkg == "FreeformContainer") return false
-        if (pkg == "StatusBar") return false
-        if (pkg == "NotificationShade") return false
-        return true
-    }
-
-    // Interface compliance stubs
-    override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
-    override fun getSystemBrightness(): Int = 128
-    override fun getSystemBrightnessFloat(): Float = 0.5f
-    override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
-    override fun isAutoBrightness(): Boolean = true
-    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
-}
-```
-
 ## File: Cover-Screen-Launcher/app/build.gradle.kts
 ```
 plugins {
@@ -10310,6 +9824,501 @@ class MainActivity : AppCompatActivity() {
         }
         return false
     }
+}
+```
+
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.content.ContentResolver
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Binder
+import android.os.IBinder
+import android.provider.Settings
+import android.util.Log
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.util.ArrayList
+import java.util.regex.Pattern
+import android.os.Build
+
+class ShellUserService : IShellService.Stub() {
+
+    private val TAG = "ShellUserService"
+
+    companion object {
+        const val POWER_MODE_OFF = 0
+        const val POWER_MODE_NORMAL = 2
+        
+        @Volatile private var displayControlClass: Class<*>? = null
+        @Volatile private var displayControlClassLoaded = false
+    }
+
+    private val surfaceControlClass: Class<*> by lazy {
+        Class.forName("android.view.SurfaceControl")
+    }
+
+    private fun getDisplayControlClass(): Class<*>? {
+        if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
+        
+        return try {
+            val classLoaderFactoryClass = Class.forName("com.android.internal.os.ClassLoaderFactory")
+            val createClassLoaderMethod = classLoaderFactoryClass.getDeclaredMethod(
+                "createClassLoader",
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                ClassLoader::class.java,
+                Int::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                String::class.java
+            )
+            val classLoader = createClassLoaderMethod.invoke(
+                null, "/system/framework/services.jar", null, null,
+                ClassLoader.getSystemClassLoader(), 0, true, null
+            ) as ClassLoader
+
+            val loadedClass = classLoader.loadClass("com.android.server.display.DisplayControl").also {
+                val loadMethod = Runtime::class.java.getDeclaredMethod(
+                    "loadLibrary0",
+                    Class::class.java,
+                    String::class.java
+                )
+                loadMethod.isAccessible = true
+                loadMethod.invoke(Runtime.getRuntime(), it, "android_servers")
+            }
+            
+            displayControlClass = loadedClass
+            displayControlClassLoaded = true
+            loadedClass
+        } catch (e: Exception) {
+            Log.w(TAG, "DisplayControl not available", e)
+            null
+        }
+    }
+
+    private fun getAllPhysicalDisplayTokens(): List<IBinder> {
+        val tokens = ArrayList<IBinder>()
+        try {
+            val physicalIds: LongArray = if (Build.VERSION.SDK_INT >= 34) {
+                val controlClass = getDisplayControlClass()
+                if (controlClass != null) {
+                    controlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                } else {
+                     try {
+                        surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                     } catch (e: Exception) { LongArray(0) }
+                }
+            } else {
+                surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+            }
+
+            if (physicalIds.isEmpty()) {
+                getSurfaceControlInternalToken()?.let { tokens.add(it) }
+                return tokens
+            }
+
+            for (id in physicalIds) {
+                try {
+                    val token: IBinder? = if (Build.VERSION.SDK_INT >= 34) {
+                        val controlClass = getDisplayControlClass()
+                        if (controlClass != null) {
+                             controlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        } else {
+                            surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        }
+                    } else {
+                        surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                            .invoke(null, id) as? IBinder
+                    }
+                    
+                    if (token != null) tokens.add(token)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to get token for physical ID $id", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Critical failure getting display tokens", e)
+        }
+        return tokens
+    }
+
+    private fun getSurfaceControlInternalToken(): IBinder? {
+        return try {
+            if (Build.VERSION.SDK_INT < 29) {
+                surfaceControlClass.getMethod("getBuiltInDisplay", Int::class.java).invoke(null, 0) as IBinder
+            } else {
+                surfaceControlClass.getMethod("getInternalDisplayToken").invoke(null) as IBinder
+            }
+        } catch (e: Exception) { null }
+    }
+
+    private fun setPowerModeOnToken(token: IBinder, mode: Int) {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayPowerMode",
+                IBinder::class.java,
+                Int::class.javaPrimitiveType
+            )
+            method.invoke(null, token, mode)
+        } catch (e: Exception) {
+            Log.e(TAG, "setDisplayPowerMode failed for token $token", e)
+        }
+    }
+
+    private fun setDisplayBrightnessOnToken(token: IBinder, brightness: Float): Boolean {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayBrightness",
+                IBinder::class.java,
+                Float::class.javaPrimitiveType
+            )
+            method.invoke(null, token, brightness)
+            return true
+        } catch (e: Exception) {
+             try {
+                val method = surfaceControlClass.getMethod(
+                    "setDisplayBrightness",
+                    IBinder::class.java,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType
+                )
+                method.invoke(null, token, brightness, brightness, brightness, brightness)
+                return true
+            } catch (e2: Exception) {
+                return false
+            }
+        }
+    }
+
+    private fun setDisplayBrightnessInternal(displayId: Int, brightness: Float): Boolean {
+        // Legacy shim for single-target calls
+        val tokens = getAllPhysicalDisplayTokens()
+        if (tokens.isNotEmpty()) return setDisplayBrightnessOnToken(tokens[0], brightness)
+        return false
+    }
+
+    private val shLock = Object()
+    private var _shProcess: Process? = null
+    private val shProcess: Process
+        get() = synchronized(shLock) {
+            if (_shProcess?.isAlive == true) _shProcess!!
+            else Runtime.getRuntime().exec(arrayOf("sh")).also { _shProcess = it }
+        }
+
+    private fun execShellCommand(command: String) {
+        synchronized(shLock) {
+            try {
+                val output = shProcess.outputStream
+                output.write("$command\n".toByteArray())
+                output.flush()
+            } catch (e: Exception) {
+                Log.e(TAG, "Shell command failed", e)
+            }
+        }
+    }
+
+    // ============================================================
+    // AIDL Interface Implementations
+    // ============================================================
+
+    
+override fun setBrightness(displayId: Int, brightness: Int) {
+        Log.d(TAG, "setBrightness(Global Broadcast, Value: $brightness)")
+        val token = Binder.clearCallingIdentity()
+        try {
+            if (brightness < 0) {
+                // === SCREEN OFF ===
+                execShellCommand("settings put system screen_brightness_mode 0")
+                
+                // Get ALL tokens, but ONLY apply to the first 2 (Main + Cover)
+                // This prevents killing the Glasses (which would be index 2+)
+                val tokens = getAllPhysicalDisplayTokens()
+                val safeTokens = tokens.take(2)
+                
+                for (t in safeTokens) {
+                    setDisplayBrightnessOnToken(t, -1.0f)
+                }
+                
+                execShellCommand("settings put system screen_brightness_float -1.0")
+                execShellCommand("settings put system screen_brightness -1")
+            } else {
+                // === SCREEN ON ===
+                val floatVal = brightness.toFloat() / 255.0f
+                
+                // Restore ALL tokens (safety, in case user replugged glasses)
+                val tokens = getAllPhysicalDisplayTokens()
+                for (t in tokens) {
+                    setDisplayBrightnessOnToken(t, floatVal)
+                }
+                
+                execShellCommand("settings put system screen_brightness_float $floatVal")
+                execShellCommand("settings put system screen_brightness $brightness")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setBrightness failed", e)
+        } finally {
+             Binder.restoreCallingIdentity(token)
+        }
+    }
+
+    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
+        Log.d(TAG, "setScreenOff(Global Broadcast, TurnOff: $turnOff)")
+        val token = Binder.clearCallingIdentity()
+        try {
+            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
+            
+            // Same safety limit: Only affect first 2 physical screens
+            val tokens = getAllPhysicalDisplayTokens()
+            val safeTokens = tokens.take(2)
+            
+            for (t in safeTokens) {
+                setPowerModeOnToken(t, mode)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setScreenOff failed", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    // --- V1.0 LOGIC: Window Management (Retained for Tiling/Minimizing) ---
+    
+    override fun forceStop(packageName: String) {
+        val token = Binder.clearCallingIdentity()
+        try { 
+            val realPkg = if (packageName.endsWith(":gemini")) packageName.substringBefore(":") else packageName
+            Runtime.getRuntime().exec("am force-stop $realPkg").waitFor() 
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+    }
+
+    override fun runCommand(command: String) {
+        val token = Binder.clearCallingIdentity()
+        try { Runtime.getRuntime().exec(command).waitFor() } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+    }
+
+    override fun repositionTask(packageName: String, left: Int, top: Int, right: Int, bottom: Int) {
+        val token = Binder.clearCallingIdentity()
+        try {
+            var searchStr = packageName
+            
+            // GEMINI EXCEPTION: Look for the specific activity, not just the package
+            if (packageName.endsWith(":gemini")) {
+                searchStr = "robin.main.MainActivity"
+            }
+
+            // Using grep to find the Task ID based on the package or activity name
+            val cmd = arrayOf("sh", "-c", "dumpsys activity top | grep -E 'TASK.*id=|ACTIVITY.*$searchStr'")
+            val process = Runtime.getRuntime().exec(cmd)
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            var line: String?
+            var targetTaskId = -1
+            
+            while (reader.readLine().also { line = it } != null) {
+                if (line!!.contains("TASK") && line!!.contains("id=")) {
+                     val match = Regex("id=(\\d+)").find(line!!)
+                     if (match != null) targetTaskId = match.groupValues[1].toInt()
+                }
+                if (targetTaskId != -1 && line!!.contains(searchStr)) {
+                    break
+                }
+            }
+            reader.close()
+            process.waitFor()
+            
+            if (targetTaskId != -1) {
+                Runtime.getRuntime().exec("am task set-windowing-mode $targetTaskId 5").waitFor()
+                Runtime.getRuntime().exec("am task resize $targetTaskId $left $top $right $bottom").waitFor()
+            }
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+    }
+
+    override fun getVisiblePackages(displayId: Int): List<String> {
+        val list = ArrayList<String>()
+        val token = Binder.clearCallingIdentity()
+        try {
+            val p = Runtime.getRuntime().exec("dumpsys window windows")
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            var currentPkg: String? = null
+            var isVisible = false
+            var onCorrectDisplay = false
+            val windowPattern = Pattern.compile("Window\\{[0-9a-f]+ u\\d+ ([^\\}/ ]+)")
+
+            while (r.readLine().also { line = it } != null) {
+                val l = line!!.trim()
+                if (l.startsWith("Window #")) {
+                    currentPkg = null; isVisible = false; onCorrectDisplay = false
+                    val matcher = windowPattern.matcher(l)
+                    if (matcher.find()) currentPkg = matcher.group(1)
+                }
+                if (l.contains("displayId=$displayId") || l.contains("mDisplayId=$displayId")) onCorrectDisplay = true
+                if (l.contains("mViewVisibility=0x0")) isVisible = true
+
+                if (currentPkg != null && isVisible && onCorrectDisplay) {
+                    if (isUserApp(currentPkg!!) && !list.contains(currentPkg!!)) list.add(currentPkg!!)
+                    currentPkg = null
+                }
+            }
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+        return list
+    }
+
+    override fun getAllRunningPackages(): List<String> {
+        val list = ArrayList<String>()
+        val token = Binder.clearCallingIdentity()
+        try {
+            val p = Runtime.getRuntime().exec("dumpsys activity activities")
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            val recordPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
+            while (r.readLine().also { line = it } != null) {
+                if (line!!.contains("ActivityRecord{")) {
+                    val m = recordPattern.matcher(line!!)
+                    if (m.find()) { val pkg = m.group(1); if (pkg != null && !list.contains(pkg) && isUserApp(pkg)) list.add(pkg) }
+                }
+            }
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+        return list
+    }
+
+override fun getWindowLayouts(displayId: Int): List<String> {
+    val results = ArrayList<String>()
+    val token = Binder.clearCallingIdentity()
+    try {
+        val p = Runtime.getRuntime().exec("dumpsys activity activities")
+        val r = BufferedReader(InputStreamReader(p.inputStream))
+        var line: String?
+        
+        var currentDisplayId = -1
+        var currentTaskBounds: String? = null
+        var foundPackages = mutableSetOf<String>()
+        
+        val displayPattern = Pattern.compile("Display #(\\d+)")
+        val boundsPattern = Pattern.compile("bounds=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
+        val rectPattern = Pattern.compile("mBounds=Rect\\((\\d+), (\\d+) - (\\d+), (\\d+)\\)")
+        val activityPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
+
+        while (r.readLine().also { line = it } != null) {
+            val l = line!!
+            
+            val displayMatcher = displayPattern.matcher(l)
+            if (displayMatcher.find()) {
+                currentDisplayId = displayMatcher.group(1)?.toIntOrNull() ?: -1
+            }
+            
+            if (currentDisplayId != displayId) continue
+            
+            val boundsMatcher = boundsPattern.matcher(l)
+            if (boundsMatcher.find()) {
+                val left = boundsMatcher.group(1)
+                val top = boundsMatcher.group(2)
+                val right = boundsMatcher.group(3)
+                val bottom = boundsMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            val rectMatcher = rectPattern.matcher(l)
+            if (rectMatcher.find()) {
+                val left = rectMatcher.group(1)
+                val top = rectMatcher.group(2)
+                val right = rectMatcher.group(3)
+                val bottom = rectMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            if (l.contains("ActivityRecord{") && currentTaskBounds != null) {
+                val activityMatcher = activityPattern.matcher(l)
+                if (activityMatcher.find()) {
+                    val pkg = activityMatcher.group(1)
+                    if (pkg != null && isUserApp(pkg) && !foundPackages.contains(pkg)) {
+                        results.add("$pkg|$currentTaskBounds")
+                        foundPackages.add(pkg)
+                    }
+                }
+            }
+        }
+        
+        r.close()
+        p.waitFor()
+    } catch (e: Exception) {
+        Log.e(TAG, "getWindowLayouts failed", e)
+    } finally {
+        Binder.restoreCallingIdentity(token)
+    }
+    return results
+}
+
+    override fun getTaskId(packageName: String): Int {
+        var taskId = -1
+        val token = Binder.clearCallingIdentity()
+        try {
+            var searchStr = packageName
+            if (packageName.endsWith(":gemini")) {
+                searchStr = "robin.main.MainActivity"
+            }
+
+            val cmd = arrayOf("sh", "-c", "dumpsys activity activities | grep -E 'Task id|$searchStr'")
+            val p = Runtime.getRuntime().exec(cmd)
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            while (r.readLine().also { line = it } != null) {
+                if (line!!.contains(searchStr)) {
+                    if (line!!.startsWith("* Task{") || line!!.startsWith("Task{")) { val m = Regex("#(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break } }
+                    if (line!!.contains("ActivityRecord")) { val m = Regex("t(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break } }
+                }
+            }
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+        return taskId
+    }
+
+    override fun moveTaskToBack(taskId: Int) {
+        val token = Binder.clearCallingIdentity()
+        try {
+            val atmClass = Class.forName("android.app.ActivityTaskManager")
+            val serviceMethod = atmClass.getMethod("getService")
+            val atm = serviceMethod.invoke(null)
+            val moveMethod = atm.javaClass.getMethod("moveTaskToBack", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+            moveMethod.invoke(atm, taskId, true)
+        } catch (e: Exception) {
+            try {
+                val am = Class.forName("android.app.ActivityManagerNative").getMethod("getDefault").invoke(null)
+                val moveMethod = am.javaClass.getMethod("moveTaskToBack", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+                moveMethod.invoke(am, taskId, true)
+            } catch (e2: Exception) {}
+        } finally { Binder.restoreCallingIdentity(token) }
+    }
+
+    private fun isUserApp(pkg: String): Boolean {
+        if (pkg == "com.android.systemui") return false
+        if (pkg == "com.android.launcher3") return false 
+        if (pkg == "com.sec.android.app.launcher") return false 
+        if (pkg == "com.example.quadrantlauncher") return false
+        if (pkg == "com.example.com.katsuyamaki.coverscreenlauncher") return false
+        if (pkg == "com.example.coverscreentester") return false 
+        if (pkg == "com.katsuyamaki.trackpad") return false
+        if (pkg.contains("inputmethod")) return false
+        if (pkg.contains("navigationbar")) return false
+        if (pkg == "ScreenDecorOverlayCover") return false
+        if (pkg == "RecentsTransitionOverlay") return false
+        if (pkg == "FreeformContainer") return false
+        if (pkg == "StatusBar") return false
+        if (pkg == "NotificationShade") return false
+        return true
+    }
+
+    // Interface compliance stubs
+    override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
+    override fun getSystemBrightness(): Int = 128
+    override fun getSystemBrightnessFloat(): Float = 0.5f
+    override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
+    override fun isAutoBrightness(): Boolean = true
+    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
 }
 ```
 
@@ -11124,1294 +11133,6 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
 
     override fun getItemCount(): Int = items.size
 }
-```
-
-## File: logcat.md
-```markdown
---------- beginning of system
-12-19 23:34:17.748  1401  1552 I ActivityManager: Changes in 10100 19 to 11, 0 to 128
-12-19 23:34:17.753  1401  1552 I ActivityManager: Changes in 10316 19 to 11, 0 to 128
-12-19 23:34:17.755  1401  2237 I ActivityManager: Changes in 10100 11 to 19, 128 to 0
-12-19 23:34:17.756  1401  2237 I ActivityManager: Changes in 10316 11 to 19, 128 to 0
-12-19 23:34:18.514  1401  1542 D WindowManager: DeferredDisplayUpdater: partially applying DisplayInfo(1080 x 2520) immediately
-12-19 23:34:19.443  1401  1552 I ActivityManager: Changes in 10100 19 to 11, 0 to 128
-12-19 23:34:19.452  1401  1552 I ActivityManager: Changes in 10316 19 to 11, 0 to 128
-12-19 23:34:19.453  1401  3074 I ActivityManager: Changes in 10100 11 to 19, 128 to 0
-12-19 23:34:19.455  1401  3074 I ActivityManager: Changes in 10316 11 to 19, 128 to 0
---------- beginning of main
-12-19 23:34:19.924  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183627763636000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:19.926  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x0, f=0x0, d=0, '7ac31b3', t=1 +(-50,-200)
-12-19 23:34:19.958  1401  1542 D WindowManager: DeferredDisplayUpdater: partially applying DisplayInfo(1080 x 2520) immediately
-12-19 23:34:19.963  1401  3074 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18195)/@0xa075cc1} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:20.042  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183627886000000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:20.042  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x1, f=0x0, d=0, '7ac31b3', t=1 +(-50,-200)
-12-19 23:34:20.043 13667 13667 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.FrameLayout{ffc88d0 VFE...C.. .F...... 0,0-1080,2404 aid=1}, caller=android.view.WindowManagerImpl.addView:158 com.example.quadrantlauncher.FloatingLauncherService.toggleDrawer:546 com.example.quadrantlauncher.FloatingLauncherService.access$toggleDrawer:54 
-12-19 23:34:20.044 13667 13667 D ViewRootImpl: desktopMode is false
-12-19 23:34:20.044 13667 13667 I ViewRootImpl: dVRR is disabled
-12-19 23:34:20.054  1401  2151 D WindowManager: Changing focus from Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} to Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher} displayId=0 Callers=com.android.server.wm.WindowManagerService.addWindowInner:565 com.android.server.wm.WindowManagerService.addWindow:1842 com.android.server.wm.Session.addToDisplayAsUser:24 android.view.IWindowSession$Stub.onTransact:757 
-12-19 23:34:20.054  1401  2151 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=7a1affc StatusBar)/@0x9878745 - animation-leash of insets_animation)/@0x5a4d774
-12-19 23:34:20.054  1401  2151 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{ea68ef type=2000 android.os.BinderProxy@acba6c9})/@0xe49ce9a, destroy=false, surface=Surface(name=7a1affc StatusBar)/@0x9878745
-12-19 23:34:20.054  1401  2151 I WindowManager: Reparenting to leash, surface=Surface(name=7a1affc StatusBar)/@0x9878745, leashParent=Surface(name=WindowToken{ea68ef type=2000 android.os.BinderProxy@acba6c9})/@0xe49ce9a
-12-19 23:34:20.054  1401  2151 D WindowManager: makeSurface duration=1 leash=Surface(name=Surface(name=7a1affc StatusBar)/@0x9878745 - animation-leash of insets_animation)/@0x8bd5cd7
-12-19 23:34:20.055  1401  2151 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{b217ba3 u0 InputMethod}, caller=com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:372 com.android.server.wm.WindowManagerService.addWindowInner:565 com.android.server.wm.WindowManagerService.addWindow:1842 
-12-19 23:34:20.055  1401  2151 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:20.077  1401  1645 I WindowManager: Relayout Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}: viewVisibility=0 req=1080x2404 ty=2032 d0
-12-19 23:34:20.077  1401  1645 D WindowManager: makeSurface duration=0 name=$_13667
-12-19 23:34:20.079  1401  1645 I WindowManager: Relayout hash=4a7f418, pid=13667, syncId=-1: mAttrs={(0,0)(fillxfill) gr=TOP START CENTER sim={adjust=nothing} ty=ACCESSIBILITY_OVERLAY fmt=TRANSLUCENT
-12-19 23:34:20.079  1401  1645 I WindowManager:   fl=1000300
-12-19 23:34:20.079  1401  1645 I WindowManager:   bhv=1
-12-19 23:34:20.079  1401  1645 I WindowManager:   fitTypes=206
-12-19 23:34:20.079  1401  1645 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:20.079  1401  1645 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:20.097  1401  1645 D InputDispatcher: Once focus requested (0): 4a7f418 com.katsuyamaki.DroidOSLauncher
-12-19 23:34:20.097  1401  1645 D InputDispatcher: Focus request (0): 4a7f418 com.katsuyamaki.DroidOSLauncher but waiting because NOT_VISIBLE
-12-19 23:34:20.097  1401  1645 D InputDispatcher: Focus left window (0): dea7911 com.termux/com.termux.app.TermuxActivity
-12-19 23:34:20.246  1401  3507 I WindowManager: Relayout Window{7ac31b3 u0 com.katsuyamaki.DroidOSLauncher}: viewVisibility=8 req=63x63 ty=2032 d0
-12-19 23:34:20.247  1401  3507 E WindowManager: win=Window{7ac31b3 u0 com.katsuyamaki.DroidOSLauncher} destroySurfaces: appStopped=true cleanupOnResume=false win.mWindowRemovalAllowed=false win.mRemoveOnExit=false win.mViewVisibility=8 caller=com.android.server.wm.WindowManagerService.tryStartExitingAnimation:134 com.android.server.wm.WindowManagerService.relayoutWindow:1147 com.android.server.wm.Session.relayout:27 android.view.IWindowSession$Stub.onTransact:829 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 
-12-19 23:34:20.249  1401  1645 D WindowManager: finishDrawingWindow: Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:20.249  1401  3507 I WindowManager: Relayout hash=7ac31b3, pid=13667, syncId=-1: mAttrs={(50,200)(wrapxwrap) gr=TOP START CENTER sim={adjust=pan} ty=ACCESSIBILITY_OVERLAY fmt=TRANSLUCENT
-12-19 23:34:20.249  1401  3507 I WindowManager:   fl=1040308
-12-19 23:34:20.249  1401  3507 I WindowManager:   bhv=1
-12-19 23:34:20.249  1401  3507 I WindowManager:   fitTypes=206
-12-19 23:34:20.249  1401  3507 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:20.249  1401  3507 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:20.273  1401  2724 D InputDispatcher: Focus entered window (0): 4a7f418 com.katsuyamaki.DroidOSLauncher
-12-19 23:34:20.315  1401  1763 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:20.315  1401  1763 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:20.318  1401  1763 D InputMethodManagerService: checkDisplayOfStartInputAndUpdateKeyboard: displayId=0, mFocusedDisplayId=0
-12-19 23:34:20.320  1401  3074 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0x93116c8
-12-19 23:34:20.320  1401  3074 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8, destroy=false, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b
-12-19 23:34:20.320  1401  3074 I WindowManager: Reparenting to leash, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b, leashParent=Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8
-12-19 23:34:20.321  1401  3074 D WindowManager: makeSurface duration=0 leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0xf484ea
-12-19 23:34:20.324  1401  1545 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=253deac NavigationBar0)/@0x344c78e - animation-leash of insets_animation)/@0x31c2347
-12-19 23:34:20.324  1401  1545 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{742645f type=2019 android.os.BinderProxy@3f7f8b9})/@0xeea6baf, destroy=false, surface=Surface(name=253deac NavigationBar0)/@0x344c78e
-12-19 23:34:20.325  1401  1545 I WindowManager: Reparenting to leash, surface=Surface(name=253deac NavigationBar0)/@0x344c78e, leashParent=Surface(name=WindowToken{742645f type=2019 android.os.BinderProxy@3f7f8b9})/@0xeea6baf
-12-19 23:34:20.325  1401  1545 D WindowManager: makeSurface duration=1 leash=Surface(name=Surface(name=253deac NavigationBar0)/@0x344c78e - animation-leash of insets_animation)/@0xbc3f951
-12-19 23:34:20.335  1401  3074 I WindowManager: Relayout Window{5b7421b u0 com.android.systemui.wallpapers.ImageWallpaper}: viewVisibility=0 req=2486x2520 ty=2013 d0
-12-19 23:34:20.337  1401  3074 I WindowManager: Relayout hash=5b7421b, pid=2045, syncId=-1: mAttrs={(0,0)(2486x2520) gr=TOP START CENTER layoutInDisplayCutoutMode=always ty=WALLPAPER fmt=RGBX_8888 wanim=0x1030328
-12-19 23:34:20.337  1401  3074 I WindowManager:   fl=14318
-12-19 23:34:20.337  1401  3074 I WindowManager:   pfl=14
-12-19 23:34:20.337  1401  3074 I WindowManager:   bhv=1
-12-19 23:34:20.337  1401  3074 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:20.337  1401  3074 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0
-12-19 23:34:20.337  1401  3074 I WindowManager:   sfl=8}
-12-19 23:34:20.339  1401  1544 I ActivityManager: Changes in 10332 5 to 7, 255 to 128
-12-19 23:34:20.371  1401  1645 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:20.383  1401  3075 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:20.384  1401  3075 I InputMethodManagerService: setImeWindowStatus: vis=0, backDisposition=0
-12-19 23:34:20.390  1401  2724 I WindowManager: Relayout Window{b217ba3 u0 InputMethod}: viewVisibility=0 req=1080x2404 ty=2011 d0
-12-19 23:34:20.392  1401  2724 I WindowManager: Relayout hash=b217ba3, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) gr=BOTTOM CENTER_VERTICAL sim={adjust=pan} ty=INPUT_METHOD fmt=TRANSPARENT wanim=0x1030056 preferredMinDisplayRefreshRate=60.0 receive insets ignoring z-order
-12-19 23:34:20.392  1401  2724 I WindowManager:   fl=81800108
-12-19 23:34:20.392  1401  2724 I WindowManager:   pfl=14000000
-12-19 23:34:20.392  1401  2724 I WindowManager:   bhv=1
-12-19 23:34:20.392  1401  2724 I WindowManager:   fitTypes=3
-12-19 23:34:20.392  1401  2724 I WindowManager:   fitSides=7
-12-19 23:34:20.392  1401  2724 I WindowManager:   fitIgnoreVis
-12-19 23:34:20.392  1401  2724 I WindowManager:   dvrrWindowFrameRateHint=true
-12-19 23:34:20.392  1401  2724 I WindowManager:  dimAmount=0.18 dimDuration=150 naviIconColor=0}
-12-19 23:34:20.393  1401  2724 D WindowManager: setInsetsWindow Window{b217ba3 u0 InputMethod}, contentInsets=Rect(0, 1904 - 0, 0) -> Rect(0, 1904 - 0, 0), visibleInsets=Rect(0, 1904 - 0, 0) -> Rect(0, 1904 - 0, 0), touchableRegion=SkRegion((0,1904,1080,2404)) -> SkRegion((0,1904,1080,2404)), touchableInsets 3 -> 3
-12-19 23:34:20.900  1401  3075 I WindowManager: Relayout Window{b217ba3 u0 InputMethod}: viewVisibility=8 req=1080x2404 ty=2011 d0
-12-19 23:34:20.901  1401  3075 E WindowManager: win=Window{b217ba3 u0 InputMethod} destroySurfaces: appStopped=true cleanupOnResume=false win.mWindowRemovalAllowed=false win.mRemoveOnExit=false win.mViewVisibility=8 caller=com.android.server.wm.WindowManagerService.tryStartExitingAnimation:134 com.android.server.wm.WindowManagerService.relayoutWindow:1147 com.android.server.wm.Session.relayout:27 android.view.IWindowSession$Stub.onTransact:829 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 
-12-19 23:34:20.902  1401  3075 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0xf484ea
-12-19 23:34:20.902  1401  3075 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8, destroy=false, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b
-12-19 23:34:20.902  1401  3075 I WindowManager: Reparenting to leash, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b, leashParent=Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8
-12-19 23:34:20.903  1401  3075 D WindowManager: makeSurface duration=0 leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0x65c59bc
-12-19 23:34:20.907  1401  3075 I WindowManager: Relayout hash=b217ba3, pid=15168, syncId=-1: mAttrs={(0,0)(fillxfill) gr=BOTTOM CENTER_VERTICAL sim={adjust=pan} ty=INPUT_METHOD fmt=TRANSPARENT wanim=0x1030056 preferredMinDisplayRefreshRate=60.0 receive insets ignoring z-order
-12-19 23:34:20.907  1401  3075 I WindowManager:   fl=81800108
-12-19 23:34:20.907  1401  3075 I WindowManager:   pfl=14000000
-12-19 23:34:20.907  1401  3075 I WindowManager:   bhv=1
-12-19 23:34:20.907  1401  3075 I WindowManager:   fitTypes=3
-12-19 23:34:20.907  1401  3075 I WindowManager:   fitSides=7
-12-19 23:34:20.907  1401  3075 I WindowManager:   fitIgnoreVis
-12-19 23:34:20.907  1401  3075 I WindowManager:   dvrrWindowFrameRateHint=true
-12-19 23:34:20.907  1401  3075 I WindowManager:  dimAmount=0.18 dimDuration=150 naviIconColor=0}
-12-19 23:34:20.910  1401  3545 D WindowManager: setInsetsWindow Window{b217ba3 u0 InputMethod}, contentInsets=Rect(0, 1904 - 0, 0) -> Rect(0, 2329 - 0, 0), visibleInsets=Rect(0, 1904 - 0, 0) -> Rect(0, 2329 - 0, 0), touchableRegion=SkRegion((0,1904,1080,2404)) -> SkRegion(), touchableInsets 3 -> 3
-12-19 23:34:20.913  1401  3507 I WindowManager: Relayout Window{5b7421b u0 com.android.systemui.wallpapers.ImageWallpaper}: viewVisibility=0 req=2486x2520 ty=2013 d0
-12-19 23:34:20.915  1401  3507 I WindowManager: Relayout hash=5b7421b, pid=2045, syncId=-1: mAttrs={(0,0)(2486x2520) gr=TOP START CENTER layoutInDisplayCutoutMode=always ty=WALLPAPER fmt=RGBX_8888 wanim=0x1030328
-12-19 23:34:20.915  1401  3507 I WindowManager:   fl=14318
-12-19 23:34:20.915  1401  3507 I WindowManager:   pfl=14
-12-19 23:34:20.915  1401  3507 I WindowManager:   bhv=1
-12-19 23:34:20.915  1401  3507 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:20.915  1401  3507 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0
-12-19 23:34:20.915  1401  3507 I WindowManager:   sfl=8}
-12-19 23:34:20.917  1401  3507 I WindowManager: Relayout Window{5b7421b u0 com.android.systemui.wallpapers.ImageWallpaper}: viewVisibility=0 req=2486x2520 ty=2013 d0
-12-19 23:34:20.918  1401  3507 I WindowManager: Relayout hash=5b7421b, pid=2045, syncId=-1: mAttrs={(0,0)(2486x2520) gr=TOP START CENTER layoutInDisplayCutoutMode=always ty=WALLPAPER fmt=RGBX_8888 wanim=0x1030328
-12-19 23:34:20.918  1401  3507 I WindowManager:   fl=14318
-12-19 23:34:20.918  1401  3507 I WindowManager:   pfl=14
-12-19 23:34:20.918  1401  3507 I WindowManager:   bhv=1
-12-19 23:34:20.918  1401  3507 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:20.918  1401  3507 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0
-12-19 23:34:20.918  1401  3507 I WindowManager:   sfl=8}
-12-19 23:34:20.930  1401  1542 D WindowManager: DeferredDisplayUpdater: partially applying DisplayInfo(1080 x 2520) immediately
-12-19 23:34:21.718  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183629553389000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:21.719  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x0, f=0x0, d=0, '4a7f418', t=1 +(0,-116)
-12-19 23:34:21.736  1401  3507 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18195)/@0xa075cc1} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:21.766  1401  1542 D WindowManager: DeferredDisplayUpdater: partially applying DisplayInfo(1080 x 2520) immediately
-12-19 23:34:21.774  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183629617854000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:21.774  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x1, f=0x0, d=0, '4a7f418', t=1 +(0,-116)
-12-19 23:34:21.789  1401  2724 D WindowManager: Transition is created, t=TransitionRecord{e24d8c1 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:21.809  1401  2495 D InputDispatcher: Focused application(0): ActivityRecord{151103947 u0 com.google.android.apps.bard/.shellapp.BardEntryPointActivity t18300}
-12-19 23:34:21.813  1401  1544 I ActivityManager: Changes in 10272 19 to 2, 0 to 255
-12-19 23:34:21.822  1401  3703 D InputDispatcher: Focused application(0): ActivityRecord{11414442 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink t18300}
-12-19 23:34:21.829 15229 15229 D ViewRootImpl: desktopMode is false
-12-19 23:34:21.830 15229 15229 I ViewRootImpl: dVRR is disabled
-12-19 23:34:21.831  1401  3548 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{130385f u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:21.833  1401  3507 I WindowManager: Relayout Window{130385f u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=0 req=0x0 ty=1 d0
-12-19 23:34:21.834  1401  3507 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink$_15229
-12-19 23:34:21.835  1401  3507 I WindowManager: Relayout hash=130385f, pid=15229, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:21.835  1401  3507 I WindowManager:   fl=1800000
-12-19 23:34:21.835  1401  3507 I WindowManager:   pfl=40000880
-12-19 23:34:21.835  1401  3507 I WindowManager:   bhv=1
-12-19 23:34:21.835  1401  3507 I WindowManager:   fitTypes=207
-12-19 23:34:21.835  1401  3507 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:21.835  1401  3507 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:21.837  1401  3074 D WindowManager: finishDrawingWindow: Window{130385f u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:21.844  1401  1645 D WindowManager: Transition is created, t=TransitionRecord{b414a37 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:21.846  1401  1645 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{130385f u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:21.857  1401  3548 D InputDispatcher: Focused application(0): ActivityRecord{230059025 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity t18298}
-12-19 23:34:21.858  1401  3548 D WindowManager: deferringAddStartActivities clear
-12-19 23:34:21.863  1401  3703 I WindowManager: Relayout Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}: viewVisibility=0 req=1080x2520 ty=1 d0
-12-19 23:34:21.864  1401  1544 I ActivityManager: Changes in 10272 2 to 19, 255 to 128
-12-19 23:34:21.864  1401  1544 I ActivityManager: updateOomAdj start time is before than pendingPid added, don't delete it
-12-19 23:34:21.864  1401  1544 I ActivityManager: updateOomAdj start time is before than pendingPid added, don't delete it
-12-19 23:34:21.865  1401  3703 I WindowManager: Relayout hash=8d8ec89, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=nothing forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION fmt=TRANSPARENT wanim=0x1030306
-12-19 23:34:21.865  1401  3703 I WindowManager:   fl=81910100
-12-19 23:34:21.865  1401  3703 I WindowManager:   pfl=10008840
-12-19 23:34:21.865  1401  3703 I WindowManager:   bhv=2
-12-19 23:34:21.865  1401  3703 I WindowManager:   fitSides=0
-12-19 23:34:21.865  1401  3703 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:21.865  1401  3703 I WindowManager:   dvrrWindowFrameRateHint=true screenDimDuration=200000 naviIconColor=0}
-12-19 23:34:21.866  1401  3546 I ActivityManager: Changes in 10395 19 to 3, 0 to 144
-12-19 23:34:21.866 15229 15229 D ViewRootImpl: Skipping stats log for color mode
-12-19 23:34:21.870 15229 15229 D ViewRootImpl: desktopMode is false
-12-19 23:34:21.870 15229 15229 I ViewRootImpl: dVRR is disabled
-12-19 23:34:21.871  1401  3547 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{ef1b2a3 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:21.874  1401  1544 I ActivityManager: updateOomAdj start time is before than pendingPid added, don't delete it
-12-19 23:34:21.882  1401  2245 W WindowManager: Failed to take screenshot. No visible windows for Task{6014866 #18300 type=standard I=com.google.android.apps.bard/.shellapp.BardEntryPointActivity}
-12-19 23:34:21.883  1401  2247 I WindowManager: Relayout Window{ef1b2a3 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=0 req=0x0 ty=1 d0
-12-19 23:34:21.883  1401  2247 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink$_15229
-12-19 23:34:21.884  1401  2247 I WindowManager: Relayout hash=ef1b2a3, pid=15229, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:21.884  1401  2247 I WindowManager:   fl=1800000
-12-19 23:34:21.884  1401  2247 I WindowManager:   pfl=40000880
-12-19 23:34:21.884  1401  2247 I WindowManager:   bhv=1
-12-19 23:34:21.884  1401  2247 I WindowManager:   fitTypes=207
-12-19 23:34:21.884  1401  2247 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:21.884  1401  2247 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:21.885  1401  1703 D WindowManager: finishDrawingWindow: Window{ef1b2a3 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:21.888  1401  1703 I WindowManager: Relayout Window{cb95dc5 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:21.889  1401  1703 I WindowManager: Relayout hash=cb95dc5, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:21.889  1401  1703 I WindowManager:   fl=80810100
-12-19 23:34:21.889  1401  1703 I WindowManager:   pfl=10008840
-12-19 23:34:21.889  1401  1703 I WindowManager:   bhv=1
-12-19 23:34:21.889  1401  1703 I WindowManager:   fitSides=0
-12-19 23:34:21.889  1401  1703 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:21.889  1401  1703 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:22.026  1401  2247 I WindowManager: Using new display size: 1080x2520
-12-19 23:34:22.298  1401  1544 I ActivityManager: Changes in 10272 19 to 19, 128 to 0
-12-19 23:34:22.304  1401  1470 I WindowManager: Relayout Window{ef1b2a3 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=8 req=0x0 ty=1 d0
-12-19 23:34:22.305  1401  1470 I WindowManager: Relayout hash=ef1b2a3, pid=15229, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:22.305  1401  1470 I WindowManager:   fl=1800000
-12-19 23:34:22.305  1401  1470 I WindowManager:   pfl=40000880
-12-19 23:34:22.305  1401  1470 I WindowManager:   bhv=1
-12-19 23:34:22.305  1401  1470 I WindowManager:   fitTypes=207
-12-19 23:34:22.305  1401  1470 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:22.305  1401  1470 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:22.309 15229 15229 D ViewRootImpl: Skipping stats log for color mode
-12-19 23:34:22.626  1401  2245 I WindowManager: Using new display size: 1080x2520
-12-19 23:34:22.982  1401  2245 D WindowManager: Transition is created, t=TransitionRecord{9c4bd68 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:22.988  1401  2245 D InputDispatcher: Focused application(0): ActivityRecord{147709724 u0 com.termux/.app.TermuxActivity t18195}
-12-19 23:34:22.989  1401  2245 D WindowManager: Aborting Transition: 10118 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:22.994  1401  2255 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:22.997  1401  2255 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:22.997  1401  2255 I WindowManager:   fl=8d810100
-12-19 23:34:22.997  1401  2255 I WindowManager:   pfl=10008040
-12-19 23:34:22.997  1401  2255 I WindowManager:   vsysui=700
-12-19 23:34:22.997  1401  2255 I WindowManager:   bhv=1
-12-19 23:34:22.997  1401  2255 I WindowManager:   fitSides=0
-12-19 23:34:22.997  1401  2255 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:22.997  1401  2255 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:23.005  1401  2255 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18298)/@0xf2a5869} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:23.045  1401  2255 D WindowManager: Transition is created, t=TransitionRecord{9f8eb1f id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:23.047  1401  2255 D WindowManager: Aborting Transition: 10119 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:23.051  1401  2724 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:23.052  1401  2724 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:23.052  1401  2724 I WindowManager:   fl=8d810100
-12-19 23:34:23.052  1401  2724 I WindowManager:   pfl=10008040
-12-19 23:34:23.052  1401  2724 I WindowManager:   vsysui=700
-12-19 23:34:23.052  1401  2724 I WindowManager:   bhv=1
-12-19 23:34:23.052  1401  2724 I WindowManager:   fitSides=0
-12-19 23:34:23.052  1401  2724 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:23.052  1401  2724 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:23.121  1401  2724 D WindowManager: Transition is created, t=TransitionRecord{9397cd2 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:23.125  1401  2724 D InputDispatcher: Focused application(0): ActivityRecord{233722275 u0 com.google.android.googlequicksearchbox/.SearchActivity t18301}
-12-19 23:34:23.130  1401  2724 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:23.130  1401  2724 D WindowManager: updateSystemBarAttributes, bhv=1, apr=0, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:23.196 15144 15144 D ViewRootImpl: desktopMode is false
-12-19 23:34:23.197 15144 15144 I ViewRootImpl: dVRR is disabled
-12-19 23:34:23.200  1401  2247 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{7d486c1 u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity}
-12-19 23:34:23.236  1401  1703 I WindowManager: Relayout Window{7d486c1 u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:23.237  1401  1703 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity$_15144
-12-19 23:34:23.237  1401  1703 I WindowManager: Relayout hash=7d486c1, pid=15144, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=pan forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:23.237  1401  1703 I WindowManager:   fl=81810100
-12-19 23:34:23.237  1401  1703 I WindowManager:   pfl=100088c0
-12-19 23:34:23.237  1401  1703 I WindowManager:   bhv=1
-12-19 23:34:23.237  1401  1703 I WindowManager:   fitSides=0
-12-19 23:34:23.237  1401  1703 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:23.237  1401  1703 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:23.252  1401  2245 D WindowManager: finishDrawingWindow: Window{7d486c1 u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:23.255  1401  1545 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:23.255  1401  1545 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:23.258  2045  2142 D ViewRootImpl: desktopMode is false
-12-19 23:34:23.258  2045  2142 I ViewRootImpl: dVRR is disabled
-12-19 23:34:23.264  1401  3547 W WindowManager: Cannot find window which accessibility connection is added to
-12-19 23:34:23.458  1401  2151 I ActivityManager: Changes in 90001 19 to 19, 0 to 128
-12-19 23:34:23.458  1401  2151 I ActivityManager: Changes in 10309 19 to 10, 0 to 128
-12-19 23:34:23.458  1401  2151 I ActivityManager: Changes in 10288 19 to 10, 0 to 128
-12-19 23:34:23.526  1401  3074 D WindowManager: Transition is created, t=TransitionRecord{aa6725d id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:23.526  1401  3074 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:23.569  1401  1470 D WindowManager: Transition is created, t=TransitionRecord{77a9015 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:23.570  1401  1470 D InputDispatcher: Focused application(0): ActivityRecord{147709724 u0 com.termux/.app.TermuxActivity t18195}
-12-19 23:34:23.571  1401  1470 D WindowManager: Aborting Transition: 10122 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:23.576  1401  3074 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:23.578  1401  3074 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:23.578  1401  3074 I WindowManager:   fl=8d810100
-12-19 23:34:23.578  1401  3074 I WindowManager:   pfl=10008040
-12-19 23:34:23.578  1401  3074 I WindowManager:   vsysui=700
-12-19 23:34:23.578  1401  3074 I WindowManager:   bhv=1
-12-19 23:34:23.578  1401  3074 I WindowManager:   fitSides=0
-12-19 23:34:23.578  1401  3074 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:23.578  1401  3074 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:23.647  1401  2151 D WindowManager: Transition is created, t=TransitionRecord{ed4f006 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:23.648  1401  2151 D WindowManager: Aborting Transition: 10123 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:23.651  1401  3074 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:23.652  1401  3074 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:23.652  1401  3074 I WindowManager:   fl=8d810100
-12-19 23:34:23.652  1401  3074 I WindowManager:   pfl=10008040
-12-19 23:34:23.652  1401  3074 I WindowManager:   vsysui=700
-12-19 23:34:23.652  1401  3074 I WindowManager:   bhv=1
-12-19 23:34:23.652  1401  3074 I WindowManager:   fitSides=0
-12-19 23:34:23.652  1401  3074 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:23.652  1401  3074 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:23.655  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183631499613000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:23.656  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x0, f=0x0, d=0, '4a7f418', t=1 +(0,-116)
-12-19 23:34:23.719  1401  2237 D WindowManager: Transition is created, t=TransitionRecord{faf7863 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:23.721  1401  2237 D InputDispatcher: Focused application(0): ActivityRecord{233722275 u0 com.google.android.googlequicksearchbox/.SearchActivity t18301}
-12-19 23:34:23.722  1401  2237 D WindowManager: Aborting Transition: 10124 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:23.788  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183631632742000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:23.788  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x1, f=0x0, d=0, '4a7f418', t=1 +(0,-116)
-12-19 23:34:23.790  1401  2151 D WindowManager: Transition is created, t=TransitionRecord{7a36e8d id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:23.791  1401  2151 D WindowManager: Aborting Transition: 10125 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:23.944  1401  1470 I WindowManager: Using new display size: 1080x2520
-12-19 23:34:23.950  1401  2495 I ActivityManager: Force stopping com.google.android.googlequicksearchbox appid=10270 user=0: from pid 17915
-12-19 23:34:23.951  1401  2495 I ActivityManager: Killing 15229:com.google.android.googlequicksearchbox:search/u0a270 (adj 100): stop com.google.android.googlequicksearchbox due to from pid 17915
-12-19 23:34:23.956  1401  2495 D WindowManager: Transition is created, t=TransitionRecord{8abe6b5 id=-1 type=CLOSE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createTransition:17 com.android.server.wm.TransitionController.requestCloseTransitionIfNeeded:73 com.android.server.wm.WindowProcessController.handleAppDied$1:441 com.android.server.am.ActivityManagerService.handleAppDiedLocked:248 
-12-19 23:34:23.956  1401  2495 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{cb95dc5 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:23.957  1401  2495 I ActivityManager: Killing 15144:com.google.android.googlequicksearchbox:googleapp/u0a270 (adj 0): stop com.google.android.googlequicksearchbox due to from pid 17915
-12-19 23:34:23.958  1401  3074 I WindowManager: Using new display size: 1080x2520
-12-19 23:34:23.973  1401  2495 I ActivityManager: Changes in 90001 19 to 19, 128 to 0
-12-19 23:34:23.973  1401  2495 I ActivityManager: Changes in 10309 19 to 10, 128 to 0
-12-19 23:34:23.973  1401  2495 I ActivityManager: Changes in 10288 17 to 10, 128 to 0
-12-19 23:34:23.974  1401  2495 D WindowManager: Transition is created, t=TransitionRecord{381e0fa id=-1 type=CLOSE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createTransition:17 com.android.server.wm.TransitionController.requestCloseTransitionIfNeeded:73 com.android.server.wm.WindowProcessController.handleAppDied$1:441 com.android.server.am.ActivityManagerService.handleAppDiedLocked:248 
-12-19 23:34:23.975  1401  2495 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{7d486c1 u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity}
-12-19 23:34:23.976  1401  2495 D InputDispatcher: Focused application(0): ActivityRecord{147709724 u0 com.termux/.app.TermuxActivity t18195}
-12-19 23:34:23.984  1401  2773 D InputMethodManagerService: onClientRemovedInternalLocked
-12-19 23:34:23.984  1401  1700 W InputDispatcher: channel 'cb95dc5 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity' ~ Consumer closed input channel or an error occurred.  events=0x9
-12-19 23:34:23.984  1401  1700 E InputDispatcher: channel 'cb95dc5 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity' ~ Channel is unrecoverably broken and will be disposed!
-12-19 23:34:23.985  1401  3074 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:23.986  1401  2495 I ActivityManager: Killing 15250:com.google.android.googlequicksearchbox:interactor/u0a270 (adj 100): stop com.google.android.googlequicksearchbox due to from pid 17915
-12-19 23:34:23.986  1401  1700 I WindowManager: WINDOW DIED Window{cb95dc5 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:23.987  1401  3509 D InputMethodManagerService: onClientRemovedInternalLocked
-12-19 23:34:23.987  1401  1700 W InputDispatcher: channel '7d486c1 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity' ~ Consumer closed input channel or an error occurred.  events=0x9
-12-19 23:34:23.987  1401  1700 E InputDispatcher: channel '7d486c1 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity' ~ Channel is unrecoverably broken and will be disposed!
-12-19 23:34:23.987  1401  3549 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:23.987  1401  1700 I WindowManager: WINDOW DIED Window{7d486c1 u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity}
-12-19 23:34:23.988  1401  1700 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:23.988  1401  1700 D WindowManager: updateSystemBarAttributes, bhv=1, apr=0, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:23.988  1401  2590 I WindowManager: WIN DEATH: Window{cb95dc5 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity EXITING}
-12-19 23:34:23.989  1401  2323 I WindowManager: WIN DEATH: Window{7d486c1 u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity EXITING}
-12-19 23:34:23.990  1401  3547 W WindowManager: Cannot find window which accessibility connection is added to
-12-19 23:34:23.992  1401  3703 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:23.996  1401  1469 W ActivityManager: pid 1401 system sent binder code 7 with flags 1 to frozen apps and got error -32
-12-19 23:34:23.996  1401  1469 W WindowManager: Exception thrown during dispatchAppVisibility Window{cb95dc5 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity EXITING}
-12-19 23:34:23.996  1401  1469 W WindowManager: android.os.DeadObjectException
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at android.os.BinderProxy.transactNative(Native Method)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at android.os.BinderProxy.transact(BinderProxy.java:661)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at android.view.IWindow$Stub$Proxy.dispatchAppVisibility(IWindow.java:659)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at com.android.server.wm.WindowState.sendAppVisibilityToClients(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:63)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at com.android.server.wm.WindowContainer.sendAppVisibilityToClients(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:19)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at com.android.server.wm.WindowToken.setClientVisible(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:48)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at com.android.server.wm.ActivityRecord.commitVisibility(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:186)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at com.android.server.wm.TransitionController.finishTransition(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:825)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishTransitionInner(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:31)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishAllTransitions(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:60)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at android.window.IWindowOrganizerController$Stub.onTransact(IWindowOrganizerController.java:283)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.onTransact(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:1)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at android.os.Binder.execTransactInternal(Binder.java:1462)
-12-19 23:34:23.996  1401  1469 W WindowManager: 	at android.os.Binder.execTransact(Binder.java:1401)
-12-19 23:34:24.001  1401  2495 I ActivityManager:   Force stopping service ServiceRecord{3e64d3c u0 com.google.android.googlequicksearchbox/com.google.android.apps.gsa.hotword.hotworddetectionservice.GsaHotwordDetectionService:hotword_detector_0 c:android}
-12-19 23:34:24.003  1401  1544 I ActivityManager: Killing 15645:com.google.android.googlequicksearchbox:trusted_disable_art_image_:com.google.android.apps.gsa.hotword.hotworddetectionservice.GsaHotwordDetectionService:hotword_detector_0/u0a270i293 (adj 100): isolated not needed
-12-19 23:34:24.003  1401  3545 W ActivityManager: Unbind failed: could not find connection for android.os.BinderProxy@fe0f993
-12-19 23:34:24.006  1401  2247 I ActivityManager: Changes in 99293 5 to 19, 184 to 0
-12-19 23:34:24.007  1401  1844 W ActivityManager: pid 1401 system sent binder code 1 with flags 1 to frozen apps and got error -32
-12-19 23:34:24.008  1401  1544 W ActivityManager: setHasOverlayUi called on unknown pid: 15229
-12-19 23:34:24.008  1401  1544 W ActivityManager: setHasOverlayUi called on unknown pid: 15144
-12-19 23:34:24.010  1401  2724 W ActivityManager: Service done with onDestroy, but not inDestroying: ServiceRecord{6876042 u0 com.google.android.googlequicksearchbox/com.google.frameworks.client.data.android.server.tiktok.assistant.InteractorProcessEndpointService c:com.google.android.googlequicksearchbox}, app=ProcessRecord{f5a0c96 0:com.google.android.googlequicksearchbox:interactor/u0a270}
-12-19 23:34:24.012  1401  3703 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18195)/@0xa075cc1} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:24.013  1401  2773 W ActivityManager: pid 15250 null sent binder code 2 with flags 1 to frozen apps and got error -32
-12-19 23:34:24.032  1401  1552 W ActivityManager: pid 1401 system sent binder code 9 with flags 1 to frozen apps and got error -32
-12-19 23:34:24.035  1401  1552 W ActivityManager: pid 1401 system sent binder code 1 with flags 1 to frozen apps and got error -32
-12-19 23:34:24.053  1401  1553 I ActivityManager: Start proc 17961:com.google.android.googlequicksearchbox:interactor/u0a270 for service {com.google.android.googlequicksearchbox/com.google.android.voiceinteraction.GsaVoiceInteractionService}
-12-19 23:34:24.053  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:24.091  1401  1553 I ActivityManager: Start proc 17986:com.google.android.googlequicksearchbox:search/u0a270 for broadcast {com.google.android.googlequicksearchbox/com.google.android.libraries.assistant.contexttrigger.impl.ContextTriggerBroadcastReceiver_Receiver}
-12-19 23:34:24.091  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:24.129  1401  2151 I ActivityManager: Changes in 10270 19 to 5, 0 to 255
-12-19 23:34:24.131  1401  1765 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:24.131  1401  1765 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:24.137  1401  1765 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:24.137  1401  1765 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:24.147  1401  2151 D WindowManager: Transition is created, t=TransitionRecord{7221bb1 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:24.147  1401  2151 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{7d486c1 u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity EXITING}
-12-19 23:34:24.274  1401  1553 I ActivityManager: Start proc 18103:com.google.android.googlequicksearchbox:googleapp/u0a270 for broadcast {com.google.android.googlequicksearchbox/com.google.android.libraries.notifications.platform.entrypoints.restart.RestartReceiver}
-12-19 23:34:24.274  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:24.276  1401  3548 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:24.276  1401  2151 W WindowManager: Cannot find window which accessibility connection is added to
-12-19 23:34:24.277  1401  2151 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:24.279  1401  2323 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:24.282  1401  3545 W ActivityManager: pid 1401 system sent binder code 7 with flags 1 to frozen apps and got error -32
-12-19 23:34:24.282  1401  3545 W WindowManager: Exception thrown during dispatchAppVisibility Window{7d486c1 u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity EXITING}
-12-19 23:34:24.282  1401  3545 W WindowManager: android.os.DeadObjectException
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at android.os.BinderProxy.transactNative(Native Method)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at android.os.BinderProxy.transact(BinderProxy.java:661)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at android.view.IWindow$Stub$Proxy.dispatchAppVisibility(IWindow.java:659)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at com.android.server.wm.WindowState.sendAppVisibilityToClients(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:63)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at com.android.server.wm.WindowContainer.sendAppVisibilityToClients(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:19)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at com.android.server.wm.WindowToken.setClientVisible(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:48)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at com.android.server.wm.ActivityRecord.commitVisibility(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:186)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at com.android.server.wm.TransitionController.finishTransition(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:825)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishTransitionInner(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:31)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishAllTransitions(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:60)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at android.window.IWindowOrganizerController$Stub.onTransact(IWindowOrganizerController.java:283)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.onTransact(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:1)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at android.os.Binder.execTransactInternal(Binder.java:1462)
-12-19 23:34:24.282  1401  3545 W WindowManager: 	at android.os.Binder.execTransact(Binder.java:1401)
-12-19 23:34:24.390  1401  1552 I ActivityManager: Changes in 10262 19 to 11, 0 to 128
-12-19 23:34:24.396  1401  1553 I ActivityManager: Start proc 18169:com.google.android.googlequicksearchbox:trusted_disable_art_image_:com.google.android.apps.gsa.hotword.hotworddetectionservice.GsaHotwordDetectionService:hotword_detector_0/u0i294 for service {com.google.android.googlequicksearchbox/com.google.android.apps.gsa.hotword.hotworddetectionservice.GsaHotwordDetectionService:hotword_detector_0}
-12-19 23:34:24.396  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:24.417  1401  2151 I ActivityManager: Changes in 10262 11 to 19, 128 to 0
-12-19 23:34:24.444  1401  3703 I ActivityManager: Changes in 99294 19 to 5, 0 to 184
-12-19 23:34:24.453  1401  2151 D WindowManager: Transition is created, t=TransitionRecord{5d0624a id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:24.453  1401  2151 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:24.672  1401  3545 D WindowManager: Transition is created, t=TransitionRecord{d915d67 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:24.673  1401  3545 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:24.677  1401  3545 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:24.677  1401  3545 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:24.702  1401  3703 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:24.703  1401  3703 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:24.703  1401  3703 I WindowManager:   fl=8d810100
-12-19 23:34:24.703  1401  3703 I WindowManager:   pfl=10008040
-12-19 23:34:24.703  1401  3703 I WindowManager:   vsysui=700
-12-19 23:34:24.703  1401  3703 I WindowManager:   bhv=1
-12-19 23:34:24.703  1401  3703 I WindowManager:   fitSides=0
-12-19 23:34:24.703  1401  3703 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:24.703  1401  3703 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:24.716  1401  3703 D WindowManager: finishDrawingWindow: Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:24.740  1401  3545 D WindowManager: finishDrawingWindow: Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} mDrawState=HAS_DRAWN seqId=0
-12-19 23:34:24.894  1401  3545 D WindowManager: Transition is created, t=TransitionRecord{3cb74ac id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:24.902  1401  3545 D WindowManager: Aborting Transition: 10131 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:24.910  1401  3703 D WindowManager: Transition is created, t=TransitionRecord{4630f62 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:24.911  1401  3703 D WindowManager: Aborting Transition: 10132 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:24.913  1401  2247 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:24.914  1401  2247 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:24.914  1401  2247 I WindowManager:   fl=8d810100
-12-19 23:34:24.914  1401  2247 I WindowManager:   pfl=10008040
-12-19 23:34:24.914  1401  2247 I WindowManager:   vsysui=700
-12-19 23:34:24.914  1401  2247 I WindowManager:   bhv=1
-12-19 23:34:24.914  1401  2247 I WindowManager:   fitSides=0
-12-19 23:34:24.914  1401  2247 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:24.914  1401  2247 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:24.917  1401  2247 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:24.918  1401  2247 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:24.918  1401  2247 I WindowManager:   fl=8d810100
-12-19 23:34:24.918  1401  2247 I WindowManager:   pfl=10008040
-12-19 23:34:24.918  1401  2247 I WindowManager:   vsysui=700
-12-19 23:34:24.918  1401  2247 I WindowManager:   bhv=1
-12-19 23:34:24.918  1401  2247 I WindowManager:   fitSides=0
-12-19 23:34:24.918  1401  2247 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:24.918  1401  2247 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:24.958  1401  2247 D WindowManager: Transition is created, t=TransitionRecord{164927 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:24.959  1401  2247 D WindowManager: Aborting Transition: 10133 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:24.966  1401  2151 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:24.967  1401  2151 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:24.967  1401  2151 I WindowManager:   fl=8d810100
-12-19 23:34:24.967  1401  2151 I WindowManager:   pfl=10008040
-12-19 23:34:24.967  1401  2151 I WindowManager:   vsysui=700
-12-19 23:34:24.967  1401  2151 I WindowManager:   bhv=1
-12-19 23:34:24.967  1401  2151 I WindowManager:   fitSides=0
-12-19 23:34:24.967  1401  2151 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:24.967  1401  2151 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:24.982  1401  2151 D WindowManager: Transition is created, t=TransitionRecord{961361f id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:24.984  1401  2151 D WindowManager: Aborting Transition: 10134 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:24.991  1401  3545 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:24.993  1401  3545 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:24.993  1401  3545 I WindowManager:   fl=8d810100
-12-19 23:34:24.993  1401  3545 I WindowManager:   pfl=10008040
-12-19 23:34:24.993  1401  3545 I WindowManager:   vsysui=700
-12-19 23:34:24.993  1401  3545 I WindowManager:   bhv=1
-12-19 23:34:24.993  1401  3545 I WindowManager:   fitSides=0
-12-19 23:34:24.993  1401  3545 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:24.993  1401  3545 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.035  1401  3545 D WindowManager: Transition is created, t=TransitionRecord{b8a7e96 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:25.040  1401  3545 D InputDispatcher: Focused application(0): ActivityRecord{260846680 u0 com.google.android.apps.bard/.shellapp.BardEntryPointActivity t18302}
-12-19 23:34:25.042  1401  3545 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:25.042  1401  3545 D WindowManager: updateSystemBarAttributes, bhv=1, apr=0, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:25.044  1401  2151 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18195)/@0xa075cc1} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:25.045  1401  1544 I ActivityManager: Changes in 10272 19 to 2, 0 to 255
-12-19 23:34:25.050  1401  2151 D InputDispatcher: Focused application(0): ActivityRecord{256492331 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink t18302}
-12-19 23:34:25.067  1401  1544 I ActivityManager: Changes in 10272 2 to 19, 255 to 128
-12-19 23:34:25.076 17986 17986 D ViewRootImpl: desktopMode is false
-12-19 23:34:25.076 17986 17986 I ViewRootImpl: dVRR is disabled
-12-19 23:34:25.082  1401  3546 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{5248f71 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:25.088  1401  3546 D InputDispatcher: Focused application(0): ActivityRecord{6671643 u0 com.google.android.apps.bard/.shellapp.BardEntryPointActivity t18302}
-12-19 23:34:25.089  1401  1544 I ActivityManager: Changes in 10272 19 to 2, 128 to 255
-12-19 23:34:25.090  1401  3548 I WindowManager: Relayout Window{5248f71 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=0 req=0x0 ty=1 d0
-12-19 23:34:25.090  1401  3548 D WindowManager: makeSurface duration=1 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink$_17986
-12-19 23:34:25.091  1401  3548 I WindowManager: Relayout hash=5248f71, pid=17986, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:25.091  1401  3548 I WindowManager:   fl=1800000
-12-19 23:34:25.091  1401  3548 I WindowManager:   pfl=40000880
-12-19 23:34:25.091  1401  3548 I WindowManager:   bhv=1
-12-19 23:34:25.091  1401  3548 I WindowManager:   fitTypes=207
-12-19 23:34:25.091  1401  3548 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.091  1401  3548 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.095  1401  2251 D WindowManager: finishDrawingWindow: Window{5248f71 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:25.098  1401  3507 D InputDispatcher: Focused application(0): ActivityRecord{225622223 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink t18302}
-12-19 23:34:25.105  1401  1544 I ActivityManager: updateOomAdj start time is before than pendingPid added, don't delete it
-12-19 23:34:25.106 17986 17986 D ViewRootImpl: desktopMode is false
-12-19 23:34:25.106 17986 17986 I ViewRootImpl: dVRR is disabled
-12-19 23:34:25.107  1401  2237 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{189a5de u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:25.109  1401  3546 I WindowManager: Relayout Window{189a5de u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=0 req=0x0 ty=1 d0
-12-19 23:34:25.109  1401  3546 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink$_17986
-12-19 23:34:25.110  1401  3546 I WindowManager: Relayout hash=189a5de, pid=17986, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:25.110  1401  3546 I WindowManager:   fl=1800000
-12-19 23:34:25.110  1401  3546 I WindowManager:   pfl=40000880
-12-19 23:34:25.110  1401  3546 I WindowManager:   bhv=1
-12-19 23:34:25.110  1401  3546 I WindowManager:   fitTypes=207
-12-19 23:34:25.110  1401  3546 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.110  1401  3546 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.111  1401  3546 D WindowManager: finishDrawingWindow: Window{189a5de u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:25.113  1401  1545 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:25.113  1401  1545 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:25.118  1401  1544 I ActivityManager: Changes in 10272 2 to 19, 255 to 128
-12-19 23:34:25.147  1401  3546 D WindowManager: Transition is created, t=TransitionRecord{35b2d4e id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:25.160  1401  3546 D WindowManager: Aborting Transition: 10136 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:25.174  1401  2245 D WindowManager: Transition is created, t=TransitionRecord{ca0a2bd id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityStartController.startActivities:98 
-12-19 23:34:25.178  1401  2245 D InputDispatcher: Focused application(0): ActivityRecord{220795058 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity t18303}
-12-19 23:34:25.179  1401  2245 D WindowManager: deferringAddStartActivities clear
-12-19 23:34:25.180  1401  2245 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:25.180  1401  2245 D WindowManager: updateSystemBarAttributes, bhv=1, apr=0, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:25.181  1401  3507 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{189a5de u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:25.182  2045  2203 D ViewRootImpl: desktopMode is false
-12-19 23:34:25.183  2045  2203 I ViewRootImpl: dVRR is disabled
-12-19 23:34:25.183  1401  2255 D WindowManager: deferringAddStartActivities clear
-12-19 23:34:25.185  1401  1645 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{5248f71 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:25.186  1401  2495 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{2ab6aae u0 Splash Screen com.google.android.googlequicksearchbox}
-12-19 23:34:25.192  1401  2237 I WindowManager: Relayout Window{2ab6aae u0 Splash Screen com.google.android.googlequicksearchbox}: viewVisibility=0 req=1080x2520 ty=3 d0
-12-19 23:34:25.192  1401  2237 D WindowManager: makeSurface duration=0 name=Splash Screen com.google.android.googlequicksearchbox$_2045
-12-19 23:34:25.193  1401  2237 I WindowManager: Relayout hash=2ab6aae, pid=2045, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=pan} layoutInDisplayCutoutMode=always ty=APPLICATION_STARTING fmt=TRANSLUCENT wanim=0x1030317
-12-19 23:34:25.193  1401  2237 I WindowManager:   fl=81030118
-12-19 23:34:25.193  1401  2237 I WindowManager:   pfl=10000810
-12-19 23:34:25.193  1401  2237 I WindowManager:   bhv=1
-12-19 23:34:25.193  1401  2237 I WindowManager:   fitSides=0
-12-19 23:34:25.193  1401  2237 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.193  1401  2237 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.198 17986 17986 D ViewRootImpl: desktopMode is false
-12-19 23:34:25.198 17986 17986 I ViewRootImpl: dVRR is disabled
-12-19 23:34:25.199  1401  2251 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:25.204  1401  2237 I WindowManager: Relayout Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}: viewVisibility=0 req=918x1260 ty=1 d0
-12-19 23:34:25.204  1401  2237 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity$_17986
-12-19 23:34:25.205  1401  2237 I WindowManager: Relayout hash=70d9c0c, pid=17986, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:25.205  1401  2237 I WindowManager:   fl=81810100
-12-19 23:34:25.205  1401  2237 I WindowManager:   pfl=100088c0
-12-19 23:34:25.205  1401  2237 I WindowManager:   bhv=1
-12-19 23:34:25.205  1401  2237 I WindowManager:   fitSides=0
-12-19 23:34:25.205  1401  2237 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.205  1401  2237 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.212  1401  2151 D WindowManager: finishDrawingWindow: Window{2ab6aae u0 Splash Screen com.google.android.googlequicksearchbox} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:25.219  1401  2724 D WindowManager: finishDrawingWindow: Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:25.221  2045  2142 D ViewRootImpl: desktopMode is false
-12-19 23:34:25.221  2045  2142 I ViewRootImpl: dVRR is disabled
-12-19 23:34:25.222  1401  1545 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:25.222  1401  1545 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:25.226  1401  2724 W WindowManager: Cannot find window which accessibility connection is added to
-12-19 23:34:25.267  1401  1470 D WindowManager: Transition is created, t=TransitionRecord{69f4c1b id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:25.268  1401  1470 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:25.269  1401  1470 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:25.269  1401  1470 D WindowManager: updateSystemBarAttributes, bhv=1, apr=0, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:25.288  1401  3703 D WindowManager: Transition is created, t=TransitionRecord{dd065ef id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:25.289  1401  3703 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:25.291  1401  3703 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:25.291  1401  3703 I WindowManager:   fl=8d810100
-12-19 23:34:25.291  1401  3703 I WindowManager:   pfl=10008040
-12-19 23:34:25.291  1401  3703 I WindowManager:   vsysui=700
-12-19 23:34:25.291  1401  3703 I WindowManager:   bhv=1
-12-19 23:34:25.291  1401  3703 I WindowManager:   fitSides=0
-12-19 23:34:25.291  1401  3703 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.291  1401  3703 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.298  1401  3545 D WindowManager: finishDrawingWindow: Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:25.305  1401  2724 I WindowManager: Relayout Window{2ab6aae u0 Splash Screen com.google.android.googlequicksearchbox}: viewVisibility=8 req=918x1260 ty=3 d0
-12-19 23:34:25.306  1401  2724 I WindowManager: Relayout hash=2ab6aae, pid=2045, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=pan} layoutInDisplayCutoutMode=always ty=APPLICATION_STARTING fmt=TRANSLUCENT wanim=0x1030317
-12-19 23:34:25.306  1401  2724 I WindowManager:   fl=81030118
-12-19 23:34:25.306  1401  2724 I WindowManager:   pfl=10000810
-12-19 23:34:25.306  1401  2724 I WindowManager:   bhv=1
-12-19 23:34:25.306  1401  2724 I WindowManager:   fitSides=0
-12-19 23:34:25.306  1401  2724 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.306  1401  2724 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.308  1401  2245 D WindowManager: Starting window removed Window{2ab6aae u0 Splash Screen com.google.android.googlequicksearchbox}
-12-19 23:34:25.315  1401  1544 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:25.319  1401  3546 D WindowManager: finishDrawingWindow: Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} mDrawState=HAS_DRAWN seqId=0
-12-19 23:34:25.326  1401  1544 I ActivityManager: Changes in 10272 19 to 19, 128 to 0
-12-19 23:34:25.330 17986 17986 D ViewRootImpl: Skipping stats log for color mode
-12-19 23:34:25.332 17986 17986 D ViewRootImpl: Skipping stats log for color mode
-12-19 23:34:25.453  1401  2245 D WindowManager: Transition is created, t=TransitionRecord{eb43c52 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:25.453  1401  2245 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:25.460  1401  2245 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:25.460  1401  2245 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:25.485  1401  2495 D WindowManager: Transition is created, t=TransitionRecord{41e8b9b id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:25.526  1401  3546 I WindowManager: Relayout Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}: viewVisibility=0 req=918x1260 ty=1 d0
-12-19 23:34:25.527  1401  3546 I WindowManager: Relayout hash=70d9c0c, pid=17986, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:25.527  1401  3546 I WindowManager:   fl=80810100
-12-19 23:34:25.527  1401  3546 I WindowManager:   pfl=10008840
-12-19 23:34:25.527  1401  3546 I WindowManager:   bhv=1
-12-19 23:34:25.527  1401  3546 I WindowManager:   fitSides=0
-12-19 23:34:25.527  1401  3546 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.527  1401  3546 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.537  1401  2495 D WindowManager: finishDrawingWindow: Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:25.537  1401  2495 I WindowManager: finishDrawing of relaunch: Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} 78ms
-12-19 23:34:25.541  1401  1544 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:25.549  1401  2245 I WindowManager: Relayout Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:25.550  1401  2245 I WindowManager: Relayout hash=70d9c0c, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:25.550  1401  2245 I WindowManager:   fl=80810100
-12-19 23:34:25.550  1401  2245 I WindowManager:   pfl=10008840
-12-19 23:34:25.550  1401  2245 I WindowManager:   bhv=1
-12-19 23:34:25.550  1401  2245 I WindowManager:   fitSides=0
-12-19 23:34:25.550  1401  2245 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.550  1401  2245 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.552  1401  2245 D WindowManager: finishDrawingWindow: Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} mDrawState=HAS_DRAWN seqId=0
-12-19 23:34:25.558  1401  2247 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:25.558  1401  2247 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:25.558  1401  2247 I WindowManager:   fl=8d810100
-12-19 23:34:25.558  1401  2247 I WindowManager:   pfl=10008040
-12-19 23:34:25.558  1401  2247 I WindowManager:   vsysui=700
-12-19 23:34:25.558  1401  2247 I WindowManager:   bhv=1
-12-19 23:34:25.558  1401  2247 I WindowManager:   fitSides=0
-12-19 23:34:25.558  1401  2247 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.558  1401  2247 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.567  1401  2724 D WindowManager: finishDrawingWindow: Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:25.582  1401  3548 D WindowManager: finishDrawingWindow: Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} mDrawState=HAS_DRAWN seqId=0
-12-19 23:34:25.803  1401  2495 D WindowManager: Transition is created, t=TransitionRecord{1a265ca id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:25.804  1401  2495 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:25.826  1401  2245 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:25.827  1401  2151 D WindowManager: Transition is created, t=TransitionRecord{7a817 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:25.827  1401  2245 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:25.827  1401  2245 I WindowManager:   fl=8d810100
-12-19 23:34:25.827  1401  2245 I WindowManager:   pfl=10008040
-12-19 23:34:25.827  1401  2245 I WindowManager:   vsysui=700
-12-19 23:34:25.827  1401  2245 I WindowManager:   bhv=1
-12-19 23:34:25.827  1401  2245 I WindowManager:   fitSides=0
-12-19 23:34:25.827  1401  2245 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:25.827  1401  2245 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:25.831  1401  2151 D WindowManager: finishDrawingWindow: Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:25.835  1401  1544 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:25.842  1401  3547 D WindowManager: finishDrawingWindow: Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} mDrawState=HAS_DRAWN seqId=0
-12-19 23:34:25.988  1401  3547 D WindowManager: Transition is created, t=TransitionRecord{740d3d id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:25.990  1401  3547 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:26.027  1401  3547 D WindowManager: Transition is created, t=TransitionRecord{d85bd71 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:26.028  1401  3547 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:26.872  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183634714223000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:26.873  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x0, f=0x0, d=0, '4a7f418', t=1 +(0,-116)
-12-19 23:34:26.892  1401  3546 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18303)/@0xaa638f5} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:26.978  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183634822458000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:26.979  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x1, f=0x0, d=0, '4a7f418', t=1 +(0,-116)
-12-19 23:34:26.980 13667 13667 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.FrameLayout{ffc88d0 VFE...C.. .F.P.... 0,0-1080,2404 aid=1}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.example.quadrantlauncher.FloatingLauncherService.toggleDrawer:537 
-12-19 23:34:26.991  1401  3545 I WindowManager: Relayout Window{7ac31b3 u0 com.katsuyamaki.DroidOSLauncher}: viewVisibility=0 req=63x63 ty=2032 d0
-12-19 23:34:26.991  1401  3545 D WindowManager: makeSurface duration=1 name=$_13667
-12-19 23:34:26.993  1401  3545 I WindowManager: Relayout hash=7ac31b3, pid=13667, syncId=-1: mAttrs={(50,200)(wrapxwrap) gr=TOP START CENTER sim={adjust=pan} ty=ACCESSIBILITY_OVERLAY fmt=TRANSLUCENT
-12-19 23:34:26.993  1401  3545 I WindowManager:   fl=1040308
-12-19 23:34:26.993  1401  3545 I WindowManager:   bhv=1
-12-19 23:34:26.993  1401  3545 I WindowManager:   fitTypes=206
-12-19 23:34:26.993  1401  3545 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:26.993  1401  3545 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:27.008  1401  3546 D WindowManager: finishDrawingWindow: Window{7ac31b3 u0 com.katsuyamaki.DroidOSLauncher} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:27.013  1401  3545 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0x65c59bc
-12-19 23:34:27.013  1401  3545 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8, destroy=false, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b
-12-19 23:34:27.013  1401  3545 I WindowManager: Reparenting to leash, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b, leashParent=Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8
-12-19 23:34:27.014  1401  3545 D WindowManager: makeSurface duration=0 leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0x8507e48
-12-19 23:34:27.016  1401  3545 D WindowManager: Changing focus from Window{4a7f418 u0 com.katsuyamaki.DroidOSLauncher} to Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} displayId=0 Callers=com.android.server.wm.WindowState.removeIfPossible:647 com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:27.016  1401  3545 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=253deac NavigationBar0)/@0x344c78e - animation-leash of insets_animation)/@0xbc3f951
-12-19 23:34:27.016  1401  3545 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{742645f type=2019 android.os.BinderProxy@3f7f8b9})/@0xeea6baf, destroy=false, surface=Surface(name=253deac NavigationBar0)/@0x344c78e
-12-19 23:34:27.016  1401  3545 I WindowManager: Reparenting to leash, surface=Surface(name=253deac NavigationBar0)/@0x344c78e, leashParent=Surface(name=WindowToken{742645f type=2019 android.os.BinderProxy@3f7f8b9})/@0xeea6baf
-12-19 23:34:27.016  1401  3545 D WindowManager: makeSurface duration=1 leash=Surface(name=Surface(name=253deac NavigationBar0)/@0x344c78e - animation-leash of insets_animation)/@0x81336f4
-12-19 23:34:27.016  1401  3545 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=7a1affc StatusBar)/@0x9878745 - animation-leash of insets_animation)/@0x8bd5cd7
-12-19 23:34:27.016  1401  3545 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{ea68ef type=2000 android.os.BinderProxy@acba6c9})/@0xe49ce9a, destroy=false, surface=Surface(name=7a1affc StatusBar)/@0x9878745
-12-19 23:34:27.016  1401  3545 I WindowManager: Reparenting to leash, surface=Surface(name=7a1affc StatusBar)/@0x9878745, leashParent=Surface(name=WindowToken{ea68ef type=2000 android.os.BinderProxy@acba6c9})/@0xe49ce9a
-12-19 23:34:27.017  1401  3545 D WindowManager: makeSurface duration=0 leash=Surface(name=Surface(name=7a1affc StatusBar)/@0x9878745 - animation-leash of insets_animation)/@0xfa4ee1d
-12-19 23:34:27.017  1401  3545 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:372 com.android.server.wm.WindowState.removeIfPossible:647 com.android.server.wm.Session.remove:16 
-12-19 23:34:27.018  1401  3545 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:27.019  1401  2151 D InputDispatcher: Focus left window (0): 4a7f418 com.katsuyamaki.DroidOSLauncher
-12-19 23:34:27.033  1401  3546 D InputDispatcher: Once focus requested (0): 70d9c0c com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity
-12-19 23:34:27.033  1401  3546 D InputDispatcher: Focus entered window (0): 70d9c0c com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity
-12-19 23:34:27.040  1401  2151 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:27.040  1401  2151 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:27.041  1401  2151 D InputMethodManagerService: checkDisplayOfStartInputAndUpdateKeyboard: displayId=0, mFocusedDisplayId=0
-12-19 23:34:27.873  1401  1551 I ActivityManager: Changes in 10395 3 to 15, 144 to 0
-12-19 23:34:28.259  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183636096171000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:28.259  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x0, f=0x0, d=0, '7ac31b3', t=1 +(-50,-200)
-12-19 23:34:28.264  1401  3547 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18303)/@0xaa638f5} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:28.344  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183636187620000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:28.344  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x1, f=0x0, d=0, '7ac31b3', t=1 +(-50,-200)
-12-19 23:34:28.346 13667 13667 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.FrameLayout{ffc88d0 VFE...C.. .F...... 0,0-1080,2404 aid=1}, caller=android.view.WindowManagerImpl.addView:158 com.example.quadrantlauncher.FloatingLauncherService.toggleDrawer:546 com.example.quadrantlauncher.FloatingLauncherService.access$toggleDrawer:54 
-12-19 23:34:28.347 13667 13667 D ViewRootImpl: desktopMode is false
-12-19 23:34:28.347 13667 13667 I ViewRootImpl: dVRR is disabled
-12-19 23:34:28.357  1401  3546 D WindowManager: Changing focus from Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} to Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher} displayId=0 Callers=com.android.server.wm.WindowManagerService.addWindowInner:565 com.android.server.wm.WindowManagerService.addWindow:1842 com.android.server.wm.Session.addToDisplayAsUser:24 android.view.IWindowSession$Stub.onTransact:757 
-12-19 23:34:28.357  1401  3546 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=253deac NavigationBar0)/@0x344c78e - animation-leash of insets_animation)/@0x81336f4
-12-19 23:34:28.357  1401  3546 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{742645f type=2019 android.os.BinderProxy@3f7f8b9})/@0xeea6baf, destroy=false, surface=Surface(name=253deac NavigationBar0)/@0x344c78e
-12-19 23:34:28.357  1401  3546 I WindowManager: Reparenting to leash, surface=Surface(name=253deac NavigationBar0)/@0x344c78e, leashParent=Surface(name=WindowToken{742645f type=2019 android.os.BinderProxy@3f7f8b9})/@0xeea6baf
-12-19 23:34:28.357  1401  3546 D WindowManager: makeSurface duration=1 leash=Surface(name=Surface(name=253deac NavigationBar0)/@0x344c78e - animation-leash of insets_animation)/@0xa41a42
-12-19 23:34:28.357  1401  3546 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=7a1affc StatusBar)/@0x9878745 - animation-leash of insets_animation)/@0xfa4ee1d
-12-19 23:34:28.357  1401  3546 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{ea68ef type=2000 android.os.BinderProxy@acba6c9})/@0xe49ce9a, destroy=false, surface=Surface(name=7a1affc StatusBar)/@0x9878745
-12-19 23:34:28.358  1401  3546 I WindowManager: Reparenting to leash, surface=Surface(name=7a1affc StatusBar)/@0x9878745, leashParent=Surface(name=WindowToken{ea68ef type=2000 android.os.BinderProxy@acba6c9})/@0xe49ce9a
-12-19 23:34:28.358  1401  3546 D WindowManager: makeSurface duration=0 leash=Surface(name=Surface(name=7a1affc StatusBar)/@0x9878745 - animation-leash of insets_animation)/@0xba8f90
-12-19 23:34:28.358  1401  3546 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:372 com.android.server.wm.WindowManagerService.addWindowInner:565 com.android.server.wm.WindowManagerService.addWindow:1842 
-12-19 23:34:28.359  1401  3546 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:28.374  1401  2724 I WindowManager: Relayout Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher}: viewVisibility=0 req=1080x2404 ty=2032 d0
-12-19 23:34:28.374  1401  2724 D WindowManager: makeSurface duration=1 name=$_13667
-12-19 23:34:28.376  1401  2724 I WindowManager: Relayout hash=7aaf9b7, pid=13667, syncId=-1: mAttrs={(0,0)(fillxfill) gr=TOP START CENTER sim={adjust=nothing} ty=ACCESSIBILITY_OVERLAY fmt=TRANSLUCENT
-12-19 23:34:28.376  1401  2724 I WindowManager:   fl=1000300
-12-19 23:34:28.376  1401  2724 I WindowManager:   bhv=1
-12-19 23:34:28.376  1401  2724 I WindowManager:   fitTypes=206
-12-19 23:34:28.376  1401  2724 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:28.376  1401  2724 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:28.392  1401  2724 D InputDispatcher: Once focus requested (0): 7aaf9b7 com.katsuyamaki.DroidOSLauncher
-12-19 23:34:28.392  1401  2724 D InputDispatcher: Focus request (0): 7aaf9b7 com.katsuyamaki.DroidOSLauncher but waiting because NOT_VISIBLE
-12-19 23:34:28.392  1401  2724 D InputDispatcher: Focus left window (0): 70d9c0c com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity
-12-19 23:34:28.530  1401  3545 D WindowManager: finishDrawingWindow: Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:28.530  1401  2245 I WindowManager: Relayout Window{7ac31b3 u0 com.katsuyamaki.DroidOSLauncher}: viewVisibility=8 req=63x63 ty=2032 d0
-12-19 23:34:28.531  1401  2245 E WindowManager: win=Window{7ac31b3 u0 com.katsuyamaki.DroidOSLauncher} destroySurfaces: appStopped=true cleanupOnResume=false win.mWindowRemovalAllowed=false win.mRemoveOnExit=false win.mViewVisibility=8 caller=com.android.server.wm.WindowManagerService.tryStartExitingAnimation:134 com.android.server.wm.WindowManagerService.relayoutWindow:1147 com.android.server.wm.Session.relayout:27 android.view.IWindowSession$Stub.onTransact:829 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 
-12-19 23:34:28.532  1401  2245 I WindowManager: Relayout hash=7ac31b3, pid=13667, syncId=-1: mAttrs={(50,200)(wrapxwrap) gr=TOP START CENTER sim={adjust=pan} ty=ACCESSIBILITY_OVERLAY fmt=TRANSLUCENT
-12-19 23:34:28.532  1401  2245 I WindowManager:   fl=1040308
-12-19 23:34:28.532  1401  2245 I WindowManager:   bhv=1
-12-19 23:34:28.532  1401  2245 I WindowManager:   fitTypes=206
-12-19 23:34:28.532  1401  2245 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:28.532  1401  2245 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:28.551  1401  2245 D InputDispatcher: Focus entered window (0): 7aaf9b7 com.katsuyamaki.DroidOSLauncher
-12-19 23:34:28.555  1401  1763 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:28.555  1401  1763 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:28.555  1401  1763 D InputMethodManagerService: checkDisplayOfStartInputAndUpdateKeyboard: displayId=0, mFocusedDisplayId=0
-12-19 23:34:28.557  1401  2245 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0x8507e48
-12-19 23:34:28.557  1401  2245 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8, destroy=false, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b
-12-19 23:34:28.557  1401  2245 I WindowManager: Reparenting to leash, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b, leashParent=Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8
-12-19 23:34:28.557  1401  2245 D WindowManager: makeSurface duration=1 leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0x4c1a3d8
-12-19 23:34:29.823  1401  1542 D WindowManager: DeferredDisplayUpdater: partially applying DisplayInfo(1080 x 2520) immediately
-12-19 23:34:30.179  1401  1552 I ActivityManager: Changes in 10100 19 to 11, 0 to 128
-12-19 23:34:30.217  1401  3545 I ActivityManager: Changes in 10100 11 to 19, 128 to 0
-12-19 23:34:30.276  1401  1552 I ActivityManager: Changes in 10100 19 to 11, 0 to 128
-12-19 23:34:30.645  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183638485463000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:30.646  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x0, f=0x0, d=0, '7aaf9b7', t=1 +(0,-116)
-12-19 23:34:30.673  1401  1542 D WindowManager: DeferredDisplayUpdater: partially applying DisplayInfo(1080 x 2520) immediately
-12-19 23:34:30.681  1401  3546 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18303)/@0xaa638f5} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:30.724  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183638568335000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:30.724  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x1, f=0x0, d=0, '7aaf9b7', t=1 +(0,-116)
-12-19 23:34:30.738  1401  3545 D WindowManager: Transition is created, t=TransitionRecord{e441923 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:30.748  1401  3547 D InputDispatcher: Focused application(0): ActivityRecord{89147101 u0 com.google.android.apps.bard/.shellapp.BardEntryPointActivity t18304}
-12-19 23:34:30.756  1401  1544 I ActivityManager: Changes in 10272 19 to 2, 0 to 255
-12-19 23:34:30.768  1401  3547 D InputDispatcher: Focused application(0): ActivityRecord{40457218 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink t18304}
-12-19 23:34:30.778  1401  2590 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:30.778  1401  2590 D WindowManager: updateSystemBarAttributes, bhv=1, apr=0, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:30.783  1401  3548 I ActivityManager: Changes in 10395 15 to 3, 0 to 144
-12-19 23:34:30.786 17986 17986 D ViewRootImpl: desktopMode is false
-12-19 23:34:30.786 17986 17986 I ViewRootImpl: dVRR is disabled
-12-19 23:34:30.788  1401  2724 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{b361c5e u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:30.792  1401  2251 I WindowManager: Relayout Window{b361c5e u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=0 req=0x0 ty=1 d0
-12-19 23:34:30.792  1401  2251 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink$_17986
-12-19 23:34:30.792  1401  1544 I ActivityManager: Changes in 10272 2 to 19, 255 to 128
-12-19 23:34:30.793  1401  2251 I WindowManager: Relayout hash=b361c5e, pid=17986, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:30.793  1401  2251 I WindowManager:   fl=1800000
-12-19 23:34:30.793  1401  2251 I WindowManager:   pfl=40000880
-12-19 23:34:30.793  1401  2251 I WindowManager:   bhv=1
-12-19 23:34:30.793  1401  2251 I WindowManager:   fitTypes=207
-12-19 23:34:30.793  1401  2251 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:30.793  1401  2251 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:30.796  1401  1470 D WindowManager: finishDrawingWindow: Window{b361c5e u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:30.796  1401  1470 I WindowManager: finishDrawing of relaunch: Window{b361c5e u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink} 20ms
-12-19 23:34:30.800 17986 17986 D ViewRootImpl: Skipping stats log for color mode
-12-19 23:34:30.807 17986 17986 D ViewRootImpl: desktopMode is false
-12-19 23:34:30.807 17986 17986 I ViewRootImpl: dVRR is disabled
-12-19 23:34:30.808  1401  3545 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{829bf4b u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:30.810  1401  3507 I WindowManager: Relayout Window{829bf4b u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=0 req=0x0 ty=1 d0
-12-19 23:34:30.811  1401  3507 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink$_17986
-12-19 23:34:30.812  1401  3507 I WindowManager: Relayout hash=829bf4b, pid=17986, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:30.812  1401  3507 I WindowManager:   fl=1800000
-12-19 23:34:30.812  1401  3507 I WindowManager:   pfl=40000880
-12-19 23:34:30.812  1401  3507 I WindowManager:   bhv=1
-12-19 23:34:30.812  1401  3507 I WindowManager:   fitTypes=207
-12-19 23:34:30.812  1401  3507 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:30.812  1401  3507 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:30.813  1401  3545 D WindowManager: finishDrawingWindow: Window{829bf4b u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:30.816  1401  1545 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:30.816  1401  1545 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:30.820  1401  3545 D WindowManager: Transition is created, t=TransitionRecord{3b5e7a0 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityStartController.startActivities:98 
-12-19 23:34:30.821  1401  3545 D InputDispatcher: Focused application(0): ActivityRecord{220795058 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity t18303}
-12-19 23:34:30.822  1401  3545 D WindowManager: Aborting Transition: 10147 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:30.822  1401  3545 D WindowManager: deferringAddStartActivities clear
-12-19 23:34:30.824  1401  2251 D WindowManager: Transition is created, t=TransitionRecord{8884093 id=-1 type=CLOSE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createTransition:17 com.android.server.wm.TransitionController.requestCloseTransitionIfNeeded:73 com.android.server.wm.ActivityRecord.finishIfPossible:38 com.android.server.wm.ActivityClientController.finishActivity:268 
-12-19 23:34:30.825  1401  2251 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{829bf4b u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:30.840  1401  3545 I WindowManager: Relayout Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:30.841  1401  3545 I WindowManager: Relayout hash=70d9c0c, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:30.841  1401  3545 I WindowManager:   fl=80810100
-12-19 23:34:30.841  1401  3545 I WindowManager:   pfl=10008840
-12-19 23:34:30.841  1401  3545 I WindowManager:   bhv=1
-12-19 23:34:30.841  1401  3545 I WindowManager:   fitSides=0
-12-19 23:34:30.841  1401  3545 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:30.841  1401  3545 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:30.970  1401  2151 I WindowManager: Using new display size: 1080x2520
-12-19 23:34:31.124  1401  1544 I ActivityManager: Changes in 10272 19 to 19, 128 to 0
-12-19 23:34:31.128  1401  2151 I WindowManager: Relayout Window{829bf4b u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=8 req=0x0 ty=1 d0
-12-19 23:34:31.129  1401  2151 I WindowManager: Relayout hash=829bf4b, pid=17986, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:31.129  1401  2151 I WindowManager:   fl=1800000
-12-19 23:34:31.129  1401  2151 I WindowManager:   pfl=40000880
-12-19 23:34:31.129  1401  2151 I WindowManager:   bhv=1
-12-19 23:34:31.129  1401  2151 I WindowManager:   fitTypes=207
-12-19 23:34:31.129  1401  2151 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:31.129  1401  2151 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:31.132 17986 17986 D ViewRootImpl: Skipping stats log for color mode
-12-19 23:34:31.577  1401  2245 I WindowManager: Using new display size: 1080x2520
-12-19 23:34:31.909  1401  2245 D WindowManager: Transition is created, t=TransitionRecord{c012856 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:31.920  1401  2245 D InputDispatcher: Focused application(0): ActivityRecord{147709724 u0 com.termux/.app.TermuxActivity t18195}
-12-19 23:34:31.922  1401  2245 D WindowManager: Aborting Transition: 10149 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:31.927  1401  2245 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:31.928  1401  2245 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:31.928  1401  2245 I WindowManager:   fl=8d810100
-12-19 23:34:31.928  1401  2245 I WindowManager:   pfl=10008040
-12-19 23:34:31.928  1401  2245 I WindowManager:   vsysui=700
-12-19 23:34:31.928  1401  2245 I WindowManager:   bhv=1
-12-19 23:34:31.928  1401  2245 I WindowManager:   fitSides=0
-12-19 23:34:31.928  1401  2245 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:31.928  1401  2245 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:31.931  1401  2724 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18303)/@0xaa638f5} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:31.971  1401  2245 D WindowManager: Transition is created, t=TransitionRecord{a45e1d9 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:31.973  1401  2245 D WindowManager: Aborting Transition: 10150 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:31.977  1401  2724 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:31.978  1401  2724 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:31.978  1401  2724 I WindowManager:   fl=8d810100
-12-19 23:34:31.978  1401  2724 I WindowManager:   pfl=10008040
-12-19 23:34:31.978  1401  2724 I WindowManager:   vsysui=700
-12-19 23:34:31.978  1401  2724 I WindowManager:   bhv=1
-12-19 23:34:31.978  1401  2724 I WindowManager:   fitSides=0
-12-19 23:34:31.978  1401  2724 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:31.978  1401  2724 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:32.050  1401  2724 D WindowManager: Transition is created, t=TransitionRecord{6f5a550 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:32.055  1401  2724 D InputDispatcher: Focused application(0): ActivityRecord{181793609 u0 com.google.android.googlequicksearchbox/.SearchActivity t18305}
-12-19 23:34:32.057  1401  2724 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:32.057  1401  2724 D WindowManager: updateSystemBarAttributes, bhv=1, apr=0, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:32.083 18103 18103 D ViewRootImpl: desktopMode is false
-12-19 23:34:32.084 18103 18103 I ViewRootImpl: dVRR is disabled
-12-19 23:34:32.086  1401  3507 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{6e63d4b u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity}
-12-19 23:34:32.122  1401  2245 I WindowManager: Relayout Window{6e63d4b u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:32.122  1401  2245 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity$_18103
-12-19 23:34:32.123  1401  2245 I WindowManager: Relayout hash=6e63d4b, pid=18103, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=pan forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:32.123  1401  2245 I WindowManager:   fl=81810100
-12-19 23:34:32.123  1401  2245 I WindowManager:   pfl=100088c0
-12-19 23:34:32.123  1401  2245 I WindowManager:   bhv=1
-12-19 23:34:32.123  1401  2245 I WindowManager:   fitSides=0
-12-19 23:34:32.123  1401  2245 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:32.123  1401  2245 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:32.137  1401  3545 D WindowManager: finishDrawingWindow: Window{6e63d4b u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:32.140  1401  1545 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:32.140  1401  1545 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:32.143  2045  2142 D ViewRootImpl: desktopMode is false
-12-19 23:34:32.143  2045  2142 I ViewRootImpl: dVRR is disabled
-12-19 23:34:32.148  1401  2495 W WindowManager: Cannot find window which accessibility connection is added to
-12-19 23:34:32.306  1401  2495 D WindowManager: Transition is created, t=TransitionRecord{358aaa id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:32.307  1401  2495 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:32.339  1401  2495 I ActivityManager: Changes in 90001 19 to 19, 0 to 128
-12-19 23:34:32.339  1401  2495 I ActivityManager: Changes in 10309 19 to 10, 0 to 128
-12-19 23:34:32.339  1401  2495 I ActivityManager: Changes in 10288 19 to 10, 0 to 128
-12-19 23:34:32.384  1401  1553 I ActivityManager: Start proc 18882:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0i295 for  {com.google.android.googlequicksearchbox/org.chromium.content.app.SandboxedProcessService0:0}
-12-19 23:34:32.384  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:32.401  1401  3507 I ActivityManager: Changes in 10309 19 to 3, 128 to 184
-12-19 23:34:32.402  1401  2151 D WindowManager: Transition is created, t=TransitionRecord{18c776e id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:32.402  1401  2151 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:32.410  1401  3547 I ActivityManager: Changes in 99295 19 to 3, 0 to 184
-12-19 23:34:32.411  1401  3547 I ActivityManager: App =ProcessRecord{faf0b52 18103:com.google.android.googlequicksearchbox:googleapp/u0a270}, is CoverLauncher process. Set flag as Webview process attached
-12-19 23:34:32.419  1401  3547 I ActivityManager: Changes in 90001 19 to 10, 128 to 0
-12-19 23:34:32.420  1401  3547 I ActivityManager: Killing 15075:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1/u0a288i-8999 (adj 0): isolated not needed
-12-19 23:34:32.441  1401  1553 I ActivityManager: Start proc 18926:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1/u0i296 for  {com.google.android.googlequicksearchbox/org.chromium.content.app.SandboxedProcessService0:1}
-12-19 23:34:32.441  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:32.463  1401  1553 I ActivityManager: Start proc 18939:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:2/u0ai2 for  {com.android.chrome/org.chromium.content.app.SandboxedProcessService0:2}
-12-19 23:34:32.463  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:32.471  1401  1645 I ActivityManager: Changes in 99296 19 to 3, 0 to 184
-12-19 23:34:32.472  1401  1645 I ActivityManager: App =ProcessRecord{faf0b52 18103:com.google.android.googlequicksearchbox:googleapp/u0a270}, is CoverLauncher process. Set flag as Webview process attached
-12-19 23:34:32.483  1401  2237 I ActivityManager: Changes in 90002 19 to 10, 0 to 128
-12-19 23:34:32.524  1401  2237 D WindowManager: Transition is created, t=TransitionRecord{84606d5 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:32.525  1401  2237 D InputDispatcher: Focused application(0): ActivityRecord{147709724 u0 com.termux/.app.TermuxActivity t18195}
-12-19 23:34:32.526  1401  2237 D WindowManager: Aborting Transition: 10154 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:32.535  1401  1645 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:32.536  1401  1645 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:32.536  1401  1645 I WindowManager:   fl=8d810100
-12-19 23:34:32.536  1401  1645 I WindowManager:   pfl=10008040
-12-19 23:34:32.536  1401  1645 I WindowManager:   vsysui=700
-12-19 23:34:32.536  1401  1645 I WindowManager:   bhv=1
-12-19 23:34:32.536  1401  1645 I WindowManager:   fitSides=0
-12-19 23:34:32.536  1401  1645 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:32.536  1401  1645 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:32.602  1401  2151 D WindowManager: Transition is created, t=TransitionRecord{76786b4 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:32.602  1401  2151 D WindowManager: Aborting Transition: 10155 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:32.610  1401  2151 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:32.611  1401  2151 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:32.611  1401  2151 I WindowManager:   fl=8d810100
-12-19 23:34:32.611  1401  2151 I WindowManager:   pfl=10008040
-12-19 23:34:32.611  1401  2151 I WindowManager:   vsysui=700
-12-19 23:34:32.611  1401  2151 I WindowManager:   bhv=1
-12-19 23:34:32.611  1401  2151 I WindowManager:   fitSides=0
-12-19 23:34:32.611  1401  2151 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:32.611  1401  2151 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:32.674  1401  1645 D WindowManager: Transition is created, t=TransitionRecord{26c4fd9 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:32.676  1401  1645 D InputDispatcher: Focused application(0): ActivityRecord{181793609 u0 com.google.android.googlequicksearchbox/.SearchActivity t18305}
-12-19 23:34:32.677  1401  1645 D WindowManager: Aborting Transition: 10156 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:32.748  1401  1470 I ActivityManager: Process com.samsung.euicc (pid 14092) has died: fg  SVC (814,2541)
-12-19 23:34:32.754  1401  1470 D WindowManager: Transition is created, t=TransitionRecord{401494f id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:32.755  1401  1470 D WindowManager: Aborting Transition: 10157 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:32.826  1401  1470 I ActivityManager: Changes in 90002 19 to 10, 128 to 0
-12-19 23:34:32.827  1401  1470 I ActivityManager: Killing 18939:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:2/u0a288i-8998 (adj 0): isolated not needed
-12-19 23:34:32.848  1401  1553 I ActivityManager: Start proc 19062:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3/u0ai3 for  {com.android.chrome/org.chromium.content.app.SandboxedProcessService0:3}
-12-19 23:34:32.848  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:32.881  1401  2245 D WindowManager: Transition is created, t=TransitionRecord{44800cd id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:32.881  1401  2245 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:32.883  1401  2237 I ActivityManager: Changes in 90003 19 to 10, 0 to 128
-12-19 23:34:32.927  1401  2237 D WindowManager: Transition is created, t=TransitionRecord{d77a6c4 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:32.928  1401  2237 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:32.938  1401  2237 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18305)/@0x83036f3} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:32.957  1401  3507 I ActivityManager: Changes in 90003 19 to 10, 128 to 0
-12-19 23:34:32.958  1401  3507 I ActivityManager: Killing 19062:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3/u0a288i-8997 (adj 0): isolated not needed
-12-19 23:34:32.977  1401  1553 I ActivityManager: Start proc 19121:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:4/u0ai4 for  {com.android.chrome/org.chromium.content.app.SandboxedProcessService0:4}
-12-19 23:34:32.977  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:32.982  1401  3507 I ActivityManager: Changes in 99296 3 to 17, 184 to 128
-12-19 23:34:32.999  1401  2245 I ActivityManager: Changes in 90004 19 to 10, 0 to 128
-12-19 23:34:33.014  1401  2245 D WindowManager: Transition is created, t=TransitionRecord{1f8f9f2 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:33.015  1401  2245 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:33.034  1401  2245 D WindowManager: Transition is created, t=TransitionRecord{467fc16 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:33.035  1401  2245 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:33.454  1401  3507 D WindowManager: Transition is created, t=TransitionRecord{a1c445b id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:33.454  1401  3507 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:33.715  1401  2237 D WindowManager: Transition is created, t=TransitionRecord{e05f58 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:33.716  1401  2237 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:34.130  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183641974056000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:34.131  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x0, f=0x0, d=0, '7aaf9b7', t=1 +(0,-116)
-12-19 23:34:34.143  1401  3507 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18305)/@0x83036f3} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:34.247  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183642091001000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:34.247  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x1, f=0x0, d=0, '7aaf9b7', t=1 +(0,-116)
-12-19 23:34:34.405  1401  3507 I WindowManager: Using new display size: 1080x2520
-12-19 23:34:34.413  1401  3548 I ActivityManager: Force stopping com.google.android.googlequicksearchbox appid=10270 user=0: from pid 19238
-12-19 23:34:34.414  1401  3548 I ActivityManager: Killing 17986:com.google.android.googlequicksearchbox:search/u0a270 (adj 100): stop com.google.android.googlequicksearchbox due to from pid 19238
-12-19 23:34:34.417  1401  3548 D WindowManager: Transition is created, t=TransitionRecord{1091353 id=-1 type=CLOSE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createTransition:17 com.android.server.wm.TransitionController.requestCloseTransitionIfNeeded:73 com.android.server.wm.WindowProcessController.handleAppDied$1:441 com.android.server.am.ActivityManagerService.handleAppDiedLocked:248 
-12-19 23:34:34.418  1401  3548 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:34.418  1401  3507 I WindowManager: Using new display size: 1080x2520
-12-19 23:34:34.418  1401  3548 I ActivityManager: Killing 18103:com.google.android.googlequicksearchbox:googleapp/u0a270 (adj 0): stop com.google.android.googlequicksearchbox due to from pid 19238
-12-19 23:34:34.442  1401  3548 I ActivityManager: Changes in 90004 19 to 19, 128 to 0
-12-19 23:34:34.442  1401  3548 I ActivityManager: Changes in 10309 3 to 10, 184 to 0
-12-19 23:34:34.443  1401  3548 I ActivityManager: Changes in 10288 17 to 10, 128 to 0
-12-19 23:34:34.443  1401  3548 I ActivityManager: Changes in 99296 17 to 10, 128 to 0
-12-19 23:34:34.444  1401  3548 D WindowManager: Transition is created, t=TransitionRecord{2cd7743 id=-1 type=CLOSE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createTransition:17 com.android.server.wm.TransitionController.requestCloseTransitionIfNeeded:73 com.android.server.wm.WindowProcessController.handleAppDied$1:441 com.android.server.am.ActivityManagerService.handleAppDiedLocked:248 
-12-19 23:34:34.445  1401  3548 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{6e63d4b u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity}
-12-19 23:34:34.446  1401  3548 D InputDispatcher: Focused application(0): ActivityRecord{147709724 u0 com.termux/.app.TermuxActivity t18195}
-12-19 23:34:34.459  1401  1700 W InputDispatcher: channel '6e63d4b com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity' ~ Consumer closed input channel or an error occurred.  events=0x9
-12-19 23:34:34.459  1401  1700 E InputDispatcher: channel '6e63d4b com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity' ~ Channel is unrecoverably broken and will be disposed!
-12-19 23:34:34.459  1401  1700 I WindowManager: WINDOW DIED Window{6e63d4b u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity}
-12-19 23:34:34.463  1401  2255 D InputMethodManagerService: onClientRemovedInternalLocked
-12-19 23:34:34.463  1401  3075 W WindowManager: Cannot find window which accessibility connection is added to
-12-19 23:34:34.463  1401  2724 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:34.463  1401  3548 I ActivityManager: Killing 17961:com.google.android.googlequicksearchbox:interactor/u0a270 (adj 100): stop com.google.android.googlequicksearchbox due to from pid 19238
-12-19 23:34:34.464  1401  2495 I WindowManager: WIN DEATH: Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:34.465  1401  3075 D InputMethodManagerService: onClientRemovedInternalLocked
-12-19 23:34:34.466  1401  2495 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:34.466  1401  2495 D WindowManager: updateSystemBarAttributes, bhv=1, apr=0, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:34.468  1401  3076 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:34.469  1401  2591 I WindowManager: WIN DEATH: Window{6e63d4b u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity EXITING}
-12-19 23:34:34.470  1401  1703 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:34.474  1401  3548 I ActivityManager: Killing 18926:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1/u0a270i296 (adj 0): isolated not needed
-12-19 23:34:34.474  1401  3545 W ActivityManager: pid 1401 system sent binder code 7 with flags 1 to frozen apps and got error -32
-12-19 23:34:34.474  1401  3545 W WindowManager: Exception thrown during dispatchAppVisibility Window{70d9c0c u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity EXITING}
-12-19 23:34:34.474  1401  3545 W WindowManager: android.os.DeadObjectException
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at android.os.BinderProxy.transactNative(Native Method)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at android.os.BinderProxy.transact(BinderProxy.java:661)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at android.view.IWindow$Stub$Proxy.dispatchAppVisibility(IWindow.java:659)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at com.android.server.wm.WindowState.sendAppVisibilityToClients(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:63)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at com.android.server.wm.WindowContainer.sendAppVisibilityToClients(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:19)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at com.android.server.wm.WindowToken.setClientVisible(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:48)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at com.android.server.wm.ActivityRecord.commitVisibility(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:186)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at com.android.server.wm.TransitionController.finishTransition(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:825)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishTransitionInner(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:31)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishAllTransitions(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:60)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at android.window.IWindowOrganizerController$Stub.onTransact(IWindowOrganizerController.java:283)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.onTransact(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:1)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at android.os.Binder.execTransactInternal(Binder.java:1462)
-12-19 23:34:34.474  1401  3545 W WindowManager: 	at android.os.Binder.execTransact(Binder.java:1401)
-12-19 23:34:34.474  1401  3548 W ActivityManager: pid 1401 system sent binder code 43 with flags 1 to frozen apps and got error -32
-12-19 23:34:34.477  1401  3548 W ActivityManager: Not TGL 18882:com.android.server.am.OomAdjuster.postUpdateOomAdjInnerLSP:1497 com.android.server.am.OomAdjusterModernImpl.performUpdateOomAdjLSP:43 
-12-19 23:34:34.478  1401  3548 I ActivityManager: Changes in 99295 3 to 19, 184 to 0
-12-19 23:34:34.478  1401  3548 I ActivityManager:   Force stopping service ServiceRecord{8884e1b u0 com.google.android.googlequicksearchbox/com.google.android.apps.gsa.hotword.hotworddetectionservice.GsaHotwordDetectionService:hotword_detector_0 c:android}
-12-19 23:34:34.480  1401  2245 W ActivityManager: Unbind failed: could not find connection for android.os.BinderProxy@9863f2e
-12-19 23:34:34.481  1401  3545 W ActivityManager: Not TGL 18882:com.android.server.am.OomAdjuster.postUpdateOomAdjInnerLSP:1497 com.android.server.am.OomAdjusterModernImpl.partialUpdateLSP:480 
-12-19 23:34:34.482  1401  3545 I ActivityManager: Killing 18169:com.google.android.googlequicksearchbox:trusted_disable_art_image_:com.google.android.apps.gsa.hotword.hotworddetectionservice.GsaHotwordDetectionService:hotword_detector_0/u0a270i294 (adj 100): isolated not needed
-12-19 23:34:34.485  1401  3703 I ActivityManager: Process com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0 (pid 18882) has died: fg  SVC (1172,2482)
-12-19 23:34:34.501  1401  1552 W ActivityManager: pid 1401 system sent binder code 1 with flags 1 to frozen apps and got error -32
-12-19 23:34:34.504  1401  1645 I ActivityManager: Changes in 99294 5 to 19, 184 to 0
-12-19 23:34:34.504  1401  1544 W ActivityManager: setHasOverlayUi called on unknown pid: 17986
-12-19 23:34:34.505  1401  1544 W ActivityManager: setHasOverlayUi called on unknown pid: 18103
-12-19 23:34:34.506  1401  3546 W ActivityManager: pid 17961 null sent binder code 2 with flags 1 to frozen apps and got error -32
-12-19 23:34:34.519  1401  1765 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:34.519  1401  1765 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:34.538  1401  1552 W ActivityManager: pid 1401 system sent binder code 9 with flags 1 to frozen apps and got error -32
-12-19 23:34:34.581  1401  1552 W ActivityManager: pid 1401 system sent binder code 1 with flags 1 to frozen apps and got error -32
-12-19 23:34:34.618  1401  1553 I ActivityManager: Start proc 19262:com.google.android.googlequicksearchbox:interactor/u0a270 for service {com.google.android.googlequicksearchbox/com.google.android.voiceinteraction.GsaVoiceInteractionService}
-12-19 23:34:34.618  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:34.624  1401  1765 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:34.624  1401  1765 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:34.629  1401  1553 I ActivityManager: Start proc 19271:com.samsung.euicc/1000 for service {com.samsung.euicc/com.samsung.euicc.service.EuiccServiceImpl}
-12-19 23:34:34.629  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:34.652  1401  1553 I ActivityManager: Start proc 19274:com.google.android.googlequicksearchbox:search/u0a270 for broadcast {com.google.android.googlequicksearchbox/com.google.android.libraries.assistant.contexttrigger.impl.ContextTriggerBroadcastReceiver_Receiver}
-12-19 23:34:34.652  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:34.694  1401  2237 I ActivityManager: Changes in 10270 19 to 5, 0 to 255
-12-19 23:34:34.761  1401  3548 W WindowManager: Cannot find window which accessibility connection is added to
-12-19 23:34:34.763  1401  2773 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:34.763  1401  2773 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:34.763  1401  3545 W WindowManager: Failed looking up window session=Session{c966652 2045:u0a10055} callers=com.android.server.wm.Session.remove:10 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:34.766  1401  2237 W ActivityManager: pid 1401 system sent binder code 7 with flags 1 to frozen apps and got error -32
-12-19 23:34:34.766  1401  2237 W WindowManager: Exception thrown during dispatchAppVisibility Window{6e63d4b u0 com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity EXITING}
-12-19 23:34:34.766  1401  2237 W WindowManager: android.os.DeadObjectException
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at android.os.BinderProxy.transactNative(Native Method)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at android.os.BinderProxy.transact(BinderProxy.java:661)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at android.view.IWindow$Stub$Proxy.dispatchAppVisibility(IWindow.java:659)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at com.android.server.wm.WindowState.sendAppVisibilityToClients(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:63)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at com.android.server.wm.WindowContainer.sendAppVisibilityToClients(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:19)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at com.android.server.wm.WindowToken.setClientVisible(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:48)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at com.android.server.wm.ActivityRecord.commitVisibility(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:186)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at com.android.server.wm.TransitionController.finishTransition(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:825)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishTransitionInner(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:31)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishAllTransitions(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:60)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at android.window.IWindowOrganizerController$Stub.onTransact(IWindowOrganizerController.java:283)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.onTransact(qb/103247004 13512400faf83fc2d6c21ba3dcd11c0dd5171ba299272a8c647b55f344650924:1)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at android.os.Binder.execTransactInternal(Binder.java:1462)
-12-19 23:34:34.766  1401  2237 W WindowManager: 	at android.os.Binder.execTransact(Binder.java:1401)
-12-19 23:34:34.904  1401  1553 I ActivityManager: Start proc 19434:com.google.android.googlequicksearchbox:googleapp/u0a270 for broadcast {com.google.android.googlequicksearchbox/com.google.android.libraries.notifications.platform.entrypoints.restart.RestartReceiver}
-12-19 23:34:34.904  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:34.959  1401  1553 I ActivityManager: Start proc 19462:com.google.android.googlequicksearchbox:trusted_disable_art_image_:com.google.android.apps.gsa.hotword.hotworddetectionservice.GsaHotwordDetectionService:hotword_detector_0/u0i297 for service {com.google.android.googlequicksearchbox/com.google.android.apps.gsa.hotword.hotworddetectionservice.GsaHotwordDetectionService:hotword_detector_0}
-12-19 23:34:34.959  1401  1553 I ActivityManager: ProcessObserver broadcast disabled
-12-19 23:34:34.964  1401  1552 I ActivityManager: Changes in 10262 19 to 11, 0 to 128
-12-19 23:34:35.005  1401  2237 I ActivityManager: Changes in 10262 11 to 19, 128 to 0
-12-19 23:34:35.017  1401  2773 I ActivityManager: Changes in 99297 19 to 5, 0 to 184
-12-19 23:34:35.365  1401  3076 D WindowManager: Transition is created, t=TransitionRecord{c9369fc id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:35.372  1401  3076 D WindowManager: Aborting Transition: 10166 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:35.380  1401  3076 D WindowManager: Transition is created, t=TransitionRecord{838b732 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:35.381  1401  3076 D WindowManager: Aborting Transition: 10167 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:35.383  1401  1868 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:35.384  1401  1868 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:35.384  1401  1868 I WindowManager:   fl=8d810100
-12-19 23:34:35.384  1401  1868 I WindowManager:   pfl=10008040
-12-19 23:34:35.384  1401  1868 I WindowManager:   vsysui=700
-12-19 23:34:35.384  1401  1868 I WindowManager:   bhv=1
-12-19 23:34:35.384  1401  1868 I WindowManager:   fitSides=0
-12-19 23:34:35.384  1401  1868 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.384  1401  1868 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.391  1401  1868 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:35.393  1401  1868 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:35.393  1401  1868 I WindowManager:   fl=8d810100
-12-19 23:34:35.393  1401  1868 I WindowManager:   pfl=10008040
-12-19 23:34:35.393  1401  1868 I WindowManager:   vsysui=700
-12-19 23:34:35.393  1401  1868 I WindowManager:   bhv=1
-12-19 23:34:35.393  1401  1868 I WindowManager:   fitSides=0
-12-19 23:34:35.393  1401  1868 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.393  1401  1868 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.432  1401  1868 D WindowManager: Transition is created, t=TransitionRecord{20bde8d id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:35.434  1401  1868 D WindowManager: Aborting Transition: 10168 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:35.441  1401  3076 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:35.442  1401  3076 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:35.442  1401  3076 I WindowManager:   fl=8d810100
-12-19 23:34:35.442  1401  3076 I WindowManager:   pfl=10008040
-12-19 23:34:35.442  1401  3076 I WindowManager:   vsysui=700
-12-19 23:34:35.442  1401  3076 I WindowManager:   bhv=1
-12-19 23:34:35.442  1401  3076 I WindowManager:   fitSides=0
-12-19 23:34:35.442  1401  3076 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.442  1401  3076 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.455  1401  3076 D WindowManager: Transition is created, t=TransitionRecord{44172bc id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:35.457  1401  3076 D WindowManager: Aborting Transition: 10169 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:35.465  1401  3703 I WindowManager: Relayout Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:35.466  1401  3703 I WindowManager: Relayout hash=dea7911, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:35.466  1401  3703 I WindowManager:   fl=8d810100
-12-19 23:34:35.466  1401  3703 I WindowManager:   pfl=10008040
-12-19 23:34:35.466  1401  3703 I WindowManager:   vsysui=700
-12-19 23:34:35.466  1401  3703 I WindowManager:   bhv=1
-12-19 23:34:35.466  1401  3703 I WindowManager:   fitSides=0
-12-19 23:34:35.466  1401  3703 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.466  1401  3703 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.505  1401  3546 D WindowManager: Transition is created, t=TransitionRecord{91e5f2 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:35.510  1401  3546 D InputDispatcher: Focused application(0): ActivityRecord{214654292 u0 com.google.android.apps.bard/.shellapp.BardEntryPointActivity t18306}
-12-19 23:34:35.510  1401  3703 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18195)/@0xa075cc1} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:35.514  1401  1544 I ActivityManager: Changes in 10272 19 to 2, 0 to 255
-12-19 23:34:35.521  1401  2237 D InputDispatcher: Focused application(0): ActivityRecord{20247959 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink t18306}
-12-19 23:34:35.546 19274 19274 D ViewRootImpl: desktopMode is false
-12-19 23:34:35.546 19274 19274 I ViewRootImpl: dVRR is disabled
-12-19 23:34:35.551  1401  2168 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{c2b145a u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:35.555  1401  3546 D InputDispatcher: Focused application(0): ActivityRecord{164688136 u0 com.google.android.apps.bard/.shellapp.BardEntryPointActivity t18306}
-12-19 23:34:35.557  1401  3545 I WindowManager: Relayout Window{c2b145a u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=0 req=0x0 ty=1 d0
-12-19 23:34:35.557  1401  3545 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink$_19274
-12-19 23:34:35.557  1401  3545 I WindowManager: Relayout hash=c2b145a, pid=19274, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:35.557  1401  3545 I WindowManager:   fl=1800000
-12-19 23:34:35.557  1401  3545 I WindowManager:   pfl=40000880
-12-19 23:34:35.557  1401  3545 I WindowManager:   bhv=1
-12-19 23:34:35.557  1401  3545 I WindowManager:   fitTypes=207
-12-19 23:34:35.557  1401  3545 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.557  1401  3545 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.562  1401  3548 D WindowManager: finishDrawingWindow: Window{c2b145a u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:35.567  1401  2168 D InputDispatcher: Focused application(0): ActivityRecord{186730506 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink t18306}
-12-19 23:34:35.571  1401  1544 I ActivityManager: Changes in 10272 2 to 19, 255 to 128
-12-19 23:34:35.571 19274 19274 D ViewRootImpl: desktopMode is false
-12-19 23:34:35.571 19274 19274 I ViewRootImpl: dVRR is disabled
-12-19 23:34:35.572  1401  2168 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{9ab544f u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:35.577  1401  3545 I WindowManager: Relayout Window{9ab544f u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=0 req=0x0 ty=1 d0
-12-19 23:34:35.577  1401  3545 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink$_19274
-12-19 23:34:35.577  1401  3545 I WindowManager: Relayout hash=9ab544f, pid=19274, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:35.577  1401  3545 I WindowManager:   fl=1800000
-12-19 23:34:35.577  1401  3545 I WindowManager:   pfl=40000880
-12-19 23:34:35.577  1401  3545 I WindowManager:   bhv=1
-12-19 23:34:35.577  1401  3545 I WindowManager:   fitTypes=207
-12-19 23:34:35.577  1401  3545 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.577  1401  3545 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.578  1401  3545 D WindowManager: finishDrawingWindow: Window{9ab544f u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:35.591  1401  3545 D WindowManager: Transition is created, t=TransitionRecord{19b88e9 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityTaskManagerService.startActivityAsUser:87 
-12-19 23:34:35.592  1401  3545 D WindowManager: Aborting Transition: 10171 in state 0 called from com.android.server.wm.ActivityStarter.handleStartResult:802
-12-19 23:34:35.597  1401  2591 D WindowManager: Transition is created, t=TransitionRecord{8b8a2d2 id=-1 type=OPEN flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createAndStartCollecting:106 com.android.server.wm.ActivityStarter.executeRequest:3537 com.android.server.wm.ActivityStarter.execute:1873 com.android.server.wm.ActivityStartController.startActivities:98 
-12-19 23:34:35.599  1401  2591 D InputDispatcher: Focused application(0): ActivityRecord{145063843 u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity t18307}
-12-19 23:34:35.600  1401  2591 D WindowManager: deferringAddStartActivities clear
-12-19 23:34:35.601  1401  3548 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{c2b145a u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:35.604  1401  3545 D WindowManager: deferringAddStartActivities clear
-12-19 23:34:35.604  1401  3548 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{9ab544f u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}
-12-19 23:34:35.605  2045  2203 D ViewRootImpl: desktopMode is false
-12-19 23:34:35.606  2045  2203 I ViewRootImpl: dVRR is disabled
-12-19 23:34:35.609  1401  3703 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{d548f01 u0 Splash Screen com.google.android.googlequicksearchbox}
-12-19 23:34:35.613 19274 19274 D ViewRootImpl: desktopMode is false
-12-19 23:34:35.613 19274 19274 I ViewRootImpl: dVRR is disabled
-12-19 23:34:35.615  1401  3547 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:35.615  1401  3545 I WindowManager: Relayout Window{d548f01 u0 Splash Screen com.google.android.googlequicksearchbox}: viewVisibility=0 req=1080x2520 ty=3 d0
-12-19 23:34:35.616  1401  3545 D WindowManager: makeSurface duration=0 name=Splash Screen com.google.android.googlequicksearchbox$_2045
-12-19 23:34:35.616  1401  3545 I WindowManager: Relayout hash=d548f01, pid=2045, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=pan} layoutInDisplayCutoutMode=always ty=APPLICATION_STARTING fmt=TRANSLUCENT wanim=0x1030317
-12-19 23:34:35.616  1401  3545 I WindowManager:   fl=81030118
-12-19 23:34:35.616  1401  3545 I WindowManager:   pfl=10000810
-12-19 23:34:35.616  1401  3545 I WindowManager:   bhv=1
-12-19 23:34:35.616  1401  3545 I WindowManager:   fitSides=0
-12-19 23:34:35.616  1401  3545 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.616  1401  3545 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.619  1401  2773 I WindowManager: Relayout Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}: viewVisibility=0 req=918x1260 ty=1 d0
-12-19 23:34:35.620  1401  2773 D WindowManager: makeSurface duration=0 name=com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity$_19274
-12-19 23:34:35.620  1401  2773 I WindowManager: Relayout hash=2b95cdf, pid=19274, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:35.620  1401  2773 I WindowManager:   fl=81810100
-12-19 23:34:35.620  1401  2773 I WindowManager:   pfl=100088c0
-12-19 23:34:35.620  1401  2773 I WindowManager:   bhv=1
-12-19 23:34:35.620  1401  2773 I WindowManager:   fitSides=0
-12-19 23:34:35.620  1401  2773 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.620  1401  2773 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.622  1401  2168 D WindowManager: finishDrawingWindow: Window{d548f01 u0 Splash Screen com.google.android.googlequicksearchbox} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:35.627  2045  2142 D ViewRootImpl: desktopMode is false
-12-19 23:34:35.627  2045  2142 I ViewRootImpl: dVRR is disabled
-12-19 23:34:35.629  1401  2255 D WindowManager: finishDrawingWindow: Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:35.631  1401  2590 W WindowManager: Cannot find window which accessibility connection is added to
-12-19 23:34:35.712  1401  1470 I WindowManager: Relayout Window{d548f01 u0 Splash Screen com.google.android.googlequicksearchbox}: viewVisibility=8 req=918x1260 ty=3 d0
-12-19 23:34:35.713  1401  1470 I WindowManager: Relayout hash=d548f01, pid=2045, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=pan} layoutInDisplayCutoutMode=always ty=APPLICATION_STARTING fmt=TRANSLUCENT wanim=0x1030317
-12-19 23:34:35.713  1401  1470 I WindowManager:   fl=81030118
-12-19 23:34:35.713  1401  1470 I WindowManager:   pfl=10000810
-12-19 23:34:35.713  1401  1470 I WindowManager:   bhv=1
-12-19 23:34:35.713  1401  1470 I WindowManager:   fitSides=0
-12-19 23:34:35.713  1401  1470 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.713  1401  1470 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.716  1401  3703 D WindowManager: Starting window removed Window{d548f01 u0 Splash Screen com.google.android.googlequicksearchbox}
-12-19 23:34:35.719  1401  1470 D WindowManager: Transition is created, t=TransitionRecord{42796e4 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:35.720  1401  1470 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:35.729  1401  2590 D WindowManager: Transition is created, t=TransitionRecord{5ebef67 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:35.729  1401  2590 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:35.834  1401  3547 D WindowManager: Transition is created, t=TransitionRecord{c3861a id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:35.835  1401  3547 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:35.845  1401  3547 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:17 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction$1:195 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:86 
-12-19 23:34:35.845  1401  3547 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:35.858  1401  1470 D WindowManager: Transition is created, t=TransitionRecord{592c740 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:35.926  1401  2591 I WindowManager: Relayout Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}: viewVisibility=0 req=918x1260 ty=1 d0
-12-19 23:34:35.927  1401  2591 I WindowManager: Relayout hash=2b95cdf, pid=19274, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:35.927  1401  2591 I WindowManager:   fl=80810100
-12-19 23:34:35.927  1401  2591 I WindowManager:   pfl=10008840
-12-19 23:34:35.927  1401  2591 I WindowManager:   bhv=1
-12-19 23:34:35.927  1401  2591 I WindowManager:   fitSides=0
-12-19 23:34:35.927  1401  2591 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.927  1401  2591 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.936  1401  2591 D WindowManager: finishDrawingWindow: Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:35.936  1401  2591 I WindowManager: finishDrawing of relaunch: Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} 93ms
-12-19 23:34:35.944  1401  3507 I WindowManager: Relayout Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}: viewVisibility=0 req=1080x1260 ty=1 d0
-12-19 23:34:35.945  1401  3507 I WindowManager: Relayout hash=2b95cdf, pid=0, syncId=-1: mAttrs={(0,0)(fillxfill) sim={adjust=resize} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x1030317
-12-19 23:34:35.945  1401  3507 I WindowManager:   fl=80810100
-12-19 23:34:35.945  1401  3507 I WindowManager:   pfl=10008840
-12-19 23:34:35.945  1401  3507 I WindowManager:   bhv=1
-12-19 23:34:35.945  1401  3507 I WindowManager:   fitSides=0
-12-19 23:34:35.945  1401  3507 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.945  1401  3507 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.945  1401  1544 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:35.946  1401  2591 D WindowManager: finishDrawingWindow: Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} mDrawState=HAS_DRAWN seqId=0
-12-19 23:34:35.946  1401  1544 I ActivityManager: Changes in 10272 19 to 19, 128 to 0
-12-19 23:34:35.947  1401  3076 I WindowManager: Relayout Window{c2b145a u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=8 req=0x0 ty=1 d0
-12-19 23:34:35.948  1401  3076 I WindowManager: Relayout hash=c2b145a, pid=19274, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:35.948  1401  3076 I WindowManager:   fl=1800000
-12-19 23:34:35.948  1401  3076 I WindowManager:   pfl=40000880
-12-19 23:34:35.948  1401  3076 I WindowManager:   bhv=1
-12-19 23:34:35.948  1401  3076 I WindowManager:   fitTypes=207
-12-19 23:34:35.948  1401  3076 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.948  1401  3076 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.950  1401  3507 I WindowManager: Relayout Window{9ab544f u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.MainAssistantDeeplink}: viewVisibility=8 req=0x0 ty=1 d0
-12-19 23:34:35.951  1401  3507 I WindowManager: Relayout hash=9ab544f, pid=19274, syncId=-1: mAttrs={(0,0)(wrapxwrap) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT
-12-19 23:34:35.951  1401  3507 I WindowManager:   fl=1800000
-12-19 23:34:35.951  1401  3507 I WindowManager:   pfl=40000880
-12-19 23:34:35.951  1401  3507 I WindowManager:   bhv=1
-12-19 23:34:35.951  1401  3507 I WindowManager:   fitTypes=207
-12-19 23:34:35.951  1401  3507 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:35.951  1401  3507 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:35.955 19274 19274 D ViewRootImpl: Skipping stats log for color mode
-12-19 23:34:35.958 19274 19274 D ViewRootImpl: Skipping stats log for color mode
-12-19 23:34:36.286  1401  3547 D WindowManager: Transition is created, t=TransitionRecord{1c3acb6 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:36.287  1401  3547 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:36.296  1401  3076 D WindowManager: Transition is created, t=TransitionRecord{de79c8e id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:36.296  1401  3076 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}
-12-19 23:34:36.465  1401  3547 D WindowManager: Transition is created, t=TransitionRecord{f13fe9b id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:36.466  1401  3547 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:36.469  1401  3547 D WindowManager: Transition is created, t=TransitionRecord{a49a613 id=-1 type=CHANGE flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.ActivityTaskManagerService.resizeTask:129 com.android.server.am.ActivityManagerShellCommand.runTask:220 com.android.server.am.ActivityManagerShellCommand.onCommand:1690 com.android.modules.utils.BasicShellCommandHandler.exec:97 
-12-19 23:34:36.470  1401  3547 D WindowManager: prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}
-12-19 23:34:36.763  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183644605177000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:36.765  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x0, f=0x0, d=0, '7aaf9b7', t=1 +(0,-116)
-12-19 23:34:36.773  1401  3545 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18307)/@0xd957b8} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:36.788  1401  1551 I ActivityManager: Changes in 10395 3 to 15, 144 to 0
-12-19 23:34:36.870  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183644713598000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:36.871  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x1, f=0x0, d=0, '7aaf9b7', t=1 +(0,-116)
-12-19 23:34:36.872 13667 13667 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.FrameLayout{ffc88d0 VFE...C.. .F.P.... 0,0-1080,2404 aid=1}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.example.quadrantlauncher.FloatingLauncherService.toggleDrawer:537 
-12-19 23:34:36.879  1401  3507 I WindowManager: Relayout Window{7ac31b3 u0 com.katsuyamaki.DroidOSLauncher}: viewVisibility=0 req=63x63 ty=2032 d0
-12-19 23:34:36.880  1401  3507 D WindowManager: makeSurface duration=0 name=$_13667
-12-19 23:34:36.882  1401  3507 I WindowManager: Relayout hash=7ac31b3, pid=13667, syncId=-1: mAttrs={(50,200)(wrapxwrap) gr=TOP START CENTER sim={adjust=pan} ty=ACCESSIBILITY_OVERLAY fmt=TRANSLUCENT
-12-19 23:34:36.882  1401  3507 I WindowManager:   fl=1040308
-12-19 23:34:36.882  1401  3507 I WindowManager:   bhv=1
-12-19 23:34:36.882  1401  3507 I WindowManager:   fitTypes=206
-12-19 23:34:36.882  1401  3507 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:36.882  1401  3507 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0}
-12-19 23:34:36.892  1401  2237 W ActivityManager: Background start not allowed: service Intent { xflg=0x4 cmp=com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService } to com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService from pid=17399 uid=10267 pkg=com.google.android.apps.messaging startFg?=false
-12-19 23:34:36.893  1401  3076 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0x4c1a3d8
-12-19 23:34:36.893  1401  3076 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8, destroy=false, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b
-12-19 23:34:36.893  1401  3076 I WindowManager: Reparenting to leash, surface=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b, leashParent=Surface(name=WindowToken{c321922 type=2011 android.os.Binder@edfc6ed})/@0x7a81b8
-12-19 23:34:36.893  1401  3076 D WindowManager: makeSurface duration=0 leash=Surface(name=Surface(name=b217ba3 InputMethod)/@0xfd8bc1b - animation-leash of insets_animation)/@0x5b83a03
-12-19 23:34:36.895  1401  3076 D WindowManager: Changing focus from Window{7aaf9b7 u0 com.katsuyamaki.DroidOSLauncher} to Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} displayId=0 Callers=com.android.server.wm.WindowState.removeIfPossible:647 com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 
-12-19 23:34:36.895  1401  3076 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=253deac NavigationBar0)/@0x344c78e - animation-leash of insets_animation)/@0xa41a42
-12-19 23:34:36.895  1401  3076 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{742645f type=2019 android.os.BinderProxy@3f7f8b9})/@0xeea6baf, destroy=false, surface=Surface(name=253deac NavigationBar0)/@0x344c78e
-12-19 23:34:36.895  1401  3076 I WindowManager: Reparenting to leash, surface=Surface(name=253deac NavigationBar0)/@0x344c78e, leashParent=Surface(name=WindowToken{742645f type=2019 android.os.BinderProxy@3f7f8b9})/@0xeea6baf
-12-19 23:34:36.896  1401  3076 D WindowManager: makeSurface duration=0 leash=Surface(name=Surface(name=253deac NavigationBar0)/@0x344c78e - animation-leash of insets_animation)/@0xb37afb9
-12-19 23:34:36.896  1401  3076 I WindowManager: Cancelling animation restarting=true, leash=Surface(name=Surface(name=7a1affc StatusBar)/@0x9878745 - animation-leash of insets_animation)/@0xba8f90
-12-19 23:34:36.896  1401  3076 I WindowManager: Reparenting to original parent: Surface(name=WindowToken{ea68ef type=2000 android.os.BinderProxy@acba6c9})/@0xe49ce9a, destroy=false, surface=Surface(name=7a1affc StatusBar)/@0x9878745
-12-19 23:34:36.896  1401  3076 I WindowManager: Reparenting to leash, surface=Surface(name=7a1affc StatusBar)/@0x9878745, leashParent=Surface(name=WindowToken{ea68ef type=2000 android.os.BinderProxy@acba6c9})/@0xe49ce9a
-12-19 23:34:36.896  1401  3076 D WindowManager: makeSurface duration=0 leash=Surface(name=Surface(name=7a1affc StatusBar)/@0x9878745 - animation-leash of insets_animation)/@0x27a735f
-12-19 23:34:36.897  1401  3076 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:372 com.android.server.wm.WindowState.removeIfPossible:647 com.android.server.wm.Session.remove:16 
-12-19 23:34:36.897  1401  3076 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-9
-12-19 23:34:36.897  1401  3703 W ActivityManager: Background start not allowed: service Intent { xflg=0x4 cmp=com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService } to com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService from pid=17399 uid=10267 pkg=com.google.android.apps.messaging startFg?=false
-12-19 23:34:36.899  1401  3507 D WindowManager: finishDrawingWindow: Window{7ac31b3 u0 com.katsuyamaki.DroidOSLauncher} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:36.899  1401  3703 W ActivityManager: Background start not allowed: service Intent { xflg=0x4 cmp=com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService } to com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService from pid=17399 uid=10267 pkg=com.google.android.apps.messaging startFg?=false
-12-19 23:34:36.899  1401  3507 W WindowManager: Failed looking up window session=Session{4ff34ca 13667:u0a10516} callers=com.android.server.wm.WindowManagerService.windowForClientLocked:1 com.android.server.wm.Session.setOnBackInvokedCallbackInfo:15 android.view.IWindowSession$Stub.onTransact:1390 
-12-19 23:34:36.899  1401  3507 I WindowManager: setOnBackInvokedCallback(): No window state for package:com.katsuyamaki.DroidOSLauncher
-12-19 23:34:36.906  1401  3545 D InputDispatcher: Focus left window (0): 7aaf9b7 com.katsuyamaki.DroidOSLauncher
-12-19 23:34:36.917  1401  3703 D InputDispatcher: Once focus requested (0): 2b95cdf com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity
-12-19 23:34:36.917  1401  3703 D InputDispatcher: Focus entered window (0): 2b95cdf com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity
-12-19 23:34:36.918  1401  3545 W ActivityManager: Background start not allowed: service Intent { xflg=0x4 cmp=com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService } to com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService from pid=17399 uid=10267 pkg=com.google.android.apps.messaging startFg?=false
-12-19 23:34:36.922  1401  3703 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:36.923  1401  3703 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:36.924  1401  3703 D InputMethodManagerService: checkDisplayOfStartInputAndUpdateKeyboard: displayId=0, mFocusedDisplayId=0
-12-19 23:34:36.937  1401  3076 W ActivityManager: Background start not allowed: service Intent { xflg=0x4 cmp=com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService } to com.google.android.apps.messaging/.shared.datamodel.action.execution.ActionExecutorImpl$EmptyService from pid=17399 uid=10267 pkg=com.google.android.apps.messaging startFg?=false
-12-19 23:34:38.529  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183646370898000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:38.529  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x4, f=0x0, d=0, '7ac31b3', t=1 
-12-19 23:34:38.529  1401  1700 I InputDispatcher: Delivering touch to (2045): action: 0x4, f=0x0, d=0, '253deac', t=1 
-12-19 23:34:38.529  1401  1700 I InputDispatcher: Delivering touch to (13489): action: 0x0, f=0x0, d=0, 'dea7911', t=1 +(0,-116)
-12-19 23:34:38.531  1401  1544 D WindowManager: Transition is created, t=TransitionRecord{b337e99 id=-1 type=TO_FRONT flags=0x0}, caller=com.android.server.wm.Transition.<init>:182 com.android.server.wm.TransitionController.createTransition:17 com.android.server.wm.ActivityTaskManagerService.setFocusedTask:29 com.android.server.wm.WindowManagerService.handleTaskFocusChange:62 com.android.server.wm.WindowState.handleTapOutsideFocusInsideSelf:18 
-12-19 23:34:38.533  1401  1544 D InputDispatcher: Focused application(0): ActivityRecord{147709724 u0 com.termux/.app.TermuxActivity t18195}
-12-19 23:34:38.534  1401  1544 D WindowManager: Changing focus from Window{2b95cdf u0 com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity} to Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity} displayId=0 Callers=com.android.server.wm.ActivityTaskManagerService.setLastResumedActivityUncheckLocked:264 com.android.server.wm.ActivityTaskSupervisor.updateTopResumedActivityIfNeeded:49 com.android.server.wm.TaskDisplayArea.positionChildAt:252 com.android.server.wm.Task.moveToFront:40 
-12-19 23:34:38.534  1401  1544 D WindowManager: updateSystemBarAttributes: displayId=0, focusedCanBeNavColorWin=false, win=Window{dea7911 u0 com.termux/com.termux.app.TermuxActivity}, navColorWin=Window{8d8ec89 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, caller=com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:372 com.android.server.wm.ActivityTaskManagerService.setLastResumedActivityUncheckLocked:264 com.android.server.wm.ActivityTaskSupervisor.updateTopResumedActivityIfNeeded:49 
-12-19 23:34:38.535  1401  1544 D WindowManager: updateSystemBarAttributes, bhv=1, apr=1048576, statusBarAprRegions=[AppearanceRegion{ bounds=[0,0][1080,2520]}], requestedVisibilities=-1
-12-19 23:34:38.540  1401  3076 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18307)/@0xd957b8} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:38.560  1401  3545 D InputDispatcher: Once focus requested (0): dea7911 com.termux/com.termux.app.TermuxActivity
-12-19 23:34:38.560  1401  3545 D InputDispatcher: Focus left window (0): 2b95cdf com.google.android.googlequicksearchbox/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity
-12-19 23:34:38.560  1401  3545 D InputDispatcher: Focus entered window (0): dea7911 com.termux/com.termux.app.TermuxActivity
-12-19 23:34:38.565  1401  1763 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:38.566  1401  1763 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:38.567  1401  1763 D InputMethodManagerService: checkDisplayOfStartInputAndUpdateKeyboard: displayId=0, mFocusedDisplayId=0
-12-19 23:34:38.567  1401  1763 D InputMethodManagerService: ACCESS_CONTROL_ENABLED = false, ACCESS_CONTROL_KEYBOARD_BLOCK = true
-12-19 23:34:38.582  1401  1763 I ActivityManager: Changes in 10332 7 to 5, 128 to 255
-12-19 23:34:38.583  1401  1763 I InputMethodManagerService: attachNewInputLocked: showCurrentInputInternal, softInputModeState=STATE_UNSPECIFIED|ADJUST_RESIZE|IS_FORWARD_NAVIGATION
-12-19 23:34:38.584  1401  2495 I InputMethodManagerService: isAccessoryKeyboard 0
-12-19 23:34:38.588  1401  3076 I InputMethodManagerService: isAccessoryKeyboard 0
-12-19 23:34:38.593  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183646437178000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:38.593  1401  1700 I InputDispatcher: Delivering touch to (13489): action: 0x1, f=0x0, d=0, 'dea7911', t=1 +(0,-116)
-12-19 23:34:38.598  1401  3703 D InputMethodManagerService: isImeSwitcherDisabledPackage : false
-12-19 23:34:38.599  1401  3507 I WindowManager: Relayout Window{5b7421b u0 com.android.systemui.wallpapers.ImageWallpaper}: viewVisibility=0 req=2486x2520 ty=2013 d0
-12-19 23:34:38.600  1401  3507 I WindowManager: Relayout hash=5b7421b, pid=2045, syncId=-1: mAttrs={(0,0)(2486x2520) gr=TOP START CENTER layoutInDisplayCutoutMode=always ty=WALLPAPER fmt=RGBX_8888 wanim=0x1030328
-12-19 23:34:38.600  1401  3507 I WindowManager:   fl=14318
-12-19 23:34:38.600  1401  3507 I WindowManager:   pfl=14
-12-19 23:34:38.600  1401  3507 I WindowManager:   bhv=1
-12-19 23:34:38.600  1401  3507 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:38.600  1401  3507 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0
-12-19 23:34:38.600  1401  3507 I WindowManager:   sfl=8}
-12-19 23:34:38.601  1401  3076 I WindowManager: Relayout Window{b217ba3 u0 InputMethod}: viewVisibility=0 req=1080x2404 ty=2011 d0
-12-19 23:34:38.601  1401  3076 D WindowManager: makeSurface duration=1 name=InputMethod$_15168
-12-19 23:34:38.602  1401  3076 I WindowManager: Relayout hash=b217ba3, pid=15168, syncId=-1: mAttrs={(0,0)(fillxfill) gr=BOTTOM CENTER_VERTICAL sim={adjust=pan} ty=INPUT_METHOD fmt=TRANSPARENT wanim=0x1030056 preferredMinDisplayRefreshRate=60.0 receive insets ignoring z-order
-12-19 23:34:38.602  1401  3076 I WindowManager:   fl=81800108
-12-19 23:34:38.602  1401  3076 I WindowManager:   pfl=14000000
-12-19 23:34:38.602  1401  3076 I WindowManager:   bhv=1
-12-19 23:34:38.602  1401  3076 I WindowManager:   fitTypes=3
-12-19 23:34:38.602  1401  3076 I WindowManager:   fitSides=7
-12-19 23:34:38.602  1401  3076 I WindowManager:   fitIgnoreVis
-12-19 23:34:38.602  1401  3076 I WindowManager:   dvrrWindowFrameRateHint=true
-12-19 23:34:38.602  1401  3076 I WindowManager:  dimAmount=0.18 dimDuration=150 naviIconColor=0}
-12-19 23:34:38.603  1401  3703 D InputMethodManagerService: shouldShowImeSwitcherLocked : checking vis : 3
-12-19 23:34:38.603  1401  3703 I InputMethodManagerService: setImeWindowStatus: vis=3, backDisposition=0
-12-19 23:34:38.608  1401  2245 D WindowManager: setInsetsWindow Window{b217ba3 u0 InputMethod}, contentInsets=Rect(0, 2329 - 0, 0) -> Rect(0, 1904 - 0, 0), visibleInsets=Rect(0, 2329 - 0, 0) -> Rect(0, 1904 - 0, 0), touchableRegion=SkRegion() -> SkRegion((0,1904,1080,2404)), touchableInsets 3 -> 3
-12-19 23:34:38.617  1401  3703 D WindowManager: finishDrawingWindow: Window{b217ba3 u0 InputMethod} mDrawState=DRAW_PENDING seqId=0
-12-19 23:34:38.621  1401  1544 D InputMethodManagerService: ACCESS_CONTROL_ENABLED = false, ACCESS_CONTROL_KEYBOARD_BLOCK = true
-12-19 23:34:38.621  1401  3545 I WindowManager: Relayout Window{5b7421b u0 com.android.systemui.wallpapers.ImageWallpaper}: viewVisibility=0 req=2486x2520 ty=2013 d0
-12-19 23:34:38.622  1401  3545 I WindowManager: Relayout hash=5b7421b, pid=2045, syncId=-1: mAttrs={(0,0)(2486x2520) gr=TOP START CENTER layoutInDisplayCutoutMode=always ty=WALLPAPER fmt=RGBX_8888 wanim=0x1030328
-12-19 23:34:38.622  1401  3545 I WindowManager:   fl=14318
-12-19 23:34:38.622  1401  3545 I WindowManager:   pfl=14
-12-19 23:34:38.622  1401  3545 I WindowManager:   bhv=1
-12-19 23:34:38.622  1401  3545 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:38.622  1401  3545 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0
-12-19 23:34:38.622  1401  3545 I WindowManager:   sfl=8}
-12-19 23:34:38.624  1401  2495 I InputMethodManagerService: isAccessoryKeyboard 0
-12-19 23:34:38.624  1401  3076 I InputMethodManagerService: isAccessoryKeyboard 0
-12-19 23:34:38.625  1401  3545 D WindowManager: finishDrawingWindow: Window{b217ba3 u0 InputMethod} mDrawState=HAS_DRAWN seqId=0
-12-19 23:34:38.627  1401  3547 I WindowManager: Relayout Window{5b7421b u0 com.android.systemui.wallpapers.ImageWallpaper}: viewVisibility=0 req=2486x2520 ty=2013 d0
-12-19 23:34:38.630  1401  3547 I WindowManager: Relayout hash=5b7421b, pid=2045, syncId=-1: mAttrs={(0,0)(2486x2520) gr=TOP START CENTER layoutInDisplayCutoutMode=always ty=WALLPAPER fmt=RGBX_8888 wanim=0x1030328
-12-19 23:34:38.630  1401  3547 I WindowManager:   fl=14318
-12-19 23:34:38.630  1401  3547 I WindowManager:   pfl=14
-12-19 23:34:38.630  1401  3547 I WindowManager:   bhv=1
-12-19 23:34:38.630  1401  3547 I WindowManager:   frameRateBoostOnTouch=true
-12-19 23:34:38.630  1401  3547 I WindowManager:   dvrrWindowFrameRateHint=true naviIconColor=0
-12-19 23:34:38.630  1401  3547 I WindowManager:   sfl=8}
-12-19 23:34:40.289  1401  1662 I ActivityManager: Changes in 10100 19 to 19, 128 to 0
-12-19 23:34:40.668  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183648510193000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:40.670  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x4, f=0x0, d=0, '7ac31b3', t=1 
-12-19 23:34:40.670  1401  1700 I InputDispatcher: Delivering touch to (2045): action: 0x4, f=0x0, d=0, '253deac', t=1 
-12-19 23:34:40.670  1401  1700 I InputDispatcher: Delivering touch to (13489): action: 0x0, f=0x0, d=0, 'dea7911', t=1 +(0,-116)
-12-19 23:34:40.680  1401  3507 E InputDispatcher: Embedded{TaskInputSink of Surface(name=Decor container of Task=18195)/@0xa075cc1} has feature NO_INPUT_WINDOW, but a non-null token. Clearing
-12-19 23:34:40.741  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x1, time=183648584760000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:40.742  1401  1700 I InputDispatcher: Delivering touch to (13489): action: 0x1, f=0x0, d=0, 'dea7911', t=1 +(0,-116)
-12-19 23:34:41.644  1401  1401 D InputDispatcher: Inject motion (0/0): action=0x0, time=183649485253000, f=0x0, d=0 dsdx=1.000000 dtdx=0.000000
-12-19 23:34:41.646  1401  1700 I InputDispatcher: Delivering touch to (13667): action: 0x4, f=0x0, d=0, '7ac31b3', t=1 
-12-19 23:34:41.646  1401  1700 I InputDispatcher: Delivering touch to (2045): action: 0x4, f=0x0, d=0, '253deac', t=1 
-12-19 23:34:41.646  1401  1700 I InputDispatcher: Delivering touch to (15168): action: 0x0, f=0x0, d=0, 'b217ba3', t=1 +(0,-116)
 ```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad_drawer.xml
@@ -13788,10 +12509,6 @@ class FloatingLauncherService : AccessibilityService() {
         }
     }
     private fun updateGlobalFontSize() { val searchBar = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); searchBar?.textSize = currentFontSize; drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged() }
-
-// This function scans all installed apps. We add logic to distinguish Gemini from the Google App 
-// by checking the specific Activity class name and assigning a unique internal package ID.
-
     private fun loadInstalledApps() { 
         val pm = packageManager; 
         val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }; 
@@ -13805,25 +12522,17 @@ class FloatingLauncherService : AccessibilityService() {
             
             if (pkg == PACKAGE_TRACKPAD || pkg == packageName) continue; 
             
-            // GEMINI EXCEPTION: Give Gemini a unique ID and Label so it persists in the queue
+            // GEMINI EXCEPTION: Give Gemini a unique ID so it can be tiled separately from Google App
             var finalPkg = pkg
-            var finalLabel = ri.loadLabel(pm).toString()
-            
-            if (pkg == "com.google.android.googlequicksearchbox") {
-                if (cls.contains("robin.main.MainActivity")) {
-                    finalPkg = "com.google.android.googlequicksearchbox:gemini"
-                    finalLabel = "Gemini"
-                } else if (cls.contains("SearchActivity")) {
-                    finalLabel = "Google"
-                }
+            if (pkg == "com.google.android.googlequicksearchbox" && cls.contains("robin.main.MainActivity")) {
+                finalPkg = "com.google.android.googlequicksearchbox:gemini"
             }
 
-            val app = MainActivity.AppInfo(finalLabel, finalPkg, AppPreferences.isFavorite(this, finalPkg)); 
+            val app = MainActivity.AppInfo(ri.loadLabel(pm).toString(), finalPkg, AppPreferences.isFavorite(this, finalPkg)); 
             allAppsList.add(app) 
         }; 
         allAppsList.sortBy { it.label.lowercase() } 
     }
-
     
     private fun launchTrackpad() {
         if (isTrackpadRunning()) { safeToast("Trackpad is already active"); return }
@@ -13838,46 +12547,23 @@ class FloatingLauncherService : AccessibilityService() {
     private fun sortAppQueue() { selectedAppsQueue.sortWith(compareBy { it.isMinimized }) }
     private fun updateSelectedAppsDock() { val dock = drawerView!!.findViewById<RecyclerView>(R.id.selected_apps_recycler); if (selectedAppsQueue.isEmpty()) { dock.visibility = View.GONE } else { dock.visibility = View.VISIBLE; dock.adapter?.notifyDataSetChanged(); dock.scrollToPosition(selectedAppsQueue.size - 1) } }
     private fun refreshSearchList() { val query = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.text?.toString() ?: ""; filterList(query) }
-
     private fun filterList(query: String) {
         if (currentMode != MODE_SEARCH) return; val actualQuery = query.substringAfterLast(",").trim(); displayList.clear()
-        val filtered = if (actualQuery.isEmpty()) { 
-            allAppsList 
-        } else { 
-            allAppsList.filter { 
-                it.label.contains(actualQuery, ignoreCase = true) || 
-                (it.packageName.endsWith(":gemini") && "gemini".contains(actualQuery, ignoreCase = true))
-            } 
-        }
+        val filtered = if (actualQuery.isEmpty()) { allAppsList } else { allAppsList.filter { it.label.contains(actualQuery, ignoreCase = true) } }
         val sorted = filtered.sortedWith(compareBy<MainActivity.AppInfo> { it.packageName != PACKAGE_BLANK }.thenByDescending { it.isFavorite }.thenBy { it.label.lowercase() }); displayList.addAll(sorted); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
     }
-
-
     private fun addToSelection(app: MainActivity.AppInfo) {
-        if (app.packageName == PACKAGE_BLANK) {
-            selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK))
-        } else {
-            // Prevent duplicate of the same physical app (Google vs Gemini)
-            val basePkg = if (app.packageName.contains(":")) app.packageName.substringBefore(":") else app.packageName
-            val exists = selectedAppsQueue.any { 
-                val otherBase = if (it.packageName.contains(":")) it.packageName.substringBefore(":") else it.packageName
-                otherBase == basePkg 
-            }
-            if (exists) {
-                safeToast("App already in queue")
-                return
-            }
-            selectedAppsQueue.add(app)
-        }
-        updateSelectedAppsDock()
-        refreshSearchList()
+        dismissKeyboardAndRestore(); val et = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar)
+        if (app.packageName == PACKAGE_BLANK) { selectedAppsQueue.add(app); sortAppQueue(); updateSelectedAppsDock(); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate(); return }
+        val existing = selectedAppsQueue.find { it.packageName == app.packageName }; if (existing != null) { selectedAppsQueue.remove(existing); Thread { try { shellService?.forceStop(app.packageName) } catch(e: Exception) {} }.start(); safeToast("Removed ${app.label}"); sortAppQueue(); updateSelectedAppsDock(); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); et.setText(""); if (isInstantMode) applyLayoutImmediate() } 
+        else { app.isMinimized = false; selectedAppsQueue.add(app); sortAppQueue(); updateSelectedAppsDock(); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); et.setText(""); if (isInstantMode) { launchViaApi(app.packageName, null); launchViaShell(app.packageName); uiHandler.postDelayed({ applyLayoutImmediate() }, 200); uiHandler.postDelayed({ applyLayoutImmediate() }, 800) } }
     }
-
     private fun toggleFavorite(app: MainActivity.AppInfo) { val newState = AppPreferences.toggleFavorite(this, app.packageName); app.isFavorite = newState; allAppsList.find { it.packageName == app.packageName }?.isFavorite = newState }
-
     private fun launchViaApi(pkg: String, bounds: Rect?) { 
         try { 
             val intent: Intent?
+            
+            // GEMINI EXCEPTION
             if (pkg.endsWith(":gemini")) {
                 val realPkg = pkg.substringBefore(":")
                 intent = Intent()
@@ -13889,6 +12575,7 @@ class FloatingLauncherService : AccessibilityService() {
             }
             
             if (intent == null) return; 
+            
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); 
             val options = android.app.ActivityOptions.makeBasic(); 
             options.setLaunchDisplayId(currentDisplayId); 
@@ -13896,17 +12583,19 @@ class FloatingLauncherService : AccessibilityService() {
             startActivity(intent, options.toBundle()) 
         } catch (e: Exception) {} 
     }
-
-
     private fun launchViaShell(pkg: String) { 
         try { 
+            // GEMINI EXCEPTION
             if (pkg.endsWith(":gemini")) {
                 val realPkg = pkg.substringBefore(":")
                 val component = "$realPkg/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity"
                 val cmd = "am start -n $component -a android.intent.action.MAIN -c android.intent.category.LAUNCHER --display $currentDisplayId --windowingMode 5 --user 0"
-                if (shellService != null) Thread { shellService?.runCommand(cmd) }.start()
+                if (shellService != null) {
+                    Thread { shellService?.runCommand(cmd) }.start()
+                }
                 return
             }
+
             val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return; 
             if (shellService != null) { 
                 val component = intent.component?.flattenToShortString() ?: pkg; 
@@ -13915,7 +12604,6 @@ class FloatingLauncherService : AccessibilityService() {
             } 
         } catch (e: Exception) {} 
     }
-
     
     private fun cycleDisplay() {
         val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; val displays = dm.displays
@@ -13997,59 +12685,7 @@ class FloatingLauncherService : AccessibilityService() {
     }
 
     private fun applyLayoutImmediate() { executeLaunch(selectedLayoutType, closeDrawer = false) }
-
-// This function restores the app queue from saved state or running tasks. 
-// We must update the '.find' logic so it recognizes our custom Gemini package ID.
-
-    private fun fetchRunningApps() { 
-        if (shellService == null) return; 
-        Thread { 
-            try { 
-                val visiblePackages = shellService!!.getVisiblePackages(currentDisplayId); 
-                val allRunning = shellService!!.getAllRunningPackages(); 
-                val lastQueue = AppPreferences.getLastQueue(this); 
-                uiHandler.post { 
-                    selectedAppsQueue.clear(); 
-                    for (pkg in lastQueue) { 
-                        if (pkg == PACKAGE_BLANK) { 
-                            selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)) 
-                        } else {
-                            // GEMINI FIX: Find app by matching full package ID (including :gemini)
-                            val appInfo = allAppsList.find { it.packageName == pkg }; 
-                            if (appInfo != null) { 
-                                // Check if running (strip suffix for shell check)
-                                val realPkg = if (pkg.contains(":")) pkg.substringBefore(":") else pkg
-                                if (allRunning.contains(realPkg)) {
-                                    appInfo.isMinimized = !visiblePackages.contains(realPkg); 
-                                    selectedAppsQueue.add(appInfo) 
-                                }
-                            } 
-                        }
-                    }; 
-                    for (pkg in visiblePackages) { 
-                        // If it's a visible Google search box, we check if it's the Gemini activity
-                        var lookupPkg = pkg
-                        if (pkg == "com.google.android.googlequicksearchbox") {
-                           // If Gemini is already in queue via lastQueue, skip adding again
-                           if (selectedAppsQueue.any { it.packageName.endsWith(":gemini") }) continue
-                        }
-
-                        if (!selectedAppsQueue.any { it.packageName == lookupPkg }) { 
-                            val appInfo = allAppsList.find { it.packageName == lookupPkg }; 
-                            if (appInfo != null) { 
-                                appInfo.isMinimized = false; 
-                                selectedAppsQueue.add(appInfo) 
-                            } 
-                        } 
-                    }; 
-                    sortAppQueue(); 
-                    updateSelectedAppsDock(); 
-                    drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); 
-                } 
-            } catch (e: Exception) { Log.e(TAG, "Error fetching apps", e) } 
-        }.start() 
-    }
-
+    private fun fetchRunningApps() { if (shellService == null) return; Thread { try { val visiblePackages = shellService!!.getVisiblePackages(currentDisplayId); val allRunning = shellService!!.getAllRunningPackages(); val lastQueue = AppPreferences.getLastQueue(this); uiHandler.post { selectedAppsQueue.clear(); for (pkg in lastQueue) { if (pkg == PACKAGE_BLANK) { selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)) } else if (allRunning.contains(pkg)) { val appInfo = allAppsList.find { it.packageName == pkg }; if (appInfo != null) { appInfo.isMinimized = !visiblePackages.contains(pkg); selectedAppsQueue.add(appInfo) } } }; for (pkg in visiblePackages) { if (!lastQueue.contains(pkg)) { val appInfo = allAppsList.find { it.packageName == pkg }; if (appInfo != null) { appInfo.isMinimized = false; selectedAppsQueue.add(appInfo) } } }; sortAppQueue(); updateSelectedAppsDock(); drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); safeToast("Instant Mode: Active") } } catch (e: Exception) { Log.e(TAG, "Error fetching apps", e) } }.start() }
     private fun selectLayout(opt: LayoutOption) { dismissKeyboardAndRestore(); selectedLayoutType = opt.type; activeCustomRects = opt.customRects; if (opt.type == LAYOUT_CUSTOM_DYNAMIC) { activeCustomLayoutName = opt.name; AppPreferences.saveLastCustomLayoutName(this, opt.name) } else { activeCustomLayoutName = null; AppPreferences.saveLastCustomLayoutName(this, null) }; AppPreferences.saveLastLayout(this, opt.type); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() }
     private fun saveCurrentAsCustom() { Thread { try { val rawLayouts = shellService!!.getWindowLayouts(currentDisplayId); if (rawLayouts.isEmpty()) { safeToast("Found 0 active app windows"); return@Thread }; val rectStrings = mutableListOf<String>(); for (line in rawLayouts) { val parts = line.split("|"); if (parts.size == 2) { rectStrings.add(parts[1]) } }; if (rectStrings.isEmpty()) { safeToast("Found 0 valid frames"); return@Thread }; val count = rectStrings.size; var baseName = "$count Apps - Custom"; val existingNames = AppPreferences.getCustomLayoutNames(this); var counter = 1; var finalName = "$baseName $counter"; while (existingNames.contains(finalName)) { counter++; finalName = "$baseName $counter" }; AppPreferences.saveCustomLayout(this, finalName, rectStrings.joinToString("|")); safeToast("Saved: $finalName"); uiHandler.post { switchMode(MODE_LAYOUTS) } } catch (e: Exception) { Log.e(TAG, "Failed to save custom layout", e); safeToast("Error saving: ${e.message}") } }.start() }
     private fun applyResolution(opt: ResolutionOption) { dismissKeyboardAndRestore(); if (opt.index != -1) { selectedResolutionIndex = opt.index; AppPreferences.saveDisplayResolution(this, currentDisplayId, opt.index) }; drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode && opt.index != -1) { Thread { val resCmd = getResolutionCommand(selectedResolutionIndex); shellService?.runCommand(resCmd); Thread.sleep(1500); uiHandler.post { applyLayoutImmediate() } }.start() } }
@@ -14059,32 +12695,7 @@ class FloatingLauncherService : AccessibilityService() {
     private fun changeDrawerWidth(delta: Int) { currentDrawerWidthPercent = (currentDrawerWidthPercent + delta).coerceIn(30, 100); AppPreferences.setDrawerWidthPercent(this, currentDrawerWidthPercent); updateDrawerHeight(false); if (currentMode == MODE_SETTINGS) { drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged() } }
     private fun pickIcon() { toggleDrawer(); try { refreshDisplayId(); val intent = Intent(this, IconPickerActivity::class.java); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); val metrics = windowManager.maximumWindowMetrics; val w = 1000; val h = (metrics.bounds.height() * 0.7).toInt(); val x = (metrics.bounds.width() - w) / 2; val y = (metrics.bounds.height() - h) / 2; val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(Rect(x, y, x+w, y+h)); startActivity(intent, options.toBundle()) } catch (e: Exception) { safeToast("Error launching picker: ${e.message}") } }
     private fun saveProfile() { var name = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.text?.toString()?.trim(); if (name.isNullOrEmpty()) { val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()); name = "Profile_$timestamp" }; val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveProfile(this, name, selectedLayoutType, selectedResolutionIndex, currentDpiSetting, pkgs); safeToast("Saved: $name"); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText(""); switchMode(MODE_PROFILES) }
-
-    private fun loadProfile(name: String) { 
-        val data = AppPreferences.getProfileData(this, name) ?: return; 
-        try { 
-            val parts = data.split("|"); 
-            selectedLayoutType = parts[0].toInt(); 
-            selectedAppsQueue.clear(); 
-            val pkgList = parts[3].split(","); 
-            for (pkg in pkgList) { 
-                if (pkg.isNotEmpty()) { 
-                    if (pkg == PACKAGE_BLANK) { 
-                        selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)) 
-                    } else { 
-                        // GEMINI FIX: Ensure profile loader recognizes the :gemini suffix
-                        val app = allAppsList.find { it.packageName == pkg }; 
-                        if (app != null) selectedAppsQueue.add(app) 
-                    } 
-                } 
-            }; 
-            activeProfileName = name; 
-            updateSelectedAppsDock(); 
-            drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); 
-            if (isInstantMode) applyLayoutImmediate() 
-        } catch (e: Exception) { Log.e(TAG, "Failed to load profile", e) } 
-    }
-
+    private fun loadProfile(name: String) { val data = AppPreferences.getProfileData(this, name) ?: return; try { val parts = data.split("|"); selectedLayoutType = parts[0].toInt(); selectedResolutionIndex = parts[1].toInt(); currentDpiSetting = parts[2].toInt(); val pkgList = parts[3].split(","); selectedAppsQueue.clear(); for (pkg in pkgList) { if (pkg.isNotEmpty()) { if (pkg == PACKAGE_BLANK) { selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)) } else { val app = allAppsList.find { it.packageName == pkg }; if (app != null) selectedAppsQueue.add(app) } } }; AppPreferences.saveLastLayout(this, selectedLayoutType); AppPreferences.saveDisplayResolution(this, currentDisplayId, selectedResolutionIndex); AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting); activeProfileName = name; updateSelectedAppsDock(); safeToast("Loaded: $name"); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() } catch (e: Exception) { Log.e(TAG, "Failed to load profile", e) } }
     
     private fun executeLaunch(layoutType: Int, closeDrawer: Boolean) { 
         if (closeDrawer) toggleDrawer(); refreshDisplayId(); val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveLastQueue(this, pkgs)
@@ -14184,7 +12795,6 @@ class FloatingLauncherService : AccessibilityService() {
     inner class SelectedAppsAdapter : RecyclerView.Adapter<SelectedAppsAdapter.Holder>() {
         inner class Holder(v: View) : RecyclerView.ViewHolder(v) { val icon: ImageView = v.findViewById(R.id.selected_app_icon) }
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder { return Holder(LayoutInflater.from(parent.context).inflate(R.layout.item_selected_app, parent, false)) }
-
         override fun onBindViewHolder(holder: Holder, position: Int) { 
             val app = selectedAppsQueue[position]; 
             if (position == reorderSelectionIndex) { 
@@ -14195,16 +12805,18 @@ class FloatingLauncherService : AccessibilityService() {
                     holder.icon.setImageResource(R.drawable.ic_box_outline); holder.icon.alpha = 1.0f 
                 } else { 
                     try { 
+                        // GEMINI FIX: Strip suffix to get real package for icon
                         val realPkg = if (app.packageName.endsWith(":gemini")) app.packageName.substringBefore(":") else app.packageName
                         holder.icon.setImageDrawable(packageManager.getApplicationIcon(realPkg)) 
-                    } catch (e: Exception) { holder.icon.setImageResource(R.drawable.ic_launcher_bubble) }; 
+                    } catch (e: Exception) { 
+                        holder.icon.setImageResource(R.drawable.ic_launcher_bubble) 
+                    }; 
                     holder.icon.alpha = if (app.isMinimized) 0.4f else 1.0f 
                 } 
             }
             holder.itemView.setOnClickListener { try { dismissKeyboardAndRestore(); if (reorderSelectionIndex != -1) { if (position == reorderSelectionIndex) { endReorderMode(false) } else { swapReorderItem(position) } } else { if (app.packageName != PACKAGE_BLANK) { app.isMinimized = !app.isMinimized; notifyItemChanged(position); if (isInstantMode) applyLayoutImmediate() } } } catch(e: Exception) {} }
             holder.itemView.setOnLongClickListener { if (isReorderTapEnabled) { startReorderMode(position); true } else { false } }
         }
-
         override fun getItemCount() = selectedAppsQueue.size
     }
 
@@ -14224,27 +12836,36 @@ class FloatingLauncherService : AccessibilityService() {
         private fun startRename(editText: EditText) { editText.isEnabled = true; editText.isFocusable = true; editText.isFocusableInTouchMode = true; editText.requestFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT) }
         private fun endRename(editText: EditText) { editText.isFocusable = false; editText.isFocusableInTouchMode = false; editText.isEnabled = false; val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(editText.windowToken, 0) }
 
-
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
             val item = displayList[position]
-            if (holder is AppHolder && item is MainActivity.AppInfo) { 
-                holder.text.text = item.label; 
-                if (item.packageName == PACKAGE_BLANK) { 
-                    holder.icon.setImageResource(R.drawable.ic_box_outline) 
-                } else { 
-                    try { 
-                        val realPkg = if (item.packageName.endsWith(":gemini")) item.packageName.substringBefore(":") else item.packageName
-                        holder.icon.setImageDrawable(packageManager.getApplicationIcon(realPkg)) 
-                    } catch (e: Exception) { holder.icon.setImageResource(R.drawable.ic_launcher_bubble) } 
-                }; 
-                val isSelected = selectedAppsQueue.any { it.packageName == item.packageName }; 
-                if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); 
-                holder.star.visibility = if (item.isFavorite) View.VISIBLE else View.GONE; 
-                holder.itemView.setOnClickListener { addToSelection(item) }; 
-                holder.itemView.setOnLongClickListener { toggleFavorite(item); refreshSearchList(); true } 
-            }
-        }
+            if (holder is AppHolder) holder.text.textSize = currentFontSize
+            if (holder is LayoutHolder) holder.nameInput.textSize = currentFontSize
+            if (holder is ProfileRichHolder) holder.name.textSize = currentFontSize
 
+            if (holder is AppHolder && item is MainActivity.AppInfo) { holder.text.text = item.label; if (item.packageName == PACKAGE_BLANK) { holder.icon.setImageResource(R.drawable.ic_box_outline) } else { try { holder.icon.setImageDrawable(packageManager.getApplicationIcon(item.packageName)) } catch (e: Exception) { holder.icon.setImageResource(R.drawable.ic_launcher_bubble) } }; val isSelected = selectedAppsQueue.any { it.packageName == item.packageName }; if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.star.visibility = if (item.isFavorite) View.VISIBLE else View.GONE; holder.itemView.setOnClickListener { addToSelection(item) }; holder.itemView.setOnLongClickListener { toggleFavorite(item); refreshSearchList(); true } }
+            else if (holder is ProfileRichHolder && item is ProfileOption) { holder.name.setText(item.name); holder.iconsContainer.removeAllViews(); if (!item.isCurrent) { for (pkg in item.apps.take(5)) { val iv = ImageView(holder.itemView.context); val lp = LinearLayout.LayoutParams(60, 60); lp.marginEnd = 8; iv.layoutParams = lp; if (pkg == PACKAGE_BLANK) { iv.setImageResource(R.drawable.ic_box_outline) } else { try { iv.setImageDrawable(packageManager.getApplicationIcon(pkg)) } catch (e: Exception) { iv.setImageResource(R.drawable.ic_launcher_bubble) } }; holder.iconsContainer.addView(iv) }; val info = "${getLayoutName(item.layout)} | ${getRatioName(item.resIndex)} | ${item.dpi}dpi"; holder.details.text = info; holder.details.visibility = View.VISIBLE; holder.btnSave.visibility = View.GONE; if (activeProfileName == item.name) { holder.itemView.setBackgroundResource(R.drawable.bg_item_active) } else { holder.itemView.setBackgroundResource(0) }; holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); loadProfile(item.name) }; holder.itemView.setOnLongClickListener { startRename(holder.name); true }; val saveProfileName = { val newName = holder.name.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameProfile(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_PROFILES) } }; endRename(holder.name) }; holder.name.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveProfileName(); holder.name.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(holder.name.windowToken, 0); updateDrawerHeight(false); true } else false }; holder.name.setOnFocusChangeListener { v, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus); if (!hasFocus) saveProfileName() } } else { holder.iconsContainer.removeAllViews(); holder.details.visibility = View.GONE; holder.btnSave.visibility = View.VISIBLE; holder.itemView.setBackgroundResource(0); holder.name.isEnabled = true; holder.name.isFocusable = true; holder.name.isFocusableInTouchMode = true; holder.itemView.setOnClickListener { saveProfile() }; holder.btnSave.setOnClickListener { saveProfile() } } }
+            else if (holder is LayoutHolder) {
+                holder.btnSave.visibility = View.GONE; holder.btnExtinguish.visibility = View.GONE
+                if (item is LayoutOption) { holder.nameInput.setText(item.name); val isSelected = if (item.type == LAYOUT_CUSTOM_DYNAMIC) { item.type == selectedLayoutType && item.name == activeCustomLayoutName } else { item.type == selectedLayoutType && activeCustomLayoutName == null }; if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { selectLayout(item) }; if (item.isCustomSaved) { holder.itemView.setOnLongClickListener { startRename(holder.nameInput); true }; val saveLayoutName = { val newName = holder.nameInput.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameCustomLayout(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); if (activeCustomLayoutName == item.name) { activeCustomLayoutName = newName; AppPreferences.saveLastCustomLayoutName(holder.itemView.context, newName) }; switchMode(MODE_LAYOUTS) } }; endRename(holder.nameInput) }; holder.nameInput.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveLayoutName(); true } else false }; holder.nameInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) saveLayoutName() } } else { holder.nameInput.isEnabled = false; holder.nameInput.isFocusable = false; holder.nameInput.setTextColor(Color.WHITE) } }
+                else if (item is ResolutionOption) { 
+                    holder.nameInput.setText(item.name); if (item.index >= 100) { holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.itemView.setOnLongClickListener { startRename(holder.nameInput); true }; val saveResName = { val newName = holder.nameInput.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameCustomResolution(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_RESOLUTION) } }; endRename(holder.nameInput) }; holder.nameInput.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveResName(); true } else false }; holder.nameInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) saveResName() } } else { holder.nameInput.isEnabled = false; holder.nameInput.isFocusable = false; holder.nameInput.setTextColor(Color.WHITE) }; val isSelected = (item.index == selectedResolutionIndex); if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { applyResolution(item) } 
+                }
+                else if (item is IconOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { pickIcon() } }
+                else if (item is ToggleOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); if (item.isEnabled) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); item.isEnabled = !item.isEnabled; item.onToggle(item.isEnabled); notifyItemChanged(position) } } 
+                else if (item is ActionOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); item.action() } }
+            }
+            else if (holder is CustomResInputHolder) {
+                holder.btnSave.setOnClickListener { val wStr = holder.inputW.text.toString().trim(); val hStr = holder.inputH.text.toString().trim(); if (wStr.isNotEmpty() && hStr.isNotEmpty()) { val w = wStr.toIntOrNull(); val h = hStr.toIntOrNull(); if (w != null && h != null && w > 0 && h > 0) { val gcdVal = calculateGCD(w, h); val wRatio = w / gcdVal; val hRatio = h / gcdVal; val resString = "${w}x${h}"; val name = "$wRatio:$hRatio Custom ($resString)"; AppPreferences.saveCustomResolution(holder.itemView.context, name, resString); safeToast("Added $name"); dismissKeyboardAndRestore(); switchMode(MODE_RESOLUTION) } else { safeToast("Invalid numbers") } } else { safeToast("Input W and H") } }
+                holder.inputW.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }; holder.inputH.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }
+            }
+            else if (holder is IconSettingHolder && item is IconOption) { try { val uriStr = AppPreferences.getIconUri(holder.itemView.context); if (uriStr != null) { val uri = Uri.parse(uriStr); val input = contentResolver.openInputStream(uri); val bitmap = BitmapFactory.decodeStream(input); input?.close(); holder.preview.setImageBitmap(bitmap) } else { holder.preview.setImageResource(R.drawable.ic_launcher_bubble) } } catch(e: Exception) { holder.preview.setImageResource(R.drawable.ic_launcher_bubble) }; holder.itemView.setOnClickListener { pickIcon() } }
+            else if (holder is DpiHolder && item is DpiOption) { 
+                holder.input.setText(item.currentDpi.toString()); holder.input.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { val valInt = v.text.toString().toIntOrNull(); if (valInt != null) { selectDpi(valInt); safeToast("DPI set to $valInt") }; dismissKeyboardAndRestore(); true } else false }; holder.input.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus); if (!hasFocus) { val valInt = holder.input.text.toString().toIntOrNull(); if (valInt != null && valInt != item.currentDpi) { selectDpi(valInt) } } }; holder.btnMinus.setOnClickListener { val v = holder.input.text.toString().toIntOrNull() ?: 160; val newVal = (v - 5).coerceAtLeast(50); holder.input.setText(newVal.toString()); selectDpi(newVal) }; holder.btnPlus.setOnClickListener { val v = holder.input.text.toString().toIntOrNull() ?: 160; val newVal = (v + 5).coerceAtMost(600); holder.input.setText(newVal.toString()); selectDpi(newVal) } 
+            }
+            else if (holder is FontSizeHolder && item is FontSizeOption) { holder.textVal.text = item.currentSize.toInt().toString(); holder.btnMinus.setOnClickListener { changeFontSize(item.currentSize - 1) }; holder.btnPlus.setOnClickListener { changeFontSize(item.currentSize + 1) } }
+            else if (holder is HeightHolder && item is HeightOption) { holder.textVal.text = item.currentPercent.toString(); holder.btnMinus.setOnClickListener { changeDrawerHeight(-5) }; holder.btnPlus.setOnClickListener { changeDrawerHeight(5) } }
+            else if (holder is WidthHolder && item is WidthOption) { holder.textVal.text = item.currentPercent.toString(); holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }; holder.btnPlus.setOnClickListener { changeDrawerWidth(5) } }
+        }
         override fun getItemCount() = displayList.size
     }
 }

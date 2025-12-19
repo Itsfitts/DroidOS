@@ -258,20 +258,19 @@ override fun setBrightness(displayId: Int, brightness: Int) {
     }
     // --- V1.0 LOGIC: Window Management (Retained for Tiling/Minimizing) ---
     
-
     override fun forceStop(packageName: String) {
         val token = Binder.clearCallingIdentity()
         try { 
-            val realPkg = if (packageName.contains(":")) packageName.substringBefore(":") else packageName
+            val realPkg = if (packageName.endsWith(":gemini")) packageName.substringBefore(":") else packageName
             Runtime.getRuntime().exec("am force-stop $realPkg").waitFor() 
         } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
     }
-
 
     override fun runCommand(command: String) {
         val token = Binder.clearCallingIdentity()
         try { Runtime.getRuntime().exec(command).waitFor() } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
     }
+
 
 
     override fun repositionTask(packageName: String, left: Int, top: Int, right: Int, bottom: Int) {
@@ -284,6 +283,7 @@ override fun setBrightness(displayId: Int, brightness: Int) {
             val process = Runtime.getRuntime().exec(cmd)
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             var line: String?; var targetTaskId = -1
+            
             while (reader.readLine().also { line = it } != null) {
                 if (line!!.contains("TASK") && line!!.contains("id=")) {
                      val match = Regex("id=(\\d+)").find(line!!)
@@ -292,12 +292,14 @@ override fun setBrightness(displayId: Int, brightness: Int) {
                 if (targetTaskId != -1 && line!!.contains(searchStr)) break
             }
             reader.close(); process.waitFor()
+            
             if (targetTaskId != -1) {
                 Runtime.getRuntime().exec("am task set-windowing-mode $targetTaskId 5").waitFor()
                 Runtime.getRuntime().exec("am task resize $targetTaskId $left $top $right $bottom").waitFor()
             }
         } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
     }
+
 
 
     override fun getVisiblePackages(displayId: Int): List<String> {
@@ -421,14 +423,20 @@ override fun getWindowLayouts(displayId: Int): List<String> {
         var taskId = -1; val token = Binder.clearCallingIdentity()
         try {
             var searchStr = packageName
+            // Specific activity search for Gemini
             if (packageName.endsWith(":gemini")) searchStr = "robin.main.MainActivity"
+            
             val cmd = arrayOf("sh", "-c", "dumpsys activity activities | grep -E 'Task id|$searchStr'")
             val p = Runtime.getRuntime().exec(cmd); val r = BufferedReader(InputStreamReader(p.inputStream))
             var line: String?
             while (r.readLine().also { line = it } != null) {
                 if (line!!.contains(searchStr)) {
-                    if (line!!.startsWith("* Task{") || line!!.startsWith("Task{")) { val m = Regex("#(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break } }
-                    if (line!!.contains("ActivityRecord")) { val m = Regex("t(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break } }
+                    if (line!!.startsWith("* Task{") || line!!.startsWith("Task{")) {
+                        val m = Regex("#(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break }
+                    }
+                    if (line!!.contains("ActivityRecord")) {
+                        val m = Regex("t(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break }
+                    }
                 }
             }
         } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
