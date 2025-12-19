@@ -151,12 +151,6 @@ Cover-Screen-Launcher/
 Cover-Screen-Trackpad/
   app/
     src/
-      androidTest/
-        java/
-          com/
-            example/
-              coverscreentester/
-                ExampleInstrumentedTest.kt
       main/
         aidl/
           com/
@@ -233,12 +227,6 @@ Cover-Screen-Trackpad/
             data_extraction_rules.xml
             method.xml
         AndroidManifest.xml
-      test/
-        java/
-          com/
-            example/
-              coverscreentester/
-                ExampleUnitTest.kt
     .gitignore
     build.gradle.kts
     proguard-rules.pro
@@ -1602,325 +1590,6 @@ class IconPickerActivity : ComponentActivity() {
         } catch (e: Exception) {
             finish()
         }
-    }
-}
-```
-
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MenuActivity.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.app.Activity
-import android.content.Intent
-import android.graphics.Color
-import android.os.Bundle
-import android.view.Gravity
-import android.widget.Button
-import android.widget.ImageButton
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import rikka.shizuku.Shizuku
-
-class MenuActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // --- NEW: PERMISSION CHECK LANDING PAGE LOGIC ---
-        if (!hasRequiredPermissions()) {
-            val intent = Intent(this, PermissionActivity::class.java)
-            startActivity(intent)
-            finish() // Close MenuActivity so user can't go back without perms
-            return
-        }
-        // ------------------------------------------------
-
-        // 1. Shizuku Permission Check (Existing logic can remain or be removed as double-check)
-        checkShizukuPermission() 
-
-        // 2. Main Layout Container (Dark Theme)
-        val mainLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-            setPadding(40, 60, 40, 40)
-            setBackgroundColor(Color.parseColor("#1E1E1E")) // Dark Background
-            gravity = Gravity.TOP
-        }
-
-        // --- TITLE HEADER ---
-        val headerText = TextView(this).apply {
-            text = "CoverScreen Launcher"
-            textSize = 22f
-            setTextColor(Color.LTGRAY)
-            gravity = Gravity.CENTER_HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                bottomMargin = 50
-            }
-        }
-        mainLayout.addView(headerText)
-
-        // --- PROFILE ROW (Horizontal: Text + Save Icon) ---
-        val profileRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                bottomMargin = 60
-            }
-            gravity = Gravity.CENTER_VERTICAL
-            // Add a subtle background to the row to make it distinct
-            setBackgroundColor(Color.parseColor("#2D2D2D"))
-            setPadding(20, 20, 20, 20)
-        }
-
-        // Profile Text (Left side)
-        val profileText = TextView(this).apply {
-            text = "Current: Default" 
-            textSize = 18f
-            setTextColor(Color.WHITE)
-            // Weight 1 pushes the icon to the far right. 
-            // Change to 0 and WRAP_CONTENT if you want icon immediately next to text.
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) 
-        }
-
-        // Save Icon (Right side)
-        val saveBtn = ImageButton(this).apply {
-            setImageResource(android.R.drawable.ic_menu_save)
-            setBackgroundColor(Color.TRANSPARENT) // Transparent bg
-            setColorFilter(Color.CYAN) // Cyan tint to make it pop
-            setPadding(20, 0, 0, 0)
-            setOnClickListener {
-                Toast.makeText(this@MenuActivity, "Profile Saved (Placeholder)", Toast.LENGTH_SHORT).show()
-                // TODO: Connect to AppPreferences.saveProfile logic
-            }
-        }
-
-        profileRow.addView(profileText)
-        profileRow.addView(saveBtn)
-        mainLayout.addView(profileRow)
-
-        // --- LAUNCHER BUTTONS ---
-        
-        // Button 1: 4-Quadrant
-        val btnQuad = Button(this).apply {
-            text = "Launch 4-Quadrant"
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#444444"))
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                bottomMargin = 30
-            }
-            setOnClickListener {
-                launchActivity(QuadrantActivity::class.java)
-            }
-        }
-
-        // Button 2: Split-Screen
-        val btnSplit = Button(this).apply {
-            text = "Launch Split-Screen"
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#444444"))
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
-            setOnClickListener {
-                launchActivity(TriSplitActivity::class.java)
-            }
-        }
-
-        mainLayout.addView(btnQuad)
-        mainLayout.addView(btnSplit)
-
-        setContentView(mainLayout)
-    }
-
-    // Helper function to check all required permissions
-    private fun hasRequiredPermissions(): Boolean {
-        val hasOverlay = android.provider.Settings.canDrawOverlays(this)
-        val hasShizuku = try { 
-            rikka.shizuku.Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED 
-        } catch(e: Exception) { false }
-        
-        val hasNotif = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        } else true
-
-        return hasOverlay && hasShizuku && hasNotif
-    }
-
-    private fun checkShizukuPermission() {
-        if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
-            // Shizuku not running
-        } else if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            Shizuku.requestPermission(0)
-            Shizuku.addRequestPermissionResultListener(this)
-        }
-    }
-
-    private fun launchActivity(cls: Class<*>) {
-        try {
-            val intent = Intent(this, cls)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-        if (grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Shizuku Granted", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        Shizuku.removeRequestPermissionResultListener(this)
-    }
-}
-```
-
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/PermissionActivity.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.Manifest
-import android.app.Activity
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Color
-import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.provider.Settings
-import android.view.View
-import android.widget.Button
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import rikka.shizuku.Shizuku
-
-class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
-
-    private lateinit var btnGrantOverlay: LinearLayout
-    private lateinit var btnGrantShizuku: LinearLayout
-    private lateinit var btnGrantNotif: LinearLayout
-    
-    private lateinit var iconOverlay: ImageView
-    private lateinit var iconShizuku: ImageView
-    private lateinit var iconNotif: ImageView
-    
-    private lateinit var btnContinue: Button
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_permissions)
-
-        // Bind Views
-        btnGrantOverlay = findViewById(R.id.btn_perm_overlay)
-        btnGrantShizuku = findViewById(R.id.btn_perm_shizuku)
-        btnGrantNotif = findViewById(R.id.btn_perm_notif)
-        
-        iconOverlay = findViewById(R.id.icon_status_overlay)
-        iconShizuku = findViewById(R.id.icon_status_shizuku)
-        iconNotif = findViewById(R.id.icon_status_notif)
-        
-        btnContinue = findViewById(R.id.btn_continue)
-
-        // Set Listeners
-        btnGrantOverlay.setOnClickListener {
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-            startActivityForResult(intent, 101)
-        }
-
-        btnGrantShizuku.setOnClickListener {
-            if (ShizukuHelper.isShizukuAvailable()) {
-                if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                    Shizuku.requestPermission(0)
-                } else {
-                    Toast.makeText(this, "Shizuku already granted", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Toast.makeText(this, "Shizuku not running", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        btnGrantNotif.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= 33) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 102)
-            } else {
-                Toast.makeText(this, "Not needed for this Android version", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        btnContinue.setOnClickListener {
-            if (hasAllPermissions()) {
-                startActivity(Intent(this, MenuActivity::class.java))
-                finish()
-            }
-        }
-
-        Shizuku.addRequestPermissionResultListener(this)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        refreshUI()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        Shizuku.removeRequestPermissionResultListener(this)
-    }
-
-    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-        refreshUI()
-    }
-
-    private fun refreshUI() {
-        val hasOverlay = Settings.canDrawOverlays(this)
-        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
-        val hasNotif = if (Build.VERSION.SDK_INT >= 33) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        } else true
-
-        updateItem(btnGrantOverlay, iconOverlay, hasOverlay)
-        updateItem(btnGrantShizuku, iconShizuku, hasShizuku)
-        updateItem(btnGrantNotif, iconNotif, hasNotif)
-
-        if (hasOverlay && hasShizuku && hasNotif) {
-            btnContinue.isEnabled = true
-            btnContinue.alpha = 1.0f
-            btnContinue.text = "Start Launcher"
-        } else {
-            btnContinue.isEnabled = false
-            btnContinue.alpha = 0.5f
-            btnContinue.text = "Grant Permissions to Continue"
-        }
-    }
-
-    private fun updateItem(container: LinearLayout, icon: ImageView, granted: Boolean) {
-        if (granted) {
-            icon.setImageResource(android.R.drawable.checkbox_on_background)
-            icon.setColorFilter(Color.GREEN)
-            container.isClickable = false
-            container.alpha = 0.6f
-        } else {
-            icon.setImageResource(android.R.drawable.checkbox_off_background)
-            icon.setColorFilter(Color.RED)
-            container.isClickable = true
-            container.alpha = 1.0f
-        }
-    }
-
-    private fun hasAllPermissions(): Boolean {
-        val hasOverlay = Settings.canDrawOverlays(this)
-        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
-        val hasNotif = if (Build.VERSION.SDK_INT >= 33) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        } else true
-        return hasOverlay && hasShizuku && hasNotif
     }
 }
 ```
@@ -3652,165 +3321,6 @@ class TriSplitActivity : AppCompatActivity() {
 </LinearLayout>
 ```
 
-## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_permissions.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="24dp"
-    android:background="#121212"
-    android:gravity="center">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="DroidOS Setup"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:textColor="#FFFFFF"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Permissions required for Launcher"
-        android:textSize="14sp"
-        android:textColor="#AAAAAA"
-        android:layout_marginBottom="40dp" />
-
-    <LinearLayout
-        android:id="@+id/btn_perm_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@drawable/bg_item_press"
-        android:padding="16dp"
-        android:layout_marginBottom="16dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true">
-        
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Display Over Other Apps"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"/>
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Required for Floating Bubble"
-                android:textColor="#888888"
-                android:textSize="12sp"/>
-        </LinearLayout>
-        
-        <ImageView
-            android:id="@+id/icon_status_overlay"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/checkbox_off_background"/>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/btn_perm_shizuku"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@drawable/bg_item_press"
-        android:padding="16dp"
-        android:layout_marginBottom="16dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Shizuku Access"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"/>
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Required for Window Management"
-                android:textColor="#888888"
-                android:textSize="12sp"/>
-        </LinearLayout>
-
-        <ImageView
-            android:id="@+id/icon_status_shizuku"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/checkbox_off_background"/>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/btn_perm_notif"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@drawable/bg_item_press"
-        android:padding="16dp"
-        android:layout_marginBottom="32dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Notifications"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"/>
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Required to keep service alive"
-                android:textColor="#888888"
-                android:textSize="12sp"/>
-        </LinearLayout>
-
-        <ImageView
-            android:id="@+id/icon_status_notif"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/checkbox_off_background"/>
-    </LinearLayout>
-
-    <Button
-        android:id="@+id/btn_continue"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Grant Permissions to Continue"
-        android:backgroundTint="#00A0E9"
-        android:textColor="#FFFFFF"
-        android:padding="14dp"
-        android:alpha="0.5"
-        android:enabled="false"/>
-
-</LinearLayout>
-```
-
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_quadrant.xml
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -5277,34 +4787,6 @@ class ShellUserService : IShellService.Stub() {
 }
 ```
 
-## File: Cover-Screen-Trackpad/app/src/androidTest/java/com/example/coverscreentester/ExampleInstrumentedTest.kt
-```kotlin
-package com.example.coverscreentester
-
-import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.ext.junit.runners.AndroidJUnit4
-
-import org.junit.Test
-import org.junit.runner.RunWith
-
-import org.junit.Assert.*
-
-/**
- * Instrumented test, which will execute on an Android device.
- *
- * See [testing documentation](http://d.android.com/tools/testing).
- */
-@RunWith(AndroidJUnit4::class)
-class ExampleInstrumentedTest {
-    @Test
-    fun useAppContext() {
-        // Context of the app under test.
-        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.example.coverscreentester", appContext.packageName)
-    }
-}
-```
-
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardActivity.kt
 ```kotlin
 package com.example.coverscreentester
@@ -6634,27 +6116,6 @@ class TrackpadService : Service() {
     </data-extraction-rules>
 ```
 
-## File: Cover-Screen-Trackpad/app/src/test/java/com/example/coverscreentester/ExampleUnitTest.kt
-```kotlin
-package com.example.coverscreentester
-
-import org.junit.Test
-
-import org.junit.Assert.*
-
-/**
- * Example local unit test, which will execute on the development machine (host).
- *
- * See [testing documentation](http://d.android.com/tools/testing).
- */
-class ExampleUnitTest {
-    @Test
-    fun addition_isCorrect() {
-        assertEquals(4, 2 + 2)
-    }
-}
-```
-
 ## File: Cover-Screen-Trackpad/app/.gitignore
 ```
 /build
@@ -7737,6 +7198,499 @@ object AppPreferences {
         return getPrefs(context).getBoolean(KEY_REORDER_METHOD_SCROLL, true) // Default Enabled
     }
 }
+```
+
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MenuActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Color
+import android.os.Bundle
+import android.view.Gravity
+import android.widget.Button
+import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import rikka.shizuku.Shizuku
+
+class MenuActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // --- NEW: PERMISSION CHECK LANDING PAGE LOGIC ---
+        if (!hasRequiredPermissions()) {
+            val intent = Intent(this, PermissionActivity::class.java)
+            startActivity(intent)
+            finish() // Close MenuActivity so user can't go back without perms
+            return
+        }
+        // ------------------------------------------------
+
+        // 1. Shizuku Permission Check (Existing logic can remain or be removed as double-check)
+        checkShizukuPermission() 
+
+        // 2. Main Layout Container (Dark Theme)
+        val mainLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+            setPadding(40, 60, 40, 40)
+            setBackgroundColor(Color.parseColor("#1E1E1E")) // Dark Background
+            gravity = Gravity.TOP
+        }
+
+        // --- TITLE HEADER ---
+        val headerText = TextView(this).apply {
+            text = "CoverScreen Launcher"
+            textSize = 22f
+            setTextColor(Color.LTGRAY)
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+                bottomMargin = 50
+            }
+        }
+        mainLayout.addView(headerText)
+
+        // --- PROFILE ROW (Horizontal: Text + Save Icon) ---
+        val profileRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+                bottomMargin = 60
+            }
+            gravity = Gravity.CENTER_VERTICAL
+            // Add a subtle background to the row to make it distinct
+            setBackgroundColor(Color.parseColor("#2D2D2D"))
+            setPadding(20, 20, 20, 20)
+        }
+
+        // Profile Text (Left side)
+        val profileText = TextView(this).apply {
+            text = "Current: Default" 
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            // Weight 1 pushes the icon to the far right. 
+            // Change to 0 and WRAP_CONTENT if you want icon immediately next to text.
+            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) 
+        }
+
+        // Save Icon (Right side)
+        val saveBtn = ImageButton(this).apply {
+            setImageResource(android.R.drawable.ic_menu_save)
+            setBackgroundColor(Color.TRANSPARENT) // Transparent bg
+            setColorFilter(Color.CYAN) // Cyan tint to make it pop
+            setPadding(20, 0, 0, 0)
+            setOnClickListener {
+                Toast.makeText(this@MenuActivity, "Profile Saved (Placeholder)", Toast.LENGTH_SHORT).show()
+                // TODO: Connect to AppPreferences.saveProfile logic
+            }
+        }
+
+        profileRow.addView(profileText)
+        profileRow.addView(saveBtn)
+        mainLayout.addView(profileRow)
+
+        // --- LAUNCHER BUTTONS ---
+        
+        // Button 1: 4-Quadrant
+        val btnQuad = Button(this).apply {
+            text = "Launch 4-Quadrant"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#444444"))
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+                bottomMargin = 30
+            }
+            setOnClickListener {
+                launchActivity(QuadrantActivity::class.java)
+            }
+        }
+
+        // Button 2: Split-Screen
+        val btnSplit = Button(this).apply {
+            text = "Launch Split-Screen"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#444444"))
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+            setOnClickListener {
+                launchActivity(TriSplitActivity::class.java)
+            }
+        }
+
+        mainLayout.addView(btnQuad)
+        mainLayout.addView(btnSplit)
+
+        setContentView(mainLayout)
+    }
+
+    // Helper function to check all required permissions
+    private fun hasRequiredPermissions(): Boolean {
+        val hasOverlay = android.provider.Settings.canDrawOverlays(this)
+        val hasShizuku = try { 
+            rikka.shizuku.Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED 
+        } catch(e: Exception) { false }
+        
+        val hasNotif = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else true
+
+        return hasOverlay && hasShizuku && hasNotif
+    }
+
+    private fun checkShizukuPermission() {
+        if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
+            // Shizuku not running
+        } else if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Shizuku.requestPermission(0)
+            Shizuku.addRequestPermissionResultListener(this)
+        }
+    }
+
+    private fun launchActivity(cls: Class<*>) {
+        try {
+            val intent = Intent(this, cls)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
+        if (grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Shizuku Granted", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Shizuku.removeRequestPermissionResultListener(this)
+    }
+}
+```
+
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/PermissionActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.net.Uri
+import android.os.Bundle
+import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import rikka.shizuku.Shizuku
+
+class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
+
+    private lateinit var btnGrantOverlay: LinearLayout
+    private lateinit var btnGrantShizuku: LinearLayout
+    private lateinit var btnGrantAccessibility: LinearLayout
+    
+    private lateinit var iconOverlay: ImageView
+    private lateinit var iconShizuku: ImageView
+    private lateinit var iconAccessibility: ImageView
+    
+    private lateinit var btnContinue: Button
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_permissions)
+
+        // Bind Views
+        btnGrantOverlay = findViewById(R.id.btn_perm_overlay)
+        btnGrantShizuku = findViewById(R.id.btn_perm_shizuku)
+        btnGrantAccessibility = findViewById(R.id.btn_perm_accessibility)
+        
+        iconOverlay = findViewById(R.id.icon_status_overlay)
+        iconShizuku = findViewById(R.id.icon_status_shizuku)
+        iconAccessibility = findViewById(R.id.icon_status_accessibility)
+        
+        btnContinue = findViewById(R.id.btn_continue)
+
+        // --- 1. OVERLAY PERMISSION ---
+        btnGrantOverlay.setOnClickListener {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            startActivityForResult(intent, 101)
+        }
+
+        // --- 2. SHIZUKU PERMISSION ---
+        btnGrantShizuku.setOnClickListener {
+            try {
+                if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+                    Shizuku.requestPermission(0)
+                } else {
+                    Toast.makeText(this, "Shizuku already granted", Toast.LENGTH_SHORT).show()
+                    refreshUI()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Shizuku not running. Please start Shizuku first.", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        // --- 3. ACCESSIBILITY PERMISSION (With Disclosure) ---
+        btnGrantAccessibility.setOnClickListener {
+            showAccessibilityDisclosure()
+        }
+
+        btnContinue.setOnClickListener {
+            if (hasAllPermissions()) {
+                startActivity(Intent(this, MenuActivity::class.java))
+                finish()
+            }
+        }
+
+        Shizuku.addRequestPermissionResultListener(this)
+    }
+
+    private fun showAccessibilityDisclosure() {
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Accessibility Service Required")
+            .setMessage("This app uses the Accessibility Service API to display floating windows and perform global actions (like Home/Back) on top of other apps.\n\n" +
+                        "No data is collected, stored, or shared. This permission is strictly used for the launcher functionality.")
+            .setPositiveButton("Agree & Grant") { _, _ ->
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                startActivity(intent)
+                Toast.makeText(this, "Find 'Quadrant Launcher' and enable it", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Not Now", null)
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume() 
+        refreshUI()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy() 
+        Shizuku.removeRequestPermissionResultListener(this)
+    }
+
+    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
+        refreshUI()
+    }
+
+    private fun refreshUI() {
+        val hasOverlay = Settings.canDrawOverlays(this)
+        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
+        val hasAccessibility = isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)
+        
+        updateItem(btnGrantOverlay, iconOverlay, hasOverlay)
+        updateItem(btnGrantShizuku, iconShizuku, hasShizuku)
+        updateItem(btnGrantAccessibility, iconAccessibility, hasAccessibility)
+
+        if (hasOverlay && hasShizuku && hasAccessibility) {
+            btnContinue.isEnabled = true
+            btnContinue.alpha = 1.0f
+            btnContinue.text = "Start Launcher"
+        } else {
+            btnContinue.isEnabled = false
+            btnContinue.alpha = 0.5f
+            btnContinue.text = "Grant Permissions to Continue"
+        }
+    }
+
+    private fun updateItem(container: LinearLayout, icon: ImageView, granted: Boolean) {
+        if (granted) {
+            icon.setImageResource(android.R.drawable.checkbox_on_background)
+            icon.setColorFilter(Color.GREEN)
+            container.isClickable = false
+            container.alpha = 0.6f
+        } else {
+            icon.setImageResource(android.R.drawable.checkbox_off_background)
+            icon.setColorFilter(Color.RED)
+            container.isClickable = true
+            container.alpha = 1.0f
+        }
+    }
+
+    private fun hasAllPermissions(): Boolean {
+        val hasOverlay = Settings.canDrawOverlays(this)
+        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
+        val hasAccessibility = isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)
+        return hasOverlay && hasShizuku && hasAccessibility
+    }
+
+    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (enabledService in enabledServices) {
+            val serviceInfo = enabledService.resolveInfo.serviceInfo
+            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
+                return true
+            }
+        }
+        return false
+    }
+}
+```
+
+## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_permissions.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="#121212"
+    android:gravity="center">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="DroidOS Setup"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Permissions required for Launcher"
+        android:textSize="14sp"
+        android:textColor="#AAAAAA"
+        android:layout_marginBottom="30dp" />
+
+    <LinearLayout
+        android:id="@+id/btn_perm_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/bg_item_press"
+        android:padding="16dp"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Display Over Other Apps"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Required for Floating Bubble"
+                android:textColor="#888888"
+                android:textSize="12sp"/>
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/icon_status_overlay"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/checkbox_off_background"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/btn_perm_shizuku"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/bg_item_press"
+        android:padding="16dp"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Shizuku Access"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Required for Window Management"
+                android:textColor="#888888"
+                android:textSize="12sp"/>
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/icon_status_shizuku"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/checkbox_off_background"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/btn_perm_accessibility"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/bg_item_press"
+        android:padding="16dp"
+        android:layout_marginBottom="32dp"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Accessibility Service"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Required for Launcher Operations"
+                android:textColor="#888888"
+                android:textSize="12sp"/>
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/icon_status_accessibility"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/checkbox_off_background"/>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btn_continue"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Grant Permissions to Continue"
+        android:backgroundTint="#00A0E9"
+        android:textColor="#FFFFFF"
+        android:padding="14dp"
+        android:alpha="0.5"
+        android:enabled="false"/>
+
+</LinearLayout>
 ```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ManualAdjustActivity.kt
@@ -9596,151 +9550,6 @@ You are free to use, modify, and distribute this software, but all modifications
 ---
 ```
 
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.accessibilityservice.AccessibilityServiceInfo
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Bundle
-import android.provider.Settings
-import android.view.accessibility.AccessibilityManager
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import rikka.shizuku.Shizuku
-
-class MainActivity : AppCompatActivity() {
-
-    companion object {
-        const val SELECTED_APP_PACKAGE = "SELECTED_APP_PACKAGE"
-    }
-
-    data class AppInfo(
-        val label: String,
-        val packageName: String,
-        var isFavorite: Boolean = false,
-        var isMinimized: Boolean = false
-    )
-
-    // Helper function to check if accessibility service is enabled
-    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        for (enabledService in enabledServices) {
-            val serviceInfo = enabledService.resolveInfo.serviceInfo
-            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
-                return true
-            }
-        }
-        return false
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // Check overlay permission (still needed for the overlay windows)
-        if (!Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "Please grant Overlay Permission", Toast.LENGTH_LONG).show()
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-            finish()
-            return
-        }
-
-        // Request Shizuku permission if not granted
-        try {
-            if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                Shizuku.requestPermission(0)
-            }
-        } catch (e: Exception) {}
-
-        // Check if accessibility service is enabled
-        if (!isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)) {
-            Toast.makeText(this, "Please enable Quadrant Launcher in Accessibility Settings", Toast.LENGTH_LONG).show()
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        } else {
-            Toast.makeText(this, "Launcher is active", Toast.LENGTH_SHORT).show()
-        }
-
-        finish()
-    }
-}
-```
-
-## File: Cover-Screen-Launcher/app/src/main/AndroidManifest.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-
-    <queries>
-        <package android:name="moe.shizuku.privileged.api" />
-        <package android:name="rikka.shizuku.ui" />
-    </queries>
-
-    <application
-        android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:icon="@mipmap/ic_launcher_adaptive"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_adaptive"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.QuadrantLauncher"
-        tools:targetApi="31">
-
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            android:authorities="${applicationId}.shizuku"
-            android:enabled="true"
-            android:exported="true"
-            android:multiprocess="false" />
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        
-        <activity android:name=".IconPickerActivity" 
-                  android:theme="@android:style/Theme.Translucent.NoTitleBar"
-                  android:exported="false" />
-
-        <service
-            android:name=".FloatingLauncherService"
-            android:enabled="true"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-
-        <activity android:name=".SplitActivity" android:exported="false" />
-
-        <activity
-            android:name=".PermissionActivity"
-            android:theme="@android:style/Theme.NoTitleBar"
-            android:screenOrientation="portrait" />
-
-    </application>
-</manifest>
-```
-
 ## File: Cover-Screen-Launcher/app/build.gradle.kts
 ```
 plugins {
@@ -11561,6 +11370,157 @@ CleanBuildTrackpad='cd ~/projects/DroidOS/Cover-Screen-Trackpad && ./gradlew cle
 12-18 20:47:33.704  1401  1700 I InputDispatcher: Delivering touch to (15402): action: 0x4, f=0x0, d=0, 'c422cb7', t=1 
 12-18 20:47:33.704  1401  1700 I InputDispatcher: Delivering touch to (2045): action: 0x4, f=0x0, d=0, '253deac', t=1 
 12-18 20:47:33.704  1401  1700 I InputDispatcher: Delivering touch to (19314): action: 0x0, f=0x0, d=0, '897ad1d', t=1 +(0,-116)
+```
+
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import rikka.shizuku.Shizuku
+
+class MainActivity : AppCompatActivity() {
+
+    companion object {
+        const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
+    }
+
+    data class AppInfo(
+        val label: String,
+        val packageName: String,
+        var isFavorite: Boolean = false,
+        var isMinimized: Boolean = false
+    )
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Redirect to PermissionActivity if essential permissions are missing
+        if (!hasAllPermissions()) {
+            val intent = Intent(this, PermissionActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        // If all good, show status
+        Toast.makeText(this, "Launcher is active", Toast.LENGTH_SHORT).show()
+        finish()
+    }
+
+    private fun hasAllPermissions(): Boolean {
+        // 1. Overlay
+        if (!Settings.canDrawOverlays(this)) return false
+
+        // 2. Shizuku
+        val shizukuGranted = try {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
+        if (!shizukuGranted) return false
+
+        // 3. Accessibility
+        if (!isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)) return false
+
+        // 4. Notifications removed (Not strictly required for service to run)
+
+        return true
+    }
+
+    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (enabledService in enabledServices) {
+            val serviceInfo = enabledService.resolveInfo.serviceInfo
+            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
+                return true
+            }
+        }
+        return false
+    }
+}
+```
+
+## File: Cover-Screen-Launcher/app/src/main/AndroidManifest.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="rikka.shizuku.ui" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher_adaptive"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_adaptive"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.QuadrantLauncher"
+        tools:targetApi="31">
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <activity android:name=".IconPickerActivity" 
+                  android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                  android:exported="false" />
+
+        <service
+            android:name=".FloatingLauncherService"
+            android:enabled="true"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <activity android:name=".SplitActivity" android:exported="false" />
+
+        <activity
+            android:name=".PermissionActivity"
+            android:theme="@android:style/Theme.NoTitleBar"
+            android:screenOrientation="portrait" />
+
+    </application>
+</manifest>
 ```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardManager.kt
