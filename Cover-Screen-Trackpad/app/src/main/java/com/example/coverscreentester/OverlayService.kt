@@ -55,6 +55,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var isBound = false
     private val handler = Handler(Looper.getMainLooper())
 
+    private var lastBlockTime: Long = 0
+
     private var bubbleView: View? = null
     private var trackpadLayout: FrameLayout? = null
     private var cursorLayout: FrameLayout? = null
@@ -147,30 +149,40 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =========================
     // BLOCKING TRIGGER (Global)
     // =========================
-    private fun triggerAggressiveBlocking() {
-        if (!prefs.prefBlockSoftKeyboard || shellService == null) return
-        
-        Thread {
-            try {
-                // 1. VOICE DETECTED? ABORT BLOCKING
-                // If we know voice is active, force the system to ALLOW soft keyboards (so voice UI shows)
-                if (isVoiceActive) {
-                    shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
-                    return@Thread
-                }
 
-                // 2. STANDARD BLOCKING LOGIC
-                shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
-                shellService?.injectDummyHardwareKey(0) 
-                if (currentDisplayId != 0) shellService?.injectDummyHardwareKey(currentDisplayId)
-                
-                // Extra ID 1 Pulse for safety
-                shellService?.injectKey(KeyEvent.KEYCODE_UNKNOWN, KeyEvent.ACTION_DOWN, 0, 0, 1)
-                shellService?.injectKey(KeyEvent.KEYCODE_UNKNOWN, KeyEvent.ACTION_UP, 0, 0, 1)
-                
-            } catch(e: Exception){}
-        }.start()
+// FILE: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
+// LOC: Around line 1550 (Search for 'fun triggerAggressiveBlocking')
+
+// =================================================================================
+// FUNCTION: triggerAggressiveBlocking
+// SUMMARY: Enforces Soft Keyboard blocking.
+// CHANGES: Commented out 'enforceZOrder()' to stop the UI Lag Loop. 
+//          We now rely purely on 'softKeyboardController.showMode' which is faster.
+// =================================================================================
+    private fun triggerAggressiveBlocking() {
+        // [PERFORMANCE FIX] 
+        // Previously, this called 'enforceZOrder()' which removed/re-added views.
+        // This caused massive lag/stutter on the Cover Screen.
+        // Since we are already setting SHOW_MODE_HIDDEN below, the manual Z-order 
+        // shuffle is unnecessary and harmful.
+        
+        // enforceZOrder() // <--- DISABLED TO FIX LAG
+
+        // Rely on standard Android API to suppress keyboard
+        if (Build.VERSION.SDK_INT >= 24) {
+            try {
+                if (softKeyboardController.showMode != AccessibilityService.SHOW_MODE_HIDDEN) {
+                    softKeyboardController.showMode = AccessibilityService.SHOW_MODE_HIDDEN
+                }
+            } catch (e: Exception) {
+                // Controller might not be connected yet
+            }
+        }
     }
+// =================================================================================
+// END FUNCTION: triggerAggressiveBlocking
+// =================================================================================
+
 
     private fun setSoftKeyboardBlocking(enabled: Boolean) {
         if (shellService == null) {
@@ -264,55 +276,71 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }.start()
     }
 
-    // =================================================================================
-    // FUNCTION: onAccessibilityEvent
-    // SUMMARY:  Monitors window events.
-    //           CRITICAL FIX: Removed the 'isVoiceActive = false' check that was
-    //           killing the flag immediately when the Google Voice window appeared.
-    // =================================================================================
+
+// FUNCTION: onAccessibilityEvent
+// SUMMARY: Monitors system events. Now includes Display Check (Main Screen Fix) and Throttle (Lag Fix).
+// =================================================================================
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         
-        val pkg = event.packageName?.toString() ?: ""
-        
-        // 1. Detect Google Voice UI
-        if (pkg.contains("google.android.googlequicksearchbox") || 
-            pkg.contains("com.google.android.voicesearch") ||
-            pkg.contains("com.google.android.tts")) {
+        // [FIX 1] Multi-Display Protection (API 30+)
+        // If the event happened on a different screen (e.g. Main Screen), ignore it.
+        // We only want to block the keyboard if the user is interacting with OUR screen.
+        if (Build.VERSION.SDK_INT >= 30) {
+            // 'currentDisplayId' is an existing variable tracking where our UI is
+            if (event.displayId != currentDisplayId) {
+                return
+            }
+        }
+
+        val eventPkg = event.packageName?.toString() ?: ""
+
+        // [FIX 2] Anti-Loop (Ignore Self)
+        // If WE caused the event (by moving windows), ignore it.
+        if (eventPkg == packageName) return
+
+        // [FIX 3] Allow Voice Input
+        if (eventPkg.contains("google.android.googlequicksearchbox") || 
+            eventPkg.contains("com.google.android.voicesearch") || 
+            eventPkg.contains("com.google.android.tts")) {
             
-            // Allow Voice UI to show by unblocking settings temporarily
             if (prefs.prefBlockSoftKeyboard && shellService != null) {
-                Thread { 
-                    try { shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1") } catch(e: Exception){}
-                }.start()
+                 Thread { try { shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1") } catch(e: Exception){} }.start()
             }
             return
-        } 
-        
-        // 2. Standard Event Handling
-        // REMOVED: The block that auto-reset isVoiceActive = false on WINDOW_STATE_CHANGED.
-        // We now rely on checkAndDismissVoice() (via user touch) to reset the flag.
+        }
 
-        // Catch changes that might mean we need to re-assert our keyboard blocking
+        // [FIX 4] Throttle & Execute
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
-            event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED || 
             event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
             
-            // Only block if we are NOT currently in Voice Mode
-            // (Because if Voice IS active, we want the system to allow the Voice Window)
             if (prefs.prefBlockSoftKeyboard && !isVoiceActive) {
-                triggerAggressiveBlocking()
-                
-                if (Build.VERSION.SDK_INT >= 24) {
-                    try {
-                        if (softKeyboardController.showMode != AccessibilityService.SHOW_MODE_HIDDEN) {
-                            softKeyboardController.showMode = AccessibilityService.SHOW_MODE_HIDDEN
-                        }
-                    } catch(e: Exception){}
-                }
+                 val currentTime = System.currentTimeMillis()
+                 
+                 // [CRITICAL] Throttle: Only run max once every 500ms
+                 if (currentTime - lastBlockTime > 500) {
+                     lastBlockTime = currentTime
+                     
+                     triggerAggressiveBlocking()
+                     
+                     if (Build.VERSION.SDK_INT >= 24) {
+                         try {
+                             if (softKeyboardController.showMode != AccessibilityService.SHOW_MODE_HIDDEN) {
+                                 softKeyboardController.showMode = AccessibilityService.SHOW_MODE_HIDDEN
+                             }
+                         } catch(e: Exception) {
+                             // Ignore controller errors if not ready
+                         }
+                     }
+                 }
             }
         }
     }
+// =================================================================================
+// END FUNCTION: onAccessibilityEvent
+// =================================================================================
+
 
     // =========================
     // STANDARD OVERRIDES
