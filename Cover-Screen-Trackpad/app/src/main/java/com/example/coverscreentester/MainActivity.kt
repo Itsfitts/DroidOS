@@ -21,7 +21,7 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
     private lateinit var tvStep3: TextView
     private lateinit var tvStep4: TextView
     private lateinit var tvStep5: TextView
-    private lateinit var tvStepNullKeyboardTitle: TextView // NEW
+    private lateinit var tvStepNullKeyboardTitle: TextView
 
     private lateinit var btnStart: Button
     private lateinit var btnSettings: Button
@@ -36,14 +36,14 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
         tvStep3 = findViewById(R.id.tvStep3Title)
         tvStep4 = findViewById(R.id.tvStep4Title)
         tvStep5 = findViewById(R.id.tvStep5Title)
-        tvStepNullKeyboardTitle = findViewById(R.id.tvStepNullKeyboardTitle) // NEW
+        tvStepNullKeyboardTitle = findViewById(R.id.tvStepNullKeyboardTitle)
 
         val btnStep1 = findViewById<Button>(R.id.btnStep1Trigger)
         val btnStep2 = findViewById<Button>(R.id.btnStep2Unblock)
         val btnStep3 = findViewById<Button>(R.id.btnStep3Enable)
         val btnStep4 = findViewById<Button>(R.id.btnStep4Overlay)
         val btnStep5 = findViewById<Button>(R.id.btnStep5Shizuku)
-        val btnStepNullKeyboardEnable = findViewById<Button>(R.id.btnStepNullKeyboardEnable) // NEW
+        val btnStepNullKeyboardEnable = findViewById<Button>(R.id.btnStepNullKeyboardEnable)
 
         btnStart = findViewById(R.id.btnStartApp)
         btnSettings = findViewById(R.id.btnOpenSettings)
@@ -77,26 +77,26 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
         }
 
         // Step 5: Shizuku
-        Shizuku.addRequestPermissionResultListener(this)
+        try {
+            Shizuku.addRequestPermissionResultListener(this)
+        } catch (e: Exception) {}
+        
         btnStep5.setOnClickListener {
-            if (Shizuku.getBinder() == null) {
-                Toast.makeText(this, "Shizuku not running!", Toast.LENGTH_SHORT).show()
-            } else {
-                Shizuku.requestPermission(0)
+            try {
+                if (Shizuku.getBinder() == null) {
+                    Toast.makeText(this, "Shizuku not running!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Shizuku.requestPermission(0)
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Shizuku Error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
 
         // LAUNCH BUTTON
         btnStart.setOnClickListener {
             if (checkCriticalPermissions()) {
-                val intent = Intent(this, OverlayService::class.java)
-                // Start/Restart Service
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    startForegroundService(intent)
-                } else {
-                    startService(intent)
-                }
-                finish()
+                launchOverlayService()
             }
         }
 
@@ -117,79 +117,122 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
 
     override fun onResume() {
         super.onResume()
+        
+        // --- AUTO LAUNCH LOGIC ---
+        // If all permissions are granted, skip the landing page and start the service.
+        if (checkCriticalPermissions()) {
+            launchOverlayService()
+            return
+        }
+        
         updateStatusUI()
+    }
+
+    private fun launchOverlayService() {
+        val intent = Intent(this, OverlayService::class.java)
+        // Start/Restart Service
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+        finish()
     }
 
     private fun updateStatusUI() {
         // 1. Accessibility Check (Covers Steps 1, 2, 3)
-        val accessGranted = isAccessibilityEnabled()
-        val accessSymbol = if (accessGranted) "✅" else "❌"
+        val isAccessibilityReady = isAccessibilityEnabled()
+        if (isAccessibilityReady) {
+            tvStep1.setTextColor(getColor(android.R.color.darker_gray))
+            tvStep2.setTextColor(getColor(android.R.color.darker_gray))
+            tvStep3.setTextColor(getColor(android.R.color.holo_green_light))
+        } else {
+            tvStep1.setTextColor(getColor(android.R.color.white))
+            tvStep2.setTextColor(getColor(android.R.color.white))
+            tvStep3.setTextColor(getColor(android.R.color.holo_red_light))
+        }
 
-        tvStep1.text = "Step 1: Initialize Restriction  $accessSymbol"
-        tvStep2.text = "Step 2: Allow Restricted Settings  $accessSymbol"
-        tvStep3.text = "Step 3: Enable Accessibility  $accessSymbol"
+        // 2. Overlay Check
+        val isOverlayReady = Settings.canDrawOverlays(this)
+        tvStep4.setTextColor(if (isOverlayReady) getColor(android.R.color.holo_green_light) else getColor(android.R.color.holo_red_light))
 
-        // 2. Null Keyboard Check (NEW)
-        val imeEnabled = isImeEnabled()
-        val imeSymbol = if (imeEnabled) "✅" else "❌"
-        tvStepNullKeyboardTitle.text = "Step 3.5: Enable Null Keyboard  $imeSymbol"
+        // 3. Shizuku Check
+        var isShizukuReady = false
+        try {
+            if (Shizuku.getBinder() != null && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                isShizukuReady = true
+            }
+        } catch (e: Exception) {}
+        tvStep5.setTextColor(if (isShizukuReady) getColor(android.R.color.holo_green_light) else getColor(android.R.color.holo_red_light))
 
-        // 3. Overlay Check (Step 4)
-        val overlayGranted = Settings.canDrawOverlays(this)
-        val overlaySymbol = if (overlayGranted) "✅" else "❌"
-        tvStep4.text = "Step 4: Overlay Permission  $overlaySymbol"
+        // 4. Update Start Button
+        if (isAccessibilityReady && isOverlayReady && isShizukuReady) {
+            btnStart.isEnabled = true
+            btnStart.alpha = 1.0f
+            btnStart.text = "LAUNCH DROIDOS TRACKPAD"
+            btnSettings.isEnabled = true
+        } else {
+            btnStart.isEnabled = false
+            btnStart.alpha = 0.5f
+            btnStart.text = "PERMISSIONS REQUIRED"
+            btnSettings.isEnabled = false
+        }
+    }
 
-        // 4. Shizuku Check (Step 5)
-        val shizukuGranted = try {
-            Shizuku.getBinder() != null && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: Exception) { false }
-        val shizukuSymbol = if (shizukuGranted) "✅" else "❌"
-        tvStep5.text = "Step 5: Shizuku Permission  $shizukuSymbol"
+    private fun checkCriticalPermissions(): Boolean {
+        // 1. Overlay
+        if (!Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "Missing Overlay Permission", Toast.LENGTH_SHORT).show()
+            return false
+        }
 
-        val ready = overlayGranted
-        btnStart.isEnabled = ready
-        btnSettings.isEnabled = ready
+        // 2. Accessibility
+        if (!isAccessibilityEnabled()) {
+            Toast.makeText(this, "Missing Accessibility Permission", Toast.LENGTH_SHORT).show()
+            return false
+        }
+
+        // 3. Shizuku
+        try {
+            if (Shizuku.getBinder() == null) {
+                Toast.makeText(this, "Shizuku not running", Toast.LENGTH_SHORT).show()
+                return false
+            }
+            if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Shizuku Permission Denied", Toast.LENGTH_SHORT).show()
+                return false
+            }
+        } catch (e: Exception) {
+            return false
+        }
+
+        return true
     }
 
     private fun isAccessibilityEnabled(): Boolean {
         val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
         val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
         for (service in enabledServices) {
-            if (service.id.contains(packageName)) return true
+            if (service.resolveInfo.serviceInfo.packageName == packageName) {
+                return true
+            }
         }
         return false
     }
 
-    // NEW: Check if Null Keyboard is enabled
-    private fun isImeEnabled(): Boolean {
-        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-        val enabledMethods = imm.enabledInputMethodList
-        // Check if our package is in the list of enabled IMEs
-        return enabledMethods.any { it.packageName == packageName }
-    }
-
-    private fun checkCriticalPermissions(): Boolean {
-        if (!isAccessibilityEnabled()) { // ADDED check
-            Toast.makeText(this, "Accessibility Service is required!", Toast.LENGTH_SHORT).show()
-            return false
-        }
-        if (!Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "Overlay Permission is required!", Toast.LENGTH_SHORT).show()
-            return false
-        }
-        if (!isImeEnabled()) { // ADDED check
-            Toast.makeText(this, "Null Keyboard needs to be enabled!", Toast.LENGTH_SHORT).show()
-            return false
-        }
-        return true
-    }
-
     override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-        if (grantResult == PackageManager.PERMISSION_GRANTED) updateStatusUI()
+        if (grantResult == PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Shizuku Granted", Toast.LENGTH_SHORT).show()
+            updateStatusUI()
+            // If this was the last missing permission, onResume will handle launch, 
+            // or we can trigger updateStatusUI to enable the button.
+        }
     }
-
+    
     override fun onDestroy() {
         super.onDestroy()
-        Shizuku.removeRequestPermissionResultListener(this)
+        try {
+            Shizuku.removeRequestPermissionResultListener(this)
+        } catch (e: Exception) {}
     }
 }
