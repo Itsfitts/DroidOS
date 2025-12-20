@@ -22,7 +22,14 @@ object AppPreferences {
     private const val KEY_REORDER_TIMEOUT = "KEY_REORDER_TIMEOUT"
     private const val KEY_USE_ALT_SCREEN_OFF = "KEY_USE_ALT_SCREEN_OFF" // New
     private const val KEY_AUTO_RESTART_TRACKPAD = "KEY_AUTO_RESTART_TRACKPAD"
-    
+
+    // === BLACKLIST STORAGE - START ===
+    // Stores blacklisted apps using "packageName:activityName" format
+    // This allows us to blacklist "com.google.android.googlequicksearchbox:.SearchActivity"
+    // while keeping "com.google.android.googlequicksearchbox:robin.main.MainActivity" (Gemini) available
+    private const val KEY_BLACKLIST = "KEY_BLACKLIST"
+    // === BLACKLIST STORAGE - END ===
+
     // Reorder Methods
     private const val KEY_REORDER_METHOD_DRAG = "KEY_REORDER_METHOD_DRAG"
     private const val KEY_REORDER_METHOD_TAP = "KEY_REORDER_METHOD_TAP"
@@ -364,4 +371,36 @@ object AppPreferences {
     fun getReorderScroll(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_REORDER_METHOD_SCROLL, true) // Default Enabled
     }
+
+    // === BLACKLIST METHODS - START ===
+    fun getBlacklist(context: Context): Set<String> {
+        return getPrefs(context).getStringSet(KEY_BLACKLIST, emptySet()) ?: emptySet()
+    }
+
+    fun isBlacklisted(context: Context, identifier: String): Boolean {
+        return getBlacklist(context).contains(identifier)
+    }
+
+    fun addToBlacklist(context: Context, identifier: String) {
+        val current = getBlacklist(context).toMutableSet()
+        current.add(identifier)
+        getPrefs(context).edit().putStringSet(KEY_BLACKLIST, current).apply()
+    }
+
+    fun removeFromBlacklist(context: Context, identifier: String) {
+        val current = getBlacklist(context).toMutableSet()
+        current.remove(identifier)
+        getPrefs(context).edit().putStringSet(KEY_BLACKLIST, current).apply()
+    }
+
+    fun toggleBlacklist(context: Context, identifier: String): Boolean {
+        return if (isBlacklisted(context, identifier)) {
+            removeFromBlacklist(context, identifier)
+            false
+        } else {
+            addToBlacklist(context, identifier)
+            true
+        }
+    }
+    // === BLACKLIST METHODS - END ===
 }

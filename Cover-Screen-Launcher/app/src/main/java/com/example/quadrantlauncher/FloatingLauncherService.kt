@@ -54,12 +54,16 @@ import kotlin.math.min
 class FloatingLauncherService : AccessibilityService() {
 
     companion object {
-        const val MODE_SEARCH = 0
-        const val MODE_LAYOUTS = 2
-        const val MODE_RESOLUTION = 3
-        const val MODE_DPI = 4
-        const val MODE_PROFILES = 5
-        const val MODE_SETTINGS = 6
+        // === MODE CONSTANTS - START ===
+        // Defines the different drawer modes/tabs
+        const val MODE_SEARCH = 0      // App picker tab
+        const val MODE_LAYOUTS = 2     // Layout selection (skips 1)
+        const val MODE_RESOLUTION = 3  // Resolution settings
+        const val MODE_DPI = 4         // DPI settings
+        const val MODE_BLACKLIST = 5   // Blacklist management tab
+        const val MODE_PROFILES = 6    // Profiles tab
+        const val MODE_SETTINGS = 7    // Settings tab
+        // === MODE CONSTANTS - END ===
         
         const val LAYOUT_FULL = 1
         const val LAYOUT_SIDE_BY_SIDE = 2
@@ -202,6 +206,8 @@ class FloatingLauncherService : AccessibilityService() {
             }
         }
     }
+    // === SWIPE CALLBACK - START ===
+    // Handles swipe gestures for various modes including blacklist
     private val swipeCallback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
         override fun getMovementFlags(r: RecyclerView, v: RecyclerView.ViewHolder): Int {
             val pos = v.adapterPosition; if (pos == RecyclerView.NO_POSITION || pos >= displayList.size) return 0
@@ -211,6 +217,7 @@ class FloatingLauncherService : AccessibilityService() {
                 MODE_RESOLUTION -> (item is ResolutionOption && item.index >= 100)
                 MODE_PROFILES -> (item is ProfileOption && !item.isCurrent)
                 MODE_SEARCH -> true
+                MODE_BLACKLIST -> true
                 else -> false
             }
             return if (isSwipeable) makeMovementFlags(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) else 0
@@ -222,9 +229,37 @@ class FloatingLauncherService : AccessibilityService() {
             if (currentMode == MODE_PROFILES) { val item = displayList.getOrNull(pos) as? ProfileOption ?: return; AppPreferences.deleteProfile(this@FloatingLauncherService, item.name); safeToast("Deleted ${item.name}"); switchMode(MODE_PROFILES); return }
             if (currentMode == MODE_LAYOUTS) { val item = displayList.getOrNull(pos) as? LayoutOption ?: return; AppPreferences.deleteCustomLayout(this@FloatingLauncherService, item.name); safeToast("Deleted ${item.name}"); switchMode(MODE_LAYOUTS); return }
             if (currentMode == MODE_RESOLUTION) { val item = displayList.getOrNull(pos) as? ResolutionOption ?: return; AppPreferences.deleteCustomResolution(this@FloatingLauncherService, item.name); safeToast("Deleted ${item.name}"); switchMode(MODE_RESOLUTION); return }
-            if (currentMode == MODE_SEARCH) { val item = displayList.getOrNull(pos) as? MainActivity.AppInfo ?: return; if (item.packageName == PACKAGE_BLANK) { (drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view).adapter as RofiAdapter).notifyItemChanged(pos); return }; if (direction == ItemTouchHelper.LEFT && !item.isFavorite) toggleFavorite(item) else if (direction == ItemTouchHelper.RIGHT && item.isFavorite) toggleFavorite(item); refreshSearchList() }
+            if (currentMode == MODE_SEARCH) {
+                val item = displayList.getOrNull(pos) as? MainActivity.AppInfo ?: return
+                if (item.packageName == PACKAGE_BLANK) { (drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view).adapter as RofiAdapter).notifyItemChanged(pos); return }
+                // Left swipe = blacklist app
+                if (direction == ItemTouchHelper.LEFT) {
+                    val identifier = item.getIdentifier()
+                    AppPreferences.addToBlacklist(this@FloatingLauncherService, identifier)
+                    safeToast("${item.label} blacklisted")
+                    loadInstalledApps()
+                    refreshSearchList()
+                }
+                // Right swipe = toggle favorite (legacy behavior)
+                else if (direction == ItemTouchHelper.RIGHT) {
+                    toggleFavorite(item)
+                    refreshSearchList()
+                }
+            }
+            if (currentMode == MODE_BLACKLIST) {
+                val item = displayList.getOrNull(pos) as? MainActivity.AppInfo ?: return
+                // Left swipe = remove from blacklist
+                if (direction == ItemTouchHelper.LEFT) {
+                    val identifier = item.getIdentifier()
+                    AppPreferences.removeFromBlacklist(this@FloatingLauncherService, identifier)
+                    safeToast("${item.label} removed from blacklist")
+                    loadInstalledApps()
+                    loadBlacklistedApps()
+                }
+            }
         }
     }
+    // === SWIPE CALLBACK - END ===
 
     private val selectedAppsDragCallback = object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT, ItemTouchHelper.UP or ItemTouchHelper.DOWN) {
         override fun isLongPressDragEnabled(): Boolean = isReorderDragEnabled
@@ -232,6 +267,36 @@ class FloatingLauncherService : AccessibilityService() {
         override fun onSwiped(v: RecyclerView.ViewHolder, direction: Int) { dismissKeyboardAndRestore(); val pos = v.adapterPosition; if (pos != RecyclerView.NO_POSITION) { val app = selectedAppsQueue[pos]; if (app.packageName != PACKAGE_BLANK) { Thread { try { shellService?.forceStop(app.packageName) } catch(e: Exception) {} }.start(); safeToast("Killed ${app.label}") }; selectedAppsQueue.removeAt(pos); if (reorderSelectionIndex != -1) endReorderMode(false); updateSelectedAppsDock(); drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() } }
         override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) { super.clearView(recyclerView, viewHolder); val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveLastQueue(this@FloatingLauncherService, pkgs); if (isInstantMode) applyLayoutImmediate() }
     }
+
+    // === SWIPE DETECTOR - START ===
+    // Detects horizontal swipe gestures for blacklist/favorite actions
+    // Left swipe = blacklist, Long press = favorite
+    private inner class SwipeDetector : GestureDetector.SimpleOnGestureListener() {
+        private val SWIPE_THRESHOLD = 100
+        private val SWIPE_VELOCITY_THRESHOLD = 100
+
+        override fun onFling(
+            e1: MotionEvent?,
+            e2: MotionEvent,
+            velocityX: Float,
+            velocityY: Float
+        ): Boolean {
+            if (e1 == null) return false
+
+            val diffX = e2.x - e1.x
+            val diffY = e2.y - e1.y
+
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                    if (diffX < 0) {
+                        return true // Left swipe detected
+                    }
+                }
+            }
+            return false
+        }
+    }
+    // === SWIPE DETECTOR - END ===
 
     private val userServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -497,12 +562,16 @@ class FloatingLauncherService : AccessibilityService() {
 
         val searchBar = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar); val mainRecycler = drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view); val selectedRecycler = drawerView!!.findViewById<RecyclerView>(R.id.selected_apps_recycler); val executeBtn = drawerView!!.findViewById<ImageView>(R.id.icon_execute)
         if (isBound) executeBtn.setColorFilter(Color.GREEN) else executeBtn.setColorFilter(Color.RED)
+        // === MODE ICON CLICK LISTENERS - START ===
+        // Sets up click listeners for mode switching icons in drawer
         drawerView!!.findViewById<ImageView>(R.id.icon_search_mode).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_SEARCH) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_window).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_LAYOUTS) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_resolution).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_RESOLUTION) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_dpi).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_DPI) }
+        drawerView!!.findViewById<ImageView>(R.id.icon_mode_blacklist)?.setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_BLACKLIST) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_profiles).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_PROFILES) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_settings).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_SETTINGS) }
+        // === MODE ICON CLICK LISTENERS - END ===
         executeBtn.setOnClickListener { executeLaunch(selectedLayoutType, closeDrawer = true) }
         searchBar.addTextChangedListener(object : TextWatcher { override fun afterTextChanged(s: Editable?) { filterList(s.toString()) }; override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}; override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {} })
         searchBar.imeOptions = EditorInfo.IME_ACTION_DONE
@@ -566,40 +635,98 @@ class FloatingLauncherService : AccessibilityService() {
 // This ensures that the internal list always has two separate entries for the Google package.
 // We force the standard one to be "Google" and the assistant one to be "Gemini".
 
-    private fun loadInstalledApps() { 
-        val pm = packageManager; 
-        val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }; 
-        val riList = pm.queryIntentActivities(intent, 0); 
-        allAppsList.clear(); 
-        allAppsList.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)); 
-        
-        for (ri in riList) { 
-            val pkg = ri.activityInfo.packageName; 
+    // === LOAD INSTALLED APPS - START ===
+    // Loads all launcher apps and filters out blacklisted ones
+    // Special handling for Google/Gemini to create separate entries
+    private fun loadInstalledApps() {
+        val pm = packageManager
+        val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+        val riList = pm.queryIntentActivities(intent, 0)
+        allAppsList.clear()
+        allAppsList.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK))
+
+        val blacklist = AppPreferences.getBlacklist(this)
+
+        for (ri in riList) {
+            val pkg = ri.activityInfo.packageName
             val cls = ri.activityInfo.name
-            if (pkg == PACKAGE_TRACKPAD || pkg == packageName) continue; 
-            
+            if (pkg == PACKAGE_TRACKPAD || pkg == packageName) continue
+
             var finalPkg = pkg
             var finalLabel = ri.loadLabel(pm).toString()
-            
-            // GEMINI DETECTION LOGIC
+            var finalActivity: String? = null
+
+            // GEMINI/GOOGLE DETECTION LOGIC
             if (pkg == "com.google.android.googlequicksearchbox") {
                 if (cls.contains("robin.main.MainActivity")) {
                     finalPkg = "com.google.android.googlequicksearchbox:gemini"
                     finalLabel = "Gemini"
+                    finalActivity = cls
                 } else {
                     finalLabel = "Google"
+                    finalActivity = cls
                 }
             }
 
-            val app = MainActivity.AppInfo(finalLabel, finalPkg, AppPreferences.isFavorite(this, finalPkg)); 
-            allAppsList.add(app) 
-        }; 
-        allAppsList.sortBy { it.label.lowercase() } 
+            // Create app info with activity tracking
+            val app = MainActivity.AppInfo(
+                finalLabel,
+                finalPkg,
+                AppPreferences.isFavorite(this, finalPkg),
+                false,
+                finalActivity
+            )
+
+            // Skip if blacklisted
+            if (!blacklist.contains(app.getIdentifier())) {
+                allAppsList.add(app)
+            }
+        }
+        allAppsList.sortBy { it.label.lowercase() }
     }
+    // === LOAD INSTALLED APPS - END ===
+
+    // === LOAD BLACKLISTED APPS - START ===
+    // Loads all blacklisted apps for display in blacklist tab
+    // Reconstructs AppInfo objects from blacklist identifiers
+    private fun loadBlacklistedApps() {
+        displayList.clear()
+
+        val pm = packageManager
+        val blacklist = AppPreferences.getBlacklist(this)
+
+        for (identifier in blacklist) {
+            try {
+                val parts = identifier.split(":")
+                val pkg = parts[0]
+                val activity = if (parts.size > 1) parts[1] else null
+
+                // Determine label
+                val label = when {
+                    identifier.contains("gemini") -> "Gemini"
+                    pkg == "com.google.android.googlequicksearchbox" -> "Google"
+                    else -> {
+                        try {
+                            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+                        } catch (e: Exception) {
+                            identifier
+                        }
+                    }
+                }
+
+                val app = MainActivity.AppInfo(label, pkg, false, false, activity)
+                displayList.add(app)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load blacklisted app: $identifier", e)
+            }
+        }
+
+        displayList.sortBy { (it as? MainActivity.AppInfo)?.label?.lowercase() }
+        drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+    }
+    // === LOAD BLACKLISTED APPS - END ===
 
 
-
-    
     private fun launchTrackpad() {
         if (isTrackpadRunning()) { safeToast("Trackpad is already active"); return }
         try { val intent = packageManager.getLaunchIntentForPackage(PACKAGE_TRACKPAD); if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); val dm = DisplayMetrics(); val display = displayContext?.display ?: windowManager.defaultDisplay; display.getRealMetrics(dm); val w = dm.widthPixels; val h = dm.heightPixels; val targetW = (w * 0.5f).toInt(); val targetH = (h * 0.5f).toInt(); val left = (w - targetW) / 2; val top = (h - targetH) / 2; val bounds = Rect(left, top, left + targetW, top + targetH); val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(bounds); try { val method = android.app.ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType); method.invoke(options, 5) } catch (e: Exception) {}; startActivity(intent, options.toBundle()); toggleDrawer(); if (shellService != null) { uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(PACKAGE_TRACKPAD, left, top, left+targetW, top+targetH) } catch(e: Exception) { Log.e(TAG, "Shell launch failed", e) } }.start() }, 400) } } else { safeToast("Trackpad App not found") } } catch (e: Exception) { safeToast("Error launching Trackpad") }
@@ -819,12 +946,15 @@ class FloatingLauncherService : AccessibilityService() {
     
     private fun calculateGCD(a: Int, b: Int): Int { return if (b == 0) a else calculateGCD(b, a % b) }
 
+    // === SWITCH MODE - START ===
+    // Switches between different drawer tabs/modes
+    // Handles UI updates for search bar, icons, and list content
     private fun switchMode(mode: Int) {
         currentMode = mode
-        val searchBar = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar); val searchIcon = drawerView!!.findViewById<ImageView>(R.id.icon_search_mode); val iconWin = drawerView!!.findViewById<ImageView>(R.id.icon_mode_window); val iconRes = drawerView!!.findViewById<ImageView>(R.id.icon_mode_resolution); val iconDpi = drawerView!!.findViewById<ImageView>(R.id.icon_mode_dpi); val iconProf = drawerView!!.findViewById<ImageView>(R.id.icon_mode_profiles); val iconSet = drawerView!!.findViewById<ImageView>(R.id.icon_mode_settings); val executeBtn = drawerView!!.findViewById<ImageView>(R.id.icon_execute)
-        searchIcon.setColorFilter(if(mode==MODE_SEARCH) Color.WHITE else Color.GRAY); iconWin.setColorFilter(if(mode==MODE_LAYOUTS) Color.WHITE else Color.GRAY); iconRes.setColorFilter(if(mode==MODE_RESOLUTION) Color.WHITE else Color.GRAY); iconDpi.setColorFilter(if(mode==MODE_DPI) Color.WHITE else Color.GRAY); iconProf.setColorFilter(if(mode==MODE_PROFILES) Color.WHITE else Color.GRAY); iconSet.setColorFilter(if(mode==MODE_SETTINGS) Color.WHITE else Color.GRAY)
+        val searchBar = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar); val searchIcon = drawerView!!.findViewById<ImageView>(R.id.icon_search_mode); val iconWin = drawerView!!.findViewById<ImageView>(R.id.icon_mode_window); val iconRes = drawerView!!.findViewById<ImageView>(R.id.icon_mode_resolution); val iconDpi = drawerView!!.findViewById<ImageView>(R.id.icon_mode_dpi); val iconBlacklist = drawerView!!.findViewById<ImageView>(R.id.icon_mode_blacklist); val iconProf = drawerView!!.findViewById<ImageView>(R.id.icon_mode_profiles); val iconSet = drawerView!!.findViewById<ImageView>(R.id.icon_mode_settings); val executeBtn = drawerView!!.findViewById<ImageView>(R.id.icon_execute)
+        searchIcon.setColorFilter(if(mode==MODE_SEARCH) Color.WHITE else Color.GRAY); iconWin.setColorFilter(if(mode==MODE_LAYOUTS) Color.WHITE else Color.GRAY); iconRes.setColorFilter(if(mode==MODE_RESOLUTION) Color.WHITE else Color.GRAY); iconDpi.setColorFilter(if(mode==MODE_DPI) Color.WHITE else Color.GRAY); iconBlacklist?.setColorFilter(if(mode==MODE_BLACKLIST) Color.WHITE else Color.GRAY); iconProf.setColorFilter(if(mode==MODE_PROFILES) Color.WHITE else Color.GRAY); iconSet.setColorFilter(if(mode==MODE_SETTINGS) Color.WHITE else Color.GRAY)
         executeBtn.visibility = if (isInstantMode) View.GONE else View.VISIBLE; displayList.clear(); val dock = drawerView!!.findViewById<RecyclerView>(R.id.selected_apps_recycler); dock.visibility = if (mode == MODE_SEARCH && selectedAppsQueue.isNotEmpty()) View.VISIBLE else View.GONE
-        
+
         when (mode) {
             MODE_SEARCH -> { searchBar.hint = "Search apps..."; refreshSearchList() }
             MODE_LAYOUTS -> { 
@@ -835,6 +965,7 @@ class FloatingLauncherService : AccessibilityService() {
                 searchBar.hint = "Select Resolution"; displayList.add(CustomResInputOption); val savedResNames = AppPreferences.getCustomResolutionNames(this).sorted(); for (name in savedResNames) { val value = AppPreferences.getCustomResolutionValue(this, name) ?: continue; displayList.add(ResolutionOption(name, "wm size  -d $currentDisplayId", 100 + savedResNames.indexOf(name))) }; displayList.add(ResolutionOption("Default (Reset)", "wm size reset -d $currentDisplayId", 0)); displayList.add(ResolutionOption("1:1 Square (1422x1500)", "wm size 1422x1500 -d $currentDisplayId", 1)); displayList.add(ResolutionOption("16:9 Landscape (1920x1080)", "wm size 1920x1080 -d $currentDisplayId", 2)); displayList.add(ResolutionOption("32:9 Ultrawide (3840x1080)", "wm size 3840x1080 -d $currentDisplayId", 3))
             }
             MODE_DPI -> { searchBar.hint = "Adjust Density (DPI)"; displayList.add(ActionOption("Reset Density (Default)") { selectDpi(-1) }); var savedDpi = currentDpiSetting; if (savedDpi <= 0) { savedDpi = displayContext?.resources?.configuration?.densityDpi ?: 160 }; displayList.add(DpiOption(savedDpi)) }
+            MODE_BLACKLIST -> { searchBar.hint = "Blacklisted Apps"; loadBlacklistedApps(); executeBtn.visibility = View.GONE }
             MODE_PROFILES -> { searchBar.hint = "Enter Profile Name..."; displayList.add(ProfileOption("Save Current as New", true, 0,0,0, emptyList())); val profileNames = AppPreferences.getProfileNames(this).sorted(); for (pName in profileNames) { val data = AppPreferences.getProfileData(this, pName); if (data != null) { try { val parts = data.split("|"); val lay = parts[0].toInt(); val res = parts[1].toInt(); val d = parts[2].toInt(); val pkgs = parts[3].split(",").filter { it.isNotEmpty() }; displayList.add(ProfileOption(pName, false, lay, res, d, pkgs)) } catch(e: Exception) {} } } }
             MODE_SETTINGS -> {
                 searchBar.hint = "Settings"
@@ -893,7 +1024,8 @@ class FloatingLauncherService : AccessibilityService() {
         }
         drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
     }
-    
+    // === SWITCH MODE - END ===
+
     object CustomResInputOption
     data class LayoutOption(val name: String, val type: Int, val isCustomSaved: Boolean = false, val customRects: List<Rect>? = null)
     data class ResolutionOption(val name: String, val command: String, val index: Int)
@@ -951,7 +1083,29 @@ class FloatingLauncherService : AccessibilityService() {
             if (holder is LayoutHolder) holder.nameInput.textSize = currentFontSize
             if (holder is ProfileRichHolder) holder.name.textSize = currentFontSize
 
-            if (holder is AppHolder && item is MainActivity.AppInfo) { holder.text.text = item.label; if (item.packageName == PACKAGE_BLANK) { holder.icon.setImageResource(R.drawable.ic_box_outline) } else { try { holder.icon.setImageDrawable(packageManager.getApplicationIcon(item.packageName)) } catch (e: Exception) { holder.icon.setImageResource(R.drawable.ic_launcher_bubble) } }; val isSelected = selectedAppsQueue.any { it.packageName == item.packageName }; if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.star.visibility = if (item.isFavorite) View.VISIBLE else View.GONE; holder.itemView.setOnClickListener { addToSelection(item) }; holder.itemView.setOnLongClickListener { toggleFavorite(item); refreshSearchList(); true } }
+            // === APP HOLDER BINDING - START ===
+            // Handles app item display with proper package name extraction for icons
+            if (holder is AppHolder && item is MainActivity.AppInfo) {
+                holder.text.text = item.label
+                if (item.packageName == PACKAGE_BLANK) {
+                    holder.icon.setImageResource(R.drawable.ic_box_outline)
+                } else {
+                    try {
+                        // Extract base package name (remove ":suffix" if present)
+                        val basePkg = if (item.packageName.contains(":")) item.packageName.substringBefore(":") else item.packageName
+                        holder.icon.setImageDrawable(packageManager.getApplicationIcon(basePkg))
+                    } catch (e: Exception) {
+                        holder.icon.setImageResource(R.drawable.ic_launcher_bubble)
+                    }
+                }
+                val isSelected = selectedAppsQueue.any { it.packageName == item.packageName }
+                if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active)
+                else holder.itemView.setBackgroundResource(R.drawable.bg_item_press)
+                holder.star.visibility = if (item.isFavorite) View.VISIBLE else View.GONE
+                holder.itemView.setOnClickListener { addToSelection(item) }
+                holder.itemView.setOnLongClickListener { toggleFavorite(item); refreshSearchList(); true }
+            }
+            // === APP HOLDER BINDING - END ===
             else if (holder is ProfileRichHolder && item is ProfileOption) { holder.name.setText(item.name); holder.iconsContainer.removeAllViews(); if (!item.isCurrent) { for (pkg in item.apps.take(5)) { val iv = ImageView(holder.itemView.context); val lp = LinearLayout.LayoutParams(60, 60); lp.marginEnd = 8; iv.layoutParams = lp; if (pkg == PACKAGE_BLANK) { iv.setImageResource(R.drawable.ic_box_outline) } else { try { iv.setImageDrawable(packageManager.getApplicationIcon(pkg)) } catch (e: Exception) { iv.setImageResource(R.drawable.ic_launcher_bubble) } }; holder.iconsContainer.addView(iv) }; val info = "${getLayoutName(item.layout)} | ${getRatioName(item.resIndex)} | ${item.dpi}dpi"; holder.details.text = info; holder.details.visibility = View.VISIBLE; holder.btnSave.visibility = View.GONE; if (activeProfileName == item.name) { holder.itemView.setBackgroundResource(R.drawable.bg_item_active) } else { holder.itemView.setBackgroundResource(0) }; holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); loadProfile(item.name) }; holder.itemView.setOnLongClickListener { startRename(holder.name); true }; val saveProfileName = { val newName = holder.name.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameProfile(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_PROFILES) } }; endRename(holder.name) }; holder.name.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveProfileName(); holder.name.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(holder.name.windowToken, 0); updateDrawerHeight(false); true } else false }; holder.name.setOnFocusChangeListener { v, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus); if (!hasFocus) saveProfileName() } } else { holder.iconsContainer.removeAllViews(); holder.details.visibility = View.GONE; holder.btnSave.visibility = View.VISIBLE; holder.itemView.setBackgroundResource(0); holder.name.isEnabled = true; holder.name.isFocusable = true; holder.name.isFocusableInTouchMode = true; holder.itemView.setOnClickListener { saveProfile() }; holder.btnSave.setOnClickListener { saveProfile() } } }
             else if (holder is LayoutHolder) {
                 holder.btnSave.visibility = View.GONE; holder.btnExtinguish.visibility = View.GONE

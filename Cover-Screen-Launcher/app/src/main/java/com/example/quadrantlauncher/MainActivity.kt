@@ -17,12 +17,27 @@ class MainActivity : AppCompatActivity() {
         const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
     }
 
+    // === APP INFO DATA CLASS - START ===
+    // Stores app information with unique identifier for blacklist purposes
+    // The packageName may include ":activityName" suffix for apps like Gemini
     data class AppInfo(
         val label: String,
         val packageName: String,
         var isFavorite: Boolean = false,
-        var isMinimized: Boolean = false
-    )
+        var isMinimized: Boolean = false,
+        val activityName: String? = null  // Added to track specific activity
+    ) {
+        // Generate unique identifier for blacklist: "packageName:activityName"
+        fun getIdentifier(): String {
+            return if (activityName != null) {
+                val basePkg = if (packageName.contains(":")) packageName.substringBefore(":") else packageName
+                "$basePkg:$activityName"
+            } else {
+                packageName
+            }
+        }
+    }
+    // === APP INFO DATA CLASS - END ===
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

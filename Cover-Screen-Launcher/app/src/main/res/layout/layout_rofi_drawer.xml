@@ -91,6 +91,19 @@
                 android:background="@drawable/bg_item_press"
                 android:tooltipText="DPI"/>
 
+            <!-- BLACKLIST MODE ICON - START -->
+            <!-- Icon for accessing blacklist management tab -->
+            <ImageView
+                android:id="@+id/icon_mode_blacklist"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_block"
+                android:tint="#AAAAAA"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="Blacklist"/>
+            <!-- BLACKLIST MODE ICON - END -->
+
             <ImageView
                 android:id="@+id/icon_mode_profiles"
                 android:layout_width="32dp"
