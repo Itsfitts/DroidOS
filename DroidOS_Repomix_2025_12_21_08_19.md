@@ -73,6 +73,7 @@ Cover-Screen-Launcher/
             bg_drawer.xml
             bg_item_active.xml
             bg_item_press.xml
+            ic_block.xml
             ic_box_outline.xml
             ic_cover_final_scale.xml
             ic_launcher_foreground_scaled.xml
@@ -260,7 +261,8 @@ README.md
       "Bash(./gradlew compileDebugKotlin:*)",
       "Bash(SHELL=/bin/bash /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Trackpad/gradlew:*)",
       "Bash(SHELL=/bin/bash /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher/gradlew:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(./gradlew assembleDebug:*)"
     ]
   }
 }
@@ -3964,150 +3966,6 @@ class TriSplitActivity : AppCompatActivity() {
 </FrameLayout>
 ```
 
-## File: Cover-Screen-Launcher/app/src/main/res/layout/layout_rofi_drawer.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#80000000"
-    android:clickable="true"
-    android:focusable="true"
-    android:filterTouchesWhenObscured="false">
-
-    <LinearLayout
-        android:id="@+id/drawer_container"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:orientation="vertical"
-        android:padding="12dp"
-        android:background="@drawable/bg_drawer"
-        android:elevation="10dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:filterTouchesWhenObscured="false">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <ImageView
-                android:id="@+id/icon_search_mode"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:padding="6dp"
-                android:src="@android:drawable/ic_menu_search"
-                android:tint="#AAAAAA"
-                android:background="@drawable/bg_item_press"
-                android:tooltipText="App List"/>
-
-            <EditText
-                android:id="@+id/rofi_search_bar"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="@null"
-                android:hint="Search apps..."
-                android:textColor="#FFFFFF"
-                android:textColorHint="#666666"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:singleLine="true"
-                android:textSize="16sp"
-                android:imeOptions="actionDone"/>
-
-            <ImageView
-                android:id="@+id/icon_execute"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:padding="6dp"
-                android:src="@android:drawable/ic_media_play"
-                android:tint="#00FF00"
-                android:background="@drawable/bg_item_press"
-                android:tooltipText="Launch"/>
-
-            <ImageView
-                android:id="@+id/icon_mode_window"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:padding="6dp"
-                android:src="@drawable/ic_window_split" 
-                android:tint="#AAAAAA"
-                android:background="@drawable/bg_item_press"
-                android:tooltipText="Layouts"/>
-
-            <ImageView
-                android:id="@+id/icon_mode_resolution"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:padding="6dp"
-                android:src="@drawable/ic_mode_resolution"
-                android:tint="#AAAAAA"
-                android:background="@drawable/bg_item_press"
-                android:tooltipText="Resolution"/>
-
-            <ImageView
-                android:id="@+id/icon_mode_dpi"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:padding="6dp"
-                android:src="@drawable/ic_mode_dpi"
-                android:tint="#AAAAAA"
-                android:background="@drawable/bg_item_press"
-                android:tooltipText="DPI"/>
-
-            <ImageView
-                android:id="@+id/icon_mode_profiles"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:padding="6dp"
-                android:src="@drawable/ic_mode_profiles"
-                android:tint="#AAAAAA"
-                android:background="@drawable/bg_item_press"
-                android:tooltipText="Profiles"/>
-
-            <ImageView
-                android:id="@+id/icon_mode_settings"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:padding="6dp"
-                android:src="@android:drawable/ic_menu_preferences"
-                android:tint="#AAAAAA"
-                android:background="@drawable/bg_item_press"
-                android:tooltipText="Settings"/>
-        </LinearLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/selected_apps_recycler"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:minHeight="50dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
-            android:visibility="gone"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="8dp"
-            android:background="#444444" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rofi_recycler_view"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:scrollbars="vertical" />
-
-    </LinearLayout>
-</FrameLayout>
-```
-
 ## File: Cover-Screen-Launcher/app/src/main/res/layout/list_item_app.xml
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -5964,6 +5822,163 @@ class TrackpadService : Service() {
 </ScrollView>
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/item_dpi_custom.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_item_press">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="DPI:"
+        android:textColor="#888888"
+        android:textSize="14sp"
+        android:paddingEnd="8dp"/>
+
+    <EditText
+        android:id="@+id/input_dpi_value"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:inputType="number"
+        android:maxLength="3"
+        android:text="120"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:imeOptions="actionDone"
+        android:background="@null"/>
+
+    <ImageView
+        android:id="@+id/btn_dpi_minus"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="10dp"
+        android:src="@android:drawable/ic_input_delete"
+        app:tint="#FF5555"
+        android:background="?attr/selectableItemBackgroundBorderless"/>
+
+    <ImageView
+        android:id="@+id/btn_dpi_plus"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="10dp"
+        android:src="@android:drawable/ic_input_add"
+        app:tint="#3DDC84"
+        android:background="?attr/selectableItemBackgroundBorderless"/>
+
+</LinearLayout>
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/item_trackpad_menu.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_item_press"
+    android:padding="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:minHeight="40dp">
+
+        <ImageView
+            android:id="@+id/item_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_cursor"
+            app:tint="#AAAAAA"
+            android:layout_marginEnd="12dp"/>
+
+        <TextView
+            android:id="@+id/item_title"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Setting Name"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"/>
+
+        <TextView
+            android:id="@+id/item_value_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="100%"
+            android:textColor="#3DDC84"
+            android:visibility="gone"
+            android:paddingEnd="8dp"/>
+
+        <Switch
+            android:id="@+id/item_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"/>
+            
+        <ImageView
+            android:id="@+id/item_action_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_media_play"
+            app:tint="#3DDC84"
+            android:visibility="gone"/>
+
+    </LinearLayout>
+
+    <SeekBar
+        android:id="@+id/item_seekbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:visibility="gone"/>
+
+    <GridLayout
+        android:id="@+id/item_dpad_grid"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:columnCount="3"
+        android:rowCount="3"
+        android:visibility="gone"
+        android:padding="8dp">
+
+        <Space android:layout_width="50dp" android:layout_height="50dp"/>
+        <Button android:id="@+id/btn_up" android:text="▲" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#333333" android:textColor="#FFFFFF"/>
+        <Space android:layout_width="50dp" android:layout_height="50dp"/>
+
+        <Button android:id="@+id/btn_left" android:text="◀" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#333333" android:textColor="#FFFFFF"/>
+        <Button android:id="@+id/btn_center" android:text="⟲" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#555555" android:textColor="#FFFFFF"/>
+        <Button android:id="@+id/btn_right" android:text="▶" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#333333" android:textColor="#FFFFFF"/>
+
+        <Space android:layout_width="50dp" android:layout_height="50dp"/>
+        <Button android:id="@+id/btn_down" android:text="▼" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#333333" android:textColor="#FFFFFF"/>
+        <Space android:layout_width="50dp" android:layout_height="50dp"/>
+    </GridLayout>
+
+    <TextView
+        android:id="@+id/item_help_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Help text goes here..."
+        android:textColor="#AAAAAA"
+        android:textSize="14sp"
+        android:visibility="gone"
+        android:padding="4dp"/>
+
+</LinearLayout>
+```
+
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad.xml
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -6829,6 +6844,1052 @@ rootProject.name = "CoverScreenTrackpad"
 include(":app")
 ```
 
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MenuActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Color
+import android.os.Bundle
+import android.view.Gravity
+import android.widget.Button
+import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import rikka.shizuku.Shizuku
+
+class MenuActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // --- NEW: PERMISSION CHECK LANDING PAGE LOGIC ---
+        if (!hasRequiredPermissions()) {
+            val intent = Intent(this, PermissionActivity::class.java)
+            startActivity(intent)
+            finish() // Close MenuActivity so user can't go back without perms
+            return
+        }
+        // ------------------------------------------------
+
+        // 1. Shizuku Permission Check (Existing logic can remain or be removed as double-check)
+        checkShizukuPermission() 
+
+        // 2. Main Layout Container (Dark Theme)
+        val mainLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+            setPadding(40, 60, 40, 40)
+            setBackgroundColor(Color.parseColor("#1E1E1E")) // Dark Background
+            gravity = Gravity.TOP
+        }
+
+        // --- TITLE HEADER ---
+        val headerText = TextView(this).apply {
+            text = "CoverScreen Launcher"
+            textSize = 22f
+            setTextColor(Color.LTGRAY)
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+                bottomMargin = 50
+            }
+        }
+        mainLayout.addView(headerText)
+
+        // --- PROFILE ROW (Horizontal: Text + Save Icon) ---
+        val profileRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+                bottomMargin = 60
+            }
+            gravity = Gravity.CENTER_VERTICAL
+            // Add a subtle background to the row to make it distinct
+            setBackgroundColor(Color.parseColor("#2D2D2D"))
+            setPadding(20, 20, 20, 20)
+        }
+
+        // Profile Text (Left side)
+        val profileText = TextView(this).apply {
+            text = "Current: Default" 
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            // Weight 1 pushes the icon to the far right. 
+            // Change to 0 and WRAP_CONTENT if you want icon immediately next to text.
+            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) 
+        }
+
+        // Save Icon (Right side)
+        val saveBtn = ImageButton(this).apply {
+            setImageResource(android.R.drawable.ic_menu_save)
+            setBackgroundColor(Color.TRANSPARENT) // Transparent bg
+            setColorFilter(Color.CYAN) // Cyan tint to make it pop
+            setPadding(20, 0, 0, 0)
+            setOnClickListener {
+                Toast.makeText(this@MenuActivity, "Profile Saved (Placeholder)", Toast.LENGTH_SHORT).show()
+                // TODO: Connect to AppPreferences.saveProfile logic
+            }
+        }
+
+        profileRow.addView(profileText)
+        profileRow.addView(saveBtn)
+        mainLayout.addView(profileRow)
+
+        // --- LAUNCHER BUTTONS ---
+        
+        // Button 1: 4-Quadrant
+        val btnQuad = Button(this).apply {
+            text = "Launch 4-Quadrant"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#444444"))
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+                bottomMargin = 30
+            }
+            setOnClickListener {
+                launchActivity(QuadrantActivity::class.java)
+            }
+        }
+
+        // Button 2: Split-Screen
+        val btnSplit = Button(this).apply {
+            text = "Launch Split-Screen"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#444444"))
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+            setOnClickListener {
+                launchActivity(TriSplitActivity::class.java)
+            }
+        }
+
+        mainLayout.addView(btnQuad)
+        mainLayout.addView(btnSplit)
+
+        setContentView(mainLayout)
+    }
+
+    // Helper function to check all required permissions
+    private fun hasRequiredPermissions(): Boolean {
+        val hasOverlay = android.provider.Settings.canDrawOverlays(this)
+        val hasShizuku = try { 
+            rikka.shizuku.Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED 
+        } catch(e: Exception) { false }
+        
+        val hasNotif = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else true
+
+        return hasOverlay && hasShizuku && hasNotif
+    }
+
+    private fun checkShizukuPermission() {
+        if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
+            // Shizuku not running
+        } else if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Shizuku.requestPermission(0)
+            Shizuku.addRequestPermissionResultListener(this)
+        }
+    }
+
+    private fun launchActivity(cls: Class<*>) {
+        try {
+            val intent = Intent(this, cls)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
+        if (grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Shizuku Granted", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Shizuku.removeRequestPermissionResultListener(this)
+    }
+}
+```
+
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/PermissionActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.net.Uri
+import android.os.Bundle
+import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import rikka.shizuku.Shizuku
+
+class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
+
+    private lateinit var btnGrantOverlay: LinearLayout
+    private lateinit var btnGrantShizuku: LinearLayout
+    private lateinit var btnGrantAccessibility: LinearLayout
+    
+    private lateinit var iconOverlay: ImageView
+    private lateinit var iconShizuku: ImageView
+    private lateinit var iconAccessibility: ImageView
+    
+    private lateinit var btnContinue: Button
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_permissions)
+
+        // Bind Views
+        btnGrantOverlay = findViewById(R.id.btn_perm_overlay)
+        btnGrantShizuku = findViewById(R.id.btn_perm_shizuku)
+        btnGrantAccessibility = findViewById(R.id.btn_perm_accessibility)
+        
+        iconOverlay = findViewById(R.id.icon_status_overlay)
+        iconShizuku = findViewById(R.id.icon_status_shizuku)
+        iconAccessibility = findViewById(R.id.icon_status_accessibility)
+        
+        btnContinue = findViewById(R.id.btn_continue)
+
+        // --- 1. OVERLAY PERMISSION ---
+        btnGrantOverlay.setOnClickListener {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            startActivityForResult(intent, 101)
+        }
+
+        // --- 2. SHIZUKU PERMISSION ---
+        btnGrantShizuku.setOnClickListener {
+            try {
+                if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+                    Shizuku.requestPermission(0)
+                } else {
+                    Toast.makeText(this, "Shizuku already granted", Toast.LENGTH_SHORT).show()
+                    refreshUI()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Shizuku not running. Please start Shizuku first.", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        // --- 3. ACCESSIBILITY PERMISSION (With Disclosure) ---
+        btnGrantAccessibility.setOnClickListener {
+            showAccessibilityDisclosure()
+        }
+
+        btnContinue.setOnClickListener {
+            if (hasAllPermissions()) {
+                startActivity(Intent(this, MenuActivity::class.java))
+                finish()
+            }
+        }
+
+        Shizuku.addRequestPermissionResultListener(this)
+    }
+
+    private fun showAccessibilityDisclosure() {
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Accessibility Service Required")
+            .setMessage("This app uses the Accessibility Service API to display floating windows and perform global actions (like Home/Back) on top of other apps.\n\n" +
+                        "No data is collected, stored, or shared. This permission is strictly used for the launcher functionality.")
+            .setPositiveButton("Agree & Grant") { _, _ ->
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                startActivity(intent)
+                Toast.makeText(this, "Find 'Quadrant Launcher' and enable it", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Not Now", null)
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume() 
+        refreshUI()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy() 
+        Shizuku.removeRequestPermissionResultListener(this)
+    }
+
+    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
+        refreshUI()
+    }
+
+    private fun refreshUI() {
+        val hasOverlay = Settings.canDrawOverlays(this)
+        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
+        val hasAccessibility = isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)
+        
+        updateItem(btnGrantOverlay, iconOverlay, hasOverlay)
+        updateItem(btnGrantShizuku, iconShizuku, hasShizuku)
+        updateItem(btnGrantAccessibility, iconAccessibility, hasAccessibility)
+
+        if (hasOverlay && hasShizuku && hasAccessibility) {
+            btnContinue.isEnabled = true
+            btnContinue.alpha = 1.0f
+            btnContinue.text = "Start Launcher"
+        } else {
+            btnContinue.isEnabled = false
+            btnContinue.alpha = 0.5f
+            btnContinue.text = "Grant Permissions to Continue"
+        }
+    }
+
+    private fun updateItem(container: LinearLayout, icon: ImageView, granted: Boolean) {
+        if (granted) {
+            icon.setImageResource(android.R.drawable.checkbox_on_background)
+            icon.setColorFilter(Color.GREEN)
+            container.isClickable = false
+            container.alpha = 0.6f
+        } else {
+            icon.setImageResource(android.R.drawable.checkbox_off_background)
+            icon.setColorFilter(Color.RED)
+            container.isClickable = true
+            container.alpha = 1.0f
+        }
+    }
+
+    private fun hasAllPermissions(): Boolean {
+        val hasOverlay = Settings.canDrawOverlays(this)
+        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
+        val hasAccessibility = isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)
+        return hasOverlay && hasShizuku && hasAccessibility
+    }
+
+    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (enabledService in enabledServices) {
+            val serviceInfo = enabledService.resolveInfo.serviceInfo
+            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
+                return true
+            }
+        }
+        return false
+    }
+}
+```
+
+## File: Cover-Screen-Launcher/app/src/main/res/drawable/ic_block.xml
+```xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17,2H7C5.9,2 5,2.9 5,4v16c0,1.1 0.9,2 2,2h10c1.1,0 2,-0.9 2,-2V4C19,2.9 18.1,2 17,2z M17,20H7V4h10V20z M9,6h6v2H9V6z M9,10h6v2H9V10z M9,14h6v2H9V14z"/>
+</vector>
+```
+
+## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_permissions.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="#121212"
+    android:gravity="center">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="DroidOS Setup"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Permissions required for Launcher"
+        android:textSize="14sp"
+        android:textColor="#AAAAAA"
+        android:layout_marginBottom="30dp" />
+
+    <LinearLayout
+        android:id="@+id/btn_perm_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/bg_item_press"
+        android:padding="16dp"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Display Over Other Apps"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Required for Floating Bubble"
+                android:textColor="#888888"
+                android:textSize="12sp"/>
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/icon_status_overlay"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/checkbox_off_background"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/btn_perm_shizuku"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/bg_item_press"
+        android:padding="16dp"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Shizuku Access"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Required for Window Management"
+                android:textColor="#888888"
+                android:textSize="12sp"/>
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/icon_status_shizuku"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/checkbox_off_background"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/btn_perm_accessibility"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/bg_item_press"
+        android:padding="16dp"
+        android:layout_marginBottom="32dp"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Accessibility Service"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Required for Launcher Operations"
+                android:textColor="#888888"
+                android:textSize="12sp"/>
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/icon_status_accessibility"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/checkbox_off_background"/>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btn_continue"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Grant Permissions to Continue"
+        android:backgroundTint="#00A0E9"
+        android:textColor="#FFFFFF"
+        android:padding="14dp"
+        android:alpha="0.5"
+        android:enabled="false"/>
+
+</LinearLayout>
+```
+
+## File: Cover-Screen-Launcher/app/src/main/res/layout/layout_rofi_drawer.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#80000000"
+    android:clickable="true"
+    android:focusable="true"
+    android:filterTouchesWhenObscured="false">
+
+    <LinearLayout
+        android:id="@+id/drawer_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:background="@drawable/bg_drawer"
+        android:elevation="10dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:filterTouchesWhenObscured="false">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/icon_search_mode"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_menu_search"
+                android:tint="#AAAAAA"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="App List"/>
+
+            <EditText
+                android:id="@+id/rofi_search_bar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="Search apps..."
+                android:textColor="#FFFFFF"
+                android:textColorHint="#666666"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:textSize="16sp"
+                android:imeOptions="actionDone"/>
+
+            <ImageView
+                android:id="@+id/icon_execute"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_media_play"
+                android:tint="#00FF00"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="Launch"/>
+
+            <ImageView
+                android:id="@+id/icon_mode_window"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_window_split" 
+                android:tint="#AAAAAA"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="Layouts"/>
+
+            <ImageView
+                android:id="@+id/icon_mode_resolution"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_mode_resolution"
+                android:tint="#AAAAAA"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="Resolution"/>
+
+            <ImageView
+                android:id="@+id/icon_mode_dpi"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_mode_dpi"
+                android:tint="#AAAAAA"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="DPI"/>
+
+            <!-- BLACKLIST MODE ICON - START -->
+            <!-- Icon for accessing blacklist management tab -->
+            <ImageView
+                android:id="@+id/icon_mode_blacklist"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_block"
+                android:tint="#AAAAAA"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="Blacklist"/>
+            <!-- BLACKLIST MODE ICON - END -->
+
+            <ImageView
+                android:id="@+id/icon_mode_profiles"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_mode_profiles"
+                android:tint="#AAAAAA"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="Profiles"/>
+
+            <ImageView
+                android:id="@+id/icon_mode_settings"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_menu_preferences"
+                android:tint="#AAAAAA"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="Settings"/>
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/selected_apps_recycler"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:minHeight="50dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:visibility="gone"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp"
+            android:background="#444444" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rofi_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="vertical" />
+
+    </LinearLayout>
+</FrameLayout>
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ManualAdjustActivity.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Color
+import android.os.Bundle
+import android.widget.Button
+import android.widget.TextView
+import android.widget.Toast
+
+class ManualAdjustActivity : Activity() {
+
+    private var isMoveMode = true
+    private var isKeyboardTarget = false
+    private val STEP_SIZE = 10
+
+    private lateinit var textMode: TextView
+    private lateinit var btnToggle: Button
+    private lateinit var btnToggleTarget: Button
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_manual_adjust)
+
+        textMode = findViewById(R.id.text_mode)
+        btnToggle = findViewById(R.id.btn_toggle_mode)
+        btnToggleTarget = findViewById(R.id.btn_toggle_target)
+
+        updateModeUI()
+
+        btnToggle.setOnClickListener {
+            isMoveMode = !isMoveMode
+            updateModeUI()
+        }
+
+        btnToggleTarget.setOnClickListener {
+            isKeyboardTarget = !isKeyboardTarget
+            updateModeUI()
+        }
+
+        findViewById<Button>(R.id.btn_up).setOnClickListener { sendAdjust(0, -STEP_SIZE) }
+        findViewById<Button>(R.id.btn_down).setOnClickListener { sendAdjust(0, STEP_SIZE) }
+        findViewById<Button>(R.id.btn_left).setOnClickListener { sendAdjust(-STEP_SIZE, 0) }
+        findViewById<Button>(R.id.btn_right).setOnClickListener { sendAdjust(STEP_SIZE, 0) }
+
+        // RESET BUTTON
+        findViewById<Button>(R.id.btn_center).setOnClickListener {
+            val targetStr = if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD"
+            Toast.makeText(this, "Resetting $targetStr", Toast.LENGTH_SHORT).show()
+
+            val intent = Intent(this, OverlayService::class.java)
+            intent.action = "RESET_POSITION"
+            intent.putExtra("TARGET", targetStr)
+            startService(intent)
+        }
+
+        // ROTATE BUTTON
+        findViewById<Button>(R.id.btn_rotate).setOnClickListener {
+            val targetStr = if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD"
+            val intent = Intent(this, OverlayService::class.java)
+            intent.action = "ROTATE"
+            intent.putExtra("TARGET", targetStr)
+            startService(intent)
+        }
+
+        findViewById<Button>(R.id.btn_back).setOnClickListener { finish() }
+    }
+
+    private fun updateModeUI() {
+        val targetText = if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD"
+        val actionText = if (isMoveMode) "POSITION" else "SIZE"
+
+        textMode.text = "$targetText: $actionText"
+
+        if (isKeyboardTarget) {
+            textMode.setTextColor(Color.MAGENTA)
+            btnToggleTarget.text = "Target: KEYBOARD"
+        } else {
+            textMode.setTextColor(if (isMoveMode) Color.GREEN else Color.CYAN)
+            btnToggleTarget.text = "Target: TRACKPAD"
+        }
+
+        btnToggle.text = if (isMoveMode) "Mode: Position" else "Mode: Size"
+    }
+
+    private fun sendAdjust(xChange: Int, yChange: Int) {
+        val intent = Intent(this, OverlayService::class.java)
+        intent.action = "MANUAL_ADJUST"
+        intent.putExtra("TARGET", if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD")
+
+        if (isMoveMode) {
+            intent.putExtra("DX", xChange)
+            intent.putExtra("DY", yChange)
+        } else {
+            intent.putExtra("DW", xChange)
+            intent.putExtra("DH", yChange)
+        }
+        startService(intent)
+    }
+}
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/res/drawable/bg_trackpad_bubble.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#444444"/>
+    <stroke android:width="2dp" android:color="#888888"/>
+</shape>
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_trackpad_foreground_scaled.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_trackpad_logo"
+    android:insetLeft="4dp"
+    android:insetRight="4dp"
+    android:insetTop="4dp"
+    android:insetBottom="4dp" />
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_manual_adjust.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#121212"
+    android:gravity="center">
+
+    <TextView
+        android:id="@+id/text_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="TRACKPAD: POSITION"
+        android:textColor="#00FF00"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="16dp">
+
+        <Button
+            android:id="@+id/btn_toggle_target"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Edit: Trackpad"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btn_toggle_mode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Mode: Position"/>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btn_up"
+        android:layout_width="80dp"
+        android:layout_height="60dp"
+        android:text="UP"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp">
+
+        <Button
+            android:id="@+id/btn_left"
+            android:layout_width="80dp"
+            android:layout_height="60dp"
+            android:text="LEFT"
+            android:layout_marginEnd="16dp"/>
+
+        <Button
+            android:id="@+id/btn_center"
+            android:layout_width="80dp"
+            android:layout_height="60dp"
+            android:text="RESET"
+            android:textColor="#FF9800"/>
+
+        <Button
+            android:id="@+id/btn_right"
+            android:layout_width="80dp"
+            android:layout_height="60dp"
+            android:text="RIGHT"
+            android:layout_marginStart="16dp"/>
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btn_down"
+        android:layout_width="80dp"
+        android:layout_height="60dp"
+        android:text="DOWN"/>
+
+    <Button
+        android:id="@+id/btn_rotate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Rotate 90°"
+        android:layout_marginTop="24dp"/>
+
+    <Button
+        android:id="@+id/btn_back"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Done / Back"
+        android:backgroundTint="#555555"
+        android:layout_marginTop="16dp"/>
+
+</LinearLayout>
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad_bubble.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="60dp"
+    android:layout_height="60dp"
+    android:background="@drawable/bg_trackpad_bubble"
+    android:clickable="true"
+    android:focusable="true">
+
+    <ImageView
+        android:id="@+id/bubble_icon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="center"
+        android:src="@mipmap/ic_trackpad_adaptive"
+        android:contentDescription="Trackpad Menu" 
+        android:clipToOutline="true"/>
+        
+    <ImageView
+        android:id="@+id/status_dot"
+        android:layout_width="12dp"
+        android:layout_height="12dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="10dp"
+        android:src="@android:drawable/ic_notification_overlay"
+        app:tint="#FF0000"
+        android:visibility="gone" />
+
+</FrameLayout>
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/res/xml/accessibility_service_config.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/accessibility_service_description"
+    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="false" 
+    android:canRequestFilterKeyEvents="true" 
+    android:accessibilityFlags="flagRequestTouchExplorationMode|flagRequestFilterKeyEvents" />
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/res/xml/method.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android" />
+```
+
+## File: Cover-Screen-Trackpad/app/build.gradle.kts
+```
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "com.example.coverscreentester"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.katsuyamaki.DroidOSTrackpadKeyboard"
+        minSdk = 30
+        targetSdk = 34
+        versionCode = 3
+        versionName = "3.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildFeatures {
+        viewBinding = true
+        buildConfig = true
+        aidl = true
+    }
+
+    sourceSets {
+        getByName("main") {
+            aidl.srcDirs(listOf("src/main/aidl"))
+            java.srcDirs(layout.buildDirectory.dir("generated/source/aidl/debug"))
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
+    implementation("dev.rikka.shizuku:aidl:13.1.5")
+
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.material)
+    implementation(libs.androidx.activity)
+    implementation(libs.androidx.constraintlayout)
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+}
+```
+
+## File: CHANGELOG.md
+```markdown
+# Changelog
+
+## [v3.0] - DroidOS Trackpad (2025-12-18)
+### Major Features
+- **Hardkey Mapping:** Map Volume Up/Down keys to actions (Click, Scroll, Toggle UI) with Single Tap, Double Tap, and Hold gestures.
+- **Profile Management:** Save and load specific layout/scaling profiles for different scenarios (e.g., Cover Screen vs. AR Glasses).
+- **Bubble Customization:**
+  - Adjust Floating Bubble size (50% - 200%).
+  - Change Opacity.
+  - Cycle through different icon styles.
+- **Smart Keyboard Overlay:**
+  - "Block Soft Keyboard" mode to prevent system keyboard from taking over the cover screen.
+  - Adjustable Scale and Opacity.
+  - Auto-hide logic when switching modes.
+- **Screen Off Modes:**
+  - **Standard:** Uses SurfaceControl (Root-like behavior via Shizuku).
+  - **Alternate:** Uses Brightness Extinguish (-1) for devices where SurfaceControl freezes the display.
+- **UI & UX:**
+  - **Anchor Mode:** Lock the trackpad position to prevent accidental drags.
+  - **Z-Order Enforcement:** Ensures trackpad remains visible over other system overlays.
+  - **Manual Tune:** D-Pad interface for pixel-perfect window positioning.
+
+## [v2.1] - DroidOS Launcher
+### Updates
+- **Compatibility:** Updated Intent targeting to match Trackpad v3.0 package ID.
+- **Stability:** improved `setBrightness` handling for Alternate Screen Off mode.
+
+---
+
+## [v2.0] - Initial Monorepo Structure
+- Split project into Launcher and Trackpad applications.
+- Added Shizuku integration for non-root shell execution.
+```
+
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/AppPreferences.kt
 ```kotlin
 package com.example.quadrantlauncher
@@ -6855,7 +7916,14 @@ object AppPreferences {
     private const val KEY_REORDER_TIMEOUT = "KEY_REORDER_TIMEOUT"
     private const val KEY_USE_ALT_SCREEN_OFF = "KEY_USE_ALT_SCREEN_OFF" // New
     private const val KEY_AUTO_RESTART_TRACKPAD = "KEY_AUTO_RESTART_TRACKPAD"
-    
+
+    // === BLACKLIST STORAGE - START ===
+    // Stores blacklisted apps using "packageName:activityName" format
+    // This allows us to blacklist "com.google.android.googlequicksearchbox:.SearchActivity"
+    // while keeping "com.google.android.googlequicksearchbox:robin.main.MainActivity" (Gemini) available
+    private const val KEY_BLACKLIST = "KEY_BLACKLIST"
+    // === BLACKLIST STORAGE - END ===
+
     // Reorder Methods
     private const val KEY_REORDER_METHOD_DRAG = "KEY_REORDER_METHOD_DRAG"
     private const val KEY_REORDER_METHOD_TAP = "KEY_REORDER_METHOD_TAP"
@@ -7197,1007 +8265,39 @@ object AppPreferences {
     fun getReorderScroll(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_REORDER_METHOD_SCROLL, true) // Default Enabled
     }
-}
-```
 
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MenuActivity.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.app.Activity
-import android.content.Intent
-import android.graphics.Color
-import android.os.Bundle
-import android.view.Gravity
-import android.widget.Button
-import android.widget.ImageButton
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import rikka.shizuku.Shizuku
-
-class MenuActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // --- NEW: PERMISSION CHECK LANDING PAGE LOGIC ---
-        if (!hasRequiredPermissions()) {
-            val intent = Intent(this, PermissionActivity::class.java)
-            startActivity(intent)
-            finish() // Close MenuActivity so user can't go back without perms
-            return
-        }
-        // ------------------------------------------------
-
-        // 1. Shizuku Permission Check (Existing logic can remain or be removed as double-check)
-        checkShizukuPermission() 
-
-        // 2. Main Layout Container (Dark Theme)
-        val mainLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-            setPadding(40, 60, 40, 40)
-            setBackgroundColor(Color.parseColor("#1E1E1E")) // Dark Background
-            gravity = Gravity.TOP
-        }
-
-        // --- TITLE HEADER ---
-        val headerText = TextView(this).apply {
-            text = "CoverScreen Launcher"
-            textSize = 22f
-            setTextColor(Color.LTGRAY)
-            gravity = Gravity.CENTER_HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                bottomMargin = 50
-            }
-        }
-        mainLayout.addView(headerText)
-
-        // --- PROFILE ROW (Horizontal: Text + Save Icon) ---
-        val profileRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                bottomMargin = 60
-            }
-            gravity = Gravity.CENTER_VERTICAL
-            // Add a subtle background to the row to make it distinct
-            setBackgroundColor(Color.parseColor("#2D2D2D"))
-            setPadding(20, 20, 20, 20)
-        }
-
-        // Profile Text (Left side)
-        val profileText = TextView(this).apply {
-            text = "Current: Default" 
-            textSize = 18f
-            setTextColor(Color.WHITE)
-            // Weight 1 pushes the icon to the far right. 
-            // Change to 0 and WRAP_CONTENT if you want icon immediately next to text.
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) 
-        }
-
-        // Save Icon (Right side)
-        val saveBtn = ImageButton(this).apply {
-            setImageResource(android.R.drawable.ic_menu_save)
-            setBackgroundColor(Color.TRANSPARENT) // Transparent bg
-            setColorFilter(Color.CYAN) // Cyan tint to make it pop
-            setPadding(20, 0, 0, 0)
-            setOnClickListener {
-                Toast.makeText(this@MenuActivity, "Profile Saved (Placeholder)", Toast.LENGTH_SHORT).show()
-                // TODO: Connect to AppPreferences.saveProfile logic
-            }
-        }
-
-        profileRow.addView(profileText)
-        profileRow.addView(saveBtn)
-        mainLayout.addView(profileRow)
-
-        // --- LAUNCHER BUTTONS ---
-        
-        // Button 1: 4-Quadrant
-        val btnQuad = Button(this).apply {
-            text = "Launch 4-Quadrant"
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#444444"))
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                bottomMargin = 30
-            }
-            setOnClickListener {
-                launchActivity(QuadrantActivity::class.java)
-            }
-        }
-
-        // Button 2: Split-Screen
-        val btnSplit = Button(this).apply {
-            text = "Launch Split-Screen"
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#444444"))
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
-            setOnClickListener {
-                launchActivity(TriSplitActivity::class.java)
-            }
-        }
-
-        mainLayout.addView(btnQuad)
-        mainLayout.addView(btnSplit)
-
-        setContentView(mainLayout)
+    // === BLACKLIST METHODS - START ===
+    fun getBlacklist(context: Context): Set<String> {
+        return getPrefs(context).getStringSet(KEY_BLACKLIST, emptySet()) ?: emptySet()
     }
 
-    // Helper function to check all required permissions
-    private fun hasRequiredPermissions(): Boolean {
-        val hasOverlay = android.provider.Settings.canDrawOverlays(this)
-        val hasShizuku = try { 
-            rikka.shizuku.Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED 
-        } catch(e: Exception) { false }
-        
-        val hasNotif = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        } else true
-
-        return hasOverlay && hasShizuku && hasNotif
+    fun isBlacklisted(context: Context, identifier: String): Boolean {
+        return getBlacklist(context).contains(identifier)
     }
 
-    private fun checkShizukuPermission() {
-        if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
-            // Shizuku not running
-        } else if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            Shizuku.requestPermission(0)
-            Shizuku.addRequestPermissionResultListener(this)
-        }
+    fun addToBlacklist(context: Context, identifier: String) {
+        val current = getBlacklist(context).toMutableSet()
+        current.add(identifier)
+        getPrefs(context).edit().putStringSet(KEY_BLACKLIST, current).apply()
     }
 
-    private fun launchActivity(cls: Class<*>) {
-        try {
-            val intent = Intent(this, cls)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+    fun removeFromBlacklist(context: Context, identifier: String) {
+        val current = getBlacklist(context).toMutableSet()
+        current.remove(identifier)
+        getPrefs(context).edit().putStringSet(KEY_BLACKLIST, current).apply()
     }
 
-    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-        if (grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Shizuku Granted", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        Shizuku.removeRequestPermissionResultListener(this)
-    }
-}
-```
-
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/PermissionActivity.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.accessibilityservice.AccessibilityServiceInfo
-import android.app.Activity
-import android.app.AlertDialog
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Color
-import android.net.Uri
-import android.os.Bundle
-import android.provider.Settings
-import android.view.accessibility.AccessibilityManager
-import android.widget.Button
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
-import rikka.shizuku.Shizuku
-
-class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
-
-    private lateinit var btnGrantOverlay: LinearLayout
-    private lateinit var btnGrantShizuku: LinearLayout
-    private lateinit var btnGrantAccessibility: LinearLayout
-    
-    private lateinit var iconOverlay: ImageView
-    private lateinit var iconShizuku: ImageView
-    private lateinit var iconAccessibility: ImageView
-    
-    private lateinit var btnContinue: Button
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_permissions)
-
-        // Bind Views
-        btnGrantOverlay = findViewById(R.id.btn_perm_overlay)
-        btnGrantShizuku = findViewById(R.id.btn_perm_shizuku)
-        btnGrantAccessibility = findViewById(R.id.btn_perm_accessibility)
-        
-        iconOverlay = findViewById(R.id.icon_status_overlay)
-        iconShizuku = findViewById(R.id.icon_status_shizuku)
-        iconAccessibility = findViewById(R.id.icon_status_accessibility)
-        
-        btnContinue = findViewById(R.id.btn_continue)
-
-        // --- 1. OVERLAY PERMISSION ---
-        btnGrantOverlay.setOnClickListener {
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-            startActivityForResult(intent, 101)
-        }
-
-        // --- 2. SHIZUKU PERMISSION ---
-        btnGrantShizuku.setOnClickListener {
-            try {
-                if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                    Shizuku.requestPermission(0)
-                } else {
-                    Toast.makeText(this, "Shizuku already granted", Toast.LENGTH_SHORT).show()
-                    refreshUI()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this, "Shizuku not running. Please start Shizuku first.", Toast.LENGTH_LONG).show()
-            }
-        }
-
-        // --- 3. ACCESSIBILITY PERMISSION (With Disclosure) ---
-        btnGrantAccessibility.setOnClickListener {
-            showAccessibilityDisclosure()
-        }
-
-        btnContinue.setOnClickListener {
-            if (hasAllPermissions()) {
-                startActivity(Intent(this, MenuActivity::class.java))
-                finish()
-            }
-        }
-
-        Shizuku.addRequestPermissionResultListener(this)
-    }
-
-    private fun showAccessibilityDisclosure() {
-        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Accessibility Service Required")
-            .setMessage("This app uses the Accessibility Service API to display floating windows and perform global actions (like Home/Back) on top of other apps.\n\n" +
-                        "No data is collected, stored, or shared. This permission is strictly used for the launcher functionality.")
-            .setPositiveButton("Agree & Grant") { _, _ ->
-                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                startActivity(intent)
-                Toast.makeText(this, "Find 'Quadrant Launcher' and enable it", Toast.LENGTH_LONG).show()
-            }
-            .setNegativeButton("Not Now", null)
-            .show()
-    }
-
-    override fun onResume() {
-        super.onResume() 
-        refreshUI()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy() 
-        Shizuku.removeRequestPermissionResultListener(this)
-    }
-
-    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-        refreshUI()
-    }
-
-    private fun refreshUI() {
-        val hasOverlay = Settings.canDrawOverlays(this)
-        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
-        val hasAccessibility = isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)
-        
-        updateItem(btnGrantOverlay, iconOverlay, hasOverlay)
-        updateItem(btnGrantShizuku, iconShizuku, hasShizuku)
-        updateItem(btnGrantAccessibility, iconAccessibility, hasAccessibility)
-
-        if (hasOverlay && hasShizuku && hasAccessibility) {
-            btnContinue.isEnabled = true
-            btnContinue.alpha = 1.0f
-            btnContinue.text = "Start Launcher"
+    fun toggleBlacklist(context: Context, identifier: String): Boolean {
+        return if (isBlacklisted(context, identifier)) {
+            removeFromBlacklist(context, identifier)
+            false
         } else {
-            btnContinue.isEnabled = false
-            btnContinue.alpha = 0.5f
-            btnContinue.text = "Grant Permissions to Continue"
+            addToBlacklist(context, identifier)
+            true
         }
     }
-
-    private fun updateItem(container: LinearLayout, icon: ImageView, granted: Boolean) {
-        if (granted) {
-            icon.setImageResource(android.R.drawable.checkbox_on_background)
-            icon.setColorFilter(Color.GREEN)
-            container.isClickable = false
-            container.alpha = 0.6f
-        } else {
-            icon.setImageResource(android.R.drawable.checkbox_off_background)
-            icon.setColorFilter(Color.RED)
-            container.isClickable = true
-            container.alpha = 1.0f
-        }
-    }
-
-    private fun hasAllPermissions(): Boolean {
-        val hasOverlay = Settings.canDrawOverlays(this)
-        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
-        val hasAccessibility = isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)
-        return hasOverlay && hasShizuku && hasAccessibility
-    }
-
-    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        for (enabledService in enabledServices) {
-            val serviceInfo = enabledService.resolveInfo.serviceInfo
-            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
-                return true
-            }
-        }
-        return false
-    }
+    // === BLACKLIST METHODS - END ===
 }
-```
-
-## File: Cover-Screen-Launcher/app/src/main/res/layout/activity_permissions.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="24dp"
-    android:background="#121212"
-    android:gravity="center">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="DroidOS Setup"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:textColor="#FFFFFF"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Permissions required for Launcher"
-        android:textSize="14sp"
-        android:textColor="#AAAAAA"
-        android:layout_marginBottom="30dp" />
-
-    <LinearLayout
-        android:id="@+id/btn_perm_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@drawable/bg_item_press"
-        android:padding="16dp"
-        android:layout_marginBottom="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true">
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Display Over Other Apps"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"/>
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Required for Floating Bubble"
-                android:textColor="#888888"
-                android:textSize="12sp"/>
-        </LinearLayout>
-        <ImageView
-            android:id="@+id/icon_status_overlay"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/checkbox_off_background"/>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/btn_perm_shizuku"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@drawable/bg_item_press"
-        android:padding="16dp"
-        android:layout_marginBottom="12dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true">
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Shizuku Access"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"/>
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Required for Window Management"
-                android:textColor="#888888"
-                android:textSize="12sp"/>
-        </LinearLayout>
-        <ImageView
-            android:id="@+id/icon_status_shizuku"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/checkbox_off_background"/>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/btn_perm_accessibility"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@drawable/bg_item_press"
-        android:padding="16dp"
-        android:layout_marginBottom="32dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true">
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Accessibility Service"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"/>
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Required for Launcher Operations"
-                android:textColor="#888888"
-                android:textSize="12sp"/>
-        </LinearLayout>
-        <ImageView
-            android:id="@+id/icon_status_accessibility"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/checkbox_off_background"/>
-    </LinearLayout>
-
-    <Button
-        android:id="@+id/btn_continue"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Grant Permissions to Continue"
-        android:backgroundTint="#00A0E9"
-        android:textColor="#FFFFFF"
-        android:padding="14dp"
-        android:alpha="0.5"
-        android:enabled="false"/>
-
-</LinearLayout>
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ManualAdjustActivity.kt
-```kotlin
-package com.example.coverscreentester
-
-import android.app.Activity
-import android.content.Intent
-import android.graphics.Color
-import android.os.Bundle
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
-
-class ManualAdjustActivity : Activity() {
-
-    private var isMoveMode = true
-    private var isKeyboardTarget = false
-    private val STEP_SIZE = 10
-
-    private lateinit var textMode: TextView
-    private lateinit var btnToggle: Button
-    private lateinit var btnToggleTarget: Button
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_manual_adjust)
-
-        textMode = findViewById(R.id.text_mode)
-        btnToggle = findViewById(R.id.btn_toggle_mode)
-        btnToggleTarget = findViewById(R.id.btn_toggle_target)
-
-        updateModeUI()
-
-        btnToggle.setOnClickListener {
-            isMoveMode = !isMoveMode
-            updateModeUI()
-        }
-
-        btnToggleTarget.setOnClickListener {
-            isKeyboardTarget = !isKeyboardTarget
-            updateModeUI()
-        }
-
-        findViewById<Button>(R.id.btn_up).setOnClickListener { sendAdjust(0, -STEP_SIZE) }
-        findViewById<Button>(R.id.btn_down).setOnClickListener { sendAdjust(0, STEP_SIZE) }
-        findViewById<Button>(R.id.btn_left).setOnClickListener { sendAdjust(-STEP_SIZE, 0) }
-        findViewById<Button>(R.id.btn_right).setOnClickListener { sendAdjust(STEP_SIZE, 0) }
-
-        // RESET BUTTON
-        findViewById<Button>(R.id.btn_center).setOnClickListener {
-            val targetStr = if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD"
-            Toast.makeText(this, "Resetting $targetStr", Toast.LENGTH_SHORT).show()
-
-            val intent = Intent(this, OverlayService::class.java)
-            intent.action = "RESET_POSITION"
-            intent.putExtra("TARGET", targetStr)
-            startService(intent)
-        }
-
-        // ROTATE BUTTON
-        findViewById<Button>(R.id.btn_rotate).setOnClickListener {
-            val targetStr = if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD"
-            val intent = Intent(this, OverlayService::class.java)
-            intent.action = "ROTATE"
-            intent.putExtra("TARGET", targetStr)
-            startService(intent)
-        }
-
-        findViewById<Button>(R.id.btn_back).setOnClickListener { finish() }
-    }
-
-    private fun updateModeUI() {
-        val targetText = if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD"
-        val actionText = if (isMoveMode) "POSITION" else "SIZE"
-
-        textMode.text = "$targetText: $actionText"
-
-        if (isKeyboardTarget) {
-            textMode.setTextColor(Color.MAGENTA)
-            btnToggleTarget.text = "Target: KEYBOARD"
-        } else {
-            textMode.setTextColor(if (isMoveMode) Color.GREEN else Color.CYAN)
-            btnToggleTarget.text = "Target: TRACKPAD"
-        }
-
-        btnToggle.text = if (isMoveMode) "Mode: Position" else "Mode: Size"
-    }
-
-    private fun sendAdjust(xChange: Int, yChange: Int) {
-        val intent = Intent(this, OverlayService::class.java)
-        intent.action = "MANUAL_ADJUST"
-        intent.putExtra("TARGET", if (isKeyboardTarget) "KEYBOARD" else "TRACKPAD")
-
-        if (isMoveMode) {
-            intent.putExtra("DX", xChange)
-            intent.putExtra("DY", yChange)
-        } else {
-            intent.putExtra("DW", xChange)
-            intent.putExtra("DH", yChange)
-        }
-        startService(intent)
-    }
-}
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/drawable/bg_trackpad_bubble.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <solid android:color="#444444"/>
-    <stroke android:width="2dp" android:color="#888888"/>
-</shape>
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/drawable/ic_trackpad_foreground_scaled.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<inset xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/ic_trackpad_logo"
-    android:insetLeft="4dp"
-    android:insetRight="4dp"
-    android:insetTop="4dp"
-    android:insetBottom="4dp" />
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_manual_adjust.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#121212"
-    android:gravity="center">
-
-    <TextView
-        android:id="@+id/text_mode"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="TRACKPAD: POSITION"
-        android:textColor="#00FF00"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="24dp"/>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="16dp">
-
-        <Button
-            android:id="@+id/btn_toggle_target"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Edit: Trackpad"
-            android:layout_marginEnd="8dp"/>
-
-        <Button
-            android:id="@+id/btn_toggle_mode"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Mode: Position"/>
-    </LinearLayout>
-
-    <Button
-        android:id="@+id/btn_up"
-        android:layout_width="80dp"
-        android:layout_height="60dp"
-        android:text="UP"/>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp">
-
-        <Button
-            android:id="@+id/btn_left"
-            android:layout_width="80dp"
-            android:layout_height="60dp"
-            android:text="LEFT"
-            android:layout_marginEnd="16dp"/>
-
-        <Button
-            android:id="@+id/btn_center"
-            android:layout_width="80dp"
-            android:layout_height="60dp"
-            android:text="RESET"
-            android:textColor="#FF9800"/>
-
-        <Button
-            android:id="@+id/btn_right"
-            android:layout_width="80dp"
-            android:layout_height="60dp"
-            android:text="RIGHT"
-            android:layout_marginStart="16dp"/>
-
-    </LinearLayout>
-
-    <Button
-        android:id="@+id/btn_down"
-        android:layout_width="80dp"
-        android:layout_height="60dp"
-        android:text="DOWN"/>
-
-    <Button
-        android:id="@+id/btn_rotate"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Rotate 90°"
-        android:layout_marginTop="24dp"/>
-
-    <Button
-        android:id="@+id/btn_back"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Done / Back"
-        android:backgroundTint="#555555"
-        android:layout_marginTop="16dp"/>
-
-</LinearLayout>
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/item_dpi_custom.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="8dp"
-    android:gravity="center_vertical"
-    android:background="@drawable/bg_item_press">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="DPI:"
-        android:textColor="#888888"
-        android:textSize="14sp"
-        android:paddingEnd="8dp"/>
-
-    <EditText
-        android:id="@+id/input_dpi_value"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:inputType="number"
-        android:maxLength="3"
-        android:text="120"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp"
-        android:imeOptions="actionDone"
-        android:background="@null"/>
-
-    <ImageView
-        android:id="@+id/btn_dpi_minus"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:padding="10dp"
-        android:src="@android:drawable/ic_input_delete"
-        app:tint="#FF5555"
-        android:background="?attr/selectableItemBackgroundBorderless"/>
-
-    <ImageView
-        android:id="@+id/btn_dpi_plus"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:padding="10dp"
-        android:src="@android:drawable/ic_input_add"
-        app:tint="#3DDC84"
-        android:background="?attr/selectableItemBackgroundBorderless"/>
-
-</LinearLayout>
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/item_trackpad_menu.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@drawable/bg_item_press"
-    android:padding="8dp">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:minHeight="40dp">
-
-        <ImageView
-            android:id="@+id/item_icon"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_cursor"
-            app:tint="#AAAAAA"
-            android:layout_marginEnd="12dp"/>
-
-        <TextView
-            android:id="@+id/item_title"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="Setting Name"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"/>
-
-        <TextView
-            android:id="@+id/item_value_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="100%"
-            android:textColor="#3DDC84"
-            android:visibility="gone"
-            android:paddingEnd="8dp"/>
-
-        <Switch
-            android:id="@+id/item_switch"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone"/>
-            
-        <ImageView
-            android:id="@+id/item_action_icon"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/ic_media_play"
-            app:tint="#3DDC84"
-            android:visibility="gone"/>
-
-    </LinearLayout>
-
-    <SeekBar
-        android:id="@+id/item_seekbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:visibility="gone"/>
-
-    <GridLayout
-        android:id="@+id/item_dpad_grid"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:columnCount="3"
-        android:rowCount="3"
-        android:visibility="gone"
-        android:padding="8dp">
-
-        <Space android:layout_width="50dp" android:layout_height="50dp"/>
-        <Button android:id="@+id/btn_up" android:text="▲" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#333333" android:textColor="#FFFFFF"/>
-        <Space android:layout_width="50dp" android:layout_height="50dp"/>
-
-        <Button android:id="@+id/btn_left" android:text="◀" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#333333" android:textColor="#FFFFFF"/>
-        <Button android:id="@+id/btn_center" android:text="⟲" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#555555" android:textColor="#FFFFFF"/>
-        <Button android:id="@+id/btn_right" android:text="▶" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#333333" android:textColor="#FFFFFF"/>
-
-        <Space android:layout_width="50dp" android:layout_height="50dp"/>
-        <Button android:id="@+id/btn_down" android:text="▼" android:layout_width="50dp" android:layout_height="50dp" android:backgroundTint="#333333" android:textColor="#FFFFFF"/>
-        <Space android:layout_width="50dp" android:layout_height="50dp"/>
-    </GridLayout>
-
-    <TextView
-        android:id="@+id/item_help_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Help text goes here..."
-        android:textColor="#AAAAAA"
-        android:textSize="14sp"
-        android:visibility="gone"
-        android:padding="4dp"/>
-
-</LinearLayout>
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/xml/accessibility_service_config.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:description="@string/accessibility_service_description"
-    android:accessibilityEventTypes="typeAllMask"
-    android:accessibilityFeedbackType="feedbackGeneric"
-    android:notificationTimeout="100"
-    android:canRetrieveWindowContent="true"
-    android:canPerformGestures="false" 
-    android:canRequestFilterKeyEvents="true" 
-    android:accessibilityFlags="flagRequestTouchExplorationMode|flagRequestFilterKeyEvents" />
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/xml/method.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<input-method xmlns:android="http://schemas.android.com/apk/res/android" />
-```
-
-## File: Cover-Screen-Trackpad/app/build.gradle.kts
-```
-plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-}
-
-android {
-    namespace = "com.example.coverscreentester"
-    compileSdk = 34
-
-    defaultConfig {
-        applicationId = "com.katsuyamaki.DroidOSTrackpadKeyboard"
-        minSdk = 30
-        targetSdk = 34
-        versionCode = 3
-        versionName = "3.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    buildFeatures {
-        viewBinding = true
-        buildConfig = true
-        aidl = true
-    }
-
-    sourceSets {
-        getByName("main") {
-            aidl.srcDirs(listOf("src/main/aidl"))
-            java.srcDirs(layout.buildDirectory.dir("generated/source/aidl/debug"))
-        }
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-}
-
-dependencies {
-    implementation("dev.rikka.shizuku:api:13.1.5")
-    implementation("dev.rikka.shizuku:provider:13.1.5")
-    implementation("dev.rikka.shizuku:aidl:13.1.5")
-
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
-    implementation(libs.androidx.activity)
-    implementation(libs.androidx.constraintlayout)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-}
-```
-
-## File: CHANGELOG.md
-```markdown
-# Changelog
-
-## [v3.0] - DroidOS Trackpad (2025-12-18)
-### Major Features
-- **Hardkey Mapping:** Map Volume Up/Down keys to actions (Click, Scroll, Toggle UI) with Single Tap, Double Tap, and Hold gestures.
-- **Profile Management:** Save and load specific layout/scaling profiles for different scenarios (e.g., Cover Screen vs. AR Glasses).
-- **Bubble Customization:**
-  - Adjust Floating Bubble size (50% - 200%).
-  - Change Opacity.
-  - Cycle through different icon styles.
-- **Smart Keyboard Overlay:**
-  - "Block Soft Keyboard" mode to prevent system keyboard from taking over the cover screen.
-  - Adjustable Scale and Opacity.
-  - Auto-hide logic when switching modes.
-- **Screen Off Modes:**
-  - **Standard:** Uses SurfaceControl (Root-like behavior via Shizuku).
-  - **Alternate:** Uses Brightness Extinguish (-1) for devices where SurfaceControl freezes the display.
-- **UI & UX:**
-  - **Anchor Mode:** Lock the trackpad position to prevent accidental drags.
-  - **Z-Order Enforcement:** Ensures trackpad remains visible over other system overlays.
-  - **Manual Tune:** D-Pad interface for pixel-perfect window positioning.
-
-## [v2.1] - DroidOS Launcher
-### Updates
-- **Compatibility:** Updated Intent targeting to match Trackpad v3.0 package ID.
-- **Stability:** improved `setBrightness` handling for Alternate Screen Off mode.
-
----
-
-## [v2.0] - Initial Monorepo Structure
-- Split project into Launcher and Trackpad applications.
-- Added Shizuku integration for non-root shell execution.
 ```
 
 ## File: Cover-Screen-Launcher/gradle/wrapper/gradle-wrapper.properties
@@ -8838,39 +8938,6 @@ class TrackpadPrefs {
     var holdDurationMs = 400
     var displayOffMode = "alternate"
 }
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad_bubble.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="60dp"
-    android:layout_height="60dp"
-    android:background="@drawable/bg_trackpad_bubble"
-    android:clickable="true"
-    android:focusable="true">
-
-    <ImageView
-        android:id="@+id/bubble_icon"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_gravity="center"
-        android:src="@mipmap/ic_trackpad_adaptive"
-        android:contentDescription="Trackpad Menu" 
-        android:clipToOutline="true"/>
-        
-    <ImageView
-        android:id="@+id/status_dot"
-        android:layout_width="12dp"
-        android:layout_height="12dp"
-        android:layout_gravity="top|end"
-        android:layout_margin="10dp"
-        android:src="@android:drawable/ic_notification_overlay"
-        app:tint="#FF0000"
-        android:visibility="gone" />
-
-</FrameLayout>
 ```
 
 ## File: README.md
@@ -9716,6 +9783,231 @@ class KeyboardView @JvmOverloads constructor(
 }
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_main.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@mipmap/ic_trackpad_adaptive"
+            android:layout_marginBottom="24dp"
+            android:contentDescription="App Icon" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Setup Required"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="To use the trackpad overlay, you must grant the following permissions.\n\nSince this is a system-level tool, these must be enabled manually."
+            android:textColor="#DDDDDD"
+            android:textSize="16sp"
+            android:lineSpacingMultiplier="1.2"
+            android:gravity="start"
+            android:background="#1E1E1E"
+            android:padding="16dp"
+            android:layout_marginBottom="32dp"/>
+
+        <Button
+            android:id="@+id/btn_fix_restricted"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="1. Allow Restricted Settings"
+            android:backgroundTint="#FF5722"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp"/>
+
+        <Button
+            android:id="@+id/btn_open_accessibility"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="2. Enable Accessibility"
+            android:backgroundTint="#3DDC84"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp"/>
+
+        <Button
+            android:id="@+id/btn_start_check"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="3. CHECK PERMISSIONS &amp; START"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:elevation="6dp"/>
+
+        <Button
+            android:id="@+id/btn_switch_display"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="Switch Display"
+            android:backgroundTint="#FFC107"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"
+            android:elevation="4dp"/>
+
+    </LinearLayout>
+</ScrollView>
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/AndroidManifest.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="rikka.shizuku.ui" />
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VOICE_COMMAND" />
+        </intent>
+        <package android:name="com.google.android.googlequicksearchbox" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_trackpad_adaptive"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_trackpad_adaptive"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CoverScreenTester"
+        android:resizeableActivity="true"> 
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|density|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            
+            <meta-data android:name="android.max_aspect" android:value="4.0" />
+        </activity>
+
+        <activity 
+            android:name=".SettingsActivity"
+            android:exported="false" 
+            android:theme="@style/Theme.CoverScreenTester" />
+
+        <activity 
+            android:name=".ProfilesActivity"
+            android:exported="false" 
+            android:theme="@style/Theme.CoverScreenTester" />
+
+        <activity 
+            android:name=".ManualAdjustActivity"
+            android:exported="false" 
+            android:theme="@style/Theme.CoverScreenTester" />
+            
+        <activity 
+            android:name=".KeyboardActivity"
+            android:exported="false" 
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true" />
+
+        <activity
+            android:name=".KeyboardPickerActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance"
+            android:exported="false" />
+
+        <service
+            android:name=".OverlayService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+                <action android:name="PREVIEW_UPDATE" />
+                <action android:name="RESET_POSITION" />
+                <action android:name="ROTATE" />
+                <action android:name="SAVE_LAYOUT" />
+                <action android:name="LOAD_LAYOUT" />
+                <action android:name="RELOAD_PREFS" />
+                <action android:name="DELETE_PROFILE" />
+                <action android:name="MANUAL_ADJUST" /> 
+                <action android:name="CYCLE_INPUT_TARGET" />
+                <action android:name="RESET_CURSOR" />
+                <action android:name="TOGGLE_DEBUG" />
+                <action android:name="FORCE_KEYBOARD" />
+                <action android:name="TOGGLE_CUSTOM_KEYBOARD" />
+                <action android:name="SET_TRACKPAD_VISIBILITY" />
+                <action android:name="SET_PREVIEW_MODE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <service
+            android:name=".NullInputMethodService"
+            android:label="DroidOS Null Keyboard"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false" />
+
+    </application>
+
+</manifest>
+```
+
 ## File: GEMINI.md
 ```markdown
 CLI AGENT CONTEXT INSTRUCTIONS
@@ -9747,85 +10039,6 @@ After making all instructed changes, build to check if errors. if errors, check 
 After successful build l, install with adb install -r app/build/outputs/apk/debug/app-debug.apk before commit
 qIf build success, commit to local with appropriate description (refer to instructions for summary if existing)
 CleanBuildTrackpad='cd ~/projects/DroidOS/Cover-Screen-Trackpad && ./gradlew clean assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk'
-```
-
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.accessibilityservice.AccessibilityServiceInfo
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Bundle
-import android.provider.Settings
-import android.view.accessibility.AccessibilityManager
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import rikka.shizuku.Shizuku
-
-class MainActivity : AppCompatActivity() {
-
-    companion object {
-        const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
-    }
-
-    data class AppInfo(
-        val label: String,
-        val packageName: String,
-        var isFavorite: Boolean = false,
-        var isMinimized: Boolean = false
-    )
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // Redirect to PermissionActivity if essential permissions are missing
-        if (!hasAllPermissions()) {
-            val intent = Intent(this, PermissionActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
-            finish()
-            return
-        }
-
-        // If all good, show status
-        Toast.makeText(this, "Launcher is active", Toast.LENGTH_SHORT).show()
-        finish()
-    }
-
-    private fun hasAllPermissions(): Boolean {
-        // 1. Overlay
-        if (!Settings.canDrawOverlays(this)) return false
-
-        // 2. Shizuku
-        val shizukuGranted = try {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: Exception) {
-            false
-        }
-        if (!shizukuGranted) return false
-
-        // 3. Accessibility
-        if (!isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)) return false
-
-        // 4. Notifications removed (Not strictly required for service to run)
-
-        return true
-    }
-
-    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        for (enabledService in enabledServices) {
-            val serviceInfo = enabledService.resolveInfo.serviceInfo
-            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
-                return true
-            }
-        }
-        return false
-    }
-}
 ```
 
 ## File: Cover-Screen-Launcher/app/src/main/AndroidManifest.xml
@@ -10416,229 +10629,262 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
 }
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_main.xml
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad_drawer.xml
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#121212"
-    android:fillViewport="true">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@null"
+    android:elevation="0dp">
 
     <LinearLayout
-        android:layout_width="match_parent"
+        android:id="@+id/menu_container"
+        android:layout_width="320dp"
         android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_trackpad_drawer"
         android:orientation="vertical"
-        android:gravity="center"
-        android:padding="32dp">
+        android:elevation="0dp"
+        android:minHeight="300dp">
 
-        <ImageView
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:src="@mipmap/ic_trackpad_adaptive"
-            android:layout_marginBottom="24dp"
-            android:contentDescription="App Icon" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Setup Required"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:gravity="center"
-            android:layout_marginBottom="24dp"/>
-
-        <TextView
+        <RelativeLayout
+            android:id="@+id/menu_drag_handle"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="To use the trackpad overlay, you must grant the following permissions.\n\nSince this is a system-level tool, these must be enabled manually."
-            android:textColor="#DDDDDD"
-            android:textSize="16sp"
-            android:lineSpacingMultiplier="1.2"
-            android:gravity="start"
-            android:background="#1E1E1E"
-            android:padding="16dp"
-            android:layout_marginBottom="32dp"/>
+            android:layout_height="50dp"
+            android:background="#00000000"
+            android:paddingEnd="12dp"
+            android:clickable="true"
+            android:focusable="true">
 
-        <Button
-            android:id="@+id/btn_fix_restricted"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="1. Allow Restricted Settings"
-            android:backgroundTint="#FF5722"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:layout_marginBottom="16dp"
-            android:elevation="4dp"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="16dp"
+                android:text="DroidOS Trackpad Keyboard"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:textSize="16sp" />
 
-        <Button
-            android:id="@+id/btn_open_accessibility"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="2. Enable Accessibility"
-            android:backgroundTint="#3DDC84"
-            android:textColor="#000000"
-            android:textStyle="bold"
-            android:layout_marginBottom="16dp"
-            android:elevation="4dp"/>
+            <ImageView
+                android:id="@+id/btn_close_menu"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                app:tint="#FF5555" />
+        </RelativeLayout>
 
-        <Button
-            android:id="@+id/btn_start_check"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:text="3. CHECK PERMISSIONS &amp; START"
-            android:backgroundTint="#2196F3"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:elevation="6dp"/>
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/btn_switch_display"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="Switch Display"
-            android:backgroundTint="#FFC107"
-            android:textColor="#000000"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp"
-            android:elevation="4dp"/>
+            <ScrollView
+                android:layout_width="56dp"
+                android:layout_height="match_parent"
+                android:background="#222222">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp">
+
+                    <ImageView
+                        android:id="@+id/tab_main"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_cursor"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_presets"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_presets"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_move"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_move"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_kb_move"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_kb_move"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_config"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_config"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_tune"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_tune"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_hardkeys"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_hardkeys"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_bubble"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_bubble"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_profiles"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_profiles"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_help"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_help"
+                        app:tint="#888888" />
+
+                </LinearLayout>
+            </ScrollView>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/menu_recycler"
+                android:layout_width="match_parent"
+                android:layout_height="350dp"
+                android:padding="8dp"
+                android:scrollbars="vertical" />
+
+        </LinearLayout>
 
     </LinearLayout>
-</ScrollView>
+</FrameLayout>
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/AndroidManifest.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
+```kotlin
+package com.example.quadrantlauncher
 
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import rikka.shizuku.Shizuku
 
-    <queries>
-        <package android:name="moe.shizuku.privileged.api" />
-        <package android:name="rikka.shizuku.ui" />
-        <intent>
-            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VOICE_COMMAND" />
-        </intent>
-        <package android:name="com.google.android.googlequicksearchbox" />
-    </queries>
+class MainActivity : AppCompatActivity() {
 
-    <application
-        android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_trackpad_adaptive"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_trackpad_adaptive"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.CoverScreenTester"
-        android:resizeableActivity="true"> 
-        
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|density|smallestScreenSize"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            
-            <meta-data android:name="android.max_aspect" android:value="4.0" />
-        </activity>
+    companion object {
+        const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
+    }
 
-        <activity 
-            android:name=".SettingsActivity"
-            android:exported="false" 
-            android:theme="@style/Theme.CoverScreenTester" />
+    // === APP INFO DATA CLASS - START ===
+    // Stores app information with unique identifier for blacklist purposes
+    // The packageName may include ":activityName" suffix for apps like Gemini
+    data class AppInfo(
+        val label: String,
+        val packageName: String,
+        var isFavorite: Boolean = false,
+        var isMinimized: Boolean = false,
+        val activityName: String? = null  // Added to track specific activity
+    ) {
+        // Generate unique identifier for blacklist: "packageName:activityName"
+        fun getIdentifier(): String {
+            return if (activityName != null) {
+                val basePkg = if (packageName.contains(":")) packageName.substringBefore(":") else packageName
+                "$basePkg:$activityName"
+            } else {
+                packageName
+            }
+        }
+    }
+    // === APP INFO DATA CLASS - END ===
 
-        <activity 
-            android:name=".ProfilesActivity"
-            android:exported="false" 
-            android:theme="@style/Theme.CoverScreenTester" />
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
-        <activity 
-            android:name=".ManualAdjustActivity"
-            android:exported="false" 
-            android:theme="@style/Theme.CoverScreenTester" />
-            
-        <activity 
-            android:name=".KeyboardActivity"
-            android:exported="false" 
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:excludeFromRecents="true"
-            android:noHistory="true" />
+        // Redirect to PermissionActivity if essential permissions are missing
+        if (!hasAllPermissions()) {
+            val intent = Intent(this, PermissionActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return
+        }
 
-        <activity
-            android:name=".KeyboardPickerActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:launchMode="singleInstance"
-            android:exported="false" />
+        // If all good, show status
+        Toast.makeText(this, "Launcher is active", Toast.LENGTH_SHORT).show()
+        finish()
+    }
 
-        <service
-            android:name=".OverlayService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true"
-            android:foregroundServiceType="specialUse">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-                <action android:name="PREVIEW_UPDATE" />
-                <action android:name="RESET_POSITION" />
-                <action android:name="ROTATE" />
-                <action android:name="SAVE_LAYOUT" />
-                <action android:name="LOAD_LAYOUT" />
-                <action android:name="RELOAD_PREFS" />
-                <action android:name="DELETE_PROFILE" />
-                <action android:name="MANUAL_ADJUST" /> 
-                <action android:name="CYCLE_INPUT_TARGET" />
-                <action android:name="RESET_CURSOR" />
-                <action android:name="TOGGLE_DEBUG" />
-                <action android:name="FORCE_KEYBOARD" />
-                <action android:name="TOGGLE_CUSTOM_KEYBOARD" />
-                <action android:name="SET_TRACKPAD_VISIBILITY" />
-                <action android:name="SET_PREVIEW_MODE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
+    private fun hasAllPermissions(): Boolean {
+        // 1. Overlay
+        if (!Settings.canDrawOverlays(this)) return false
 
-        <service
-            android:name=".NullInputMethodService"
-            android:label="DroidOS Null Keyboard"
-            android:permission="android.permission.BIND_INPUT_METHOD"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.view.InputMethod" />
-            </intent-filter>
-            <meta-data
-                android:name="android.view.im"
-                android:resource="@xml/method" />
-        </service>
+        // 2. Shizuku
+        val shizukuGranted = try {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
+        if (!shizukuGranted) return false
 
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            android:authorities="${applicationId}.shizuku"
-            android:enabled="true"
-            android:exported="true"
-            android:multiprocess="false" />
+        // 3. Accessibility
+        if (!isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)) return false
 
-    </application>
+        // 4. Notifications removed (Not strictly required for service to run)
 
-</manifest>
+        return true
+    }
+
+    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (enabledService in enabledServices) {
+            val serviceInfo = enabledService.resolveInfo.serviceInfo
+            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
+                return true
+            }
+        }
+        return false
+    }
+}
 ```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt
@@ -11132,170 +11378,6 @@ override fun getWindowLayouts(displayId: Int): List<String> {
     override fun isAutoBrightness(): Boolean = true
     override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
 }
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad_drawer.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:background="@null"
-    android:elevation="0dp">
-
-    <LinearLayout
-        android:id="@+id/menu_container"
-        android:layout_width="320dp"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:background="@drawable/bg_trackpad_drawer"
-        android:orientation="vertical"
-        android:elevation="0dp"
-        android:minHeight="300dp">
-
-        <RelativeLayout
-            android:id="@+id/menu_drag_handle"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:background="#00000000"
-            android:paddingEnd="12dp"
-            android:clickable="true"
-            android:focusable="true">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_centerVertical="true"
-                android:layout_marginStart="16dp"
-                android:text="DroidOS Trackpad Keyboard"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold"
-                android:textSize="16sp" />
-
-            <ImageView
-                android:id="@+id/btn_close_menu"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:padding="6dp"
-                android:src="@android:drawable/ic_menu_close_clear_cancel"
-                app:tint="#FF5555" />
-        </RelativeLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="horizontal">
-
-            <ScrollView
-                android:layout_width="56dp"
-                android:layout_height="match_parent"
-                android:background="#222222">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp">
-
-                    <ImageView
-                        android:id="@+id/tab_main"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_cursor"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_presets"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_presets"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_move"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_move"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_kb_move"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_kb_move"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_config"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_config"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_tune"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_tune"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_hardkeys"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_hardkeys"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_bubble"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_bubble"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_profiles"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_profiles"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_help"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_help"
-                        app:tint="#888888" />
-
-                </LinearLayout>
-            </ScrollView>
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/menu_recycler"
-                android:layout_width="match_parent"
-                android:layout_height="350dp"
-                android:padding="8dp"
-                android:scrollbars="vertical" />
-
-        </LinearLayout>
-
-    </LinearLayout>
-</FrameLayout>
 ```
 
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_menu.xml
@@ -13217,12 +13299,16 @@ import kotlin.math.min
 class FloatingLauncherService : AccessibilityService() {
 
     companion object {
-        const val MODE_SEARCH = 0
-        const val MODE_LAYOUTS = 2
-        const val MODE_RESOLUTION = 3
-        const val MODE_DPI = 4
-        const val MODE_PROFILES = 5
-        const val MODE_SETTINGS = 6
+        // === MODE CONSTANTS - START ===
+        // Defines the different drawer modes/tabs
+        const val MODE_SEARCH = 0      // App picker tab
+        const val MODE_LAYOUTS = 2     // Layout selection (skips 1)
+        const val MODE_RESOLUTION = 3  // Resolution settings
+        const val MODE_DPI = 4         // DPI settings
+        const val MODE_BLACKLIST = 5   // Blacklist management tab
+        const val MODE_PROFILES = 6    // Profiles tab
+        const val MODE_SETTINGS = 7    // Settings tab
+        // === MODE CONSTANTS - END ===
         
         const val LAYOUT_FULL = 1
         const val LAYOUT_SIDE_BY_SIDE = 2
@@ -13365,6 +13451,8 @@ class FloatingLauncherService : AccessibilityService() {
             }
         }
     }
+    // === SWIPE CALLBACK - START ===
+    // Handles swipe gestures for various modes including blacklist
     private val swipeCallback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
         override fun getMovementFlags(r: RecyclerView, v: RecyclerView.ViewHolder): Int {
             val pos = v.adapterPosition; if (pos == RecyclerView.NO_POSITION || pos >= displayList.size) return 0
@@ -13374,6 +13462,7 @@ class FloatingLauncherService : AccessibilityService() {
                 MODE_RESOLUTION -> (item is ResolutionOption && item.index >= 100)
                 MODE_PROFILES -> (item is ProfileOption && !item.isCurrent)
                 MODE_SEARCH -> true
+                MODE_BLACKLIST -> true
                 else -> false
             }
             return if (isSwipeable) makeMovementFlags(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) else 0
@@ -13385,16 +13474,107 @@ class FloatingLauncherService : AccessibilityService() {
             if (currentMode == MODE_PROFILES) { val item = displayList.getOrNull(pos) as? ProfileOption ?: return; AppPreferences.deleteProfile(this@FloatingLauncherService, item.name); safeToast("Deleted ${item.name}"); switchMode(MODE_PROFILES); return }
             if (currentMode == MODE_LAYOUTS) { val item = displayList.getOrNull(pos) as? LayoutOption ?: return; AppPreferences.deleteCustomLayout(this@FloatingLauncherService, item.name); safeToast("Deleted ${item.name}"); switchMode(MODE_LAYOUTS); return }
             if (currentMode == MODE_RESOLUTION) { val item = displayList.getOrNull(pos) as? ResolutionOption ?: return; AppPreferences.deleteCustomResolution(this@FloatingLauncherService, item.name); safeToast("Deleted ${item.name}"); switchMode(MODE_RESOLUTION); return }
-            if (currentMode == MODE_SEARCH) { val item = displayList.getOrNull(pos) as? MainActivity.AppInfo ?: return; if (item.packageName == PACKAGE_BLANK) { (drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view).adapter as RofiAdapter).notifyItemChanged(pos); return }; if (direction == ItemTouchHelper.LEFT && !item.isFavorite) toggleFavorite(item) else if (direction == ItemTouchHelper.RIGHT && item.isFavorite) toggleFavorite(item); refreshSearchList() }
+            if (currentMode == MODE_SEARCH) {
+                val item = displayList.getOrNull(pos) as? MainActivity.AppInfo ?: return
+                if (item.packageName == PACKAGE_BLANK) { (drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view).adapter as RofiAdapter).notifyItemChanged(pos); return }
+                // Left swipe = blacklist app
+                if (direction == ItemTouchHelper.LEFT) {
+                    val identifier = item.getIdentifier()
+                    AppPreferences.addToBlacklist(this@FloatingLauncherService, identifier)
+                    safeToast("${item.label} blacklisted")
+                    loadInstalledApps()
+                    refreshSearchList()
+                }
+                // Right swipe = toggle favorite (legacy behavior)
+                else if (direction == ItemTouchHelper.RIGHT) {
+                    toggleFavorite(item)
+                    refreshSearchList()
+                }
+            }
+            if (currentMode == MODE_BLACKLIST) {
+                val item = displayList.getOrNull(pos) as? MainActivity.AppInfo ?: return
+                // Left swipe = remove from blacklist
+                if (direction == ItemTouchHelper.LEFT) {
+                    val identifier = item.getIdentifier()
+                    AppPreferences.removeFromBlacklist(this@FloatingLauncherService, identifier)
+                    safeToast("${item.label} removed from blacklist")
+                    loadInstalledApps()
+                    loadBlacklistedApps()
+                }
+            }
         }
     }
+    // === SWIPE CALLBACK - END ===
 
     private val selectedAppsDragCallback = object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT, ItemTouchHelper.UP or ItemTouchHelper.DOWN) {
         override fun isLongPressDragEnabled(): Boolean = isReorderDragEnabled
         override fun onMove(r: RecyclerView, v: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder): Boolean { Collections.swap(selectedAppsQueue, v.adapterPosition, t.adapterPosition); r.adapter?.notifyItemMoved(v.adapterPosition, t.adapterPosition); return true }
-        override fun onSwiped(v: RecyclerView.ViewHolder, direction: Int) { dismissKeyboardAndRestore(); val pos = v.adapterPosition; if (pos != RecyclerView.NO_POSITION) { val app = selectedAppsQueue[pos]; if (app.packageName != PACKAGE_BLANK) { Thread { try { shellService?.forceStop(app.packageName) } catch(e: Exception) {} }.start(); safeToast("Killed ${app.label}") }; selectedAppsQueue.removeAt(pos); if (reorderSelectionIndex != -1) endReorderMode(false); updateSelectedAppsDock(); drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() } }
+// === SWIPE TO CLOSE APP HANDLER - START ===
+        // Handles swipe up/down gesture to close/kill an app from the queue
+        // Special handling for Gemini: extracts base package for force-stop command
+        // since Gemini uses "com.google.android.googlequicksearchbox:gemini" internally
+        // but am force-stop needs "com.google.android.googlequicksearchbox"
+        override fun onSwiped(v: RecyclerView.ViewHolder, direction: Int) { 
+            dismissKeyboardAndRestore()
+            val pos = v.adapterPosition
+            if (pos != RecyclerView.NO_POSITION) { 
+                val app = selectedAppsQueue[pos]
+                if (app.packageName != PACKAGE_BLANK) { 
+                    // GEMINI FIX: Extract base package for force-stop command
+                    val pkgToKill = if (app.packageName.contains(":")) {
+                        app.packageName.substringBefore(":")
+                    } else {
+                        app.packageName
+                    }
+                    Thread { 
+                        try { 
+                            shellService?.forceStop(pkgToKill) 
+                        } catch(e: Exception) {
+                            Log.e(TAG, "forceStop failed for $pkgToKill", e)
+                        } 
+                    }.start()
+                    safeToast("Killed ${app.label}") 
+                }
+                selectedAppsQueue.removeAt(pos)
+                if (reorderSelectionIndex != -1) endReorderMode(false)
+                updateSelectedAppsDock()
+                drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+                if (isInstantMode) applyLayoutImmediate() 
+            } 
+        }
+        // === SWIPE TO CLOSE APP HANDLER - END ===
         override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) { super.clearView(recyclerView, viewHolder); val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveLastQueue(this@FloatingLauncherService, pkgs); if (isInstantMode) applyLayoutImmediate() }
     }
+
+    // === SWIPE DETECTOR - START ===
+    // Detects horizontal swipe gestures for blacklist/favorite actions
+    // Left swipe = blacklist, Long press = favorite
+    private inner class SwipeDetector : GestureDetector.SimpleOnGestureListener() {
+        private val SWIPE_THRESHOLD = 100
+        private val SWIPE_VELOCITY_THRESHOLD = 100
+
+        override fun onFling(
+            e1: MotionEvent?,
+            e2: MotionEvent,
+            velocityX: Float,
+            velocityY: Float
+        ): Boolean {
+            if (e1 == null) return false
+
+            val diffX = e2.x - e1.x
+            val diffY = e2.y - e1.y
+
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                    if (diffX < 0) {
+                        return true // Left swipe detected
+                    }
+                }
+            }
+            return false
+        }
+    }
+    // === SWIPE DETECTOR - END ===
 
     private val userServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -13660,12 +13840,16 @@ class FloatingLauncherService : AccessibilityService() {
 
         val searchBar = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar); val mainRecycler = drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view); val selectedRecycler = drawerView!!.findViewById<RecyclerView>(R.id.selected_apps_recycler); val executeBtn = drawerView!!.findViewById<ImageView>(R.id.icon_execute)
         if (isBound) executeBtn.setColorFilter(Color.GREEN) else executeBtn.setColorFilter(Color.RED)
+        // === MODE ICON CLICK LISTENERS - START ===
+        // Sets up click listeners for mode switching icons in drawer
         drawerView!!.findViewById<ImageView>(R.id.icon_search_mode).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_SEARCH) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_window).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_LAYOUTS) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_resolution).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_RESOLUTION) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_dpi).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_DPI) }
+        drawerView!!.findViewById<ImageView>(R.id.icon_mode_blacklist)?.setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_BLACKLIST) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_profiles).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_PROFILES) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_settings).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_SETTINGS) }
+        // === MODE ICON CLICK LISTENERS - END ===
         executeBtn.setOnClickListener { executeLaunch(selectedLayoutType, closeDrawer = true) }
         searchBar.addTextChangedListener(object : TextWatcher { override fun afterTextChanged(s: Editable?) { filterList(s.toString()) }; override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}; override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {} })
         searchBar.imeOptions = EditorInfo.IME_ACTION_DONE
@@ -13729,40 +13913,98 @@ class FloatingLauncherService : AccessibilityService() {
 // This ensures that the internal list always has two separate entries for the Google package.
 // We force the standard one to be "Google" and the assistant one to be "Gemini".
 
-    private fun loadInstalledApps() { 
-        val pm = packageManager; 
-        val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }; 
-        val riList = pm.queryIntentActivities(intent, 0); 
-        allAppsList.clear(); 
-        allAppsList.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)); 
-        
-        for (ri in riList) { 
-            val pkg = ri.activityInfo.packageName; 
+    // === LOAD INSTALLED APPS - START ===
+    // Loads all launcher apps and filters out blacklisted ones
+    // Special handling for Google/Gemini to create separate entries
+    private fun loadInstalledApps() {
+        val pm = packageManager
+        val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+        val riList = pm.queryIntentActivities(intent, 0)
+        allAppsList.clear()
+        allAppsList.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK))
+
+        val blacklist = AppPreferences.getBlacklist(this)
+
+        for (ri in riList) {
+            val pkg = ri.activityInfo.packageName
             val cls = ri.activityInfo.name
-            if (pkg == PACKAGE_TRACKPAD || pkg == packageName) continue; 
-            
+            if (pkg == PACKAGE_TRACKPAD || pkg == packageName) continue
+
             var finalPkg = pkg
             var finalLabel = ri.loadLabel(pm).toString()
-            
-            // GEMINI DETECTION LOGIC
+            var finalActivity: String? = null
+
+            // GEMINI/GOOGLE DETECTION LOGIC
             if (pkg == "com.google.android.googlequicksearchbox") {
                 if (cls.contains("robin.main.MainActivity")) {
                     finalPkg = "com.google.android.googlequicksearchbox:gemini"
                     finalLabel = "Gemini"
+                    finalActivity = cls
                 } else {
                     finalLabel = "Google"
+                    finalActivity = cls
                 }
             }
 
-            val app = MainActivity.AppInfo(finalLabel, finalPkg, AppPreferences.isFavorite(this, finalPkg)); 
-            allAppsList.add(app) 
-        }; 
-        allAppsList.sortBy { it.label.lowercase() } 
+            // Create app info with activity tracking
+            val app = MainActivity.AppInfo(
+                finalLabel,
+                finalPkg,
+                AppPreferences.isFavorite(this, finalPkg),
+                false,
+                finalActivity
+            )
+
+            // Skip if blacklisted
+            if (!blacklist.contains(app.getIdentifier())) {
+                allAppsList.add(app)
+            }
+        }
+        allAppsList.sortBy { it.label.lowercase() }
     }
+    // === LOAD INSTALLED APPS - END ===
+
+    // === LOAD BLACKLISTED APPS - START ===
+    // Loads all blacklisted apps for display in blacklist tab
+    // Reconstructs AppInfo objects from blacklist identifiers
+    private fun loadBlacklistedApps() {
+        displayList.clear()
+
+        val pm = packageManager
+        val blacklist = AppPreferences.getBlacklist(this)
+
+        for (identifier in blacklist) {
+            try {
+                val parts = identifier.split(":")
+                val pkg = parts[0]
+                val activity = if (parts.size > 1) parts[1] else null
+
+                // Determine label
+                val label = when {
+                    identifier.contains("gemini") -> "Gemini"
+                    pkg == "com.google.android.googlequicksearchbox" -> "Google"
+                    else -> {
+                        try {
+                            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+                        } catch (e: Exception) {
+                            identifier
+                        }
+                    }
+                }
+
+                val app = MainActivity.AppInfo(label, pkg, false, false, activity)
+                displayList.add(app)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load blacklisted app: $identifier", e)
+            }
+        }
+
+        displayList.sortBy { (it as? MainActivity.AppInfo)?.label?.lowercase() }
+        drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+    }
+    // === LOAD BLACKLISTED APPS - END ===
 
 
-
-    
     private fun launchTrackpad() {
         if (isTrackpadRunning()) { safeToast("Trackpad is already active"); return }
         try { val intent = packageManager.getLaunchIntentForPackage(PACKAGE_TRACKPAD); if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); val dm = DisplayMetrics(); val display = displayContext?.display ?: windowManager.defaultDisplay; display.getRealMetrics(dm); val w = dm.widthPixels; val h = dm.heightPixels; val targetW = (w * 0.5f).toInt(); val targetH = (h * 0.5f).toInt(); val left = (w - targetW) / 2; val top = (h - targetH) / 2; val bounds = Rect(left, top, left + targetW, top + targetH); val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(bounds); try { val method = android.app.ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType); method.invoke(options, 5) } catch (e: Exception) {}; startActivity(intent, options.toBundle()); toggleDrawer(); if (shellService != null) { uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(PACKAGE_TRACKPAD, left, top, left+targetW, top+targetH) } catch(e: Exception) { Log.e(TAG, "Shell launch failed", e) } }.start() }, 400) } } else { safeToast("Trackpad App not found") } } catch (e: Exception) { safeToast("Error launching Trackpad") }
@@ -13781,14 +14023,60 @@ class FloatingLauncherService : AccessibilityService() {
         val filtered = if (actualQuery.isEmpty()) { allAppsList } else { allAppsList.filter { it.label.contains(actualQuery, ignoreCase = true) } }
         val sorted = filtered.sortedWith(compareBy<MainActivity.AppInfo> { it.packageName != PACKAGE_BLANK }.thenByDescending { it.isFavorite }.thenBy { it.label.lowercase() }); displayList.addAll(sorted); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
     }
-    private fun addToSelection(app: MainActivity.AppInfo) {
-        dismissKeyboardAndRestore(); val et = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar)
-        if (app.packageName == PACKAGE_BLANK) { selectedAppsQueue.add(app); sortAppQueue(); updateSelectedAppsDock(); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate(); return }
-        val existing = selectedAppsQueue.find { it.packageName == app.packageName }; if (existing != null) { selectedAppsQueue.remove(existing); Thread { try { shellService?.forceStop(app.packageName) } catch(e: Exception) {} }.start(); safeToast("Removed ${app.label}"); sortAppQueue(); updateSelectedAppsDock(); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); et.setText(""); if (isInstantMode) applyLayoutImmediate() } 
-        else { app.isMinimized = false; selectedAppsQueue.add(app); sortAppQueue(); updateSelectedAppsDock(); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); et.setText(""); if (isInstantMode) { launchViaApi(app.packageName, null); launchViaShell(app.packageName); uiHandler.postDelayed({ applyLayoutImmediate() }, 200); uiHandler.postDelayed({ applyLayoutImmediate() }, 800) } }
-    }
-    private fun toggleFavorite(app: MainActivity.AppInfo) { val newState = AppPreferences.toggleFavorite(this, app.packageName); app.isFavorite = newState; allAppsList.find { it.packageName == app.packageName }?.isFavorite = newState }
 
+    // === SELECTION LOGIC - START ===
+    // Handles adding/removing apps from the launch queue
+    private fun addToSelection(app: MainActivity.AppInfo) {
+        dismissKeyboardAndRestore()
+        val et = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar)
+        
+        if (app.packageName == PACKAGE_BLANK) {
+            selectedAppsQueue.add(app)
+            sortAppQueue()
+            updateSelectedAppsDock()
+            drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+            if (isInstantMode) applyLayoutImmediate()
+            return
+        }
+
+        val existing = selectedAppsQueue.find { it.packageName == app.packageName }
+        if (existing != null) { 
+            selectedAppsQueue.remove(existing)
+            val pkgToKill = if (app.packageName.contains(":")) {
+                app.packageName.substringBefore(":")
+            } else {
+                app.packageName
+            }
+            Thread { 
+                try { 
+                    shellService?.forceStop(pkgToKill) 
+                } catch(e: Exception) {
+                    Log.e(TAG, "forceStop failed for $pkgToKill", e)
+                } 
+            }.start()
+            safeToast("Removed ${app.label}")
+        } else { 
+            app.isMinimized = false
+            selectedAppsQueue.add(app)
+            sortAppQueue()
+            updateSelectedAppsDock()
+            drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+            et.setText("")
+            if (isInstantMode) { 
+                launchViaApi(app.packageName, null)
+                launchViaShell(app.packageName)
+                uiHandler.postDelayed({ applyLayoutImmediate() }, 200)
+                uiHandler.postDelayed({ applyLayoutImmediate() }, 800) 
+            } 
+        }
+    }
+
+    private fun toggleFavorite(app: MainActivity.AppInfo) { 
+        val newState = AppPreferences.toggleFavorite(this, app.packageName)
+        app.isFavorite = newState
+        allAppsList.find { it.packageName == app.packageName }?.isFavorite = newState 
+    }
+    // === SELECTION LOGIC - END ===
 
     private fun launchViaApi(pkg: String, bounds: Rect?) { 
         try { 
@@ -13916,9 +14204,7 @@ class FloatingLauncherService : AccessibilityService() {
 
     private fun applyLayoutImmediate() { executeLaunch(selectedLayoutType, closeDrawer = false) }
 
-
-
-    private fun fetchRunningApps() { 
+    private fun fetchRunningApps() {
         if (shellService == null) return; 
         Thread { 
             try { 
@@ -13959,7 +14245,7 @@ class FloatingLauncherService : AccessibilityService() {
                     drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); 
                 } 
             } catch (e: Exception) { Log.e(TAG, "Fetch failed", e) } 
-        }.start() 
+        }.start()
     }
 
 
@@ -13974,20 +14260,218 @@ class FloatingLauncherService : AccessibilityService() {
     private fun pickIcon() { toggleDrawer(); try { refreshDisplayId(); val intent = Intent(this, IconPickerActivity::class.java); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); val metrics = windowManager.maximumWindowMetrics; val w = 1000; val h = (metrics.bounds.height() * 0.7).toInt(); val x = (metrics.bounds.width() - w) / 2; val y = (metrics.bounds.height() - h) / 2; val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(Rect(x, y, x+w, y+h)); startActivity(intent, options.toBundle()) } catch (e: Exception) { safeToast("Error launching picker: ${e.message}") } }
     private fun saveProfile() { var name = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.text?.toString()?.trim(); if (name.isNullOrEmpty()) { val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()); name = "Profile_$timestamp" }; val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveProfile(this, name, selectedLayoutType, selectedResolutionIndex, currentDpiSetting, pkgs); safeToast("Saved: $name"); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText(""); switchMode(MODE_PROFILES) }
     private fun loadProfile(name: String) { val data = AppPreferences.getProfileData(this, name) ?: return; try { val parts = data.split("|"); selectedLayoutType = parts[0].toInt(); selectedResolutionIndex = parts[1].toInt(); currentDpiSetting = parts[2].toInt(); val pkgList = parts[3].split(","); selectedAppsQueue.clear(); for (pkg in pkgList) { if (pkg.isNotEmpty()) { if (pkg == PACKAGE_BLANK) { selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)) } else { val app = allAppsList.find { it.packageName == pkg }; if (app != null) selectedAppsQueue.add(app) } } }; AppPreferences.saveLastLayout(this, selectedLayoutType); AppPreferences.saveDisplayResolution(this, currentDisplayId, selectedResolutionIndex); AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting); activeProfileName = name; updateSelectedAppsDock(); safeToast("Loaded: $name"); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() } catch (e: Exception) { Log.e(TAG, "Failed to load profile", e) } }
-    
-    private fun executeLaunch(layoutType: Int, closeDrawer: Boolean) { 
-        if (closeDrawer) toggleDrawer(); refreshDisplayId(); val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveLastQueue(this, pkgs)
-        Thread { try { val resCmd = getResolutionCommand(selectedResolutionIndex); shellService?.runCommand(resCmd); if (currentDpiSetting > 0) { val dpiCmd = "wm density $currentDpiSetting -d $currentDisplayId"; shellService?.runCommand(dpiCmd) } else { if (currentDpiSetting == -1) shellService?.runCommand("wm density reset -d $currentDisplayId") }; Thread.sleep(800); val targetDim = getTargetDimensions(selectedResolutionIndex); var w = 0; var h = 0; if (targetDim != null) { w = targetDim.first; h = targetDim.second } else { val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; val display = dm.getDisplay(currentDisplayId); if (display != null) { val metrics = DisplayMetrics(); display.getRealMetrics(metrics); w = metrics.widthPixels; h = metrics.heightPixels } else { val bounds = windowManager.maximumWindowMetrics.bounds; w = bounds.width(); h = bounds.height() } }; val rects = mutableListOf<Rect>(); when (layoutType) { LAYOUT_FULL -> { rects.add(Rect(0, 0, w, h)) }; LAYOUT_SIDE_BY_SIDE -> { rects.add(Rect(0, 0, w/2, h)); rects.add(Rect(w/2, 0, w, h)) }; LAYOUT_TOP_BOTTOM -> { rects.add(Rect(0, 0, w, h/2)); rects.add(Rect(0, h/2, w, h)) }; LAYOUT_TRI_EVEN -> { val third = w / 3; rects.add(Rect(0, 0, third, h)); rects.add(Rect(third, 0, third * 2, h)); rects.add(Rect(third * 2, 0, w, h)) }; LAYOUT_CORNERS -> { rects.add(Rect(0, 0, w/2, h/2)); rects.add(Rect(w/2, 0, w, h/2)); rects.add(Rect(0, h/2, w/2, h)); rects.add(Rect(w/2, h/2, w, h)) }; LAYOUT_TRI_SIDE_MAIN_SIDE -> { val quarter = w / 4; rects.add(Rect(0, 0, quarter, h)); rects.add(Rect(quarter, 0, quarter * 3, h)); rects.add(Rect(quarter * 3, 0, w, h)) }; LAYOUT_QUAD_ROW_EVEN -> { val quarter = w / 4; rects.add(Rect(0, 0, quarter, h)); rects.add(Rect(quarter, 0, quarter * 2, h)); rects.add(Rect(quarter * 2, 0, quarter * 3, h)); rects.add(Rect(quarter * 3, 0, w, h)) }; LAYOUT_CUSTOM_DYNAMIC -> { if (activeCustomRects != null) { rects.addAll(activeCustomRects!!) } else { rects.add(Rect(0, 0, w/2, h)); rects.add(Rect(w/2, 0, w, h)) } } }; if (selectedAppsQueue.isNotEmpty()) { val minimizedApps = selectedAppsQueue.filter { it.isMinimized }; for (app in minimizedApps) { if (app.packageName != PACKAGE_BLANK) { try { val tid = shellService?.getTaskId(app.packageName) ?: -1; if (tid != -1) shellService?.moveTaskToBack(tid) } catch (e: Exception) { Log.e(TAG, "Failed to minimize ${app.packageName}", e) } } }; val activeApps = selectedAppsQueue.filter { !it.isMinimized }; if (killAppOnExecute) { for (app in activeApps) { if (app.packageName != PACKAGE_BLANK) { shellService?.forceStop(app.packageName) } }; Thread.sleep(400) } else { Thread.sleep(100) }; val count = Math.min(activeApps.size, rects.size); for (i in 0 until count) { val pkg = activeApps[i].packageName; val bounds = rects[i]; if (pkg == PACKAGE_BLANK) continue; uiHandler.postDelayed({ launchViaApi(pkg, bounds) }, (i * 150).toLong()); uiHandler.postDelayed({ launchViaShell(pkg) }, (i * 150 + 50).toLong()); if (!killAppOnExecute) { uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(pkg, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start() }, (i * 150 + 150).toLong()) }; uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(pkg, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start() }, (i * 150 + 800).toLong()) }; if (closeDrawer) { uiHandler.post { selectedAppsQueue.clear(); updateSelectedAppsDock() } } } } catch (e: Exception) { Log.e(TAG, "Execute Failed", e); safeToast("Execute Failed: ${e.message}") } }.start(); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText("") 
+    private fun executeLaunch(layoutType: Int, closeDrawer: Boolean) {
+        if (closeDrawer) toggleDrawer()
+        refreshDisplayId()
+        val pkgs = selectedAppsQueue.map { it.packageName }
+        AppPreferences.saveLastQueue(this, pkgs)
+
+        Thread { 
+            try { 
+                // Apply resolution command
+                val resCmd = getResolutionCommand(selectedResolutionIndex)
+                shellService?.runCommand(resCmd)
+
+                // Apply DPI settings
+                if (currentDpiSetting > 0) { 
+                    val dpiCmd = "wm density $currentDpiSetting -d $currentDisplayId"
+                    shellService?.runCommand(dpiCmd) 
+                } else { 
+                    if (currentDpiSetting == -1) shellService?.runCommand("wm density reset -d $currentDisplayId") 
+                }
+
+                Thread.sleep(800)
+
+                // Get target display dimensions
+                val targetDim = getTargetDimensions(selectedResolutionIndex)
+                var w = 0
+                var h = 0
+                if (targetDim != null) { 
+                    w = targetDim.first
+                    h = targetDim.second 
+                } else { 
+                    val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+                    val display = dm.getDisplay(currentDisplayId)
+                    if (display != null) { 
+                        val metrics = DisplayMetrics()
+                        display.getRealMetrics(metrics)
+                        w = metrics.widthPixels
+                        h = metrics.heightPixels 
+                    } else { 
+                        val bounds = windowManager.maximumWindowMetrics.bounds
+                        w = bounds.width()
+                        h = bounds.height() 
+                    } 
+                }
+
+                // Build layout rectangles based on layout type
+                val rects = mutableListOf<Rect>()
+                when (layoutType) { 
+                    LAYOUT_FULL -> { 
+                        rects.add(Rect(0, 0, w, h)) 
+                    }
+                    LAYOUT_SIDE_BY_SIDE -> { 
+                        rects.add(Rect(0, 0, w/2, h))
+                        rects.add(Rect(w/2, 0, w, h)) 
+                    }
+                    LAYOUT_TOP_BOTTOM -> { 
+                        rects.add(Rect(0, 0, w, h/2))
+                        rects.add(Rect(0, h/2, w, h)) 
+                    }
+                    LAYOUT_TRI_EVEN -> { 
+                        val third = w / 3
+                        rects.add(Rect(0, 0, third, h))
+                        rects.add(Rect(third, 0, third * 2, h))
+                        rects.add(Rect(third * 2, 0, w, h)) 
+                    }
+                    LAYOUT_CORNERS -> { 
+                        rects.add(Rect(0, 0, w/2, h/2))
+                        rects.add(Rect(w/2, 0, w, h/2))
+                        rects.add(Rect(0, h/2, w/2, h))
+                        rects.add(Rect(w/2, h/2, w, h)) 
+                    }
+                    LAYOUT_TRI_SIDE_MAIN_SIDE -> { 
+                        val quarter = w / 4
+                        rects.add(Rect(0, 0, quarter, h))
+                        rects.add(Rect(quarter, 0, quarter * 3, h))
+                        rects.add(Rect(quarter * 3, 0, w, h)) 
+                    }
+                    LAYOUT_QUAD_ROW_EVEN -> { 
+                        val quarter = w / 4
+                        rects.add(Rect(0, 0, quarter, h))
+                        rects.add(Rect(quarter, 0, quarter * 2, h))
+                        rects.add(Rect(quarter * 2, 0, quarter * 3, h))
+                        rects.add(Rect(quarter * 3, 0, w, h)) 
+                    }
+                    LAYOUT_CUSTOM_DYNAMIC -> { 
+                        if (activeCustomRects != null) { 
+                            rects.addAll(activeCustomRects!!) 
+                        } else { 
+                            rects.add(Rect(0, 0, w/2, h))
+                            rects.add(Rect(w/2, 0, w, h)) 
+                        } 
+                    } 
+                }
+
+                // Process apps in queue
+                if (selectedAppsQueue.isNotEmpty()) { 
+                    // Handle minimized apps - move to back
+                    val minimizedApps = selectedAppsQueue.filter { it.isMinimized }
+                    for (app in minimizedApps) { 
+                        if (app.packageName != PACKAGE_BLANK) { 
+                            try { 
+                                val basePkg = if (app.packageName.contains(":")) {
+                                    app.packageName.substringBefore(":")
+                                } else {
+                                    app.packageName
+                                }
+                                val tid = shellService?.getTaskId(basePkg) ?: -1
+                                if (tid != -1) shellService?.moveTaskToBack(tid) 
+                            } catch (e: Exception) { 
+                                Log.e(TAG, "Failed to minimize ${app.packageName}", e) 
+                            } 
+                        } 
+                    }
+
+                    // Handle active (non-minimized) apps
+                    val activeApps = selectedAppsQueue.filter { !it.isMinimized }
+
+                    // GEMINI FIX Kill apps using base package name
+                    if (killAppOnExecute) { 
+                        for (app in activeApps) { 
+                            if (app.packageName != PACKAGE_BLANK) { 
+                                val pkgToKill = if (app.packageName.contains(":")) {
+                                    app.packageName.substringBefore(":")
+                                } else {
+                                    app.packageName
+                                }
+                                shellService?.forceStop(pkgToKill) 
+                            } 
+                        }
+                        Thread.sleep(400) 
+                    } else { 
+                        Thread.sleep(100) 
+                    }
+
+                    // Launch apps in their assigned positions
+                    val count = Math.min(activeApps.size, rects.size)
+                    for (i in 0 until count) { 
+                        val pkg = activeApps[i].packageName
+                        val bounds = rects[i]
+                        if (pkg == PACKAGE_BLANK) continue
+
+                        // Launch via API with bounds
+                        uiHandler.postDelayed({ 
+                            launchViaApi(pkg, bounds) 
+                        }, (i * 150).toLong())
+
+                        // Launch via shell command
+                        uiHandler.postDelayed({ 
+                            launchViaShell(pkg) 
+                        }, (i * 150 + 50).toLong())
+
+                        // Reposition task if not killing on execute
+                        if (!killAppOnExecute) { 
+                            uiHandler.postDelayed({ 
+                                Thread { 
+                                    try { 
+                                        // GEMINI FIX Use base package for repositionTask
+                                        val basePkg = if (pkg.contains(":")) {
+                                            pkg.substringBefore(":")
+                                        } else {
+                                            pkg
+                                        }
+                                        shellService?.repositionTask(basePkg, bounds.left, bounds.top, bounds.right, bounds.bottom) 
+                                    } catch (e: Exception) {} 
+                                }.start() 
+                            }, (i * 150 + 150).toLong()) 
+                        }
+
+                        // Final reposition after delay
+                        uiHandler.postDelayed({ 
+                            Thread { 
+                                try { 
+                                    // GEMINI FIX Use base package for repositionTask
+                                    val basePkg = if (pkg.contains(":")) {
+                                        pkg.substringBefore(":")
+                                    } else {
+                                        pkg
+                                    }
+                                    shellService?.repositionTask(basePkg, bounds.left, bounds.top, bounds.right, bounds.bottom) 
+                                } catch (e: Exception) {} 
+                            }.start() 
+                        }, (i * 150 + 800).toLong()) 
+                    }
+
+                    // Clear queue if drawer was closed
+                    if (closeDrawer) { 
+                        uiHandler.post { 
+                            selectedAppsQueue.clear()
+                            updateSelectedAppsDock() 
+                        } 
+                    } 
+                } 
+            } catch (e: Exception) { 
+                Log.e(TAG, "Execute Failed", e)
+                safeToast("Execute Failed: ${e.message}") 
+            } 
+        }.start()
+
+        drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText("") 
     }
+    // === EXECUTE LAUNCH FUNCTION - END ===
     
     private fun calculateGCD(a: Int, b: Int): Int { return if (b == 0) a else calculateGCD(b, a % b) }
 
+    // === SWITCH MODE - START ===
+    // Switches between different drawer tabs/modes
+    // Handles UI updates for search bar, icons, and list content
     private fun switchMode(mode: Int) {
         currentMode = mode
-        val searchBar = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar); val searchIcon = drawerView!!.findViewById<ImageView>(R.id.icon_search_mode); val iconWin = drawerView!!.findViewById<ImageView>(R.id.icon_mode_window); val iconRes = drawerView!!.findViewById<ImageView>(R.id.icon_mode_resolution); val iconDpi = drawerView!!.findViewById<ImageView>(R.id.icon_mode_dpi); val iconProf = drawerView!!.findViewById<ImageView>(R.id.icon_mode_profiles); val iconSet = drawerView!!.findViewById<ImageView>(R.id.icon_mode_settings); val executeBtn = drawerView!!.findViewById<ImageView>(R.id.icon_execute)
-        searchIcon.setColorFilter(if(mode==MODE_SEARCH) Color.WHITE else Color.GRAY); iconWin.setColorFilter(if(mode==MODE_LAYOUTS) Color.WHITE else Color.GRAY); iconRes.setColorFilter(if(mode==MODE_RESOLUTION) Color.WHITE else Color.GRAY); iconDpi.setColorFilter(if(mode==MODE_DPI) Color.WHITE else Color.GRAY); iconProf.setColorFilter(if(mode==MODE_PROFILES) Color.WHITE else Color.GRAY); iconSet.setColorFilter(if(mode==MODE_SETTINGS) Color.WHITE else Color.GRAY)
+        val searchBar = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar); val searchIcon = drawerView!!.findViewById<ImageView>(R.id.icon_search_mode); val iconWin = drawerView!!.findViewById<ImageView>(R.id.icon_mode_window); val iconRes = drawerView!!.findViewById<ImageView>(R.id.icon_mode_resolution); val iconDpi = drawerView!!.findViewById<ImageView>(R.id.icon_mode_dpi); val iconBlacklist = drawerView!!.findViewById<ImageView>(R.id.icon_mode_blacklist); val iconProf = drawerView!!.findViewById<ImageView>(R.id.icon_mode_profiles); val iconSet = drawerView!!.findViewById<ImageView>(R.id.icon_mode_settings); val executeBtn = drawerView!!.findViewById<ImageView>(R.id.icon_execute)
+        searchIcon.setColorFilter(if(mode==MODE_SEARCH) Color.WHITE else Color.GRAY); iconWin.setColorFilter(if(mode==MODE_LAYOUTS) Color.WHITE else Color.GRAY); iconRes.setColorFilter(if(mode==MODE_RESOLUTION) Color.WHITE else Color.GRAY); iconDpi.setColorFilter(if(mode==MODE_DPI) Color.WHITE else Color.GRAY); iconBlacklist?.setColorFilter(if(mode==MODE_BLACKLIST) Color.WHITE else Color.GRAY); iconProf.setColorFilter(if(mode==MODE_PROFILES) Color.WHITE else Color.GRAY); iconSet.setColorFilter(if(mode==MODE_SETTINGS) Color.WHITE else Color.GRAY)
         executeBtn.visibility = if (isInstantMode) View.GONE else View.VISIBLE; displayList.clear(); val dock = drawerView!!.findViewById<RecyclerView>(R.id.selected_apps_recycler); dock.visibility = if (mode == MODE_SEARCH && selectedAppsQueue.isNotEmpty()) View.VISIBLE else View.GONE
-        
+
         when (mode) {
             MODE_SEARCH -> { searchBar.hint = "Search apps..."; refreshSearchList() }
             MODE_LAYOUTS -> { 
@@ -13998,6 +14482,7 @@ class FloatingLauncherService : AccessibilityService() {
                 searchBar.hint = "Select Resolution"; displayList.add(CustomResInputOption); val savedResNames = AppPreferences.getCustomResolutionNames(this).sorted(); for (name in savedResNames) { val value = AppPreferences.getCustomResolutionValue(this, name) ?: continue; displayList.add(ResolutionOption(name, "wm size  -d $currentDisplayId", 100 + savedResNames.indexOf(name))) }; displayList.add(ResolutionOption("Default (Reset)", "wm size reset -d $currentDisplayId", 0)); displayList.add(ResolutionOption("1:1 Square (1422x1500)", "wm size 1422x1500 -d $currentDisplayId", 1)); displayList.add(ResolutionOption("16:9 Landscape (1920x1080)", "wm size 1920x1080 -d $currentDisplayId", 2)); displayList.add(ResolutionOption("32:9 Ultrawide (3840x1080)", "wm size 3840x1080 -d $currentDisplayId", 3))
             }
             MODE_DPI -> { searchBar.hint = "Adjust Density (DPI)"; displayList.add(ActionOption("Reset Density (Default)") { selectDpi(-1) }); var savedDpi = currentDpiSetting; if (savedDpi <= 0) { savedDpi = displayContext?.resources?.configuration?.densityDpi ?: 160 }; displayList.add(DpiOption(savedDpi)) }
+            MODE_BLACKLIST -> { searchBar.hint = "Blacklisted Apps"; loadBlacklistedApps(); executeBtn.visibility = View.GONE }
             MODE_PROFILES -> { searchBar.hint = "Enter Profile Name..."; displayList.add(ProfileOption("Save Current as New", true, 0,0,0, emptyList())); val profileNames = AppPreferences.getProfileNames(this).sorted(); for (pName in profileNames) { val data = AppPreferences.getProfileData(this, pName); if (data != null) { try { val parts = data.split("|"); val lay = parts[0].toInt(); val res = parts[1].toInt(); val d = parts[2].toInt(); val pkgs = parts[3].split(",").filter { it.isNotEmpty() }; displayList.add(ProfileOption(pName, false, lay, res, d, pkgs)) } catch(e: Exception) {} } } }
             MODE_SETTINGS -> {
                 searchBar.hint = "Settings"
@@ -14056,7 +14541,8 @@ class FloatingLauncherService : AccessibilityService() {
         }
         drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
     }
-    
+    // === SWITCH MODE - END ===
+
     object CustomResInputOption
     data class LayoutOption(val name: String, val type: Int, val isCustomSaved: Boolean = false, val customRects: List<Rect>? = null)
     data class ResolutionOption(val name: String, val command: String, val index: Int)
@@ -14114,7 +14600,29 @@ class FloatingLauncherService : AccessibilityService() {
             if (holder is LayoutHolder) holder.nameInput.textSize = currentFontSize
             if (holder is ProfileRichHolder) holder.name.textSize = currentFontSize
 
-            if (holder is AppHolder && item is MainActivity.AppInfo) { holder.text.text = item.label; if (item.packageName == PACKAGE_BLANK) { holder.icon.setImageResource(R.drawable.ic_box_outline) } else { try { holder.icon.setImageDrawable(packageManager.getApplicationIcon(item.packageName)) } catch (e: Exception) { holder.icon.setImageResource(R.drawable.ic_launcher_bubble) } }; val isSelected = selectedAppsQueue.any { it.packageName == item.packageName }; if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.star.visibility = if (item.isFavorite) View.VISIBLE else View.GONE; holder.itemView.setOnClickListener { addToSelection(item) }; holder.itemView.setOnLongClickListener { toggleFavorite(item); refreshSearchList(); true } }
+            // === APP HOLDER BINDING - START ===
+            // Handles app item display with proper package name extraction for icons
+            if (holder is AppHolder && item is MainActivity.AppInfo) {
+                holder.text.text = item.label
+                if (item.packageName == PACKAGE_BLANK) {
+                    holder.icon.setImageResource(R.drawable.ic_box_outline)
+                } else {
+                    try {
+                        // Extract base package name (remove ":suffix" if present)
+                        val basePkg = if (item.packageName.contains(":")) item.packageName.substringBefore(":") else item.packageName
+                        holder.icon.setImageDrawable(packageManager.getApplicationIcon(basePkg))
+                    } catch (e: Exception) {
+                        holder.icon.setImageResource(R.drawable.ic_launcher_bubble)
+                    }
+                }
+                val isSelected = selectedAppsQueue.any { it.packageName == item.packageName }
+                if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active)
+                else holder.itemView.setBackgroundResource(R.drawable.bg_item_press)
+                holder.star.visibility = if (item.isFavorite) View.VISIBLE else View.GONE
+                holder.itemView.setOnClickListener { addToSelection(item) }
+                holder.itemView.setOnLongClickListener { toggleFavorite(item); refreshSearchList(); true }
+            }
+            // === APP HOLDER BINDING - END ===
             else if (holder is ProfileRichHolder && item is ProfileOption) { holder.name.setText(item.name); holder.iconsContainer.removeAllViews(); if (!item.isCurrent) { for (pkg in item.apps.take(5)) { val iv = ImageView(holder.itemView.context); val lp = LinearLayout.LayoutParams(60, 60); lp.marginEnd = 8; iv.layoutParams = lp; if (pkg == PACKAGE_BLANK) { iv.setImageResource(R.drawable.ic_box_outline) } else { try { iv.setImageDrawable(packageManager.getApplicationIcon(pkg)) } catch (e: Exception) { iv.setImageResource(R.drawable.ic_launcher_bubble) } }; holder.iconsContainer.addView(iv) }; val info = "${getLayoutName(item.layout)} | ${getRatioName(item.resIndex)} | ${item.dpi}dpi"; holder.details.text = info; holder.details.visibility = View.VISIBLE; holder.btnSave.visibility = View.GONE; if (activeProfileName == item.name) { holder.itemView.setBackgroundResource(R.drawable.bg_item_active) } else { holder.itemView.setBackgroundResource(0) }; holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); loadProfile(item.name) }; holder.itemView.setOnLongClickListener { startRename(holder.name); true }; val saveProfileName = { val newName = holder.name.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameProfile(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_PROFILES) } }; endRename(holder.name) }; holder.name.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveProfileName(); holder.name.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(holder.name.windowToken, 0); updateDrawerHeight(false); true } else false }; holder.name.setOnFocusChangeListener { v, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus); if (!hasFocus) saveProfileName() } } else { holder.iconsContainer.removeAllViews(); holder.details.visibility = View.GONE; holder.btnSave.visibility = View.VISIBLE; holder.itemView.setBackgroundResource(0); holder.name.isEnabled = true; holder.name.isFocusable = true; holder.name.isFocusableInTouchMode = true; holder.itemView.setOnClickListener { saveProfile() }; holder.btnSave.setOnClickListener { saveProfile() } } }
             else if (holder is LayoutHolder) {
                 holder.btnSave.visibility = View.GONE; holder.btnExtinguish.visibility = View.GONE
