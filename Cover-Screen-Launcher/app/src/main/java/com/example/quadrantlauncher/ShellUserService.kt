@@ -273,32 +273,60 @@ override fun setBrightness(displayId: Int, brightness: Int) {
 
 
 
-    override fun repositionTask(packageName: String, left: Int, top: Int, right: Int, bottom: Int) {
+/* * FUNCTION: Task Management (repositionTask & getTaskId)
+ * SUMMARY: Implementation logic to find specific Task IDs via dumpsys by matching component names.
+ */
+
+// Line approx: 160-210
+// DELETE/REPLACE the repositionTask and getTaskId functions:
+    override fun repositionTask(packageName: String, className: String?, left: Int, top: Int, right: Int, bottom: Int) {
+        val tid = getTaskId(packageName, className)
+        Log.i("DROIDOS_LOG", "SHELL: Target $packageName | TID: $tid");
+        if (tid != -1) {
+            val token = Binder.clearCallingIdentity()
+            try {
+                // Force Mode 5 (Freeform) - pulse twice to ensure it catches
+                Runtime.getRuntime().exec("am task set-windowing-mode $tid 5").waitFor()
+                Thread.sleep(50)
+                Runtime.getRuntime().exec("am task set-windowing-mode $tid 5").waitFor()
+                // Resize
+                Runtime.getRuntime().exec("am task resize $tid $left $top $right $bottom").waitFor()
+            } catch (e: Exception) {
+                Log.e("DROIDOS_LOG", "SHELL_EXEC_ERROR: ${e.message}");
+            } finally { Binder.restoreCallingIdentity(token) }
+        }
+    }
+
+    override fun getTaskId(packageName: String, className: String?): Int {
+        var taskId = -1
         val token = Binder.clearCallingIdentity()
         try {
-            var searchStr = packageName
-            if (packageName.endsWith(":gemini")) searchStr = "robin.main.MainActivity"
-
-            val cmd = arrayOf("sh", "-c", "dumpsys activity top | grep -E 'TASK.*id=|ACTIVITY.*$searchStr'")
-            val process = Runtime.getRuntime().exec(cmd)
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            var line: String?; var targetTaskId = -1
+            // We look at 'top' activity only. This ensures precision for the app we just launched.
+            val cmd = arrayOf("sh", "-c", "dumpsys activity top")
+            val p = Runtime.getRuntime().exec(cmd)
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
             
-            while (reader.readLine().also { line = it } != null) {
-                if (line!!.contains("TASK") && line!!.contains("id=")) {
-                     val match = Regex("id=(\\d+)").find(line!!)
-                     if (match != null) targetTaskId = match.groupValues[1].toInt()
+            while (r.readLine().also { line = it } != null) {
+                val l = line!!.trim()
+                // Look for the TASK line that appears immediately above the activity details
+                if (l.contains("TASK") && l.contains("id=")) {
+                    val match = Regex("id=(\\d+)").find(l)
+                    if (match != null) taskId = match.groupValues[1].toInt()
                 }
-                if (targetTaskId != -1 && line!!.contains(searchStr)) break
+                // If the very next lines contain our package or class, we have the correct ID
+                if (taskId != -1 && (l.contains(packageName) || (className != null && l.contains(className)))) {
+                    break // Found it
+                }
+                // If we hit a new TASK without finding our package, reset
+                if (l.contains("TASK") && !l.contains("id=")) taskId = -1
             }
-            reader.close(); process.waitFor()
-            
-            if (targetTaskId != -1) {
-                Runtime.getRuntime().exec("am task set-windowing-mode $targetTaskId 5").waitFor()
-                Runtime.getRuntime().exec("am task resize $targetTaskId $left $top $right $bottom").waitFor()
-            }
+            r.close()
         } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-    }
+        return taskId
+    }/* END Task Management */
+
+
 
 
 
@@ -419,29 +447,7 @@ override fun getWindowLayouts(displayId: Int): List<String> {
 }
 
 
-    override fun getTaskId(packageName: String): Int {
-        var taskId = -1; val token = Binder.clearCallingIdentity()
-        try {
-            var searchStr = packageName
-            // Specific activity search for Gemini
-            if (packageName.endsWith(":gemini")) searchStr = "robin.main.MainActivity"
-            
-            val cmd = arrayOf("sh", "-c", "dumpsys activity activities | grep -E 'Task id|$searchStr'")
-            val p = Runtime.getRuntime().exec(cmd); val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            while (r.readLine().also { line = it } != null) {
-                if (line!!.contains(searchStr)) {
-                    if (line!!.startsWith("* Task{") || line!!.startsWith("Task{")) {
-                        val m = Regex("#(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break }
-                    }
-                    if (line!!.contains("ActivityRecord")) {
-                        val m = Regex("t(\\d+)").find(line!!); if (m != null) { taskId = m.groupValues[1].toInt(); break }
-                    }
-                }
-            }
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        return taskId
-    }
+
 
 
     override fun moveTaskToBack(taskId: Int) {

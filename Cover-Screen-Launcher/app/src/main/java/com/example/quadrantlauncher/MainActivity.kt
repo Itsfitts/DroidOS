@@ -17,27 +17,40 @@ class MainActivity : AppCompatActivity() {
         const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
     }
 
-    // === APP INFO DATA CLASS - START ===
-    // Stores app information with unique identifier for blacklist purposes
-    // The packageName may include ":activityName" suffix for apps like Gemini
+
+
+/* * FUNCTION: AppInfo Data Model Update
+ * SUMMARY: Added getIdentifier() helper to support blacklist lookups and unique component identification.
+ */
+
+// Line approx: 15-40
+// DELETE/REPLACE THE AppInfo BLOCK WITH:
     data class AppInfo(
         val label: String,
         val packageName: String,
+        val className: String? = null,
         var isFavorite: Boolean = false,
-        var isMinimized: Boolean = false,
-        val activityName: String? = null  // Added to track specific activity
+        var isMinimized: Boolean = false
     ) {
-        // Generate unique identifier for blacklist: "packageName:activityName"
-        fun getIdentifier(): String {
-            return if (activityName != null) {
-                val basePkg = if (packageName.contains(":")) packageName.substringBefore(":") else packageName
-                "$basePkg:$activityName"
-            } else {
-                packageName
-            }
+        fun getIdentifier(): String = if (!className.isNullOrEmpty()) "$packageName:$className" else packageName
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is AppInfo) return false
+            // Explicitly check label to separate Google/Gemini
+            return packageName == other.packageName && className == other.className && label == other.label
+        }
+
+        override fun hashCode(): Int {
+            var result = packageName.hashCode()
+            result = 31 * result + (className?.hashCode() ?: 0)
+            result = 31 * result + label.hashCode()
+            return result
         }
     }
-    // === APP INFO DATA CLASS - END ===
+/* END AppInfo Data Model Update */
+
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

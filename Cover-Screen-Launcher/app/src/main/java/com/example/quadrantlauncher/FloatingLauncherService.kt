@@ -377,6 +377,7 @@ class FloatingLauncherService : AccessibilityService() {
     // AccessibilityService entry point - called when user enables service in Settings
     override fun onServiceConnected() {
         super.onServiceConnected()
+        Log.i("DROIDOS_LOG", "DROIDOS_INIT: FloatingLauncherService Started");
         Log.d(TAG, "Accessibility Service Connected")
 
         // Initialize WindowManager
@@ -668,101 +669,69 @@ class FloatingLauncherService : AccessibilityService() {
 // This ensures that the internal list always has two separate entries for the Google package.
 // We force the standard one to be "Google" and the assistant one to be "Gemini".
 
-    // === LOAD INSTALLED APPS - START ===
-    // Loads all launcher apps and filters out blacklisted ones
-    // Special handling for Google/Gemini to create separate entries
     private fun loadInstalledApps() {
         val pm = packageManager
         val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
         val riList = pm.queryIntentActivities(intent, 0)
         allAppsList.clear()
-        allAppsList.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK))
-
-        val blacklist = AppPreferences.getBlacklist(this)
-
+        allAppsList.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK, null))
         for (ri in riList) {
             val pkg = ri.activityInfo.packageName
             val cls = ri.activityInfo.name
             if (pkg == PACKAGE_TRACKPAD || pkg == packageName) continue
-
-            var finalPkg = pkg
-            var finalLabel = ri.loadLabel(pm).toString()
-            var finalActivity: String? = null
-
-            // GEMINI/GOOGLE DETECTION LOGIC
-            if (pkg == "com.google.android.googlequicksearchbox") {
-                if (cls.contains("robin.main.MainActivity")) {
-                    finalPkg = "com.google.android.googlequicksearchbox:gemini"
-                    finalLabel = "Gemini"
-                    finalActivity = cls
-                } else {
-                    finalLabel = "Google"
-                    finalActivity = cls
-                }
+            
+            var label = ri.loadLabel(pm).toString()
+            
+            // HARDCODED GEMINI CHECK
+            if (pkg == "com.google.android.googlequicksearchbox" && 
+                cls == "com.google.android.apps.search.assistant.AssistantActivity") {
+                label = "Gemini"
             }
-
-            // Create app info with activity tracking
-            val app = MainActivity.AppInfo(
-                finalLabel,
-                finalPkg,
-                AppPreferences.isFavorite(this, finalPkg),
-                false,
-                finalActivity
-            )
-
-            // Skip if blacklisted
-            if (!blacklist.contains(app.getIdentifier())) {
-                allAppsList.add(app)
-            }
+            
+            val app = MainActivity.AppInfo(label, pkg, cls, AppPreferences.isFavorite(this, pkg))
+            allAppsList.add(app)
         }
         allAppsList.sortBy { it.label.lowercase() }
+        Log.i("DROIDOS_LOG", "LOADED ${allAppsList.size} APPS. Gemini Present: ${allAppsList.any { it.label == "Gemini" }}");
     }
-    // === LOAD INSTALLED APPS - END ===
 
     // === LOAD BLACKLISTED APPS - START ===
     // Loads all blacklisted apps for display in blacklist tab
     // Reconstructs AppInfo objects from blacklist identifiers
     private fun loadBlacklistedApps() {
         displayList.clear()
-
         val pm = packageManager
         val blacklist = AppPreferences.getBlacklist(this)
-
         for (identifier in blacklist) {
             try {
                 val parts = identifier.split(":")
                 val pkg = parts[0]
                 val activity = if (parts.size > 1) parts[1] else null
-
-                // Determine label
                 val label = when {
                     identifier.contains("gemini") -> "Gemini"
                     pkg == "com.google.android.googlequicksearchbox" -> "Google"
                     else -> {
-                        try {
-                            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-                        } catch (e: Exception) {
-                            identifier
-                        }
+                        try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } 
+                        catch (e: Exception) { identifier }
                     }
                 }
-
-                val app = MainActivity.AppInfo(label, pkg, false, false, activity)
+                // FIXED: Arguments reordered to match new AppInfo constructor
+                val app = MainActivity.AppInfo(label, pkg, activity, false, false)
                 displayList.add(app)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load blacklisted app: $identifier", e)
             }
         }
-
         displayList.sortBy { (it as? MainActivity.AppInfo)?.label?.lowercase() }
         drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
     }
+/* END loadBlacklistedApps */
     // === LOAD BLACKLISTED APPS - END ===
 
 
     private fun launchTrackpad() {
         if (isTrackpadRunning()) { safeToast("Trackpad is already active"); return }
-        try { val intent = packageManager.getLaunchIntentForPackage(PACKAGE_TRACKPAD); if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); val dm = DisplayMetrics(); val display = displayContext?.display ?: windowManager.defaultDisplay; display.getRealMetrics(dm); val w = dm.widthPixels; val h = dm.heightPixels; val targetW = (w * 0.5f).toInt(); val targetH = (h * 0.5f).toInt(); val left = (w - targetW) / 2; val top = (h - targetH) / 2; val bounds = Rect(left, top, left + targetW, top + targetH); val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(bounds); try { val method = android.app.ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType); method.invoke(options, 5) } catch (e: Exception) {}; startActivity(intent, options.toBundle()); toggleDrawer(); if (shellService != null) { uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(PACKAGE_TRACKPAD, left, top, left+targetW, top+targetH) } catch(e: Exception) { Log.e(TAG, "Shell launch failed", e) } }.start() }, 400) } } else { safeToast("Trackpad App not found") } } catch (e: Exception) { safeToast("Error launching Trackpad") }
+        try { val intent = packageManager.getLaunchIntentForPackage(PACKAGE_TRACKPAD); if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); val dm = DisplayMetrics(); val display = displayContext?.display ?: windowManager.defaultDisplay; display.getRealMetrics(dm); val w = dm.widthPixels; val h = dm.heightPixels; val targetW = (w * 0.5f).toInt(); val targetH = (h * 0.5f).toInt(); val left = (w - targetW) / 2; val top = (h - targetH) / 2; val bounds = Rect(left, top, left + targetW, top + targetH); val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(bounds); try { val method = android.app.ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType); method.invoke(options, 5) } catch (e: Exception) {}; startActivity(intent, options.toBundle()); toggleDrawer(); if (shellService != null) { uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(PACKAGE_TRACKPAD, "", left, top, left + targetW, top + targetH) } catch(e: Exception) { Log.e(TAG, "Shell launch failed", e) } }.start() }, 400) } } else { safeToast("Trackpad App not found") } } catch (e: Exception) { safeToast("Error launching Trackpad") }
     }
 
     private fun isTrackpadRunning(): Boolean { try { val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager; val runningApps = am.runningAppProcesses; if (runningApps != null) { for (info in runningApps) { if (info.processName == PACKAGE_TRACKPAD) return true } } } catch (e: Exception) {}; return false }
@@ -783,46 +752,23 @@ class FloatingLauncherService : AccessibilityService() {
     // Handles adding/removing apps from the launch queue
     private fun addToSelection(app: MainActivity.AppInfo) {
         dismissKeyboardAndRestore()
-        val et = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar)
-        
         if (app.packageName == PACKAGE_BLANK) {
-            selectedAppsQueue.add(app)
-            sortAppQueue()
-            updateSelectedAppsDock()
-            drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
-            if (isInstantMode) applyLayoutImmediate()
-            return
+            selectedAppsQueue.add(app); sortAppQueue(); updateSelectedAppsDock()
+            if (isInstantMode) applyLayoutImmediate(); return
         }
-
-        val existing = selectedAppsQueue.find { it.packageName == app.packageName }
-        if (existing != null) { 
+        val existing = selectedAppsQueue.find { it.packageName == app.packageName && it.className == app.className }
+        if (existing != null) {
             selectedAppsQueue.remove(existing)
-            val pkgToKill = if (app.packageName.contains(":")) {
-                app.packageName.substringBefore(":")
-            } else {
-                app.packageName
-            }
-            Thread { 
-                try { 
-                    shellService?.forceStop(pkgToKill) 
-                } catch(e: Exception) {
-                    Log.e(TAG, "forceStop failed for $pkgToKill", e)
-                } 
-            }.start()
-            safeToast("Removed ${app.label}")
-        } else { 
+            Thread { try { shellService?.forceStop(app.packageName) } catch(e: Exception) {} }.start()
+            sortAppQueue(); updateSelectedAppsDock(); if (isInstantMode) applyLayoutImmediate()
+        } else {
             app.isMinimized = false
             selectedAppsQueue.add(app)
-            sortAppQueue()
-            updateSelectedAppsDock()
-            drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
-            et.setText("")
-            if (isInstantMode) { 
-                launchViaApi(app.packageName, null)
-                launchViaShell(app.packageName)
-                uiHandler.postDelayed({ applyLayoutImmediate() }, 200)
-                uiHandler.postDelayed({ applyLayoutImmediate() }, 800) 
-            } 
+            sortAppQueue(); updateSelectedAppsDock()
+            if (isInstantMode) {
+                launchViaApi(app.packageName, app.className, null)
+                uiHandler.postDelayed({ applyLayoutImmediate() }, 400)
+            }
         }
     }
 
@@ -833,49 +779,64 @@ class FloatingLauncherService : AccessibilityService() {
     }
     // === SELECTION LOGIC - END ===
 
-    private fun launchViaApi(pkg: String, bounds: Rect?) { 
-        try { 
-            val intent: Intent?
-            if (pkg.endsWith(":gemini")) {
-                val realPkg = pkg.substringBefore(":")
-                intent = Intent()
-                intent.setClassName(realPkg, "com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity")
-                intent.action = Intent.ACTION_MAIN
-                intent.addCategory(Intent.CATEGORY_LAUNCHER)
-            } else {
-                intent = packageManager.getLaunchIntentForPackage(pkg)
-            }
-            
-            if (intent == null) return; 
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); 
-            val options = android.app.ActivityOptions.makeBasic(); 
-            options.setLaunchDisplayId(currentDisplayId); 
-            if (bounds != null) options.setLaunchBounds(bounds); 
-            startActivity(intent, options.toBundle()) 
-        } catch (e: Exception) {} 
-    }
+        private fun launchViaApi(pkg: String, cls: String?, bounds: Rect?) { 
 
+            try { 
 
-    private fun launchViaShell(pkg: String) { 
-        try { 
-            // GEMINI EXCEPTION
-            if (pkg.endsWith(":gemini")) {
-                val realPkg = pkg.substringBefore(":")
-                val component = "$realPkg/com.google.android.apps.search.assistant.surfaces.voice.robin.main.MainActivity"
-                val cmd = "am start -n $component -a android.intent.action.MAIN -c android.intent.category.LAUNCHER --display $currentDisplayId --windowingMode 5 --user 0"
-                if (shellService != null) {
-                    Thread { shellService?.runCommand(cmd) }.start()
+                // Foundation: Use system-generated launch intent
+
+                val intent = packageManager.getLaunchIntentForPackage(pkg)
+
+                if (intent == null) { Log.e(TAG, "Launch intent NULL for $pkg"); return }
+
+                
+
+                // Override component for Gemini if class is provided
+
+                if (!cls.isNullOrEmpty()) {
+
+                    intent.setComponent(ComponentName(pkg, cls))
+
                 }
-                return
-            }
 
-            val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return; 
-            if (shellService != null) { 
-                val component = intent.component?.flattenToShortString() ?: pkg; 
-                val cmd = "am start -n $component -a android.intent.action.MAIN -c android.intent.category.LAUNCHER --display $currentDisplayId --windowingMode 5 --user 0"; 
-                Thread { shellService?.runCommand(cmd) }.start() 
+                
+
+                // Standard flags for service-initiated launches
+
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+
+                
+
+                val options = android.app.ActivityOptions.makeBasic()
+
+                options.setLaunchDisplayId(currentDisplayId)
+
+                if (bounds != null) options.setLaunchBounds(bounds)
+
+                
+
+                startActivity(intent, options.toBundle()) 
+
+            } catch (e: Exception) {
+
+                Log.e(TAG, "API Launch FAILED for $pkg", e)
+
             } 
-        } catch (e: Exception) {} 
+
+        }
+/* END launchViaApi */
+
+
+// REPLACE the whole function:
+    private fun launchViaShell(app: MainActivity.AppInfo) {
+        Thread {
+            try { 
+                // Passing empty string for null classNames to satisfy AIDL
+                shellService?.repositionTask(app.packageName, app.className ?: "", 0, 0, 0, 0) 
+            } catch (e: Exception) {
+                Log.e(TAG, "Shell launch failed", e)
+            }
+        }.start()
     }
     
     private fun cycleDisplay() {
@@ -960,21 +921,23 @@ class FloatingLauncherService : AccessibilityService() {
     private fun applyLayoutImmediate() { executeLaunch(selectedLayoutType, closeDrawer = false) }
 
     private fun fetchRunningApps() {
-        if (shellService == null) return; 
+        if (shellService == null) return
         Thread { 
             try { 
-                val visiblePackages = shellService!!.getVisiblePackages(currentDisplayId); 
-                val allRunning = shellService!!.getAllRunningPackages(); 
-                val lastQueue = AppPreferences.getLastQueue(this); 
+                val visiblePackages = shellService!!.getVisiblePackages(currentDisplayId)
+                val allRunning = shellService!!.getAllRunningPackages()
+                val lastQueue = AppPreferences.getLastQueue(this)
+                
                 uiHandler.post { 
-                    selectedAppsQueue.clear(); 
-                    for (pkg in lastQueue) { 
-                        if (pkg == PACKAGE_BLANK) { 
-                            selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)) 
+                    selectedAppsQueue.clear()
+                    for (ident in lastQueue) { 
+                        if (ident == PACKAGE_BLANK) { 
+                            selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK, null)) 
                         } else {
-                            val appInfo = allAppsList.find { it.packageName == pkg }
+                            // Match by UNIQUE IDENTIFIER (Package + Class)
+                            val appInfo = allAppsList.find { it.getIdentifier() == ident }
                             if (appInfo != null) {
-                                val basePkg = if (pkg.contains(":")) pkg.substringBefore(":") else pkg
+                                val basePkg = appInfo.packageName
                                 if (allRunning.contains(basePkg)) {
                                     appInfo.isMinimized = !visiblePackages.contains(basePkg)
                                     selectedAppsQueue.add(appInfo)
@@ -982,22 +945,8 @@ class FloatingLauncherService : AccessibilityService() {
                             }
                         }
                     }
-                    // Add newly visible apps that aren't Gemini/Google duplicates
-                    for (pkg in visiblePackages) {
-                        val isGoogleBase = pkg == "com.google.android.googlequicksearchbox"
-                        val alreadyInQueue = selectedAppsQueue.any { 
-                            if (isGoogleBase) it.packageName.startsWith(pkg) else it.packageName == pkg 
-                        }
-                        if (!alreadyInQueue) {
-                            val appInfo = allAppsList.find { it.packageName == pkg }
-                            if (appInfo != null) {
-                                appInfo.isMinimized = false
-                                selectedAppsQueue.add(appInfo)
-                            }
-                        }
-                    }
-                    sortAppQueue(); updateSelectedAppsDock(); 
-                    drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); 
+                    sortAppQueue(); updateSelectedAppsDock()
+                    drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
                 } 
             } catch (e: Exception) { Log.e(TAG, "Fetch failed", e) } 
         }.start()
@@ -1015,205 +964,85 @@ class FloatingLauncherService : AccessibilityService() {
     private fun pickIcon() { toggleDrawer(); try { refreshDisplayId(); val intent = Intent(this, IconPickerActivity::class.java); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); val metrics = windowManager.maximumWindowMetrics; val w = 1000; val h = (metrics.bounds.height() * 0.7).toInt(); val x = (metrics.bounds.width() - w) / 2; val y = (metrics.bounds.height() - h) / 2; val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(Rect(x, y, x+w, y+h)); startActivity(intent, options.toBundle()) } catch (e: Exception) { safeToast("Error launching picker: ${e.message}") } }
     private fun saveProfile() { var name = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.text?.toString()?.trim(); if (name.isNullOrEmpty()) { val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()); name = "Profile_$timestamp" }; val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveProfile(this, name, selectedLayoutType, selectedResolutionIndex, currentDpiSetting, pkgs); safeToast("Saved: $name"); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText(""); switchMode(MODE_PROFILES) }
     private fun loadProfile(name: String) { val data = AppPreferences.getProfileData(this, name) ?: return; try { val parts = data.split("|"); selectedLayoutType = parts[0].toInt(); selectedResolutionIndex = parts[1].toInt(); currentDpiSetting = parts[2].toInt(); val pkgList = parts[3].split(","); selectedAppsQueue.clear(); for (pkg in pkgList) { if (pkg.isNotEmpty()) { if (pkg == PACKAGE_BLANK) { selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)) } else { val app = allAppsList.find { it.packageName == pkg }; if (app != null) selectedAppsQueue.add(app) } } }; AppPreferences.saveLastLayout(this, selectedLayoutType); AppPreferences.saveDisplayResolution(this, currentDisplayId, selectedResolutionIndex); AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting); activeProfileName = name; updateSelectedAppsDock(); safeToast("Loaded: $name"); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() } catch (e: Exception) { Log.e(TAG, "Failed to load profile", e) } }
+
     private fun executeLaunch(layoutType: Int, closeDrawer: Boolean) {
         if (closeDrawer) toggleDrawer()
         refreshDisplayId()
-        val pkgs = selectedAppsQueue.map { it.packageName }
-        AppPreferences.saveLastQueue(this, pkgs)
+        // Save unique IDs to history
+        val idents = selectedAppsQueue.map { it.getIdentifier() }
+        AppPreferences.saveLastQueue(this, idents)
 
         Thread { 
             try { 
-                // Apply resolution command
-                val resCmd = getResolutionCommand(selectedResolutionIndex)
-                shellService?.runCommand(resCmd)
-
-                // Apply DPI settings
+                shellService?.runCommand(getResolutionCommand(selectedResolutionIndex))
                 if (currentDpiSetting > 0) { 
-                    val dpiCmd = "wm density $currentDpiSetting -d $currentDisplayId"
-                    shellService?.runCommand(dpiCmd) 
-                } else { 
-                    if (currentDpiSetting == -1) shellService?.runCommand("wm density reset -d $currentDisplayId") 
+                    shellService?.runCommand("wm density $currentDpiSetting -d $currentDisplayId") 
                 }
 
                 Thread.sleep(800)
 
-                // Get target display dimensions
-                val targetDim = getTargetDimensions(selectedResolutionIndex)
-                var w = 0
-                var h = 0
-                if (targetDim != null) { 
-                    w = targetDim.first
-                    h = targetDim.second 
-                } else { 
-                    val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-                    val display = dm.getDisplay(currentDisplayId)
-                    if (display != null) { 
-                        val metrics = DisplayMetrics()
-                        display.getRealMetrics(metrics)
-                        w = metrics.widthPixels
-                        h = metrics.heightPixels 
-                    } else { 
-                        val bounds = windowManager.maximumWindowMetrics.bounds
-                        w = bounds.width()
-                        h = bounds.height() 
-                    } 
+                val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+                val display = dm.getDisplay(currentDisplayId)
+                val metrics = DisplayMetrics()
+                display?.getRealMetrics(metrics)
+                val w = metrics.widthPixels
+                val h = metrics.heightPixels
+
+                val activeApps = selectedAppsQueue.filter { !it.isMinimized && it.packageName != PACKAGE_BLANK }
+                val rects = getLayoutRects(layoutType, w, h, activeApps.size)
+
+                // Minimize logic
+                val minimizedApps = selectedAppsQueue.filter { it.isMinimized }
+                for (app in minimizedApps) {
+                    val tid = shellService?.getTaskId(app.packageName, app.className ?: "") ?: -1
+                    if (tid != -1) shellService?.moveTaskToBack(tid)
                 }
 
-                // Build layout rectangles based on layout type
-                val rects = mutableListOf<Rect>()
-                when (layoutType) { 
-                    LAYOUT_FULL -> { 
-                        rects.add(Rect(0, 0, w, h)) 
-                    }
-                    LAYOUT_SIDE_BY_SIDE -> { 
-                        rects.add(Rect(0, 0, w/2, h))
-                        rects.add(Rect(w/2, 0, w, h)) 
-                    }
-                    LAYOUT_TOP_BOTTOM -> { 
-                        rects.add(Rect(0, 0, w, h/2))
-                        rects.add(Rect(0, h/2, w, h)) 
-                    }
-                    LAYOUT_TRI_EVEN -> { 
-                        val third = w / 3
-                        rects.add(Rect(0, 0, third, h))
-                        rects.add(Rect(third, 0, third * 2, h))
-                        rects.add(Rect(third * 2, 0, w, h)) 
-                    }
-                    LAYOUT_CORNERS -> { 
-                        rects.add(Rect(0, 0, w/2, h/2))
-                        rects.add(Rect(w/2, 0, w, h/2))
-                        rects.add(Rect(0, h/2, w/2, h))
-                        rects.add(Rect(w/2, h/2, w, h)) 
-                    }
-                    LAYOUT_TRI_SIDE_MAIN_SIDE -> { 
-                        val quarter = w / 4
-                        rects.add(Rect(0, 0, quarter, h))
-                        rects.add(Rect(quarter, 0, quarter * 3, h))
-                        rects.add(Rect(quarter * 3, 0, w, h)) 
-                    }
-                    LAYOUT_QUAD_ROW_EVEN -> { 
-                        val quarter = w / 4
-                        rects.add(Rect(0, 0, quarter, h))
-                        rects.add(Rect(quarter, 0, quarter * 2, h))
-                        rects.add(Rect(quarter * 2, 0, quarter * 3, h))
-                        rects.add(Rect(quarter * 3, 0, w, h)) 
-                    }
-                    LAYOUT_CUSTOM_DYNAMIC -> { 
-                        if (activeCustomRects != null) { 
-                            rects.addAll(activeCustomRects!!) 
-                        } else { 
-                            rects.add(Rect(0, 0, w/2, h))
-                            rects.add(Rect(w/2, 0, w, h)) 
-                        } 
-                    } 
+                // Launch & Tile logic
+                if (killAppOnExecute) {
+                    for (app in activeApps) { shellService?.forceStop(app.packageName) }
+                    Thread.sleep(400)
                 }
 
-                // Process apps in queue
-                if (selectedAppsQueue.isNotEmpty()) { 
-                    // Handle minimized apps - move to back
-                    val minimizedApps = selectedAppsQueue.filter { it.isMinimized }
-                    for (app in minimizedApps) { 
-                        if (app.packageName != PACKAGE_BLANK) { 
-                            try { 
-                                val basePkg = if (app.packageName.contains(":")) {
-                                    app.packageName.substringBefore(":")
-                                } else {
-                                    app.packageName
-                                }
-                                val tid = shellService?.getTaskId(basePkg) ?: -1
-                                if (tid != -1) shellService?.moveTaskToBack(tid) 
-                            } catch (e: Exception) { 
-                                Log.e(TAG, "Failed to minimize ${app.packageName}", e) 
-                            } 
-                        } 
-                    }
+                for (i in 0 until Math.min(activeApps.size, rects.size)) {
+                    val app = activeApps[i]
+                    val bounds = rects[i]
 
-                    // Handle active (non-minimized) apps
-                    val activeApps = selectedAppsQueue.filter { !it.isMinimized }
+                    // PASS 1: Initial Launch
+                    uiHandler.postDelayed({ launchViaApi(app.packageName, app.className, bounds) }, (i * 200).toLong())
+                    
+                    // PASS 2: Initial Tiling (1.2 seconds later)
+                    uiHandler.postDelayed({
+                        Thread { try { shellService?.repositionTask(app.packageName, app.className, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start()
+                    }, (i * 200 + 1200L).toLong())
 
-                    // GEMINI FIX Kill apps using base package name
-                    if (killAppOnExecute) { 
-                        for (app in activeApps) { 
-                            if (app.packageName != PACKAGE_BLANK) { 
-                                val pkgToKill = if (app.packageName.contains(":")) {
-                                    app.packageName.substringBefore(":")
-                                } else {
-                                    app.packageName
-                                }
-                                shellService?.forceStop(pkgToKill) 
-                            } 
-                        }
-                        Thread.sleep(400) 
-                    } else { 
-                        Thread.sleep(100) 
-                    }
+                    // PASS 3: Verification Tiling (2.5 seconds later)
+                    // This catches Gemini if it "trampolines" to a new activity/task after the first launch.
+                    uiHandler.postDelayed({
+                        Thread { try { shellService?.repositionTask(app.packageName, app.className, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start()
+                    }, (i * 200 + 2500L).toLong())
+                }
 
-                    // Launch apps in their assigned positions
-                    val count = Math.min(activeApps.size, rects.size)
-                    for (i in 0 until count) { 
-                        val pkg = activeApps[i].packageName
-                        val bounds = rects[i]
-                        if (pkg == PACKAGE_BLANK) continue
-
-                        // Launch via API with bounds
-                        uiHandler.postDelayed({ 
-                            launchViaApi(pkg, bounds) 
-                        }, (i * 150).toLong())
-
-                        // Launch via shell command
-                        uiHandler.postDelayed({ 
-                            launchViaShell(pkg) 
-                        }, (i * 150 + 50).toLong())
-
-                        // Reposition task if not killing on execute
-                        if (!killAppOnExecute) { 
-                            uiHandler.postDelayed({ 
-                                Thread { 
-                                    try { 
-                                        // GEMINI FIX Use base package for repositionTask
-                                        val basePkg = if (pkg.contains(":")) {
-                                            pkg.substringBefore(":")
-                                        } else {
-                                            pkg
-                                        }
-                                        shellService?.repositionTask(basePkg, bounds.left, bounds.top, bounds.right, bounds.bottom) 
-                                    } catch (e: Exception) {} 
-                                }.start() 
-                            }, (i * 150 + 150).toLong()) 
-                        }
-
-                        // Final reposition after delay
-                        uiHandler.postDelayed({ 
-                            Thread { 
-                                try { 
-                                    // GEMINI FIX Use base package for repositionTask
-                                    val basePkg = if (pkg.contains(":")) {
-                                        pkg.substringBefore(":")
-                                    } else {
-                                        pkg
-                                    }
-                                    shellService?.repositionTask(basePkg, bounds.left, bounds.top, bounds.right, bounds.bottom) 
-                                } catch (e: Exception) {} 
-                            }.start() 
-                        }, (i * 150 + 800).toLong()) 
-                    }
-
-                    // Clear queue if drawer was closed
-                    if (closeDrawer) { 
-                        uiHandler.post { 
-                            selectedAppsQueue.clear()
-                            updateSelectedAppsDock() 
-                        } 
-                    } 
-                } 
-            } catch (e: Exception) { 
-                Log.e(TAG, "Execute Failed", e)
-                safeToast("Execute Failed: ${e.message}") 
-            } 
+                if (closeDrawer) uiHandler.post { selectedAppsQueue.clear(); updateSelectedAppsDock() }
+            } catch (e: Exception) { Log.e(TAG, "Execute Failed", e) }
         }.start()
-
         drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText("") 
     }
+
+    private fun getLayoutRects(type: Int, w: Int, h: Int, count: Int): List<Rect> {
+        val rects = mutableListOf<Rect>()
+        when (type) {
+            LAYOUT_FULL -> rects.add(Rect(0, 0, w, h))
+            LAYOUT_SIDE_BY_SIDE -> { rects.add(Rect(0, 0, w/2, h)); rects.add(Rect(w/2, 0, w, h)) }
+            LAYOUT_TOP_BOTTOM -> { rects.add(Rect(0, 0, w, h/2)); rects.add(Rect(0, h/2, w, h)) }
+            LAYOUT_TRI_EVEN -> { val third = w/3; rects.add(Rect(0, 0, third, h)); rects.add(Rect(third, 0, 2*third, h)); rects.add(Rect(2*third, 0, w, h)) }
+            LAYOUT_CORNERS -> { rects.add(Rect(0, 0, w/2, h/2)); rects.add(Rect(w/2, 0, w, h/2)); rects.add(Rect(0, h/2, w/2, h)); rects.add(Rect(w/2, h/2, w, h)) }
+            else -> rects.add(Rect(0, 0, w, h))
+        }
+        return rects
+    }
+/* END executeLaunch */
+
     // === EXECUTE LAUNCH FUNCTION - END ===
     
     private fun calculateGCD(a: Int, b: Int): Int { return if (b == 0) a else calculateGCD(b, a % b) }
@@ -1355,52 +1184,93 @@ class FloatingLauncherService : AccessibilityService() {
             if (holder is LayoutHolder) holder.nameInput.textSize = currentFontSize
             if (holder is ProfileRichHolder) holder.name.textSize = currentFontSize
 
-            // === APP HOLDER BINDING - START ===
-            // Handles app item display with proper package name extraction for icons
+            // === APP HOLDER BINDING ===
             if (holder is AppHolder && item is MainActivity.AppInfo) {
                 holder.text.text = item.label
                 if (item.packageName == PACKAGE_BLANK) {
                     holder.icon.setImageResource(R.drawable.ic_box_outline)
                 } else {
                     try {
-                        // Extract base package name (remove ":suffix" if present)
+                        // Use basePkg (strip :suffix) to correctly load icons for Google/Gemini
                         val basePkg = if (item.packageName.contains(":")) item.packageName.substringBefore(":") else item.packageName
                         holder.icon.setImageDrawable(packageManager.getApplicationIcon(basePkg))
                     } catch (e: Exception) {
                         holder.icon.setImageResource(R.drawable.ic_launcher_bubble)
                     }
                 }
-                val isSelected = selectedAppsQueue.any { it.packageName == item.packageName }
+                val isSelected = selectedAppsQueue.any { it.packageName == item.packageName && it.className == item.className }
                 if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active)
                 else holder.itemView.setBackgroundResource(R.drawable.bg_item_press)
                 holder.star.visibility = if (item.isFavorite) View.VISIBLE else View.GONE
                 holder.itemView.setOnClickListener { addToSelection(item) }
                 holder.itemView.setOnLongClickListener { toggleFavorite(item); refreshSearchList(); true }
             }
-            // === APP HOLDER BINDING - END ===
-            else if (holder is ProfileRichHolder && item is ProfileOption) { holder.name.setText(item.name); holder.iconsContainer.removeAllViews(); if (!item.isCurrent) { for (pkg in item.apps.take(5)) { val iv = ImageView(holder.itemView.context); val lp = LinearLayout.LayoutParams(60, 60); lp.marginEnd = 8; iv.layoutParams = lp; if (pkg == PACKAGE_BLANK) { iv.setImageResource(R.drawable.ic_box_outline) } else { try { iv.setImageDrawable(packageManager.getApplicationIcon(pkg)) } catch (e: Exception) { iv.setImageResource(R.drawable.ic_launcher_bubble) } }; holder.iconsContainer.addView(iv) }; val info = "${getLayoutName(item.layout)} | ${getRatioName(item.resIndex)} | ${item.dpi}dpi"; holder.details.text = info; holder.details.visibility = View.VISIBLE; holder.btnSave.visibility = View.GONE; if (activeProfileName == item.name) { holder.itemView.setBackgroundResource(R.drawable.bg_item_active) } else { holder.itemView.setBackgroundResource(0) }; holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); loadProfile(item.name) }; holder.itemView.setOnLongClickListener { startRename(holder.name); true }; val saveProfileName = { val newName = holder.name.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameProfile(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_PROFILES) } }; endRename(holder.name) }; holder.name.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveProfileName(); holder.name.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(holder.name.windowToken, 0); updateDrawerHeight(false); true } else false }; holder.name.setOnFocusChangeListener { v, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus); if (!hasFocus) saveProfileName() } } else { holder.iconsContainer.removeAllViews(); holder.details.visibility = View.GONE; holder.btnSave.visibility = View.VISIBLE; holder.itemView.setBackgroundResource(0); holder.name.isEnabled = true; holder.name.isFocusable = true; holder.name.isFocusableInTouchMode = true; holder.itemView.setOnClickListener { saveProfile() }; holder.btnSave.setOnClickListener { saveProfile() } } }
-            else if (holder is LayoutHolder) {
-                holder.btnSave.visibility = View.GONE; holder.btnExtinguish.visibility = View.GONE
-                if (item is LayoutOption) { holder.nameInput.setText(item.name); val isSelected = if (item.type == LAYOUT_CUSTOM_DYNAMIC) { item.type == selectedLayoutType && item.name == activeCustomLayoutName } else { item.type == selectedLayoutType && activeCustomLayoutName == null }; if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { selectLayout(item) }; if (item.isCustomSaved) { holder.itemView.setOnLongClickListener { startRename(holder.nameInput); true }; val saveLayoutName = { val newName = holder.nameInput.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameCustomLayout(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); if (activeCustomLayoutName == item.name) { activeCustomLayoutName = newName; AppPreferences.saveLastCustomLayoutName(holder.itemView.context, newName) }; switchMode(MODE_LAYOUTS) } }; endRename(holder.nameInput) }; holder.nameInput.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveLayoutName(); true } else false }; holder.nameInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) saveLayoutName() } } else { holder.nameInput.isEnabled = false; holder.nameInput.isFocusable = false; holder.nameInput.setTextColor(Color.WHITE) } }
-                else if (item is ResolutionOption) { 
-                    holder.nameInput.setText(item.name); if (item.index >= 100) { holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.itemView.setOnLongClickListener { startRename(holder.nameInput); true }; val saveResName = { val newName = holder.nameInput.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameCustomResolution(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_RESOLUTION) } }; endRename(holder.nameInput) }; holder.nameInput.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveResName(); true } else false }; holder.nameInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) saveResName() } } else { holder.nameInput.isEnabled = false; holder.nameInput.isFocusable = false; holder.nameInput.setTextColor(Color.WHITE) }; val isSelected = (item.index == selectedResolutionIndex); if (isSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { applyResolution(item) } 
+            // === PROFILE BINDING ===
+            else if (holder is ProfileRichHolder && item is ProfileOption) {
+                holder.name.setText(item.name)
+                holder.iconsContainer.removeAllViews()
+                if (!item.isCurrent) {
+                    for (pkg in item.apps.take(5)) {
+                        val iv = ImageView(holder.itemView.context)
+                        val lp = LinearLayout.LayoutParams(60, 60); lp.marginEnd = 8; iv.layoutParams = lp
+                        try {
+                            val basePkg = if (pkg.contains(":")) pkg.substringBefore(":") else pkg
+                            iv.setImageDrawable(packageManager.getApplicationIcon(basePkg))
+                        } catch (e: Exception) { iv.setImageResource(R.drawable.ic_launcher_bubble) }
+                        holder.iconsContainer.addView(iv)
+                    }
+                    holder.details.text = "${getLayoutName(item.layout)} | ${getRatioName(item.resIndex)}"
+                    holder.itemView.setOnClickListener { loadProfile(item.name) }
+                } else {
+                    holder.itemView.setOnClickListener { saveProfile() }
                 }
-                else if (item is IconOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { pickIcon() } }
-                else if (item is ToggleOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); if (item.isEnabled) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); item.isEnabled = !item.isEnabled; item.onToggle(item.isEnabled); notifyItemChanged(position) } } 
-                else if (item is ActionOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); item.action() } }
             }
-            else if (holder is CustomResInputHolder) {
-                holder.btnSave.setOnClickListener { val wStr = holder.inputW.text.toString().trim(); val hStr = holder.inputH.text.toString().trim(); if (wStr.isNotEmpty() && hStr.isNotEmpty()) { val w = wStr.toIntOrNull(); val h = hStr.toIntOrNull(); if (w != null && h != null && w > 0 && h > 0) { val gcdVal = calculateGCD(w, h); val wRatio = w / gcdVal; val hRatio = h / gcdVal; val resString = "${w}x${h}"; val name = "$wRatio:$hRatio Custom ($resString)"; AppPreferences.saveCustomResolution(holder.itemView.context, name, resString); safeToast("Added $name"); dismissKeyboardAndRestore(); switchMode(MODE_RESOLUTION) } else { safeToast("Invalid numbers") } } else { safeToast("Input W and H") } }
-                holder.inputW.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }; holder.inputH.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }
+            // === SETTINGS/LAYOUT/TOGGLE BINDING ===
+            else if (holder is LayoutHolder && (item is LayoutOption || item is ResolutionOption || item is ActionOption || item is IconOption || item is ToggleOption)) {
+                val label = when(item) {
+                    is LayoutOption -> item.name
+                    is ResolutionOption -> item.name
+                    is ActionOption -> item.name
+                    is IconOption -> item.name
+                    is ToggleOption -> item.name
+                    else -> ""
+                }
+                holder.nameInput.setText(label)
+                holder.nameInput.isEnabled = false
+                holder.itemView.setOnClickListener {
+                    dismissKeyboardAndRestore()
+                    when(item) {
+                        is LayoutOption -> selectLayout(item)
+                        is ResolutionOption -> applyResolution(item)
+                        is ActionOption -> item.action()
+                        is IconOption -> pickIcon()
+                        is ToggleOption -> { item.isEnabled = !item.isEnabled; item.onToggle(item.isEnabled); notifyItemChanged(position) }
+                    }
+                }
             }
-            else if (holder is IconSettingHolder && item is IconOption) { try { val uriStr = AppPreferences.getIconUri(holder.itemView.context); if (uriStr != null) { val uri = Uri.parse(uriStr); val input = contentResolver.openInputStream(uri); val bitmap = BitmapFactory.decodeStream(input); input?.close(); holder.preview.setImageBitmap(bitmap) } else { holder.preview.setImageResource(R.drawable.ic_launcher_bubble) } } catch(e: Exception) { holder.preview.setImageResource(R.drawable.ic_launcher_bubble) }; holder.itemView.setOnClickListener { pickIcon() } }
-            else if (holder is DpiHolder && item is DpiOption) { 
-                holder.input.setText(item.currentDpi.toString()); holder.input.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { val valInt = v.text.toString().toIntOrNull(); if (valInt != null) { selectDpi(valInt); safeToast("DPI set to $valInt") }; dismissKeyboardAndRestore(); true } else false }; holder.input.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus); if (!hasFocus) { val valInt = holder.input.text.toString().toIntOrNull(); if (valInt != null && valInt != item.currentDpi) { selectDpi(valInt) } } }; holder.btnMinus.setOnClickListener { val v = holder.input.text.toString().toIntOrNull() ?: 160; val newVal = (v - 5).coerceAtLeast(50); holder.input.setText(newVal.toString()); selectDpi(newVal) }; holder.btnPlus.setOnClickListener { val v = holder.input.text.toString().toIntOrNull() ?: 160; val newVal = (v + 5).coerceAtMost(600); holder.input.setText(newVal.toString()); selectDpi(newVal) } 
+            // === DPI / FONT / DIMENSIONS BINDING ===
+            else if (holder is DpiHolder && item is DpiOption) {
+                holder.input.setText(item.currentDpi.toString())
+                holder.btnMinus.setOnClickListener { selectDpi(item.currentDpi - 5) }
+                holder.btnPlus.setOnClickListener { selectDpi(item.currentDpi + 5) }
             }
-            else if (holder is FontSizeHolder && item is FontSizeOption) { holder.textVal.text = item.currentSize.toInt().toString(); holder.btnMinus.setOnClickListener { changeFontSize(item.currentSize - 1) }; holder.btnPlus.setOnClickListener { changeFontSize(item.currentSize + 1) } }
-            else if (holder is HeightHolder && item is HeightOption) { holder.textVal.text = item.currentPercent.toString(); holder.btnMinus.setOnClickListener { changeDrawerHeight(-5) }; holder.btnPlus.setOnClickListener { changeDrawerHeight(5) } }
-            else if (holder is WidthHolder && item is WidthOption) { holder.textVal.text = item.currentPercent.toString(); holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }; holder.btnPlus.setOnClickListener { changeDrawerWidth(5) } }
+            else if (holder is FontSizeHolder && item is FontSizeOption) {
+                holder.textVal.text = item.currentSize.toInt().toString()
+                holder.btnMinus.setOnClickListener { changeFontSize(item.currentSize - 1) }
+                holder.btnPlus.setOnClickListener { changeFontSize(item.currentSize + 1) }
+            }
+            else if (holder is HeightHolder && item is HeightOption) {
+                holder.textVal.text = item.currentPercent.toString()
+                holder.btnMinus.setOnClickListener { changeDrawerHeight(-5) }
+                holder.btnPlus.setOnClickListener { changeDrawerHeight(5) }
+            }
+            else if (holder is WidthHolder && item is WidthOption) {
+                holder.textVal.text = item.currentPercent.toString()
+                holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }
+                holder.btnPlus.setOnClickListener { changeDrawerWidth(5) }
+            }
         }
+/* END RofiAdapter.onBindViewHolder */
         override fun getItemCount() = displayList.size
     }
 }
