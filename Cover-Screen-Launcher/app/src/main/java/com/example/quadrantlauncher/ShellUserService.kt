@@ -430,77 +430,106 @@ override fun getWindowLayouts(displayId: Int): List<String> {
 }
 
 
-        // === GET TASK ID - START ===
-        // Uses 'am stack list' to find task ID
-        // Handles trampolining apps like Gemini which redirect to different packages
-        override fun getTaskId(packageName: String, className: String?): Int {
-            var taskId = -1
-            val token = Binder.clearCallingIdentity()
-            try {
-                Log.d(TAG, "getTaskId: Looking for pkg=$packageName cls=$className")
-
-                val cmd = arrayOf("sh", "-c", "am stack list")
-                val p = Runtime.getRuntime().exec(cmd)
-                val r = BufferedReader(InputStreamReader(p.inputStream))
-                var line: String?
-
-                // Build search targets
-                val searchTargets = mutableListOf<String>()
-
-                // Primary targets: exact package/activity
-                if (!className.isNullOrEmpty() && className != "null" && className != "default") {
-                    searchTargets.add("$packageName/$className")
-                    searchTargets.add(className.substringAfterLast("."))
-                }
-                searchTargets.add(packageName)
-
-                // === TRAMPOLINE HANDLING ===
-                // Gemini (com.google.android.apps.bard) redirects to Google Quick Search Box
-                if (packageName == "com.google.android.apps.bard" ||
-                    (className?.contains("Bard") == true) ||
-                    (className?.contains("bard") == true)) {
-                    // Add Google Assistant fallback targets
-                    searchTargets.add("com.google.android.googlequicksearchbox")
-                    searchTargets.add("robin.main.MainActivity")
-                    searchTargets.add("AssistantActivity")
-                    Log.d(TAG, "getTaskId: Added Gemini trampoline targets")
-                }
-                // === END TRAMPOLINE HANDLING ===
-
-                Log.d(TAG, "getTaskId: Search targets = $searchTargets")
-
-                while (r.readLine().also { line = it } != null) {
-                    val l = line!!.trim()
-
-                    if (l.contains("taskId=") && l.contains(":")) {
-                        for (target in searchTargets) {
-                            if (l.contains(target)) {
-                                val match = Regex("taskId=(\\d+):").find(l)
-                                if (match != null) {
-                                    val foundId = match.groupValues[1].toIntOrNull()
-                                    if (foundId != null && foundId > 0) {
-                                        Log.d(TAG, "getTaskId: MATCH found! taskId=$foundId target='$target'")
-                                        taskId = foundId
-                                        // Keep searching to get most recent task
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                r.close()
-                p.waitFor()
-
-                Log.d(TAG, "getTaskId: Final result = $taskId")
-
-            } catch (e: Exception) {
-                Log.e(TAG, "getTaskId: FAILED", e)
-            } finally {
-                Binder.restoreCallingIdentity(token)
+    // === GET TASK ID - START ===
+    // Uses 'am stack list' to find task ID
+    // PRIORITY: Full component match (pkg/cls) > package match > short activity match
+    // Handles trampolining apps like Gemini which redirect to different packages
+    override fun getTaskId(packageName: String, className: String?): Int {
+        var exactTaskId = -1      // Best: full package/activity match
+        var packageTaskId = -1    // Good: package name match
+        var fallbackTaskId = -1   // Last resort: short activity name match
+        
+        val token = Binder.clearCallingIdentity()
+        try {
+            Log.d(TAG, "getTaskId: Looking for pkg=$packageName cls=$className")
+            
+            val cmd = arrayOf("sh", "-c", "am stack list")
+            val p = Runtime.getRuntime().exec(cmd)
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            
+            // Build component string for exact matching
+            val fullComponent = if (!className.isNullOrEmpty() && className != "null" && className != "default") {
+                "$packageName/$className"
+            } else {
+                null
             }
-            return taskId
+            
+            // Short activity name (fallback only)
+            val shortActivity = className?.substringAfterLast(".")
+            
+            // === TRAMPOLINE HANDLING ===
+            val isGemini = packageName == "com.google.android.apps.bard" || 
+                          (className?.contains("Bard") == true) ||
+                          (className?.contains("bard") == true)
+            
+            if (isGemini) {
+                Log.d(TAG, "getTaskId: Gemini detected, will check trampoline targets")
+            }
+            
+            Log.d(TAG, "getTaskId: fullComponent=$fullComponent shortActivity=$shortActivity")
+            
+            while (r.readLine().also { line = it } != null) {
+                val l = line!!.trim()
+                
+                if (!l.contains("taskId=") || !l.contains(":")) continue
+                
+                // Extract task ID from line
+                val match = Regex("taskId=(\\d+):").find(l)
+                if (match == null) continue
+                
+                val foundId = match.groupValues[1].toIntOrNull() ?: continue
+                if (foundId <= 0) continue
+                
+                // PRIORITY 1: Exact full component match (highest priority)
+                if (fullComponent != null && l.contains(fullComponent)) {
+                    Log.d(TAG, "getTaskId: EXACT MATCH taskId=$foundId component=$fullComponent")
+                    exactTaskId = foundId
+                    // Keep searching - want most recent exact match
+                }
+                // PRIORITY 2: Package name match
+                else if (l.contains("$packageName/")) {
+                    Log.d(TAG, "getTaskId: PACKAGE MATCH taskId=$foundId pkg=$packageName")
+                    packageTaskId = foundId
+                }
+                // PRIORITY 3: Gemini trampoline - check for Google Quick Search Box
+                else if (isGemini && l.contains("com.google.android.googlequicksearchbox")) {
+                    Log.d(TAG, "getTaskId: GEMINI TRAMPOLINE MATCH taskId=$foundId")
+                    // Treat trampoline match as package-level priority
+                    packageTaskId = foundId
+                }
+                // PRIORITY 4: Short activity name (ONLY if no better match exists)
+                // Skip generic names that cause false positives
+                else if (shortActivity != null && 
+                         shortActivity != "MainActivity" &&  // Too generic
+                         shortActivity != "default" &&       // Too generic
+                         l.contains(shortActivity)) {
+                    Log.d(TAG, "getTaskId: FALLBACK MATCH taskId=$foundId activity=$shortActivity")
+                    fallbackTaskId = foundId
+                }
+            }
+            r.close()
+            p.waitFor()
+            
+            // Return best match in priority order
+            val result = when {
+                exactTaskId > 0 -> exactTaskId
+                packageTaskId > 0 -> packageTaskId
+                fallbackTaskId > 0 -> fallbackTaskId
+                else -> -1
+            }
+            
+            Log.d(TAG, "getTaskId: Final result=$result (exact=$exactTaskId pkg=$packageTaskId fallback=$fallbackTaskId)")
+            return result
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "getTaskId: FAILED", e)
+            return -1
+        } finally { 
+            Binder.restoreCallingIdentity(token) 
         }
-        // === GET TASK ID - END ===
+    }
+    // === GET TASK ID - END ===
 
     // === DEBUG DUMP TASKS - START ===
     // Dumps raw task info for debugging
