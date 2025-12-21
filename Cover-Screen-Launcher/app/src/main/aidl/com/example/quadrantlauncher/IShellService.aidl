@@ -4,12 +4,10 @@ interface IShellService {
     void forceStop(String packageName);
     void runCommand(String command);
     void setScreenOff(int displayIndex, boolean turnOff);
-    // Added className
     void repositionTask(String packageName, String className, int left, int top, int right, int bottom);
     List<String> getVisiblePackages(int displayId);
     List<String> getWindowLayouts(int displayId);
     List<String> getAllRunningPackages();
-    // Added className
     int getTaskId(String packageName, String className);
     void moveTaskToBack(int taskId);
 

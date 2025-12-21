@@ -17,14 +17,9 @@ class MainActivity : AppCompatActivity() {
         const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
     }
 
-
-
-/* * FUNCTION: AppInfo Data Model Update
- * SUMMARY: Added getIdentifier() helper to support blacklist lookups and unique component identification.
- */
-
-// Line approx: 15-40
-// DELETE/REPLACE THE AppInfo BLOCK WITH:
+    // === APP INFO DATA CLASS - START ===
+    // Represents an installed app with package name, activity class, and state info
+    // getIdentifier() returns a unique string for app identification including className when needed
     data class AppInfo(
         val label: String,
         val packageName: String,
@@ -32,12 +27,34 @@ class MainActivity : AppCompatActivity() {
         var isFavorite: Boolean = false,
         var isMinimized: Boolean = false
     ) {
-        fun getIdentifier(): String = if (!className.isNullOrEmpty()) "$packageName:$className" else packageName
+        // Returns unique identifier for the app
+        fun getIdentifier(): String {
+            return if (!className.isNullOrEmpty() && packageName == "com.google.android.googlequicksearchbox") {
+                if (className.lowercase().contains("assistant") || className.lowercase().contains("gemini")) {
+                    "$packageName:gemini"
+                } else {
+                    packageName
+                }
+            } else {
+                packageName
+            }
+        }
+        
+        // === GET BASE PACKAGE - START ===
+        // Returns the base package name without any suffix
+        // Use this for shell commands that need the actual Android package name
+        fun getBasePackage(): String {
+            return if (packageName.contains(":")) {
+                packageName.substringBefore(":")
+            } else {
+                packageName
+            }
+        }
+        // === GET BASE PACKAGE - END ===
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is AppInfo) return false
-            // Explicitly check label to separate Google/Gemini
             return packageName == other.packageName && className == other.className && label == other.label
         }
 
@@ -48,9 +65,7 @@ class MainActivity : AppCompatActivity() {
             return result
         }
     }
-/* END AppInfo Data Model Update */
-
-
+    // === APP INFO DATA CLASS - END ===
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

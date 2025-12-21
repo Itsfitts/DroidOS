@@ -273,60 +273,46 @@ override fun setBrightness(displayId: Int, brightness: Int) {
 
 
 
-/* * FUNCTION: Task Management (repositionTask & getTaskId)
- * SUMMARY: Implementation logic to find specific Task IDs via dumpsys by matching component names.
- */
-
-// Line approx: 160-210
-// DELETE/REPLACE the repositionTask and getTaskId functions:
+    // === REPOSITION TASK - START ===
+    // Repositions a task window to specified bounds
+    // Uses className for task lookup if available (important for Google/Gemini disambiguation)
     override fun repositionTask(packageName: String, className: String?, left: Int, top: Int, right: Int, bottom: Int) {
+        Log.d(TAG, "repositionTask called: pkg=$packageName cls=$className bounds=[$left,$top,$right,$bottom]")
+        
         val tid = getTaskId(packageName, className)
-        Log.i("DROIDOS_LOG", "SHELL: Target $packageName | TID: $tid");
-        if (tid != -1) {
-            val token = Binder.clearCallingIdentity()
-            try {
-                // Force Mode 5 (Freeform) - pulse twice to ensure it catches
-                Runtime.getRuntime().exec("am task set-windowing-mode $tid 5").waitFor()
-                Thread.sleep(50)
-                Runtime.getRuntime().exec("am task set-windowing-mode $tid 5").waitFor()
-                // Resize
-                Runtime.getRuntime().exec("am task resize $tid $left $top $right $bottom").waitFor()
-            } catch (e: Exception) {
-                Log.e("DROIDOS_LOG", "SHELL_EXEC_ERROR: ${e.message}");
-            } finally { Binder.restoreCallingIdentity(token) }
+        Log.d(TAG, "repositionTask: getTaskId returned $tid")
+        
+        if (tid == -1) {
+            Log.w(TAG, "repositionTask: No task found for $packageName / $className")
+            return
         }
-    }
-
-    override fun getTaskId(packageName: String, className: String?): Int {
-        var taskId = -1
+        
         val token = Binder.clearCallingIdentity()
         try {
-            // We look at 'top' activity only. This ensures precision for the app we just launched.
-            val cmd = arrayOf("sh", "-c", "dumpsys activity top")
-            val p = Runtime.getRuntime().exec(cmd)
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
+            // Set freeform windowing mode
+            val modeCmd1 = "am task set-windowing-mode $tid 5"
+            Log.d(TAG, "repositionTask: Running $modeCmd1")
+            Runtime.getRuntime().exec(modeCmd1).waitFor()
+            Thread.sleep(100)
             
-            while (r.readLine().also { line = it } != null) {
-                val l = line!!.trim()
-                // Look for the TASK line that appears immediately above the activity details
-                if (l.contains("TASK") && l.contains("id=")) {
-                    val match = Regex("id=(\\d+)").find(l)
-                    if (match != null) taskId = match.groupValues[1].toInt()
-                }
-                // If the very next lines contain our package or class, we have the correct ID
-                if (taskId != -1 && (l.contains(packageName) || (className != null && l.contains(className)))) {
-                    break // Found it
-                }
-                // If we hit a new TASK without finding our package, reset
-                if (l.contains("TASK") && !l.contains("id=")) taskId = -1
-            }
-            r.close()
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        return taskId
-    }/* END Task Management */
-
-
+            // Pulse again
+            Runtime.getRuntime().exec(modeCmd1).waitFor()
+            Thread.sleep(100)
+            
+            // Apply resize
+            val resizeCmd = "am task resize $tid $left $top $right $bottom"
+            Log.d(TAG, "repositionTask: Running $resizeCmd")
+            val resizeProc = Runtime.getRuntime().exec(resizeCmd)
+            resizeProc.waitFor()
+            
+            Log.d(TAG, "repositionTask: SUCCESS for task $tid")
+        } catch (e: Exception) {
+            Log.e(TAG, "repositionTask: FAILED", e)
+        } finally { 
+            Binder.restoreCallingIdentity(token) 
+        }
+    }
+    // === REPOSITION TASK - END ===
 
 
 
@@ -447,8 +433,67 @@ override fun getWindowLayouts(displayId: Int): List<String> {
 }
 
 
-
-
+        // === GET TASK ID - START ===
+        // Finds the task ID for a given package/activity
+        // Searches by className first (for precision), then falls back to packageName
+        override fun getTaskId(packageName: String, className: String?): Int {
+            var taskId = -1
+            val token = Binder.clearCallingIdentity()
+            try {
+                Log.d(TAG, "getTaskId: Looking for pkg=$packageName cls=$className")
+                
+                val cmd = arrayOf("sh", "-c", "dumpsys activity tasks | grep -E 'Task id #|ActivityRecord|baseActivity'")
+                val p = Runtime.getRuntime().exec(cmd)
+                val r = BufferedReader(InputStreamReader(p.inputStream))
+                var line: String?
+                var currentScanningId = -1
+                
+                // First pass: try to find by className if available
+                val searchTargets = mutableListOf<String>()
+                if (!className.isNullOrEmpty() && className != "null" && className != "default") {
+                    // Add short class name (e.g., "BardEntryPointActivity")
+                    searchTargets.add(className.substringAfterLast("."))
+                    // Add full class name
+                    searchTargets.add(className)
+                }
+                // Always add package name as fallback
+                searchTargets.add(packageName)
+                
+                Log.d(TAG, "getTaskId: Search targets = $searchTargets")
+    
+                while (r.readLine().also { line = it } != null) {
+                    val l = line!!.trim()
+                    
+                    // Extract task ID
+                    if (l.contains("Task id #")) {
+                        val m = Regex("id #(\\d+)").find(l)
+                        if (m != null) {
+                            currentScanningId = m.groupValues[1].toInt()
+                        }
+                    }
+                    
+                    // Check if this line contains any of our search targets
+                    for (target in searchTargets) {
+                        if (l.contains(target) && currentScanningId != -1) {
+                            Log.d(TAG, "getTaskId: Found match '$target' in task $currentScanningId: $l")
+                            taskId = currentScanningId
+                            // Don't break - continue to find the most recent (highest) task ID
+                        }
+                    }
+                }
+                r.close()
+                p.waitFor()
+                
+                Log.d(TAG, "getTaskId: Final result = $taskId")
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "getTaskId: FAILED", e)
+            } finally { 
+                Binder.restoreCallingIdentity(token) 
+            }
+            return taskId
+        }
+        // === GET TASK ID - END ===
 
     override fun moveTaskToBack(taskId: Int) {
         val token = Binder.clearCallingIdentity()
