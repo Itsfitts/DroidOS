@@ -1063,50 +1063,145 @@ class FloatingLauncherService : AccessibilityService() {
 
 
 
-    private fun fetchRunningApps() { 
-        if (shellService == null) return; 
-        Thread { 
-            try { 
-                val visiblePackages = shellService!!.getVisiblePackages(currentDisplayId); 
-                val allRunning = shellService!!.getAllRunningPackages(); 
-                val lastQueue = AppPreferences.getLastQueue(this); 
-                uiHandler.post { 
-                    selectedAppsQueue.clear(); 
-                    for (pkg in lastQueue) { 
-                        if (pkg == PACKAGE_BLANK) { 
-                            selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK)) 
+    // === FETCH RUNNING APPS - START ===
+    // Fetches visible and running apps from system, merges with saved queue
+    // Handles Gemini/Google trampoline case where Gemini runs inside Google Quick Search Box task
+    // Key insight: Gemini (com.google.android.apps.bard) shows up as com.google.android.googlequicksearchbox
+    // in system visibility reports because it trampolines through Google's SearchActivity
+    private fun fetchRunningApps() {
+        if (shellService == null) return
+
+        Thread {
+            try {
+                val visiblePackages = shellService!!.getVisiblePackages(currentDisplayId)
+                val allRunning = shellService!!.getAllRunningPackages()
+                val lastQueue = AppPreferences.getLastQueue(this)
+
+                Log.d(DEBUG_TAG, "fetchRunningApps: visible=${visiblePackages.joinToString()}")
+                Log.d(DEBUG_TAG, "fetchRunningApps: lastQueue=${lastQueue.joinToString()}")
+
+                uiHandler.post {
+                    selectedAppsQueue.clear()
+
+                    // === PHASE 1: Restore apps from saved queue ===
+                    for (identifier in lastQueue) {
+                        if (identifier == PACKAGE_BLANK) {
+                            selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK, null))
                         } else {
-                            val appInfo = allAppsList.find { it.packageName == pkg }
+                            // Find by identifier (handles both package-only and package:suffix formats)
+                            val appInfo = findAppByIdentifier(identifier)
+
                             if (appInfo != null) {
-                                val basePkg = if (pkg.contains(":")) pkg.substringBefore(":") else pkg
-                                if (allRunning.contains(basePkg)) {
-                                    appInfo.isMinimized = !visiblePackages.contains(basePkg)
-                                    selectedAppsQueue.add(appInfo)
+                                val basePkg = appInfo.getBasePackage()
+
+                                // Check if running - handle Gemini special case
+                                val isRunning = if (basePkg == "com.google.android.apps.bard") {
+                                    // Gemini trampolines through Google Quick Search Box
+                                    allRunning.contains(basePkg) ||
+                                    allRunning.contains("com.google.android.googlequicksearchbox")
+                                } else {
+                                    allRunning.contains(basePkg)
                                 }
+
+                                if (isRunning) {
+                                    // Check visibility - handle Gemini special case
+                                    val isVisible = if (basePkg == "com.google.android.apps.bard") {
+                                        visiblePackages.contains(basePkg) ||
+                                        visiblePackages.contains("com.google.android.googlequicksearchbox")
+                                    } else {
+                                        visiblePackages.contains(basePkg)
+                                    }
+
+                                    appInfo.isMinimized = !isVisible
+                                    selectedAppsQueue.add(appInfo)
+                                    Log.d(DEBUG_TAG, "fetchRunningApps: Restored ${appInfo.label} minimized=${appInfo.isMinimized}")
+                                }
+                            } else {
+                                Log.w(DEBUG_TAG, "fetchRunningApps: Could not find app for identifier=$identifier")
                             }
                         }
                     }
-                    // Add newly visible apps that aren't Gemini/Google duplicates
+
+                    // === PHASE 2: Add newly visible apps not already in queue ===
                     for (pkg in visiblePackages) {
-                        val isGoogleBase = pkg == "com.google.android.googlequicksearchbox"
-                        val alreadyInQueue = selectedAppsQueue.any { 
-                            if (isGoogleBase) it.packageName.startsWith(pkg) else it.packageName == pkg 
+                        // Skip if it's Google Quick Search Box - we handle Gemini specifically
+                        // and don't want to auto-add Google if the user has Gemini in queue
+                        val isGoogleQSB = pkg == "com.google.android.googlequicksearchbox"
+
+                        // Check if already in queue by package or related package
+                        val alreadyInQueue = selectedAppsQueue.any { queuedApp ->
+                            val queuedBasePkg = queuedApp.getBasePackage()
+                            when {
+                                // Direct match
+                                queuedBasePkg == pkg -> true
+                                // Gemini is in queue, and we see Google QSB (trampoline case)
+                                isGoogleQSB && queuedBasePkg == "com.google.android.apps.bard" -> true
+                                // Google QSB is in queue, and we see Google QSB
+                                isGoogleQSB && queuedBasePkg == "com.google.android.googlequicksearchbox" -> true
+                                else -> false
+                            }
                         }
+
                         if (!alreadyInQueue) {
                             val appInfo = allAppsList.find { it.packageName == pkg }
                             if (appInfo != null) {
                                 appInfo.isMinimized = false
                                 selectedAppsQueue.add(appInfo)
+                                Log.d(DEBUG_TAG, "fetchRunningApps: Added new visible ${appInfo.label}")
                             }
                         }
                     }
-                    sortAppQueue(); updateSelectedAppsDock(); 
-                    drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); 
-                } 
-            } catch (e: Exception) { Log.e(TAG, "Fetch failed", e) } 
-        }.start() 
-    }
 
+                    sortAppQueue()
+                    updateSelectedAppsDock()
+                    drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Fetch failed", e)
+            }
+        }.start()
+    }
+    // === FETCH RUNNING APPS - END ===
+
+    // === FIND APP BY IDENTIFIER - START ===
+    // Finds an AppInfo from allAppsList by its identifier
+    // Handles both simple package names and compound identifiers (package:suffix)
+    // Also handles the getIdentifier() format used for saving
+    private fun findAppByIdentifier(identifier: String): MainActivity.AppInfo? {
+        // First, try exact getIdentifier() match
+        val exactMatch = allAppsList.find { it.getIdentifier() == identifier }
+        if (exactMatch != null) return exactMatch
+
+        // If identifier contains ":", try matching the components
+        if (identifier.contains(":")) {
+            val basePkg = identifier.substringBefore(":")
+            val suffix = identifier.substringAfter(":")
+
+            // Special case: "com.google.android.googlequicksearchbox:gemini" -> find Gemini app
+            if (basePkg == "com.google.android.googlequicksearchbox" && suffix == "gemini") {
+                // Look for the standalone Gemini app first
+                val geminiStandalone = allAppsList.find { it.packageName == "com.google.android.apps.bard" }
+                if (geminiStandalone != null) return geminiStandalone
+
+                // Fall back to Google QSB with Gemini activity
+                val geminiInGoogle = allAppsList.find {
+                    it.packageName == basePkg &&
+                    (it.className?.lowercase()?.contains("gemini") == true ||
+                     it.className?.lowercase()?.contains("assistant") == true ||
+                     it.className?.lowercase()?.contains("bard") == true)
+                }
+                if (geminiInGoogle != null) return geminiInGoogle
+            }
+
+            // Try matching by base package
+            val byBasePkg = allAppsList.find { it.packageName == basePkg }
+            if (byBasePkg != null) return byBasePkg
+        }
+
+        // Simple package name match
+        return allAppsList.find { it.packageName == identifier }
+    }
+    // === FIND APP BY IDENTIFIER - END ===
 
 
     private fun selectLayout(opt: LayoutOption) { dismissKeyboardAndRestore(); selectedLayoutType = opt.type; activeCustomRects = opt.customRects; if (opt.type == LAYOUT_CUSTOM_DYNAMIC) { activeCustomLayoutName = opt.name; AppPreferences.saveLastCustomLayoutName(this, opt.name) } else { activeCustomLayoutName = null; AppPreferences.saveLastCustomLayoutName(this, null) }; AppPreferences.saveLastLayout(this, opt.type); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() }

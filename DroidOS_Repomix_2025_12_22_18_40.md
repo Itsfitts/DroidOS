@@ -247,6 +247,7 @@ Cover-Screen-Trackpad/
 CHANGELOG.md
 cover_recording.mp4
 GEMINI.md
+logcat_taskid.md
 logcat.md
 README.md
 ```
@@ -263,7 +264,9 @@ README.md
       "Bash(SHELL=/bin/bash /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher/gradlew:*)",
       "Bash(grep:*)",
       "Bash(./gradlew assembleDebug:*)",
-      "Bash(adb install:*)"
+      "Bash(adb install:*)",
+      "Bash(bash -c \"cd /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher && SHELL=/bin/bash ./gradlew assembleDebug\")",
+      "Bash(bash -c \"cd /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher && git status\")"
     ]
   }
 }
@@ -6815,34 +6818,823 @@ rootProject.name = "CoverScreenTrackpad"
 include(":app")
 ```
 
-## File: Cover-Screen-Launcher/app/src/main/aidl/com/example/quadrantlauncher/IShellService.aidl
-```
-package com.example.quadrantlauncher;
-
-interface IShellService {
-    void forceStop(String packageName);
-    void runCommand(String command);
-    void setScreenOff(int displayIndex, boolean turnOff);
-    void repositionTask(String packageName, String className, int left, int top, int right, int bottom);
-    List<String> getVisiblePackages(int displayId);
-    List<String> getWindowLayouts(int displayId);
-    List<String> getAllRunningPackages();
-    int getTaskId(String packageName, String className);
-    void moveTaskToBack(int taskId);
-
-    // Brightness Control
-    void setSystemBrightness(int brightness);
-    int getSystemBrightness();
-    float getSystemBrightnessFloat();
-    void setAutoBrightness(boolean enabled);
-    boolean isAutoBrightness();
-    
-    // Legacy / Direct Hardware Control
-    boolean setBrightnessViaDisplayManager(int displayId, float brightness);
-
-    // NEW: Alternate Display Off Logic (Targeted)
-    void setBrightness(int displayId, int value);
-}
+## File: logcat_taskid.md
+```markdown
+12-22 17:22:20.358 32333 32456 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:20.364 32333 32456 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:22:20.450 32333 32456 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:20.451 32333 32456 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:20.459 32333 32456 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:20.468 32333 32456 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:22:20.503 32333 32456 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:20.504 32333 32456 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:23.628 32333 32456 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:22:23.632 32333 32456 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:22:23.663 32333 32456 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:22:23.666 32333 32456 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:23.666 32333 32456 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:22:24.423 32333 32456 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:22:24.425 32333 32456 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:22:24.484 32333 32456 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:24.484 32333 32456 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:22:25.625 32333 32456 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:22:25.629 32333 32456 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:22:25.674 32333 32456 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:22:25.679 32333 32456 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:25.679 32333 32456 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:22:26.423 32333 32456 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:22:26.427 32333 32456 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:22:26.495 32333 32456 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:26.495 32333 32456 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:22:38.279 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.katsuyamaki.DroidOSTrackpadKeyboard cls=null
+12-22 17:22:38.283 21459 21538 D ShellUserService: getTaskId: fullComponent=null shortActivity=null
+12-22 17:22:38.326 21459 21538 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:38.326 21459 21538 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:22:41.923 21459 21558 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:22:41.929 21459 21558 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:22:41.992 21459 21558 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:22:41.993 21459 21558 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:22:41.994 21459 21558 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:22:41.994 21459 21558 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:22:41.994 21459 21558 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:22:42.009 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:42.020 21459 21538 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:22:42.054 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:42.064 21459 21538 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:42.074 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:42.077 21459 21538 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:22:42.107 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:42.108 21459 21538 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:45.224 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:22:45.229 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:22:45.267 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:22:45.269 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:45.269 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:22:45.990 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:22:45.996 21459 21537 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:22:46.022 21459 21819 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:22:46.025 21459 21819 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:22:46.066 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:22:46.068 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:22:46.069 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:22:46.069 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:22:46.070 21459 21819 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:46.070 21459 21819 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:22:46.071 21459 21537 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:22:46.080 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:46.092 21459 21537 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:22:46.124 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:46.129 21459 21537 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:46.133 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:46.148 21459 21537 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:22:46.201 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:46.203 21459 21537 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:47.221 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:22:47.224 21459 21538 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:22:47.253 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:22:47.256 21459 21538 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:47.256 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:22:48.028 21459 21538 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:22:48.032 21459 21538 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:22:48.081 21459 21538 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:48.082 21459 21538 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:22:49.316 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:22:49.320 21459 21819 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:22:49.394 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:22:49.399 21459 21819 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:49.399 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:22:49.949 21459 21819 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:22:49.955 21459 21819 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:22:50.013 21459 21819 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:50.015 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:22:50.022 21459 21819 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:22:50.087 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:22:50.088 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:22:50.088 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:22:50.089 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:22:50.091 21459 21819 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:22:50.100 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:50.108 21459 21537 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:22:50.119 21459 21819 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:22:50.125 21459 21819 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:22:50.141 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:50.144 21459 21537 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:50.154 21459 21558 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:50.156 21459 21558 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:22:50.184 21459 21558 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:50.188 21459 21558 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:50.192 21459 21819 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:50.192 21459 21819 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:22:51.315 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:22:51.318 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:22:51.354 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:22:51.357 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:51.357 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:22:52.116 21459 21537 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:22:52.122 21459 21537 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:22:52.154 21459 21537 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:52.155 21459 21537 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:22:53.304 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:22:53.309 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:22:53.363 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:22:53.368 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:53.368 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:22:55.304 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:22:55.307 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:22:55.355 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:22:55.358 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:55.358 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:22:56.104 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:22:56.108 21459 21537 D ShellUserService: getTaskId: Gemini detected, will apply specific fallback logic
+12-22 17:22:56.108 21459 21537 D ShellUserService: getTaskId: fullComponent=com.google.android.apps.bard/com.google.android.apps.bard.shellapp.BardEntryPointActivity shortActivity=BardEntryPointActivity
+12-22 17:22:56.154 21459 21537 D ShellUserService: getTaskId: Detected Gemini in SHARED GOOGLE TASK taskId=19128
+12-22 17:22:56.156 21459 21537 D ShellUserService: getTaskId: Detected Gemini in SHARED GOOGLE TASK taskId=19135
+12-22 17:22:56.157 21459 21537 D ShellUserService: getTaskId: Gemini resolved to ID=19135 (cached)
+12-22 17:22:56.160 21459 21537 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:22:56.160 21459 21537 D ShellUserService: getTaskId: Final result=19135 (exact=-1 pkg=-1 shared=19135 fallback=-1)
+12-22 17:22:56.161 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:22:57.400 21459 21537 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:22:57.402 21459 21537 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:22:57.468 21459 21537 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:57.469 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:22:57.469 21459 21538 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:22:57.523 21459 21538 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:22:57.523 21459 21538 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:22:57.530 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:22:57.537 21459 21538 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:22:57.560 21459 21538 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:22:57.561 21459 21538 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:22:57.562 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:22:57.562 21459 21538 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:22:57.563 21459 21538 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:22:57.567 21459 21558 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:57.571 21459 21558 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:22:57.627 21459 21558 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:22:57.627 21459 21558 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:57.632 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:57.634 21459 21538 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:22:57.675 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:22:57.677 21459 21538 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:22:58.102 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:22:58.102 21459 21538 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:22:58.147 21459 21538 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:22:58.147 21459 21538 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:22:58.147 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:23:00.275 21459 21538 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:23:00.277 21459 21538 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:23:00.328 21459 21538 D ShellUserService: getTaskId: Final result=-1 (exact=-1 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:00.329 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:23:00.332 21459 21537 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:23:00.407 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:23:00.407 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:23:00.408 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:23:00.408 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:23:00.408 21459 21537 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:23:00.417 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:00.423 21459 21538 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:23:00.458 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:00.459 21459 21538 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:00.470 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:23:00.473 21459 21537 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:23:00.499 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:23:00.500 21459 21537 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:00.782 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:00.785 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:00.816 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:00.821 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:00.821 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:02.784 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:02.789 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:02.854 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:02.858 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:02.858 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:03.610 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:03.614 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:03.653 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:03.657 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:03.657 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:05.611 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:05.614 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:05.665 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:05.669 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:05.670 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:06.411 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:23:06.411 21459 21537 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:23:06.489 21459 21537 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:23:06.489 21459 21537 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:23:06.490 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:23:08.410 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:23:08.410 21459 21538 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:23:08.459 21459 21538 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:23:08.459 21459 21538 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:23:08.459 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:23:08.838 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:23:08.840 21459 21538 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:23:08.892 21459 21538 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:23:08.895 21459 21538 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:23:08.896 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:23:08.897 21459 21538 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:23:08.897 21459 21538 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:23:08.903 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:08.912 21459 21537 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:23:08.958 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:08.960 21459 21537 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:08.969 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:23:08.975 21459 21537 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:23:09.004 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:23:09.006 21459 21537 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:12.120 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:12.126 21459 21819 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:12.185 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:12.189 21459 21819 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:12.190 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:14.121 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:14.126 21459 21819 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:14.186 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:14.191 21459 21819 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:14.191 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:14.919 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:23:14.919 21459 21819 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:23:14.980 21459 21819 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:23:14.982 21459 21819 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:23:14.982 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:23:16.917 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:23:16.917 21459 21819 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:23:16.990 21459 21819 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:23:16.991 21459 21819 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:23:16.991 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:23:29.061 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:29.071 21459 21819 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:23:29.138 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:29.143 21459 21819 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:29.161 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:23:29.168 21459 21819 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:23:29.226 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:23:29.232 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:23:29.232 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:23:29.233 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:23:29.234 21459 21819 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:23:29.245 21459 23237 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:23:29.250 21459 23237 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:23:29.288 21459 23237 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:23:29.292 21459 23237 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:32.405 21459 23237 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:32.410 21459 23237 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:32.460 21459 23237 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:32.467 21459 23237 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:32.467 21459 23237 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:34.405 21459 23237 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:34.411 21459 23237 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:34.480 21459 23237 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:34.488 21459 23237 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:34.488 21459 23237 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:50.204 21459 23237 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:23:50.208 21459 23237 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:23:50.274 21459 23237 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:23:50.275 21459 23237 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:23:50.276 21459 23237 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:23:50.276 21459 23237 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:23:50.278 21459 23237 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:23:50.289 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:23:50.292 21459 21537 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:23:50.340 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:23:50.343 21459 21537 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:53.453 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:53.457 21459 21538 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:53.530 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:53.534 21459 21538 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:53.534 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:54.254 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:54.259 21459 21538 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:23:54.323 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:54.330 21459 21538 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:54.330 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:23:55.451 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:23:55.457 21459 21538 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:23:55.498 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:23:55.503 21459 21538 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:55.503 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:23:56.254 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:56.260 21459 21538 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:23:56.309 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:23:56.309 21459 21538 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:23:56.309 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:24:02.973 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:24:02.982 21459 21537 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:24:03.047 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:24:03.053 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:24:03.054 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:24:03.054 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:24:03.055 21459 21537 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:24:03.075 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:24:03.079 21459 21538 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:24:03.122 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:24:03.124 21459 21538 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:05.249 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:24:05.255 21459 21537 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:24:05.326 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:24:05.333 21459 21537 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:05.363 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:24:05.366 21459 21537 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:24:05.401 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:24:05.402 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:24:05.402 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:24:05.402 21459 21537 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:24:05.406 21459 21537 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:24:05.419 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:24:05.425 21459 21537 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:24:05.457 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:24:05.458 21459 21537 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:06.240 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:24:06.243 21459 21538 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:24:06.277 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:24:06.280 21459 21538 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:06.280 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:24:07.040 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:24:07.042 21459 21538 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:24:07.076 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:24:07.078 21459 21538 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:07.078 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:24:08.242 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:24:08.248 21459 21538 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:24:08.306 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:24:08.311 21459 21538 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:08.311 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:24:08.567 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:24:08.570 21459 21538 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:24:08.629 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:24:08.633 21459 21538 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:08.633 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:24:09.040 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:24:09.046 21459 21538 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:24:09.093 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:24:09.095 21459 21538 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:09.095 21459 21538 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:24:09.841 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:24:09.847 21459 21538 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:24:09.916 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:24:09.920 21459 21538 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:09.925 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:24:09.927 21459 21538 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:24:09.990 21459 21538 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:24:09.990 21459 21538 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:24:09.991 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:24:09.991 21459 21538 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:24:09.995 21459 21538 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:24:09.999 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:24:10.004 21459 21537 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:24:10.036 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:24:10.037 21459 21537 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:10.565 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:24:10.569 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:24:10.605 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:24:10.607 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:10.607 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:24:11.366 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:24:11.366 21459 21537 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:24:11.416 21459 21537 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:24:11.416 21459 21537 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:24:11.416 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:24:13.371 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:24:13.371 21459 21537 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:24:13.453 21459 21537 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:24:13.455 21459 21537 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:24:13.455 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:24:13.958 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:24:13.963 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:24:14.036 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:24:14.044 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:14.044 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:24:15.158 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:24:15.158 21459 21537 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:24:15.231 21459 21537 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:24:15.231 21459 21537 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:24:15.231 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:24:15.956 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:24:15.960 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:24:16.039 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:24:16.051 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:24:16.051 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:24:17.155 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:24:17.155 21459 21537 D ShellUserService: getTaskId: Gemini detected, checking cache for taskId=19135
+12-22 17:24:17.223 21459 21537 D ShellUserService: getTaskId: Gemini recovered from VALID CACHE taskId=19135
+12-22 17:24:17.223 21459 21537 D ShellUserService: getTaskId: Forced Gemini task 19135 to front.
+12-22 17:24:17.223 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:26:26.176 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:26:26.179 21459 21819 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:26:26.230 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:26:26.232 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:26:26.233 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:26:26.233 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:26:26.234 21459 21819 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:26:26.239 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:26:26.246 21459 21819 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:26:26.298 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:26:26.298 21459 21819 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:29.406 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:29.410 21459 21819 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:26:29.486 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:29.494 21459 21819 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:29.494 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:26:30.204 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:26:30.211 21459 21819 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:26:30.267 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:26:30.270 21459 21819 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:30.270 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:26:31.405 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:31.408 21459 21819 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:26:31.474 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:31.479 21459 21819 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:31.479 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:26:32.209 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:26:32.213 21459 21819 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:26:32.264 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:26:32.276 21459 21819 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:32.276 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:26:41.027 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:26:41.031 21459 21819 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:26:41.094 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:26:41.096 21459 21819 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:44.202 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:44.205 21459 21537 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:26:44.230 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:44.234 21459 21537 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:44.234 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:26:45.003 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:26:45.007 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:26:45.050 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:26:45.056 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:45.056 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:26:45.780 21459 21537 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:26:45.783 21459 21537 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:26:45.845 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19147 component=org.mozilla.firefox/org.mozilla.firefox.App
+12-22 17:26:45.853 21459 21537 D ShellUserService: getTaskId: Final result=19147 (exact=19147 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:45.874 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:26:45.886 21459 21537 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:26:45.948 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:26:45.953 21459 21537 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:46.203 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:46.206 21459 21537 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:26:46.243 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:46.247 21459 21537 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:46.249 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:26:47.002 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:26:47.005 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:26:47.034 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:26:47.037 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:47.037 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:26:49.063 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:49.066 21459 21537 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:26:49.118 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:49.120 21459 21537 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:49.120 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:26:49.864 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:26:49.868 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:26:49.931 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:26:49.933 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:49.934 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:26:51.063 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:51.067 21459 21537 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:26:51.133 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:51.133 21459 21537 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:51.133 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19135
+12-22 17:26:51.864 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:26:51.867 21459 21537 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:26:51.931 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:26:51.934 21459 21537 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:51.934 21459 21537 D ShellUserService: repositionTask: getTaskId returned 19124
+12-22 17:26:59.321 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:59.324 21459 21538 D ShellUserService: getTaskId: fullComponent=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity shortActivity=SearchActivity
+12-22 17:26:59.377 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19135 component=com.google.android.googlequicksearchbox/com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:26:59.378 21459 21538 D ShellUserService: getTaskId: Final result=19135 (exact=19135 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:59.383 21459 21538 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:26:59.393 21459 21538 D ShellUserService: getTaskId: fullComponent=com.termux/com.termux.app.TermuxActivity shortActivity=TermuxActivity
+12-22 17:26:59.428 21459 21538 D ShellUserService: getTaskId: EXACT MATCH taskId=19124 component=com.termux/com.termux.app.TermuxActivity
+12-22 17:26:59.430 21459 21538 D ShellUserService: getTaskId: Final result=19124 (exact=19124 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:59.435 21459 21537 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:26:59.442 21459 21537 D ShellUserService: getTaskId: fullComponent=org.mozilla.firefox/org.mozilla.firefox.App shortActivity=App
+12-22 17:26:59.468 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=19147 component=org.mozilla.firefox/org.mozilla.firefox.App
+12-22 17:26:59.469 21459 21537 D ShellUserService: getTaskId: Final result=19147 (exact=19147 pkg=-1 shared=-1 fallback=-1)
+12-22 17:26:59.473 21459 21537 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:26:59.480 21459 21537 D ShellUserService: getTaskId: fullComponent=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity shortActivity=MainActivity
+12-22 17:26:59.535 21459 21537 D ShellUserService: getTaskId: EXACT MATCH taskId=18999 component=com.anthropic.claude/com.anthropic.claude.mainactivity.MainActivity
+12-22 17:26:59.538 21459 21537 D ShellUserService: getTaskId: Final result=18999 (exact=18999 pkg=-1 shared=-1 fallback=-1)
+12-22 17:27:02.654 21459 21819 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:27:02.660 21459 21819 D ShellUserService: getTaskId: fullComponent=com.whatsapp/com.whatsapp.Main shortActivity=Main
+12-22 17:27:02.712 21459 21819 D ShellUserService: getTaskId: EXACT MATCH taskId=19086 component=com.whatsapp/com.whatsapp.Main
+12-22 17:27:02.713 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19019 activity=Main
+12-22 17:27:02.713 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=19128 activity=Main
+12-22 17:27:02.714 21459 21819 D ShellUserService: getTaskId: FALLBACK MATCH taskId=18999 activity=Main
+12-22 17:27:02.714 21459 21819 D ShellUserService: getTaskId: Final result=19086 (exact=19086 pkg=-1 shared=-1 fallback=18999)
+12-22 17:27:02.714 21459 21819 D ShellUserService: repositionTask: getTaskId returned 19086
+12-22 17:27:08.868 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.katsuyamaki.DroidOSTrackpadKeyboard cls=null
+12-22 17:27:08.902 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:08.902 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:14.068 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:27:14.137 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:14.139 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:27:14.171 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:14.172 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:27:14.250 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:17.357 29286 29321 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:27:17.429 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:17.429 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:18.157 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:27:18.200 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:18.200 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:19.356 29286 29684 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:27:19.429 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:19.429 29286 29684 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:19.848 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:27:19.923 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:19.924 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:27:20.007 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:20.010 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:27:20.076 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:20.077 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:27:20.142 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:20.156 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:27:20.243 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:20.244 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:23.251 29286 29320 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:27:23.331 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:23.331 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:24.918 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:27:24.984 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:24.985 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:27:25.026 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:25.027 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:27:25.086 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:25.087 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:27:25.124 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:25.125 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:27:25.202 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:25.251 29286 29684 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:27:25.295 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:25.295 29286 29684 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:26.051 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:27:26.105 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:26.105 29286 29684 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:28.054 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:27:28.119 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:28.119 29286 29684 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:30.100 29286 29684 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:27:30.168 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:30.169 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:27:30.227 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:30.228 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:27:30.283 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:30.286 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:27:30.372 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:30.374 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:27:30.443 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:35.728 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:27:35.778 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:35.778 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:37.547 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:27:37.598 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:37.598 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:44.270 29286 29321 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:27:44.320 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:44.321 29286 29349 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:27:44.367 29286 29349 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:44.368 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:27:44.424 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:44.425 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:27:44.470 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:46.783 29286 29684 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:27:46.829 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:46.830 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:27:46.889 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:46.889 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:27:46.940 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:46.945 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:27:46.994 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:46.995 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:27:47.054 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:47.575 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:27:47.619 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:47.619 29286 29684 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:49.579 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:27:49.643 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:49.643 29286 29684 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:50.159 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:27:50.205 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:50.205 29286 29684 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:27:52.158 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:27:52.189 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:27:52.189 29286 29684 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:24.799 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:28:24.875 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:27.980 29286 29320 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:28.053 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:28.053 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:28.552 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:28.609 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:28.610 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:28:28.660 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:28.661 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:28:28.699 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:28.780 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:28.853 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:28.853 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:29.980 29286 29320 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:30.022 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:30.022 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:30.783 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:30.826 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:30.826 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:31.804 29286 31054 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:31.872 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:31.872 29286 31054 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:32.502 29286 31054 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:32.588 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:32.591 29286 31054 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:32.605 29286 29684 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:28:32.661 29286 29684 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:32.661 29286 29684 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:32.666 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:32.668 29286 31054 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:28:32.724 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:32.725 29286 31054 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:28:32.793 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:33.805 29286 31054 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:33.830 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:33.830 29286 31054 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:34.613 29286 31054 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:28:34.653 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:34.653 29286 31054 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:35.899 29286 31054 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:28:35.971 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:35.971 29286 31054 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:37.898 29286 31054 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:28:37.971 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:37.971 29286 31054 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:38.701 29286 31054 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:28:38.734 29286 31054 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:38.734 29286 31054 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:40.698 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:28:40.785 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:40.785 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:44.985 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:28:45.063 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:48.172 29286 29320 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:48.248 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:48.249 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:48.973 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:49.049 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:49.049 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:49.303 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:28:49.376 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:49.377 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:28:49.467 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:50.169 29286 29321 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:50.210 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:50.210 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:50.971 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:51.015 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:51.016 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:51.425 29286 29321 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:51.492 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:51.493 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:28:51.579 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:51.580 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:28:51.653 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:52.572 29286 29321 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:52.625 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:52.625 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:53.372 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:53.442 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:53.443 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:54.574 29286 29321 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:54.647 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:54.647 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:54.761 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:54.839 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:54.839 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:55.027 29286 29321 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:28:55.104 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:55.105 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:28:55.193 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:55.196 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:28:55.281 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:55.373 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:55.412 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:55.412 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:55.559 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:28:55.579 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:55.579 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:56.759 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:28:56.802 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:56.802 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:57.562 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:28:57.643 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:57.644 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:28:59.188 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:28:59.259 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:28:59.259 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:00.387 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:00.470 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:00.470 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:01.187 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:29:01.276 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:01.276 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:02.386 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:02.446 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:02.446 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:02.685 29286 29320 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:29:02.768 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:02.770 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:29:02.856 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:02.858 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:29:02.959 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:02.961 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:29:03.022 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:06.929 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:07.012 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:07.013 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:08.126 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:08.171 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:08.171 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:08.926 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:08.999 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:08.999 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:09.915 29286 29320 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:29:09.994 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:09.995 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:29:10.079 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:10.081 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:29:10.127 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:10.157 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:10.157 29286 29349 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:29:10.206 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:10.206 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:10.224 29286 29349 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:14.133 29286 29349 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:14.199 29286 29349 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:14.199 29286 29349 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:15.332 29286 29349 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:15.373 29286 29320 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:29:15.407 29286 29349 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:15.407 29286 29349 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:15.424 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:15.427 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:29:15.509 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:15.511 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:29:15.580 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:15.581 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:29:15.640 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:16.131 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:16.172 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:16.172 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:17.330 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:17.373 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:17.373 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:18.746 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:18.845 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:18.845 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:20.748 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:20.827 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:20.828 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:21.547 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:21.638 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:21.639 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:23.548 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:23.606 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:23.606 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:26.845 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:26.922 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:26.923 29286 29321 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:29:26.985 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:26.987 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:29:27.065 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:27.066 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:29:27.128 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:27.130 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:29:27.217 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:30.325 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:30.409 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:30.409 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:32.323 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:32.390 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:32.390 29286 29321 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:32.432 29286 29321 D ShellUserService: getTaskId: Looking for pkg=com.google.android.apps.bard cls=com.google.android.apps.bard.shellapp.BardEntryPointActivity
+12-22 17:29:32.499 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:32.500 29286 29321 D ShellUserService: getTaskId: Looking for pkg=org.mozilla.firefox cls=org.mozilla.firefox.App
+12-22 17:29:32.572 29286 29321 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:32.574 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.google.android.googlequicksearchbox cls=com.google.android.googlequicksearchbox.SearchActivity
+12-22 17:29:32.660 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:32.662 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.anthropic.claude cls=com.anthropic.claude.mainactivity.MainActivity
+12-22 17:29:32.745 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:35.852 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:35.930 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:35.930 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:36.652 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.termux cls=com.termux.app.TermuxActivity
+12-22 17:29:36.720 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:36.720 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
+12-22 17:29:37.851 29286 29320 D ShellUserService: getTaskId: Looking for pkg=com.whatsapp cls=com.whatsapp.Main
+12-22 17:29:37.927 29286 29320 D ShellUserService: getTaskId: Final result realTaskId=-1
+12-22 17:29:37.927 29286 29320 D ShellUserService: repositionTask: getTaskId returned -1
 ```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MenuActivity.kt
@@ -7889,6 +8681,36 @@ dependencies {
 ## [v2.0] - Initial Monorepo Structure
 - Split project into Launcher and Trackpad applications.
 - Added Shizuku integration for non-root shell execution.
+```
+
+## File: Cover-Screen-Launcher/app/src/main/aidl/com/example/quadrantlauncher/IShellService.aidl
+```
+package com.example.quadrantlauncher;
+
+interface IShellService {
+    void forceStop(String packageName);
+    void runCommand(String command);
+    void setScreenOff(int displayIndex, boolean turnOff);
+    void repositionTask(String packageName, String className, int left, int top, int right, int bottom);
+    List<String> getVisiblePackages(int displayId);
+    List<String> getWindowLayouts(int displayId);
+    List<String> getAllRunningPackages();
+    int getTaskId(String packageName, String className);
+    void moveTaskToBack(int taskId);
+
+    // Brightness Control
+    void setSystemBrightness(int brightness);
+    int getSystemBrightness();
+    float getSystemBrightnessFloat();
+    void setAutoBrightness(boolean enabled);
+    boolean isAutoBrightness();
+    
+    // Legacy / Direct Hardware Control
+    boolean setBrightnessViaDisplayManager(int displayId, float brightness);
+
+    // NEW: Alternate Display Off Logic (Targeted)
+    void setBrightness(int displayId, int value);
+}
 ```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/AppPreferences.kt
@@ -8941,6 +9763,99 @@ class TrackpadPrefs {
 }
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_main.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@mipmap/ic_trackpad_adaptive"
+            android:layout_marginBottom="24dp"
+            android:contentDescription="App Icon" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Setup Required"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="To use the trackpad overlay, you must grant the following permissions.\n\nSince this is a system-level tool, these must be enabled manually."
+            android:textColor="#DDDDDD"
+            android:textSize="16sp"
+            android:lineSpacingMultiplier="1.2"
+            android:gravity="start"
+            android:background="#1E1E1E"
+            android:padding="16dp"
+            android:layout_marginBottom="32dp"/>
+
+        <Button
+            android:id="@+id/btn_fix_restricted"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="1. Allow Restricted Settings"
+            android:backgroundTint="#FF5722"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp"/>
+
+        <Button
+            android:id="@+id/btn_open_accessibility"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="2. Enable Accessibility"
+            android:backgroundTint="#3DDC84"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp"/>
+
+        <Button
+            android:id="@+id/btn_start_check"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="3. CHECK PERMISSIONS &amp; START"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:elevation="6dp"/>
+
+        <Button
+            android:id="@+id/btn_switch_display"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="Switch Display"
+            android:backgroundTint="#FFC107"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"
+            android:elevation="4dp"/>
+
+    </LinearLayout>
+</ScrollView>
+```
+
 ## File: README.md
 ```markdown
 DroidOS 📱🚀
@@ -9782,99 +10697,6 @@ class KeyboardView @JvmOverloads constructor(
         stopRepeat()
     }
 }
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_main.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#121212"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:padding="32dp">
-
-        <ImageView
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:src="@mipmap/ic_trackpad_adaptive"
-            android:layout_marginBottom="24dp"
-            android:contentDescription="App Icon" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Setup Required"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:gravity="center"
-            android:layout_marginBottom="24dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="To use the trackpad overlay, you must grant the following permissions.\n\nSince this is a system-level tool, these must be enabled manually."
-            android:textColor="#DDDDDD"
-            android:textSize="16sp"
-            android:lineSpacingMultiplier="1.2"
-            android:gravity="start"
-            android:background="#1E1E1E"
-            android:padding="16dp"
-            android:layout_marginBottom="32dp"/>
-
-        <Button
-            android:id="@+id/btn_fix_restricted"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="1. Allow Restricted Settings"
-            android:backgroundTint="#FF5722"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:layout_marginBottom="16dp"
-            android:elevation="4dp"/>
-
-        <Button
-            android:id="@+id/btn_open_accessibility"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="2. Enable Accessibility"
-            android:backgroundTint="#3DDC84"
-            android:textColor="#000000"
-            android:textStyle="bold"
-            android:layout_marginBottom="16dp"
-            android:elevation="4dp"/>
-
-        <Button
-            android:id="@+id/btn_start_check"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:text="3. CHECK PERMISSIONS &amp; START"
-            android:backgroundTint="#2196F3"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:elevation="6dp"/>
-
-        <Button
-            android:id="@+id/btn_switch_display"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="Switch Display"
-            android:backgroundTint="#FFC107"
-            android:textColor="#000000"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp"
-            android:elevation="4dp"/>
-
-    </LinearLayout>
-</ScrollView>
 ```
 
 ## File: Cover-Screen-Trackpad/app/src/main/AndroidManifest.xml
@@ -10816,9 +11638,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     // === APP INFO DATA CLASS - START ===
-    // Stores app information with unique identifier for blacklist purposes
-    // Updated equality logic to include label. This prevents Gemini from being
-    // "absorbed" by the Google app entry in the queue.
+    // Represents an installed app with package name, activity class, and state info
+    // getIdentifier() returns a unique string for app identification including className when needed
     data class AppInfo(
         val label: String,
         val packageName: String,
@@ -10826,12 +11647,34 @@ class MainActivity : AppCompatActivity() {
         var isFavorite: Boolean = false,
         var isMinimized: Boolean = false
     ) {
-        fun getIdentifier(): String = if (!className.isNullOrEmpty()) "$packageName:$className" else packageName
+        // Returns unique identifier for the app
+        fun getIdentifier(): String {
+            return if (!className.isNullOrEmpty() && packageName == "com.google.android.googlequicksearchbox") {
+                if (className.lowercase().contains("assistant") || className.lowercase().contains("gemini")) {
+                    "$packageName:gemini"
+                } else {
+                    packageName
+                }
+            } else {
+                packageName
+            }
+        }
+        
+        // === GET BASE PACKAGE - START ===
+        // Returns the base package name without any suffix
+        // Use this for shell commands that need the actual Android package name
+        fun getBasePackage(): String {
+            return if (packageName.contains(":")) {
+                packageName.substringBefore(":")
+            } else {
+                packageName
+            }
+        }
+        // === GET BASE PACKAGE - END ===
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is AppInfo) return false
-            // Include label in comparison to separate Gemini from Google
             return packageName == other.packageName && className == other.className && label == other.label
         }
 
@@ -10892,491 +11735,6 @@ class MainActivity : AppCompatActivity() {
         }
         return false
     }
-}
-```
-
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.content.ContentResolver
-import android.content.Context
-import android.content.ContextWrapper
-import android.os.Binder
-import android.os.IBinder
-import android.provider.Settings
-import android.util.Log
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.util.ArrayList
-import java.util.regex.Pattern
-import android.os.Build
-
-class ShellUserService : IShellService.Stub() {
-
-    private val TAG = "ShellUserService"
-
-    companion object {
-        const val POWER_MODE_OFF = 0
-        const val POWER_MODE_NORMAL = 2
-        
-        @Volatile private var displayControlClass: Class<*>? = null
-        @Volatile private var displayControlClassLoaded = false
-    }
-
-    private val surfaceControlClass: Class<*> by lazy {
-        Class.forName("android.view.SurfaceControl")
-    }
-
-    private fun getDisplayControlClass(): Class<*>? {
-        if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
-        
-        return try {
-            val classLoaderFactoryClass = Class.forName("com.android.internal.os.ClassLoaderFactory")
-            val createClassLoaderMethod = classLoaderFactoryClass.getDeclaredMethod(
-                "createClassLoader",
-                String::class.java,
-                String::class.java,
-                String::class.java,
-                ClassLoader::class.java,
-                Int::class.javaPrimitiveType,
-                Boolean::class.javaPrimitiveType,
-                String::class.java
-            )
-            val classLoader = createClassLoaderMethod.invoke(
-                null, "/system/framework/services.jar", null, null,
-                ClassLoader.getSystemClassLoader(), 0, true, null
-            ) as ClassLoader
-
-            val loadedClass = classLoader.loadClass("com.android.server.display.DisplayControl").also {
-                val loadMethod = Runtime::class.java.getDeclaredMethod(
-                    "loadLibrary0",
-                    Class::class.java,
-                    String::class.java
-                )
-                loadMethod.isAccessible = true
-                loadMethod.invoke(Runtime.getRuntime(), it, "android_servers")
-            }
-            
-            displayControlClass = loadedClass
-            displayControlClassLoaded = true
-            loadedClass
-        } catch (e: Exception) {
-            Log.w(TAG, "DisplayControl not available", e)
-            null
-        }
-    }
-
-    private fun getAllPhysicalDisplayTokens(): List<IBinder> {
-        val tokens = ArrayList<IBinder>()
-        try {
-            val physicalIds: LongArray = if (Build.VERSION.SDK_INT >= 34) {
-                val controlClass = getDisplayControlClass()
-                if (controlClass != null) {
-                    controlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-                } else {
-                     try {
-                        surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-                     } catch (e: Exception) { LongArray(0) }
-                }
-            } else {
-                surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-            }
-
-            if (physicalIds.isEmpty()) {
-                getSurfaceControlInternalToken()?.let { tokens.add(it) }
-                return tokens
-            }
-
-            for (id in physicalIds) {
-                try {
-                    val token: IBinder? = if (Build.VERSION.SDK_INT >= 34) {
-                        val controlClass = getDisplayControlClass()
-                        if (controlClass != null) {
-                             controlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                                .invoke(null, id) as? IBinder
-                        } else {
-                            surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                                .invoke(null, id) as? IBinder
-                        }
-                    } else {
-                        surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                            .invoke(null, id) as? IBinder
-                    }
-                    
-                    if (token != null) tokens.add(token)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to get token for physical ID $id", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Critical failure getting display tokens", e)
-        }
-        return tokens
-    }
-
-    private fun getSurfaceControlInternalToken(): IBinder? {
-        return try {
-            if (Build.VERSION.SDK_INT < 29) {
-                surfaceControlClass.getMethod("getBuiltInDisplay", Int::class.java).invoke(null, 0) as IBinder
-            } else {
-                surfaceControlClass.getMethod("getInternalDisplayToken").invoke(null) as IBinder
-            }
-        } catch (e: Exception) { null }
-    }
-
-    private fun setPowerModeOnToken(token: IBinder, mode: Int) {
-        try {
-            val method = surfaceControlClass.getMethod(
-                "setDisplayPowerMode",
-                IBinder::class.java,
-                Int::class.javaPrimitiveType
-            )
-            method.invoke(null, token, mode)
-        } catch (e: Exception) {
-            Log.e(TAG, "setDisplayPowerMode failed for token $token", e)
-        }
-    }
-
-    private fun setDisplayBrightnessOnToken(token: IBinder, brightness: Float): Boolean {
-        try {
-            val method = surfaceControlClass.getMethod(
-                "setDisplayBrightness",
-                IBinder::class.java,
-                Float::class.javaPrimitiveType
-            )
-            method.invoke(null, token, brightness)
-            return true
-        } catch (e: Exception) {
-             try {
-                val method = surfaceControlClass.getMethod(
-                    "setDisplayBrightness",
-                    IBinder::class.java,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType
-                )
-                method.invoke(null, token, brightness, brightness, brightness, brightness)
-                return true
-            } catch (e2: Exception) {
-                return false
-            }
-        }
-    }
-
-    private fun setDisplayBrightnessInternal(displayId: Int, brightness: Float): Boolean {
-        // Legacy shim for single-target calls
-        val tokens = getAllPhysicalDisplayTokens()
-        if (tokens.isNotEmpty()) return setDisplayBrightnessOnToken(tokens[0], brightness)
-        return false
-    }
-
-    private val shLock = Object()
-    private var _shProcess: Process? = null
-    private val shProcess: Process
-        get() = synchronized(shLock) {
-            if (_shProcess?.isAlive == true) _shProcess!!
-            else Runtime.getRuntime().exec(arrayOf("sh")).also { _shProcess = it }
-        }
-
-    private fun execShellCommand(command: String) {
-        synchronized(shLock) {
-            try {
-                val output = shProcess.outputStream
-                output.write("$command\n".toByteArray())
-                output.flush()
-            } catch (e: Exception) {
-                Log.e(TAG, "Shell command failed", e)
-            }
-        }
-    }
-
-    // ============================================================
-    // AIDL Interface Implementations
-    // ============================================================
-
-    
-override fun setBrightness(displayId: Int, brightness: Int) {
-        Log.d(TAG, "setBrightness(Global Broadcast, Value: $brightness)")
-        val token = Binder.clearCallingIdentity()
-        try {
-            if (brightness < 0) {
-                // === SCREEN OFF ===
-                execShellCommand("settings put system screen_brightness_mode 0")
-                
-                // Get ALL tokens, but ONLY apply to the first 2 (Main + Cover)
-                // This prevents killing the Glasses (which would be index 2+)
-                val tokens = getAllPhysicalDisplayTokens()
-                val safeTokens = tokens.take(2)
-                
-                for (t in safeTokens) {
-                    setDisplayBrightnessOnToken(t, -1.0f)
-                }
-                
-                execShellCommand("settings put system screen_brightness_float -1.0")
-                execShellCommand("settings put system screen_brightness -1")
-            } else {
-                // === SCREEN ON ===
-                val floatVal = brightness.toFloat() / 255.0f
-                
-                // Restore ALL tokens (safety, in case user replugged glasses)
-                val tokens = getAllPhysicalDisplayTokens()
-                for (t in tokens) {
-                    setDisplayBrightnessOnToken(t, floatVal)
-                }
-                
-                execShellCommand("settings put system screen_brightness_float $floatVal")
-                execShellCommand("settings put system screen_brightness $brightness")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "setBrightness failed", e)
-        } finally {
-             Binder.restoreCallingIdentity(token)
-        }
-    }
-
-    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
-        Log.d(TAG, "setScreenOff(Global Broadcast, TurnOff: $turnOff)")
-        val token = Binder.clearCallingIdentity()
-        try {
-            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
-            
-            // Same safety limit: Only affect first 2 physical screens
-            val tokens = getAllPhysicalDisplayTokens()
-            val safeTokens = tokens.take(2)
-            
-            for (t in safeTokens) {
-                setPowerModeOnToken(t, mode)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "setScreenOff failed", e)
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-    }
-    // --- V1.0 LOGIC: Window Management (Retained for Tiling/Minimizing) ---
-    
-    override fun forceStop(packageName: String) {
-        val token = Binder.clearCallingIdentity()
-        try { 
-            val realPkg = if (packageName.endsWith(":gemini")) packageName.substringBefore(":") else packageName
-            Runtime.getRuntime().exec("am force-stop $realPkg").waitFor() 
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-    }
-
-    override fun runCommand(command: String) {
-        val token = Binder.clearCallingIdentity()
-        try { Runtime.getRuntime().exec(command).waitFor() } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-    }
-
-
-
-    override fun repositionTask(packageName: String, className: String?, left: Int, top: Int, right: Int, bottom: Int) {
-        val tid = getTaskId(packageName, className)
-        if (tid != -1) {
-            val token = Binder.clearCallingIdentity()
-            try {
-                // Pulse Freeform mode to ensure the system accepts the resize
-                Runtime.getRuntime().exec("am task set-windowing-mode $tid 5").waitFor()
-                Thread.sleep(100)
-                Runtime.getRuntime().exec("am task set-windowing-mode $tid 5").waitFor()
-                // Apply final resize
-                Runtime.getRuntime().exec("am task resize $tid $left $top $right $bottom").waitFor()
-            } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        }
-    }
-
-
-
-    override fun getVisiblePackages(displayId: Int): List<String> {
-        val list = ArrayList<String>()
-        val token = Binder.clearCallingIdentity()
-        try {
-            val p = Runtime.getRuntime().exec("dumpsys window windows")
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            var currentPkg: String? = null
-            var isVisible = false
-            var onCorrectDisplay = false
-            val windowPattern = Pattern.compile("Window\\{[0-9a-f]+ u\\d+ ([^\\}/ ]+)")
-
-            while (r.readLine().also { line = it } != null) {
-                val l = line!!.trim()
-                if (l.startsWith("Window #")) {
-                    currentPkg = null; isVisible = false; onCorrectDisplay = false
-                    val matcher = windowPattern.matcher(l)
-                    if (matcher.find()) currentPkg = matcher.group(1)
-                }
-                if (l.contains("displayId=$displayId") || l.contains("mDisplayId=$displayId")) onCorrectDisplay = true
-                if (l.contains("mViewVisibility=0x0")) isVisible = true
-
-                if (currentPkg != null && isVisible && onCorrectDisplay) {
-                    if (isUserApp(currentPkg!!) && !list.contains(currentPkg!!)) list.add(currentPkg!!)
-                    currentPkg = null
-                }
-            }
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        return list
-    }
-
-    override fun getAllRunningPackages(): List<String> {
-        val list = ArrayList<String>()
-        val token = Binder.clearCallingIdentity()
-        try {
-            val p = Runtime.getRuntime().exec("dumpsys activity activities")
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            val recordPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
-            while (r.readLine().also { line = it } != null) {
-                if (line!!.contains("ActivityRecord{")) {
-                    val m = recordPattern.matcher(line!!)
-                    if (m.find()) { val pkg = m.group(1); if (pkg != null && !list.contains(pkg) && isUserApp(pkg)) list.add(pkg) }
-                }
-            }
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        return list
-    }
-
-override fun getWindowLayouts(displayId: Int): List<String> {
-    val results = ArrayList<String>()
-    val token = Binder.clearCallingIdentity()
-    try {
-        val p = Runtime.getRuntime().exec("dumpsys activity activities")
-        val r = BufferedReader(InputStreamReader(p.inputStream))
-        var line: String?
-        
-        var currentDisplayId = -1
-        var currentTaskBounds: String? = null
-        var foundPackages = mutableSetOf<String>()
-        
-        val displayPattern = Pattern.compile("Display #(\\d+)")
-        val boundsPattern = Pattern.compile("bounds=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
-        val rectPattern = Pattern.compile("mBounds=Rect\\((\\d+), (\\d+) - (\\d+), (\\d+)\\)")
-        val activityPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
-
-        while (r.readLine().also { line = it } != null) {
-            val l = line!!
-            
-            val displayMatcher = displayPattern.matcher(l)
-            if (displayMatcher.find()) {
-                currentDisplayId = displayMatcher.group(1)?.toIntOrNull() ?: -1
-            }
-            
-            if (currentDisplayId != displayId) continue
-            
-            val boundsMatcher = boundsPattern.matcher(l)
-            if (boundsMatcher.find()) {
-                val left = boundsMatcher.group(1)
-                val top = boundsMatcher.group(2)
-                val right = boundsMatcher.group(3)
-                val bottom = boundsMatcher.group(4)
-                currentTaskBounds = "$left,$top,$right,$bottom"
-            }
-            
-            val rectMatcher = rectPattern.matcher(l)
-            if (rectMatcher.find()) {
-                val left = rectMatcher.group(1)
-                val top = rectMatcher.group(2)
-                val right = rectMatcher.group(3)
-                val bottom = rectMatcher.group(4)
-                currentTaskBounds = "$left,$top,$right,$bottom"
-            }
-            
-            if (l.contains("ActivityRecord{") && currentTaskBounds != null) {
-                val activityMatcher = activityPattern.matcher(l)
-                if (activityMatcher.find()) {
-                    val pkg = activityMatcher.group(1)
-                    if (pkg != null && isUserApp(pkg) && !foundPackages.contains(pkg)) {
-                        results.add("$pkg|$currentTaskBounds")
-                        foundPackages.add(pkg)
-                    }
-                }
-            }
-        }
-        
-        r.close()
-        p.waitFor()
-    } catch (e: Exception) {
-        Log.e(TAG, "getWindowLayouts failed", e)
-    } finally {
-        Binder.restoreCallingIdentity(token)
-    }
-    return results
-}
-
-
-    override fun getTaskId(packageName: String, className: String?): Int {
-        var taskId = -1
-        val token = Binder.clearCallingIdentity()
-        try {
-            // Target the class name if available; it's the unique key for Gemini
-            val target = if (!className.isNullOrEmpty()) className else packageName
-            val cmd = arrayOf("sh", "-c", "dumpsys activity tasks | grep -E 'Task id #|ActivityRecord'")
-            val p = Runtime.getRuntime().exec(cmd)
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            var currentScanningId = -1
-
-            while (r.readLine().also { line = it } != null) {
-                val l = line!!.trim()
-                if (l.contains("Task id #")) {
-                    val m = Regex("id #(\\d+)").find(l)
-                    if (m != null) currentScanningId = m.groupValues[1].toInt()
-                }
-                if (l.contains(target!!) && currentScanningId != -1) {
-                    taskId = currentScanningId
-                    // Continue scanning to pick the top-most (most recent) task ID
-                }
-            }
-            r.close()
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        return taskId
-    }
-
-
-    override fun moveTaskToBack(taskId: Int) {
-        val token = Binder.clearCallingIdentity()
-        try {
-            val atmClass = Class.forName("android.app.ActivityTaskManager")
-            val serviceMethod = atmClass.getMethod("getService")
-            val atm = serviceMethod.invoke(null)
-            val moveMethod = atm.javaClass.getMethod("moveTaskToBack", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
-            moveMethod.invoke(atm, taskId, true)
-        } catch (e: Exception) {
-            try {
-                val am = Class.forName("android.app.ActivityManagerNative").getMethod("getDefault").invoke(null)
-                val moveMethod = am.javaClass.getMethod("moveTaskToBack", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
-                moveMethod.invoke(am, taskId, true)
-            } catch (e2: Exception) {}
-        } finally { Binder.restoreCallingIdentity(token) }
-    }
-
-    private fun isUserApp(pkg: String): Boolean {
-        if (pkg == "com.android.systemui") return false
-        if (pkg == "com.android.launcher3") return false 
-        if (pkg == "com.sec.android.app.launcher") return false 
-        if (pkg == "com.example.quadrantlauncher") return false
-        if (pkg == "com.example.com.katsuyamaki.coverscreenlauncher") return false
-        if (pkg == "com.example.coverscreentester") return false 
-        if (pkg == "com.katsuyamaki.trackpad") return false
-        if (pkg.contains("inputmethod")) return false
-        if (pkg.contains("navigationbar")) return false
-        if (pkg == "ScreenDecorOverlayCover") return false
-        if (pkg == "RecentsTransitionOverlay") return false
-        if (pkg == "FreeformContainer") return false
-        if (pkg == "StatusBar") return false
-        if (pkg == "NotificationShade") return false
-        return true
-    }
-
-    // Interface compliance stubs
-    override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
-    override fun getSystemBrightness(): Int = 128
-    override fun getSystemBrightnessFloat(): Float = 0.5f
-    override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
-    override fun isAutoBrightness(): Boolean = true
-    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
 }
 ```
 
@@ -13241,6 +13599,610 @@ class ShellUserService : IShellService.Stub() {
 }
 ```
 
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.content.ContentResolver
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Binder
+import android.os.IBinder
+import android.provider.Settings
+import android.util.Log
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.util.ArrayList
+import java.util.regex.Pattern
+import android.os.Build
+
+class ShellUserService : IShellService.Stub() {
+
+    private val TAG = "ShellUserService"
+
+    companion object {
+        const val POWER_MODE_OFF = 0
+        const val POWER_MODE_NORMAL = 2
+        
+        @Volatile private var displayControlClass: Class<*>? = null
+        @Volatile private var displayControlClassLoaded = false
+    }
+
+    private val surfaceControlClass: Class<*> by lazy {
+        Class.forName("android.view.SurfaceControl")
+    }
+
+    private fun getDisplayControlClass(): Class<*>? {
+        if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
+        
+        return try {
+            val classLoaderFactoryClass = Class.forName("com.android.internal.os.ClassLoaderFactory")
+            val createClassLoaderMethod = classLoaderFactoryClass.getDeclaredMethod(
+                "createClassLoader",
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                ClassLoader::class.java,
+                Int::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                String::class.java
+            )
+            val classLoader = createClassLoaderMethod.invoke(
+                null, "/system/framework/services.jar", null, null,
+                ClassLoader.getSystemClassLoader(), 0, true, null
+            ) as ClassLoader
+
+            val loadedClass = classLoader.loadClass("com.android.server.display.DisplayControl").also {
+                val loadMethod = Runtime::class.java.getDeclaredMethod(
+                    "loadLibrary0",
+                    Class::class.java,
+                    String::class.java
+                )
+                loadMethod.isAccessible = true
+                loadMethod.invoke(Runtime.getRuntime(), it, "android_servers")
+            }
+            
+            displayControlClass = loadedClass
+            displayControlClassLoaded = true
+            loadedClass
+        } catch (e: Exception) {
+            Log.w(TAG, "DisplayControl not available", e)
+            null
+        }
+    }
+
+    private fun getAllPhysicalDisplayTokens(): List<IBinder> {
+        val tokens = ArrayList<IBinder>()
+        try {
+            val physicalIds: LongArray = if (Build.VERSION.SDK_INT >= 34) {
+                val controlClass = getDisplayControlClass()
+                if (controlClass != null) {
+                    controlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                } else {
+                     try {
+                        surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                     } catch (e: Exception) { LongArray(0) }
+                }
+            } else {
+                surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+            }
+
+            if (physicalIds.isEmpty()) {
+                getSurfaceControlInternalToken()?.let { tokens.add(it) }
+                return tokens
+            }
+
+            for (id in physicalIds) {
+                try {
+                    val token: IBinder? = if (Build.VERSION.SDK_INT >= 34) {
+                        val controlClass = getDisplayControlClass()
+                        if (controlClass != null) {
+                             controlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        } else {
+                            surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        }
+                    } else {
+                        surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                            .invoke(null, id) as? IBinder
+                    }
+                    
+                    if (token != null) tokens.add(token)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to get token for physical ID $id", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Critical failure getting display tokens", e)
+        }
+        return tokens
+    }
+
+    private fun getSurfaceControlInternalToken(): IBinder? {
+        return try {
+            if (Build.VERSION.SDK_INT < 29) {
+                surfaceControlClass.getMethod("getBuiltInDisplay", Int::class.java).invoke(null, 0) as IBinder
+            } else {
+                surfaceControlClass.getMethod("getInternalDisplayToken").invoke(null) as IBinder
+            }
+        } catch (e: Exception) { null }
+    }
+
+    private fun setPowerModeOnToken(token: IBinder, mode: Int) {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayPowerMode",
+                IBinder::class.java,
+                Int::class.javaPrimitiveType
+            )
+            method.invoke(null, token, mode)
+        } catch (e: Exception) {
+            Log.e(TAG, "setDisplayPowerMode failed for token $token", e)
+        }
+    }
+
+    private fun setDisplayBrightnessOnToken(token: IBinder, brightness: Float): Boolean {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayBrightness",
+                IBinder::class.java,
+                Float::class.javaPrimitiveType
+            )
+            method.invoke(null, token, brightness)
+            return true
+        } catch (e: Exception) {
+             try {
+                val method = surfaceControlClass.getMethod(
+                    "setDisplayBrightness",
+                    IBinder::class.java,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType
+                )
+                method.invoke(null, token, brightness, brightness, brightness, brightness)
+                return true
+            } catch (e2: Exception) {
+                return false
+            }
+        }
+    }
+
+    private fun setDisplayBrightnessInternal(displayId: Int, brightness: Float): Boolean {
+        // Legacy shim for single-target calls
+        val tokens = getAllPhysicalDisplayTokens()
+        if (tokens.isNotEmpty()) return setDisplayBrightnessOnToken(tokens[0], brightness)
+        return false
+    }
+
+    private val shLock = Object()
+    private var _shProcess: Process? = null
+    private val shProcess: Process
+        get() = synchronized(shLock) {
+            if (_shProcess?.isAlive == true) _shProcess!!
+            else Runtime.getRuntime().exec(arrayOf("sh")).also { _shProcess = it }
+        }
+
+    private fun execShellCommand(command: String) {
+        synchronized(shLock) {
+            try {
+                val output = shProcess.outputStream
+                output.write("$command\n".toByteArray())
+                output.flush()
+            } catch (e: Exception) {
+                Log.e(TAG, "Shell command failed", e)
+            }
+        }
+    }
+
+    // ============================================================
+    // AIDL Interface Implementations
+    // ============================================================
+
+    
+override fun setBrightness(displayId: Int, brightness: Int) {
+        Log.d(TAG, "setBrightness(Global Broadcast, Value: $brightness)")
+        val token = Binder.clearCallingIdentity()
+        try {
+            if (brightness < 0) {
+                // === SCREEN OFF ===
+                execShellCommand("settings put system screen_brightness_mode 0")
+                
+                // Get ALL tokens, but ONLY apply to the first 2 (Main + Cover)
+                // This prevents killing the Glasses (which would be index 2+)
+                val tokens = getAllPhysicalDisplayTokens()
+                val safeTokens = tokens.take(2)
+                
+                for (t in safeTokens) {
+                    setDisplayBrightnessOnToken(t, -1.0f)
+                }
+                
+                execShellCommand("settings put system screen_brightness_float -1.0")
+                execShellCommand("settings put system screen_brightness -1")
+            } else {
+                // === SCREEN ON ===
+                val floatVal = brightness.toFloat() / 255.0f
+                
+                // Restore ALL tokens (safety, in case user replugged glasses)
+                val tokens = getAllPhysicalDisplayTokens()
+                for (t in tokens) {
+                    setDisplayBrightnessOnToken(t, floatVal)
+                }
+                
+                execShellCommand("settings put system screen_brightness_float $floatVal")
+                execShellCommand("settings put system screen_brightness $brightness")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setBrightness failed", e)
+        } finally {
+             Binder.restoreCallingIdentity(token)
+        }
+    }
+
+    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
+        Log.d(TAG, "setScreenOff(Global Broadcast, TurnOff: $turnOff)")
+        val token = Binder.clearCallingIdentity()
+        try {
+            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
+            
+            // Same safety limit: Only affect first 2 physical screens
+            val tokens = getAllPhysicalDisplayTokens()
+            val safeTokens = tokens.take(2)
+            
+            for (t in safeTokens) {
+                setPowerModeOnToken(t, mode)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setScreenOff failed", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    // --- V1.0 LOGIC: Window Management (Retained for Tiling/Minimizing) ---
+    
+    override fun forceStop(packageName: String) {
+        val token = Binder.clearCallingIdentity()
+        try { 
+            val realPkg = if (packageName.endsWith(":gemini")) packageName.substringBefore(":") else packageName
+            Runtime.getRuntime().exec("am force-stop $realPkg").waitFor() 
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+    }
+
+    override fun runCommand(command: String) {
+        val token = Binder.clearCallingIdentity()
+        try { Runtime.getRuntime().exec(command).waitFor() } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+    }
+
+
+
+    // === REPOSITION TASK - START ===
+    // Repositions a task window to specified bounds using am task commands
+    override fun repositionTask(packageName: String, className: String?, left: Int, top: Int, right: Int, bottom: Int) {
+        Log.d(TAG, "repositionTask: pkg=$packageName cls=$className bounds=[$left,$top,$right,$bottom]")
+
+        val tid = getTaskId(packageName, className)
+        Log.d(TAG, "repositionTask: getTaskId returned $tid")
+
+        if (tid == -1) {
+            Log.w(TAG, "repositionTask: No task found for $packageName / $className")
+            return
+        }
+
+        val token = Binder.clearCallingIdentity()
+        try {
+            // Set freeform windowing mode (mode 5)
+            val modeCmd = "am task set-windowing-mode $tid 5"
+            Log.d(TAG, "repositionTask: $modeCmd")
+            val modeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd))
+            modeProc.waitFor()
+            Thread.sleep(100)
+
+            // Apply resize
+            val resizeCmd = "am task resize $tid $left $top $right $bottom"
+            Log.d(TAG, "repositionTask: $resizeCmd")
+            val resizeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd))
+            val exitCode = resizeProc.waitFor()
+
+            Log.d(TAG, "repositionTask: resize exitCode=$exitCode for task $tid")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "repositionTask: FAILED", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    // === REPOSITION TASK - END ===
+
+
+
+    override fun getVisiblePackages(displayId: Int): List<String> {
+        val list = ArrayList<String>()
+        val token = Binder.clearCallingIdentity()
+        try {
+            val p = Runtime.getRuntime().exec("dumpsys window windows")
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            var currentPkg: String? = null
+            var isVisible = false
+            var onCorrectDisplay = false
+            val windowPattern = Pattern.compile("Window\\{[0-9a-f]+ u\\d+ ([^\\}/ ]+)")
+
+            while (r.readLine().also { line = it } != null) {
+                val l = line!!.trim()
+                if (l.startsWith("Window #")) {
+                    currentPkg = null; isVisible = false; onCorrectDisplay = false
+                    val matcher = windowPattern.matcher(l)
+                    if (matcher.find()) currentPkg = matcher.group(1)
+                }
+                if (l.contains("displayId=$displayId") || l.contains("mDisplayId=$displayId")) onCorrectDisplay = true
+                if (l.contains("mViewVisibility=0x0")) isVisible = true
+
+                if (currentPkg != null && isVisible && onCorrectDisplay) {
+                    if (isUserApp(currentPkg!!) && !list.contains(currentPkg!!)) list.add(currentPkg!!)
+                    currentPkg = null
+                }
+            }
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+        return list
+    }
+
+    override fun getAllRunningPackages(): List<String> {
+        val list = ArrayList<String>()
+        val token = Binder.clearCallingIdentity()
+        try {
+            val p = Runtime.getRuntime().exec("dumpsys activity activities")
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            val recordPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
+            while (r.readLine().also { line = it } != null) {
+                if (line!!.contains("ActivityRecord{")) {
+                    val m = recordPattern.matcher(line!!)
+                    if (m.find()) { val pkg = m.group(1); if (pkg != null && !list.contains(pkg) && isUserApp(pkg)) list.add(pkg) }
+                }
+            }
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+        return list
+    }
+
+override fun getWindowLayouts(displayId: Int): List<String> {
+    val results = ArrayList<String>()
+    val token = Binder.clearCallingIdentity()
+    try {
+        val p = Runtime.getRuntime().exec("dumpsys activity activities")
+        val r = BufferedReader(InputStreamReader(p.inputStream))
+        var line: String?
+        
+        var currentDisplayId = -1
+        var currentTaskBounds: String? = null
+        var foundPackages = mutableSetOf<String>()
+        
+        val displayPattern = Pattern.compile("Display #(\\d+)")
+        val boundsPattern = Pattern.compile("bounds=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
+        val rectPattern = Pattern.compile("mBounds=Rect\\((\\d+), (\\d+) - (\\d+), (\\d+)\\)")
+        val activityPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
+
+        while (r.readLine().also { line = it } != null) {
+            val l = line!!
+            
+            val displayMatcher = displayPattern.matcher(l)
+            if (displayMatcher.find()) {
+                currentDisplayId = displayMatcher.group(1)?.toIntOrNull() ?: -1
+            }
+            
+            if (currentDisplayId != displayId) continue
+            
+            val boundsMatcher = boundsPattern.matcher(l)
+            if (boundsMatcher.find()) {
+                val left = boundsMatcher.group(1)
+                val top = boundsMatcher.group(2)
+                val right = boundsMatcher.group(3)
+                val bottom = boundsMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            val rectMatcher = rectPattern.matcher(l)
+            if (rectMatcher.find()) {
+                val left = rectMatcher.group(1)
+                val top = rectMatcher.group(2)
+                val right = rectMatcher.group(3)
+                val bottom = rectMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            if (l.contains("ActivityRecord{") && currentTaskBounds != null) {
+                val activityMatcher = activityPattern.matcher(l)
+                if (activityMatcher.find()) {
+                    val pkg = activityMatcher.group(1)
+                    if (pkg != null && isUserApp(pkg) && !foundPackages.contains(pkg)) {
+                        results.add("$pkg|$currentTaskBounds")
+                        foundPackages.add(pkg)
+                    }
+                }
+            }
+        }
+        
+        r.close()
+        p.waitFor()
+    } catch (e: Exception) {
+        Log.e(TAG, "getWindowLayouts failed", e)
+    } finally {
+        Binder.restoreCallingIdentity(token)
+    }
+    return results
+}
+
+
+    // === GET TASK ID - START ===
+    // Uses 'am stack list' to find task ID
+    // PRIORITY: Full component match (pkg/cls) > package match > short activity match
+    // Handles trampolining apps like Gemini which redirect to different packages
+    override fun getTaskId(packageName: String, className: String?): Int {
+        var exactTaskId = -1      // Best: full package/activity match
+        var packageTaskId = -1    // Good: package name match
+        var fallbackTaskId = -1   // Last resort: short activity name match
+        
+        val token = Binder.clearCallingIdentity()
+        try {
+            Log.d(TAG, "getTaskId: Looking for pkg=$packageName cls=$className")
+            
+            val cmd = arrayOf("sh", "-c", "am stack list")
+            val p = Runtime.getRuntime().exec(cmd)
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            
+            // Build component string for exact matching
+            val fullComponent = if (!className.isNullOrEmpty() && className != "null" && className != "default") {
+                "$packageName/$className"
+            } else {
+                null
+            }
+            
+            // Short activity name (fallback only)
+            val shortActivity = className?.substringAfterLast(".")
+            
+            // === TRAMPOLINE HANDLING ===
+            val isGemini = packageName == "com.google.android.apps.bard" || 
+                          (className?.contains("Bard") == true) ||
+                          (className?.contains("bard") == true)
+            
+            if (isGemini) {
+                Log.d(TAG, "getTaskId: Gemini detected, will check trampoline targets")
+            }
+            
+            Log.d(TAG, "getTaskId: fullComponent=$fullComponent shortActivity=$shortActivity")
+            
+            while (r.readLine().also { line = it } != null) {
+                val l = line!!.trim()
+                
+                if (!l.contains("taskId=") || !l.contains(":")) continue
+                
+                // Extract task ID from line
+                val match = Regex("taskId=(\\d+):").find(l)
+                if (match == null) continue
+                
+                val foundId = match.groupValues[1].toIntOrNull() ?: continue
+                if (foundId <= 0) continue
+                
+                // PRIORITY 1: Exact full component match (highest priority)
+                if (fullComponent != null && l.contains(fullComponent)) {
+                    Log.d(TAG, "getTaskId: EXACT MATCH taskId=$foundId component=$fullComponent")
+                    exactTaskId = foundId
+                    // Keep searching - want most recent exact match
+                }
+                // PRIORITY 2: Package name match
+                else if (l.contains("$packageName/")) {
+                    Log.d(TAG, "getTaskId: PACKAGE MATCH taskId=$foundId pkg=$packageName")
+                    packageTaskId = foundId
+                }
+                // PRIORITY 3: Gemini trampoline - check for Google Quick Search Box
+                else if (isGemini && l.contains("com.google.android.googlequicksearchbox")) {
+                    Log.d(TAG, "getTaskId: GEMINI TRAMPOLINE MATCH taskId=$foundId")
+                    // Treat trampoline match as package-level priority
+                    packageTaskId = foundId
+                }
+                // PRIORITY 4: Short activity name (ONLY if no better match exists)
+                // Skip generic names that cause false positives
+                else if (shortActivity != null && 
+                         shortActivity != "MainActivity" &&  // Too generic
+                         shortActivity != "default" &&       // Too generic
+                         l.contains(shortActivity)) {
+                    Log.d(TAG, "getTaskId: FALLBACK MATCH taskId=$foundId activity=$shortActivity")
+                    fallbackTaskId = foundId
+                }
+            }
+            r.close()
+            p.waitFor()
+            
+            // Return best match in priority order
+            val result = when {
+                exactTaskId > 0 -> exactTaskId
+                packageTaskId > 0 -> packageTaskId
+                fallbackTaskId > 0 -> fallbackTaskId
+                else -> -1
+            }
+            
+            Log.d(TAG, "getTaskId: Final result=$result (exact=$exactTaskId pkg=$packageTaskId fallback=$fallbackTaskId)")
+            return result
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "getTaskId: FAILED", e)
+            return -1
+        } finally { 
+            Binder.restoreCallingIdentity(token) 
+        }
+    }
+    // === GET TASK ID - END ===
+
+    // === DEBUG DUMP TASKS - START ===
+    // Dumps raw task info for debugging
+    fun debugDumpTasks(): String {
+        val token = Binder.clearCallingIdentity()
+        val result = StringBuilder()
+        try {
+            val cmd = arrayOf("sh", "-c", "dumpsys activity activities | head -100")
+            val p = Runtime.getRuntime().exec(cmd)
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            while (r.readLine().also { line = it } != null) {
+                result.appendLine(line)
+            }
+            r.close()
+            p.waitFor()
+        } catch (e: Exception) {
+            result.appendLine("ERROR: ${e.message}")
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+        return result.toString()
+    }
+    // === DEBUG DUMP TASKS - END ===
+
+    override fun moveTaskToBack(taskId: Int) {
+        val token = Binder.clearCallingIdentity()
+        try {
+            val atmClass = Class.forName("android.app.ActivityTaskManager")
+            val serviceMethod = atmClass.getMethod("getService")
+            val atm = serviceMethod.invoke(null)
+            val moveMethod = atm.javaClass.getMethod("moveTaskToBack", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+            moveMethod.invoke(atm, taskId, true)
+        } catch (e: Exception) {
+            try {
+                val am = Class.forName("android.app.ActivityManagerNative").getMethod("getDefault").invoke(null)
+                val moveMethod = am.javaClass.getMethod("moveTaskToBack", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+                moveMethod.invoke(am, taskId, true)
+            } catch (e2: Exception) {}
+        } finally { Binder.restoreCallingIdentity(token) }
+    }
+
+    private fun isUserApp(pkg: String): Boolean {
+        if (pkg == "com.android.systemui") return false
+        if (pkg == "com.android.launcher3") return false 
+        if (pkg == "com.sec.android.app.launcher") return false 
+        if (pkg == "com.example.quadrantlauncher") return false
+        if (pkg == "com.example.com.katsuyamaki.coverscreenlauncher") return false
+        if (pkg == "com.example.coverscreentester") return false 
+        if (pkg == "com.katsuyamaki.trackpad") return false
+        if (pkg.contains("inputmethod")) return false
+        if (pkg.contains("navigationbar")) return false
+        if (pkg == "ScreenDecorOverlayCover") return false
+        if (pkg == "RecentsTransitionOverlay") return false
+        if (pkg == "FreeformContainer") return false
+        if (pkg == "StatusBar") return false
+        if (pkg == "NotificationShade") return false
+        return true
+    }
+
+    // Interface compliance stubs
+    override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
+    override fun getSystemBrightness(): Int = 128
+    override fun getSystemBrightnessFloat(): Float = 0.5f
+    override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
+    override fun isAutoBrightness(): Boolean = true
+    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
+}
+```
+
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/MainActivity.kt
 ```kotlin
 package com.example.coverscreentester
@@ -13582,6 +14544,12 @@ class FloatingLauncherService : AccessibilityService() {
     private var lastManualSwitchTime = 0L
     private var switchRunnable: Runnable? = null
 
+    // === EXECUTION DEBOUNCE - START ===
+    // Prevents multiple rapid executions
+    private var lastExecuteTime = 0L
+    private val EXECUTE_DEBOUNCE_MS = 2000L  // 2 second minimum between executions
+    // === EXECUTION DEBOUNCE - END ===
+
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {}
         override fun onDisplayRemoved(displayId: Int) {
@@ -13914,12 +14882,44 @@ class FloatingLauncherService : AccessibilityService() {
         if (isBound) { try { ShizukuBinder.unbind(ComponentName(packageName, ShellUserService::class.java.name), userServiceConnection); isBound = false } catch (e: Exception) {} }
     }
     
+    // === SAFE TOAST FUNCTION - START ===
+    // Displays toast message and updates debug status view
     private fun safeToast(msg: String) { 
         uiHandler.post { 
             try { Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show() } catch(e: Exception) { }
             if (debugStatusView != null) debugStatusView?.text = msg 
         }
     }
+    // === SAFE TOAST FUNCTION - END ===
+
+    // === DEBUG APP IDENTIFICATION - START ===
+    // Visual debug function to show package/activity when apps are opened/modified/identified
+    // This displays in the bright green text area above the app queue in the launcher drawer
+    private fun debugShowAppIdentification(action: String, pkg: String, className: String?) {
+        val basePkg = if (pkg.contains(":")) pkg.substringBefore(":") else pkg
+        val suffix = if (pkg.contains(":")) pkg.substringAfter(":") else null
+        
+        // Get short class name for display
+        val shortCls = when {
+            className.isNullOrEmpty() -> "NO_CLASS"
+            className == "null" -> "NO_CLASS"
+            else -> className.substringAfterLast(".")
+        }
+        
+        val debugText = buildString {
+            append("[$action] ")
+            append("pkg=${basePkg.substringAfterLast(".")}")  // Show only last part of package
+            if (suffix != null) append(":$suffix")
+            append(" cls=$shortCls")
+        }
+        
+        uiHandler.post {
+            debugStatusView?.text = debugText
+            // Also log full details
+            Log.d(DEBUG_TAG, "[$action] FULL: pkg=$pkg cls=$className")
+        }
+    }
+    // === DEBUG APP IDENTIFICATION - END ===
     
     private fun vibrate() {
         try {
@@ -14088,14 +15088,16 @@ class FloatingLauncherService : AccessibilityService() {
         if (container.layoutParams.height != finalHeight || container.layoutParams.width != newW) { container.layoutParams.width = newW; container.layoutParams.height = finalHeight; container.requestLayout(); if (drawerParams.y != 0) { drawerParams.y = 0; windowManager.updateViewLayout(drawerView, drawerParams) } }
     }
 
+    // === TOGGLE DRAWER - START ===
+    // Opens/closes the launcher drawer overlay
+    // Updates debug display with queue state when opening
     private fun toggleDrawer() {
         if (isExpanded) { 
-            try { windowManager.removeView(drawerView) } catch(e: Exception) {}; 
-            bubbleView?.visibility = View.VISIBLE; 
+            try { windowManager.removeView(drawerView) } catch(e: Exception) {}
+            bubbleView?.visibility = View.VISIBLE
             isExpanded = false 
         } else { 
-            // Removed setupDisplayContext()
-            updateDrawerHeight(false); 
+            updateDrawerHeight(false)
             
             // Z-ORDER UPDATE: Try adding with High Priority, Fallback if fails
             try { 
@@ -14105,26 +15107,56 @@ class FloatingLauncherService : AccessibilityService() {
                     drawerParams.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                     windowManager.addView(drawerView, drawerParams)
                 } catch(e2: Exception) {}
-            }; 
+            }
             
-            bubbleView?.visibility = View.GONE; 
-            isExpanded = true; 
-            switchMode(MODE_SEARCH); 
-            val et = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); 
-            et?.setText(""); 
-            et?.clearFocus(); 
-            updateSelectedAppsDock(); 
+            bubbleView?.visibility = View.GONE
+            isExpanded = true
+            switchMode(MODE_SEARCH)
+            
+            val et = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)
+            et?.setText("")
+            et?.clearFocus()
+            updateSelectedAppsDock()
+            
+            // Show current queue state in debug view when drawer opens
+            showQueueDebugState()
+            
             if (isInstantMode) fetchRunningApps() 
         }
     }
+    // === TOGGLE DRAWER - END ===
+    
+    // === SHOW QUEUE DEBUG STATE - START ===
+    private fun showQueueDebugState() {
+        if (selectedAppsQueue.isEmpty()) {
+            debugStatusView?.text = "[DRAWER] Queue empty"
+        } else {
+            val queueInfo = selectedAppsQueue.mapIndexed { i, app ->
+                val shortCls = when {
+                    app.className.isNullOrEmpty() -> "NO_CLS"
+                    app.className == "null" -> "NO_CLS"
+                    app.className == "default" -> "BAD_CLS"
+                    else -> app.className!!.substringAfterLast(".")
+                }
+                val shortPkg = app.packageName.substringAfterLast(".")
+                "$i:$shortPkg($shortCls)"
+            }.joinToString(" | ")
+            debugStatusView?.text = "[Q] $queueInfo"
+            
+            // Also log full details
+            selectedAppsQueue.forEachIndexed { i, app ->
+                Log.d(DEBUG_TAG, "Queue[$i]: ${app.label} pkg=${app.packageName} cls=${app.className}")
+            }
+        }
+    }
+    // === SHOW QUEUE DEBUG STATE - END ===
     private fun updateGlobalFontSize() { val searchBar = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); searchBar?.textSize = currentFontSize; drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged() }
 
 // This ensures that the internal list always has two separate entries for the Google package.
 // We force the standard one to be "Google" and the assistant one to be "Gemini".
 
     // === LOAD INSTALLED APPS - START ===
-    // Loads all launcher apps and filters out blacklisted ones
-    // Special handling for Google/Gemini to create separate entries
+    // Loads all launcher apps with proper className capture
     private fun loadInstalledApps() {
         val pm = packageManager
         val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
@@ -14136,24 +15168,48 @@ class FloatingLauncherService : AccessibilityService() {
 
         for (ri in riList) {
             val pkg = ri.activityInfo.packageName
+            // Get the FULL activity class name - this is critical for tiling
             val cls = ri.activityInfo.name
+            
             if (pkg == PACKAGE_TRACKPAD || pkg == packageName) continue
 
             var label = ri.loadLabel(pm).toString()
-            // Identify Gemini via keywords in the activity class
-            if (pkg == "com.google.android.googlequicksearchbox" &&
-                (cls.lowercase().contains("assistant") || cls.lowercase().contains("gemini"))) {
+            
+            // Standalone Gemini app (com.google.android.apps.bard)
+            if (pkg == "com.google.android.apps.bard") {
                 label = "Gemini"
             }
+            // Google Quick Search Box with Gemini/Assistant activity
+            else if (pkg == "com.google.android.googlequicksearchbox" &&
+                (cls.lowercase().contains("assistant") || 
+                 cls.lowercase().contains("gemini") ||
+                 cls.lowercase().contains("bard"))) {
+                label = "Gemini (Google)"
+            }
 
-            val app = MainActivity.AppInfo(label, pkg, cls, AppPreferences.isFavorite(this, pkg))
+            // Validate className - must not be null, empty, or "default"
+            val validClassName = if (cls.isNullOrEmpty() || cls == "default") {
+                Log.w(DEBUG_TAG, "App $label ($pkg) has invalid className: $cls")
+                null
+            } else {
+                cls
+            }
 
-            // Skip if blacklisted
+            val app = MainActivity.AppInfo(
+                label = label, 
+                packageName = pkg, 
+                className = validClassName,
+                isFavorite = AppPreferences.isFavorite(this, pkg)
+            )
+
             if (!blacklist.contains(app.getIdentifier())) {
                 allAppsList.add(app)
             }
+            
+            Log.d(DEBUG_TAG, "Loaded: $label pkg=$pkg cls=$validClassName")
         }
         allAppsList.sortBy { it.label.lowercase() }
+        Log.d(TAG, "Loaded ${allAppsList.size} apps total")
     }
     // === LOAD INSTALLED APPS - END ===
 
@@ -14216,56 +15272,162 @@ class FloatingLauncherService : AccessibilityService() {
         val filtered = if (actualQuery.isEmpty()) { allAppsList } else { allAppsList.filter { it.label.contains(actualQuery, ignoreCase = true) } }
         val sorted = filtered.sortedWith(compareBy<MainActivity.AppInfo> { it.packageName != PACKAGE_BLANK }.thenByDescending { it.isFavorite }.thenBy { it.label.lowercase() }); displayList.addAll(sorted); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
     }
+    // === ADD TO SELECTION - START ===
+    // Adds app to the selection queue, handles removal if already selected
+    // Uses proper package name extraction for force-stop and launch operations
     private fun addToSelection(app: MainActivity.AppInfo) {
-        dismissKeyboardAndRestore(); val et = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar)
-        if (app.packageName == PACKAGE_BLANK) { selectedAppsQueue.add(app); sortAppQueue(); updateSelectedAppsDock(); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate(); return }
-        val existing = selectedAppsQueue.find { it.packageName == app.packageName }; if (existing != null) { selectedAppsQueue.remove(existing); Thread { try { shellService?.forceStop(app.packageName) } catch(e: Exception) {} }.start(); safeToast("Removed ${app.label}"); sortAppQueue(); updateSelectedAppsDock(); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); et.setText(""); if (isInstantMode) applyLayoutImmediate() } 
-        else { app.isMinimized = false; selectedAppsQueue.add(app); sortAppQueue(); updateSelectedAppsDock(); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); et.setText(""); if (isInstantMode) { launchViaApi(app.packageName, app.className, null); launchViaShell(app.packageName, app.className); uiHandler.postDelayed({ applyLayoutImmediate() }, 200); uiHandler.postDelayed({ applyLayoutImmediate() }, 800) } }
+        dismissKeyboardAndRestore()
+        val et = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar)
+        
+        // Handle blank spacer
+        if (app.packageName == PACKAGE_BLANK) { 
+            selectedAppsQueue.add(app)
+            sortAppQueue()
+            updateSelectedAppsDock()
+            drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+            if (isInstantMode) applyLayoutImmediate()
+            return 
+        }
+        
+        // Debug: show what app is being selected
+        debugShowAppIdentification("SELECT", app.packageName, app.className)
+        
+        // Check if app is already in queue (by matching both package and class for precision)
+        val existing = selectedAppsQueue.find { 
+            it.packageName == app.packageName && it.className == app.className 
+        }
+        
+        if (existing != null) { 
+            // Remove from queue
+            selectedAppsQueue.remove(existing)
+            
+            // Force stop using BASE package name (shell commands need base pkg)
+            val basePkg = if (app.packageName.contains(":")) app.packageName.substringBefore(":") else app.packageName
+            Thread { 
+                try { 
+                    shellService?.forceStop(basePkg) 
+                } catch(e: Exception) {
+                    Log.e(TAG, "forceStop failed for $basePkg", e)
+                } 
+            }.start()
+            
+            safeToast("Removed ${app.label}")
+            sortAppQueue()
+            updateSelectedAppsDock()
+            drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+            et.setText("")
+            if (isInstantMode) applyLayoutImmediate() 
+        } else { 
+            // Add to queue and launch if instant mode
+            app.isMinimized = false
+            selectedAppsQueue.add(app)
+            sortAppQueue()
+            updateSelectedAppsDock()
+            drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+            et.setText("")
+            
+            if (isInstantMode) { 
+                // Launch using both API and Shell for reliability
+                launchViaApi(app.packageName, app.className, null)
+                launchViaShell(app.packageName, app.className, null)
+                
+                // Delayed layout application to allow app to start
+                uiHandler.postDelayed({ applyLayoutImmediate() }, 200)
+                uiHandler.postDelayed({ applyLayoutImmediate() }, 800) 
+            } 
+        }
     }
+    // === ADD TO SELECTION - END ===
+
     private fun toggleFavorite(app: MainActivity.AppInfo) { val newState = AppPreferences.toggleFavorite(this, app.packageName); app.isFavorite = newState; allAppsList.find { it.packageName == app.packageName }?.isFavorite = newState }
 
 
+    // === LAUNCH VIA API - START ===
+    // Launches app using Android API with launch bounds
     private fun launchViaApi(pkg: String, className: String?, bounds: Rect?) {
         try {
+            val basePkg = if (pkg.contains(":")) pkg.substringBefore(":") else pkg
+
+            debugShowAppIdentification("LAUNCH_API", basePkg, className)
+
             val intent: Intent?
-            if (!className.isNullOrEmpty()) {
+
+            if (!className.isNullOrEmpty() && className != "null" && className != "default") {
                 intent = Intent()
-                intent.setClassName(pkg, className)
+                intent.setClassName(basePkg, className)
                 intent.action = Intent.ACTION_MAIN
                 intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                Log.d(TAG, "launchViaApi: explicit component $basePkg/$className")
             } else {
-                intent = packageManager.getLaunchIntentForPackage(pkg)
+                intent = packageManager.getLaunchIntentForPackage(basePkg)
+                Log.d(TAG, "launchViaApi: default intent for $basePkg")
             }
 
-            if (intent == null) return;
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            val options = android.app.ActivityOptions.makeBasic();
-            options.setLaunchDisplayId(currentDisplayId);
-            if (bounds != null) options.setLaunchBounds(bounds);
-            startActivity(intent, options.toBundle())
-        } catch (e: Exception) {}
-    }
-
-
-    private fun launchViaShell(pkg: String, className: String?) {
-        try {
-            if (!className.isNullOrEmpty()) {
-                val component = "$pkg/$className"
-                val cmd = "am start -n $component -a android.intent.action.MAIN -c android.intent.category.LAUNCHER --display $currentDisplayId --windowingMode 5 --user 0"
-                if (shellService != null) {
-                    Thread { shellService?.runCommand(cmd) }.start()
-                }
+            if (intent == null) {
+                Log.w(TAG, "launchViaApi: No intent for $basePkg, trying shell")
+                launchViaShell(basePkg, className, bounds)
                 return
             }
 
-            val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return;
-            if (shellService != null) {
-                val component = intent.component?.flattenToShortString() ?: pkg;
-                val cmd = "am start -n $component -a android.intent.action.MAIN -c android.intent.category.LAUNCHER --display $currentDisplayId --windowingMode 5 --user 0";
-                Thread { shellService?.runCommand(cmd) }.start()
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+
+            val options = android.app.ActivityOptions.makeBasic()
+            options.setLaunchDisplayId(currentDisplayId)
+
+            if (bounds != null) {
+                options.setLaunchBounds(bounds)
+                Log.d(TAG, "launchViaApi: bounds=$bounds")
             }
-        } catch (e: Exception) {}
+
+            startActivity(intent, options.toBundle())
+            Log.d(TAG, "launchViaApi: SUCCESS $basePkg")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "launchViaApi FAILED, trying shell", e)
+            launchViaShell(pkg, className, bounds)
+        }
     }
+    // === LAUNCH VIA API - END ===
+
+
+    // === LAUNCH VIA SHELL - START ===
+    // Launches app via shell with freeform windowing mode
+    private fun launchViaShell(pkg: String, className: String?, bounds: Rect?) {
+        try {
+            val basePkg = if (pkg.contains(":")) pkg.substringBefore(":") else pkg
+
+            debugShowAppIdentification("LAUNCH_SHELL", basePkg, className)
+
+            val component = if (!className.isNullOrEmpty() && className != "null" && className != "default") {
+                "$basePkg/$className"
+            } else {
+                null
+            }
+
+            // Build launch command with freeform mode (--windowingMode 5)
+            val cmd = if (component != null) {
+                "am start -n $component --display $currentDisplayId --windowingMode 5 --user 0"
+            } else {
+                "am start -p $basePkg -a android.intent.action.MAIN -c android.intent.category.LAUNCHER --display $currentDisplayId --windowingMode 5 --user 0"
+            }
+
+            Log.d(TAG, "launchViaShell: $cmd")
+
+            Thread {
+                try {
+                    shellService?.runCommand(cmd)
+                    Log.d(TAG, "launchViaShell: SUCCESS")
+                } catch (e: Exception) {
+                    Log.e(TAG, "launchViaShell: FAILED", e)
+                }
+            }.start()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "launchViaShell FAILED: $pkg", e)
+        }
+    }
+    // === LAUNCH VIA SHELL - END ===
+
     
     private fun cycleDisplay() {
         val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; val displays = dm.displays
@@ -14407,10 +15569,227 @@ class FloatingLauncherService : AccessibilityService() {
     private fun saveProfile() { var name = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.text?.toString()?.trim(); if (name.isNullOrEmpty()) { val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()); name = "Profile_$timestamp" }; val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveProfile(this, name, selectedLayoutType, selectedResolutionIndex, currentDpiSetting, pkgs); safeToast("Saved: $name"); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText(""); switchMode(MODE_PROFILES) }
     private fun loadProfile(name: String) { val data = AppPreferences.getProfileData(this, name) ?: return; try { val parts = data.split("|"); selectedLayoutType = parts[0].toInt(); selectedResolutionIndex = parts[1].toInt(); currentDpiSetting = parts[2].toInt(); val pkgList = parts[3].split(","); selectedAppsQueue.clear(); for (pkg in pkgList) { if (pkg.isNotEmpty()) { if (pkg == PACKAGE_BLANK) { selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK, null)) } else { val app = allAppsList.find { it.packageName == pkg }; if (app != null) selectedAppsQueue.add(app) } } }; AppPreferences.saveLastLayout(this, selectedLayoutType); AppPreferences.saveDisplayResolution(this, currentDisplayId, selectedResolutionIndex); AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting); activeProfileName = name; updateSelectedAppsDock(); safeToast("Loaded: $name"); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() } catch (e: Exception) { Log.e(TAG, "Failed to load profile", e) } }
     
-    private fun executeLaunch(layoutType: Int, closeDrawer: Boolean) { 
-        if (closeDrawer) toggleDrawer(); refreshDisplayId(); val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveLastQueue(this, pkgs)
-        Thread { try { val resCmd = getResolutionCommand(selectedResolutionIndex); shellService?.runCommand(resCmd); if (currentDpiSetting > 0) { val dpiCmd = "wm density $currentDpiSetting -d $currentDisplayId"; shellService?.runCommand(dpiCmd) } else { if (currentDpiSetting == -1) shellService?.runCommand("wm density reset -d $currentDisplayId") }; Thread.sleep(800); val targetDim = getTargetDimensions(selectedResolutionIndex); var w = 0; var h = 0; if (targetDim != null) { w = targetDim.first; h = targetDim.second } else { val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; val display = dm.getDisplay(currentDisplayId); if (display != null) { val metrics = DisplayMetrics(); display.getRealMetrics(metrics); w = metrics.widthPixels; h = metrics.heightPixels } else { val bounds = windowManager.maximumWindowMetrics.bounds; w = bounds.width(); h = bounds.height() } }; val rects = mutableListOf<Rect>(); when (layoutType) { LAYOUT_FULL -> { rects.add(Rect(0, 0, w, h)) }; LAYOUT_SIDE_BY_SIDE -> { rects.add(Rect(0, 0, w/2, h)); rects.add(Rect(w/2, 0, w, h)) }; LAYOUT_TOP_BOTTOM -> { rects.add(Rect(0, 0, w, h/2)); rects.add(Rect(0, h/2, w, h)) }; LAYOUT_TRI_EVEN -> { val third = w / 3; rects.add(Rect(0, 0, third, h)); rects.add(Rect(third, 0, third * 2, h)); rects.add(Rect(third * 2, 0, w, h)) }; LAYOUT_CORNERS -> { rects.add(Rect(0, 0, w/2, h/2)); rects.add(Rect(w/2, 0, w, h/2)); rects.add(Rect(0, h/2, w/2, h)); rects.add(Rect(w/2, h/2, w, h)) }; LAYOUT_TRI_SIDE_MAIN_SIDE -> { val quarter = w / 4; rects.add(Rect(0, 0, quarter, h)); rects.add(Rect(quarter, 0, quarter * 3, h)); rects.add(Rect(quarter * 3, 0, w, h)) }; LAYOUT_QUAD_ROW_EVEN -> { val quarter = w / 4; rects.add(Rect(0, 0, quarter, h)); rects.add(Rect(quarter, 0, quarter * 2, h)); rects.add(Rect(quarter * 2, 0, quarter * 3, h)); rects.add(Rect(quarter * 3, 0, w, h)) }; LAYOUT_CUSTOM_DYNAMIC -> { if (activeCustomRects != null) { rects.addAll(activeCustomRects!!) } else { rects.add(Rect(0, 0, w/2, h)); rects.add(Rect(w/2, 0, w, h)) } } }; if (selectedAppsQueue.isNotEmpty()) { val minimizedApps = selectedAppsQueue.filter { it.isMinimized }; for (app in minimizedApps) { if (app.packageName != PACKAGE_BLANK) { try { val tid = shellService?.getTaskId(app.packageName, app.className) ?: -1; if (tid != -1) shellService?.moveTaskToBack(tid) } catch (e: Exception) { Log.e(TAG, "Failed to minimize ${app.packageName}", e) } } }; val activeApps = selectedAppsQueue.filter { !it.isMinimized }; if (killAppOnExecute) { for (app in activeApps) { if (app.packageName != PACKAGE_BLANK) { shellService?.forceStop(app.packageName) } }; Thread.sleep(400) } else { Thread.sleep(100) }; for (i in 0 until Math.min(activeApps.size, rects.size)) { val app = activeApps[i]; val bounds = rects[i]; if (app.packageName == PACKAGE_BLANK) continue; uiHandler.postDelayed({ launchViaApi(app.packageName, app.className, bounds) }, (i * 200).toLong()); uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(app.packageName, app.className, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start() }, (i * 200 + 1200L)); uiHandler.postDelayed({ Thread { try { shellService?.repositionTask(app.packageName, app.className, bounds.left, bounds.top, bounds.right, bounds.bottom) } catch (e: Exception) {} }.start() }, (i * 200 + 2800L)) }; if (closeDrawer) { uiHandler.post { selectedAppsQueue.clear(); updateSelectedAppsDock() } } } } catch (e: Exception) { Log.e(TAG, "Execute Failed", e); safeToast("Execute Failed: ${e.message}") } }.start(); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText("") 
+    // === EXECUTE LAUNCH - START ===
+    // Main execution function that launches and tiles all selected apps
+    private fun executeLaunch(layoutType: Int, closeDrawer: Boolean) {
+        // Debounce - prevent rapid re-execution
+        val now = System.currentTimeMillis()
+        if (now - lastExecuteTime < EXECUTE_DEBOUNCE_MS) {
+            Log.d(TAG, "executeLaunch: DEBOUNCED (too soon since last execution)")
+            return
+        }
+        lastExecuteTime = now
+
+        if (closeDrawer) toggleDrawer()
+        refreshDisplayId()
+        
+        // Save queue
+        val identifiers = selectedAppsQueue.map { it.getIdentifier() }
+        AppPreferences.saveLastQueue(this, identifiers)
+        
+        Thread { 
+            try { 
+                // Apply resolution
+                val resCmd = getResolutionCommand(selectedResolutionIndex)
+                shellService?.runCommand(resCmd)
+                
+                // Apply DPI
+                if (currentDpiSetting > 0) { 
+                    shellService?.runCommand("wm density $currentDpiSetting -d $currentDisplayId")
+                } else if (currentDpiSetting == -1) { 
+                    shellService?.runCommand("wm density reset -d $currentDisplayId")
+                }
+                
+                Thread.sleep(800)
+                
+                // Get screen dimensions
+                var w = 0
+                var h = 0
+                val targetDim = getTargetDimensions(selectedResolutionIndex)
+                if (targetDim != null) { 
+                    w = targetDim.first
+                    h = targetDim.second 
+                } else { 
+                    val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+                    val display = dm.getDisplay(currentDisplayId)
+                    if (display != null) { 
+                        val metrics = DisplayMetrics()
+                        display.getRealMetrics(metrics)
+                        w = metrics.widthPixels
+                        h = metrics.heightPixels 
+                    } else { 
+                        val bounds = windowManager.maximumWindowMetrics.bounds
+                        w = bounds.width()
+                        h = bounds.height() 
+                    } 
+                }
+                
+                Log.d(TAG, "executeLaunch: Screen dimensions ${w}x${h}")
+                
+                // Build tile rectangles
+                val rects = mutableListOf<Rect>()
+                when (layoutType) { 
+                    LAYOUT_FULL -> rects.add(Rect(0, 0, w, h))
+                    LAYOUT_SIDE_BY_SIDE -> {
+                        rects.add(Rect(0, 0, w/2, h))
+                        rects.add(Rect(w/2, 0, w, h))
+                    }
+                    LAYOUT_TOP_BOTTOM -> {
+                        rects.add(Rect(0, 0, w, h/2))
+                        rects.add(Rect(0, h/2, w, h))
+                    }
+                    LAYOUT_TRI_EVEN -> {
+                        val third = w / 3
+                        rects.add(Rect(0, 0, third, h))
+                        rects.add(Rect(third, 0, third * 2, h))
+                        rects.add(Rect(third * 2, 0, w, h))
+                    }
+                    LAYOUT_CORNERS -> {
+                        rects.add(Rect(0, 0, w/2, h/2))
+                        rects.add(Rect(w/2, 0, w, h/2))
+                        rects.add(Rect(0, h/2, w/2, h))
+                        rects.add(Rect(w/2, h/2, w, h))
+                    }
+                    LAYOUT_TRI_SIDE_MAIN_SIDE -> {
+                        val quarter = w / 4
+                        rects.add(Rect(0, 0, quarter, h))
+                        rects.add(Rect(quarter, 0, quarter * 3, h))
+                        rects.add(Rect(quarter * 3, 0, w, h))
+                    }
+                    LAYOUT_QUAD_ROW_EVEN -> {
+                        val quarter = w / 4
+                        rects.add(Rect(0, 0, quarter, h))
+                        rects.add(Rect(quarter, 0, quarter * 2, h))
+                        rects.add(Rect(quarter * 2, 0, quarter * 3, h))
+                        rects.add(Rect(quarter * 3, 0, w, h))
+                    }
+                    LAYOUT_CUSTOM_DYNAMIC -> {
+                        if (activeCustomRects != null) {
+                            rects.addAll(activeCustomRects!!)
+                        } else {
+                            rects.add(Rect(0, 0, w/2, h))
+                            rects.add(Rect(w/2, 0, w, h))
+                        }
+                    }
+                }
+                
+                Log.d(TAG, "executeLaunch: ${rects.size} tiles for ${selectedAppsQueue.size} apps")
+                
+                if (selectedAppsQueue.isEmpty()) {
+                    uiHandler.post { safeToast("No apps in queue") }
+                    return@Thread
+                }
+                
+                // Handle minimized apps
+                val minimizedApps = selectedAppsQueue.filter { it.isMinimized }
+                for (app in minimizedApps) { 
+                    if (app.packageName != PACKAGE_BLANK) { 
+                        try { 
+                            val basePkg = app.getBasePackage()
+                            val tid = shellService?.getTaskId(basePkg, app.className) ?: -1
+                            Log.d(TAG, "Minimize: ${app.label} taskId=$tid")
+                            if (tid != -1) shellService?.moveTaskToBack(tid) 
+                        } catch (e: Exception) { 
+                            Log.e(TAG, "Failed to minimize ${app.packageName}", e) 
+                        } 
+                    } 
+                }
+                
+                // Get active apps
+                val activeApps = selectedAppsQueue.filter { !it.isMinimized }
+                Log.d(TAG, "executeLaunch: ${activeApps.size} active apps")
+                
+                // Kill apps if enabled
+                if (killAppOnExecute) { 
+                    for (app in activeApps) { 
+                        if (app.packageName != PACKAGE_BLANK) { 
+                            val basePkg = app.getBasePackage()
+                            Log.d(TAG, "Killing: $basePkg")
+                            shellService?.forceStop(basePkg)
+                        } 
+                    }
+                    Thread.sleep(400) 
+                } else { 
+                    Thread.sleep(100) 
+                }
+                
+                // Launch and tile each active app
+                for (i in 0 until minOf(activeApps.size, rects.size)) {
+                    val app = activeApps[i]
+                    val bounds = rects[i]
+
+                    if (app.packageName == PACKAGE_BLANK) {
+                        Log.d(TAG, "Tile[$i]: Skipping blank")
+                        continue
+                    }
+
+                    val basePkg = app.getBasePackage()
+                    val cls = app.className
+
+                    Log.d(TAG, "=== TILE[$i]: ${app.label} -> $bounds ===")
+
+                    uiHandler.post {
+                        debugShowAppIdentification("TILE[$i]", basePkg, cls)
+                    }
+
+                    // Stagger app launches by 800ms
+                    val baseDelay = i * 800L
+
+                    // Launch the app
+                    uiHandler.postDelayed({
+                        launchViaShell(basePkg, cls, bounds)
+                    }, baseDelay)
+
+                    // Single reposition after app has time to start (3 seconds)
+                    // For trampolining apps like Gemini, we need more time
+                    val repositionDelay = if (basePkg.contains("bard") || basePkg.contains("gemini")) {
+                        5000L  // 5 seconds for Gemini
+                    } else {
+                        3000L  // 3 seconds for normal apps
+                    }
+
+                    uiHandler.postDelayed({
+                        Thread {
+                            try {
+                                Log.d(TAG, "Tile[$i]: Repositioning ${app.label}")
+                                shellService?.repositionTask(basePkg, cls, bounds.left, bounds.top, bounds.right, bounds.bottom)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Tile[$i]: Reposition failed", e)
+                            }
+                        }.start()
+                    }, baseDelay + repositionDelay)
+
+                    // Second attempt for stubborn apps
+                    uiHandler.postDelayed({
+                        Thread {
+                            try {
+                                shellService?.repositionTask(basePkg, cls, bounds.left, bounds.top, bounds.right, bounds.bottom)
+                            } catch (e: Exception) {}
+                        }.start()
+                    }, baseDelay + repositionDelay + 2000L)
+                }
+                
+                // Clear queue after execution if closing drawer
+                if (closeDrawer) { 
+                    uiHandler.post { 
+                        selectedAppsQueue.clear()
+                        updateSelectedAppsDock() 
+                    } 
+                }
+                
+                uiHandler.postDelayed({
+                    safeToast("Tiling complete")
+                }, (activeApps.size * 300 + 5500L))
+                
+            } catch (e: Exception) { 
+                Log.e(TAG, "Execute Failed", e)
+                uiHandler.post { safeToast("Execute Failed: ${e.message}") }
+            } 
+        }.start()
+        
+        drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText("") 
     }
+    // === EXECUTE LAUNCH - END ===
     
     private fun calculateGCD(a: Int, b: Int): Int { return if (b == 0) a else calculateGCD(b, a % b) }
 
@@ -14511,21 +15890,57 @@ class FloatingLauncherService : AccessibilityService() {
         inner class Holder(v: View) : RecyclerView.ViewHolder(v) { val icon: ImageView = v.findViewById(R.id.selected_app_icon) }
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder { return Holder(LayoutInflater.from(parent.context).inflate(R.layout.item_selected_app, parent, false)) }
 
+        // === SELECTED APPS ADAPTER BIND - START ===
         override fun onBindViewHolder(holder: Holder, position: Int) { 
-            val app = selectedAppsQueue[position]; 
-            holder.icon.clearColorFilter(); 
+            val app = selectedAppsQueue[position]
+            holder.icon.clearColorFilter()
+            
             if (app.packageName == PACKAGE_BLANK) { 
                 holder.icon.setImageResource(R.drawable.ic_box_outline) 
             } else { 
                 try { 
-                    val realPkg = if (app.packageName.contains(":")) app.packageName.substringBefore(":") else app.packageName
-                    holder.icon.setImageDrawable(packageManager.getApplicationIcon(realPkg)) 
-                } catch (e: Exception) { holder.icon.setImageResource(R.drawable.ic_launcher_bubble) }
+                    // Use packageName directly - it should be the real package, not a modified identifier
+                    val iconPkg = app.packageName
+                    Log.d(DEBUG_TAG, "Loading icon for position $position: ${app.label} pkg=$iconPkg")
+                    holder.icon.setImageDrawable(packageManager.getApplicationIcon(iconPkg)) 
+                } catch (e: Exception) { 
+                    Log.e(DEBUG_TAG, "Failed to load icon for ${app.packageName}", e)
+                    holder.icon.setImageResource(R.drawable.ic_launcher_bubble) 
+                }
                 holder.icon.alpha = if (app.isMinimized) 0.4f else 1.0f 
             }
-            holder.itemView.setOnClickListener { try { dismissKeyboardAndRestore(); if (reorderSelectionIndex != -1) { if (position == reorderSelectionIndex) { endReorderMode(false) } else { swapReorderItem(position) } } else { if (app.packageName != PACKAGE_BLANK) { app.isMinimized = !app.isMinimized; notifyItemChanged(position); if (isInstantMode) applyLayoutImmediate() } } } catch(e: Exception) {} }
-            holder.itemView.setOnLongClickListener { if (isReorderTapEnabled) { startReorderMode(position); true } else { false } }
+            
+            holder.itemView.setOnClickListener { 
+                try { 
+                    dismissKeyboardAndRestore()
+                    if (reorderSelectionIndex != -1) { 
+                        if (position == reorderSelectionIndex) { 
+                            endReorderMode(false) 
+                        } else { 
+                            swapReorderItem(position) 
+                        } 
+                    } else { 
+                        if (app.packageName != PACKAGE_BLANK) { 
+                            app.isMinimized = !app.isMinimized
+                            notifyItemChanged(position)
+                            if (isInstantMode) applyLayoutImmediate() 
+                        } 
+                    } 
+                } catch(e: Exception) {
+                    Log.e(DEBUG_TAG, "Click handler error", e)
+                } 
+            }
+            
+            holder.itemView.setOnLongClickListener { 
+                if (isReorderTapEnabled) { 
+                    startReorderMode(position)
+                    true 
+                } else { 
+                    false 
+                } 
+            }
         }
+        // === SELECTED APPS ADAPTER BIND - END ===
         override fun getItemCount() = selectedAppsQueue.size
     }
 
