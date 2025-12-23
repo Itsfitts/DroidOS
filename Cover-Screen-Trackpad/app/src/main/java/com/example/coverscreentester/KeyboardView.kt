@@ -201,63 +201,48 @@ class KeyboardView @JvmOverloads constructor(
         }
     }
 
-
     private fun mapKeys() {
         keyCenters.clear()
+
+        // 1. Get the absolute position of the KeyboardView itself
         val parentLoc = IntArray(2)
         this.getLocationOnScreen(parentLoc)
         val parentX = parentLoc[0]
         val parentY = parentLoc[1]
 
-        // Debug counter
-        var foundKeys = 0
-
+        // 2. Traverse all children to find tagged TextViews
         fun traverse(view: View) {
-            // 1. If it's a container, search inside it
             if (view is android.view.ViewGroup) {
                 for (i in 0 until view.childCount) {
                     traverse(view.getChildAt(i))
                 }
             }
-            
-            // 2. Check if THIS view has a tag (independent of being a group)
+
+            // Check if this view (could be ViewGroup or TextView) has a tag
             if (view.tag is String) {
                 val key = view.tag as String
-                
-                val loc = IntArray(2)
-                view.getLocationOnScreen(loc)
-                val centerX = (loc[0] - parentX) + (view.width / 2f)
-                val centerY = (loc[1] - parentY) + (view.height / 2f)
-                
-                // Map the key exactly as tagged (Case-sensitive)
-                keyCenters[key] = android.graphics.PointF(centerX, centerY)
-                foundKeys++
+                // We only care about single letters for swipe decoding (A-Z)
+                if (key.length == 1 && Character.isLetter(key[0])) {
+                    val loc = IntArray(2)
+                    view.getLocationOnScreen(loc)
+
+                    // Calculate center relative to the KeyboardView (0,0 is top-left of keyboard)
+                    // This matches the MotionEvent coordinates we get in dispatchTouchEvent
+                    val centerX = (loc[0] - parentX) + (view.width / 2f)
+                    val centerY = (loc[1] - parentY) + (view.height / 2f)
+
+                    keyCenters[key.uppercase()] = android.graphics.PointF(centerX, centerY)
+                    // Also store lowercase for easier matching
+                    keyCenters[key.lowercase()] = android.graphics.PointF(centerX, centerY)
+                }
             }
         }
-        
         traverse(this)
-        android.util.Log.d("DroidOS_Swipe", "Keys mapped: $foundKeys")
-    }
 
-
-    // Helper to find key under finger (Simple nearest neighbor within radius)
-    private fun findKeyAt(x: Float, y: Float): String? {
-        var bestKey: String? = null
-        var minLimit = 150f // Max radius (pixels) to consider a "hit"
-        var bestDist = Float.MAX_VALUE
-
-        for ((key, point) in keyCenters) {
-            val dx = x - point.x
-            val dy = y - point.y
-            val dist = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
-            
-            if (dist < bestDist && dist < minLimit) {
-                bestDist = dist
-                bestKey = key
-            }
+        android.util.Log.d("DroidOS_Swipe", "Keys mapped: ${keyCenters.size / 2} (Unique Letters)")
+        if (keyCenters.isNotEmpty()) {
+             android.util.Log.d("DroidOS_Swipe", "Example 'H': ${keyCenters["h"]}")
         }
-        // FIXED: Return the exact key found (preserves case)
-        return bestKey 
     }
 
     fun setSuggestions(words: List<String>) {
@@ -423,6 +408,8 @@ class KeyboardView @JvmOverloads constructor(
     // --- MULTITOUCH HANDLING ---
 
     override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        val superResult = super.dispatchTouchEvent(event)
+
         when (event.action) {
             android.view.MotionEvent.ACTION_DOWN -> {
                 isSwiping = false
@@ -433,7 +420,6 @@ class KeyboardView @JvmOverloads constructor(
 
                 currentPath.clear()
                 currentPath.add(android.graphics.PointF(event.x, event.y))
-                return true // Consume event, don't propagate to prevent immediate typing
             }
             android.view.MotionEvent.ACTION_MOVE -> {
                 if (!isSwiping) {
@@ -456,13 +442,10 @@ class KeyboardView @JvmOverloads constructor(
                          }
                     }
                     currentPath.add(android.graphics.PointF(event.x, event.y))
-                    return true // Consume event while swiping
                 }
-                return super.dispatchTouchEvent(event) // Allow normal handling if not swiping yet
             }
             android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
                 if (isSwiping) {
-                    // Logic A: Complete the swipe
                     swipeTrail?.clear()
                     swipeTrail?.visibility = View.INVISIBLE
 
@@ -474,30 +457,11 @@ class KeyboardView @JvmOverloads constructor(
 
                     isSwiping = false
                     return true
-                } else {
-                    // Logic B: Manual tap detection
-                    swipeTrail?.clear()
-                    val tappedKey = findKeyAt(event.x, event.y)
-                    if (tappedKey != null) {
-                        android.util.Log.d("DroidOS_Tap", "Manual tap detected: $tappedKey")
-                        // Simulate the key press
-                        handleKeyPress(tappedKey, fromRepeat = false)
-                        // Add haptic feedback for tap
-                        if (vibrationEnabled) {
-                            val v = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                v?.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
-                            } else {
-                                @Suppress("DEPRECATION")
-                                v?.vibrate(30)
-                            }
-                        }
-                    }
-                    return true
                 }
+                swipeTrail?.clear()
             }
         }
-        return super.dispatchTouchEvent(event)
+        return superResult
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -559,35 +523,85 @@ class KeyboardView @JvmOverloads constructor(
         return null
     }
 
+// =================================================================================
+    // FUNCTION: onKeyDown
+    // SUMMARY: Handles initial touch on a key. For swipe-compatible keys (single letters),
+    //          we ONLY provide visual/haptic feedback here. The actual character input is
+    //          deferred to onKeyUp to prevent double-letters during swipe typing.
+    //          Special/modifier keys still trigger immediately for responsiveness.
+    // =================================================================================
     private fun onKeyDown(key: String, view: View) {
         setKeyVisual(view, true, key)
+        
+        // Always provide haptic feedback on touch
         if (vibrationEnabled) {
             val v = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 v?.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
             } else { @Suppress("DEPRECATION") v?.vibrate(30) }
         }
-        handleKeyPress(key, fromRepeat = false)
-        if (isKeyRepeatable(key)) {
-            currentRepeatKey = key
-            isRepeating = true
-            repeatHandler.postDelayed(repeatRunnable, REPEAT_INITIAL_DELAY)
+        
+        // Determine if this key should fire on DOWN (immediate) or UP (deferred for swipe)
+        val isSwipeableKey = key.length == 1 && Character.isLetter(key[0])
+        
+        if (!isSwipeableKey) {
+            // NON-SWIPEABLE KEYS: Fire immediately on down (for responsiveness)
+            // This includes: BKSP, SPACE, ENTER, arrows, modifiers, symbols, numbers
+            handleKeyPress(key, fromRepeat = false)
+            
+            // Start repeat timer for repeatable keys
+            if (isKeyRepeatable(key)) {
+                currentRepeatKey = key
+                isRepeating = true
+                repeatHandler.postDelayed(repeatRunnable, REPEAT_INITIAL_DELAY)
+            }
         }
+        // SWIPEABLE KEYS (letters): Do NOT fire here - wait for onKeyUp
+        // This prevents double-letters when starting a swipe
+        
+        // SHIFT special handling (Caps Lock detection) - always runs
         if (key == "SHIFT") {
             capsLockPending = false
             capsHandler.postDelayed(capsLockRunnable, 500)
         }
     }
+    // =================================================================================
+    // END BLOCK: onKeyDown
+    // =================================================================================
 
+// =================================================================================
+    // FUNCTION: onKeyUp
+    // SUMMARY: Handles key release. For swipe-compatible keys (single letters), this is
+    //          where we actually commit the character - BUT ONLY if we're not currently
+    //          in a swipe gesture. This prevents double letters with swipe typing.
+    //          Also handles SHIFT toggle and repeat cancellation.
+    // =================================================================================
     private fun onKeyUp(key: String, view: View) {
         setKeyVisual(view, false, key)
+        
+        // Stop any active key repeat
         if (key == currentRepeatKey) stopRepeat()
+        
+        // Determine if this is a swipeable key that was deferred
+        val isSwipeableKey = key.length == 1 && Character.isLetter(key[0])
+        
+        if (isSwipeableKey && !isSwiping) {
+            // SWIPEABLE KEY + NOT SWIPING = Normal tap, commit the character now
+            handleKeyPress(key, fromRepeat = false)
+        }
+        // If isSwiping is true, the swipe handler will take care of text input
+        // so we don't commit anything here to avoid double letters
+        
+        // SHIFT toggle handling
         if (key == "SHIFT") {
             capsHandler.removeCallbacks(capsLockRunnable)
             if (!capsLockPending) toggleShift()
             capsLockPending = false
         }
     }
+    // =================================================================================
+    // END BLOCK: onKeyUp
+    // =================================================================================
 
     private fun setKeyVisual(container: View, pressed: Boolean, key: String) {
         val tv = (container as? ViewGroup)?.getChildAt(0) as? TextView ?: return
