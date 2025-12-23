@@ -637,12 +637,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 
+
+    // AccessibilityService entry point - called when user enables service in Settings
     override fun onServiceConnected() {
         super.onServiceConnected()
-        bindShizuku()
-        setupUI(Display.DEFAULT_DISPLAY)
-    }
+        Log.d(TAG, "Accessibility Service Connected")
 
+        // === NEW CODE START: Initialize Dictionary ===
+        PredictionEngine.instance.loadDictionary(this)
+        // === NEW CODE END ===
+
+        // Initialize WindowManager
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+    }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try { createNotification() } catch(e: Exception){ e.printStackTrace() }
 

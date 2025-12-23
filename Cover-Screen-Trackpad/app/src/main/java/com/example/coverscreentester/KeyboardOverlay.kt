@@ -33,7 +33,7 @@ class KeyboardOverlay(
     private var keyboardView: KeyboardView? = null
     private var keyboardParams: WindowManager.LayoutParams? = null
     private var isVisible = false
-
+    private val predictionEngine = PredictionEngine.instance
     // State Variables
     private var isMoving = false
     private var isResizing = false
@@ -48,7 +48,7 @@ class KeyboardOverlay(
     private val TAG = "KeyboardOverlay"
 
     // --- PREDICTION STATE ---
-    private val predictionEngine = PredictionEngine()
+
     private var currentComposingWord = StringBuilder()
     private val handler = Handler(Looper.getMainLooper())
 
