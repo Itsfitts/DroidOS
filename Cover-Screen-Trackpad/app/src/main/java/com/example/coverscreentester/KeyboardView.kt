@@ -102,6 +102,19 @@ class KeyboardView @JvmOverloads constructor(
     private var cand2: TextView? = null
     private var cand3: TextView? = null
 
+    // --- GESTURE TYPING STATE ---
+    private var swipeTrail: SwipeTrailView? = null
+    private val keyCenters = HashMap<String, android.graphics.PointF>()
+    private var isSwiping = false
+    private val SWIPE_THRESHOLD = 20f // pixels to trigger swipe mode
+    private var startTouchX = 0f
+    private var startTouchY = 0f
+
+    // We attach the trail view externally from the Overlay
+    fun attachTrailView(view: SwipeTrailView) {
+        this.swipeTrail = view
+    }
+
     private val lowercaseRows = listOf(
         listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
         listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
@@ -170,6 +183,40 @@ class KeyboardView @JvmOverloads constructor(
                 invalidate() // Fallback: Redraw full view
             }
         }
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        super.onLayout(changed, l, t, r, b)
+        if (changed) {
+            mapKeys()
+        }
+    }
+
+    private fun mapKeys() {
+        keyCenters.clear()
+        // Recursively find all keys (TextViews with tags)
+        val location = IntArray(2)
+        this.getLocationOnScreen(location)
+        val parentX = location[0]
+        val parentY = location[1]
+
+        fun traverse(view: View) {
+            if (view is android.view.ViewGroup) {
+                for (i in 0 until view.childCount) {
+                    traverse(view.getChildAt(i))
+                }
+            } else if (view.tag is String) {
+                val key = view.tag as String
+                // Ignore functional keys for mapping (only map letters)
+                if (key.length == 1 && Character.isLetter(key[0])) {
+                    view.getLocationOnScreen(location)
+                    val centerX = (location[0] - parentX) + (view.width / 2f)
+                    val centerY = (location[1] - parentY) + (view.height / 2f)
+                    keyCenters[key] = android.graphics.PointF(centerX, centerY)
+                }
+            }
+        }
+        traverse(this)
     }
 
     fun setSuggestions(words: List<String>) {
@@ -333,6 +380,53 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     // --- MULTITOUCH HANDLING ---
+
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        // Pass to standard logic first to handle "Down" states on keys
+        val superResult = super.dispatchTouchEvent(event)
+
+        when (event.action) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                isSwiping = false
+                startTouchX = event.x
+                startTouchY = event.y
+                swipeTrail?.clear()
+                swipeTrail?.addPoint(event.x, event.y)
+            }
+            android.view.MotionEvent.ACTION_MOVE -> {
+                if (!isSwiping) {
+                    val dx = Math.abs(event.x - startTouchX)
+                    val dy = Math.abs(event.y - startTouchY)
+                    if (dx > SWIPE_THRESHOLD || dy > SWIPE_THRESHOLD) {
+                        isSwiping = true
+                        // Cancel any pending long-press/repeat on the key we started on
+                        currentRepeatKey = null
+                        repeatHandler.removeCallbacks(repeatRunnable)
+
+                        // Visual feedback
+                        swipeTrail?.visibility = View.VISIBLE
+                    }
+                }
+
+                if (isSwiping) {
+                    swipeTrail?.addPoint(event.x, event.y)
+                    // TODO: Phase 4 - Add point to Decoder
+                }
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                if (isSwiping) {
+                    swipeTrail?.clear()
+                    swipeTrail?.visibility = View.INVISIBLE
+                    // TODO: Phase 4 - Trigger Decode
+                    isSwiping = false
+                    // Return true to consume the event so super doesn't trigger a "Click"
+                    return true
+                }
+                swipeTrail?.clear()
+            }
+        }
+        return superResult
+    }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val action = event.actionMasked

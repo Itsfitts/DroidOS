@@ -398,44 +398,54 @@ class KeyboardOverlay(
 
     private fun createKeyboardWindow() {
         keyboardContainer = FrameLayout(context)
-        val containerBg = GradientDrawable(); 
+        val containerBg = GradientDrawable()
         val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
         containerBg.setColor(fillColor)
         containerBg.cornerRadius = 16f
         containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
         keyboardContainer?.background = containerBg
-        
+
+        // 1. The Keyboard Keys
         keyboardView = KeyboardView(context)
         keyboardView?.setKeyboardListener(this)
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
         val scale = prefs.getInt("keyboard_key_scale", 100) / 100f; keyboardView?.setScale(scale)
-        
         keyboardView?.alpha = currentAlpha / 255f
-        
+
         val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         kbParams.setMargins(6, 28, 6, 6)
         keyboardContainer?.addView(keyboardView, kbParams)
+
+        // 2. The Swipe Trail Overlay (Must match keyboard params to align coordinates)
+        val trailView = SwipeTrailView(context)
+        val trailParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        trailParams.setMargins(6, 28, 6, 6) // Exact same margins as keyboard
+        keyboardContainer?.addView(trailView, trailParams)
+
+        // Link them
+        keyboardView?.attachTrailView(trailView)
+
         addDragHandle(); addResizeHandle(); addCloseButton(); addTargetLabel()
-        
+
         val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
         val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - 350 - 10)
-        
-        // FIX: Use variable keyboardHeight instead of hardcoded WRAP_CONTENT
-        // This ensures loaded profiles with specific sizes are respected.
+
         keyboardParams = WindowManager.LayoutParams(
-            keyboardWidth, 
-            keyboardHeight, 
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, 
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, 
+            keyboardWidth,
+            keyboardHeight,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         )
-        
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-             keyboardParams?.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
-        keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT; keyboardParams?.x = savedX; keyboardParams?.y = savedY
+        keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT
+        keyboardParams?.x = savedX
+        keyboardParams?.y = savedY
+
         windowManager.addView(keyboardContainer, keyboardParams)
+        updateAlpha(currentAlpha)
     }
 
     private fun addDragHandle() {
