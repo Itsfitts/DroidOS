@@ -6,18 +6,46 @@ import android.graphics.PointF
 import java.util.ArrayList
 import java.util.Locale
 import kotlin.math.hypot
+import kotlin.math.sqrt
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.ln
+import kotlin.math.abs
 
 /**
- * Handles predictive text and swipe-to-type decoding.
- * Uses a Trie structure for prefix matching and a weighted list for swipe analysis.
+ * =================================================================================
+ * CLASS: PredictionEngine
+ * SUMMARY: Handles predictive text suggestions and swipe-to-type gesture decoding.
+ *          Implements a SHARK2-inspired dual-channel algorithm with:
+ *          1. Uniform path sampling (N points)
+ *          2. Template generation for dictionary words
+ *          3. Shape channel (scale-normalized pattern matching)
+ *          4. Location channel (absolute position matching)
+ *          5. Integration scoring with word frequency weighting
+ *          
+ * Based on: SHARK2 algorithm by Kristensson & Zhai (2004)
+ * Reference: http://pokristensson.com/pubs/KristenssonZhaiUIST2004.pdf
+ * =================================================================================
  */
 class PredictionEngine {
 
     companion object {
         val instance = PredictionEngine()
+        
+        // SHARK2 Algorithm Parameters
+        private const val SAMPLE_POINTS = 64           // Number of uniform sample points (64 is good balance)
+        private const val NORMALIZATION_SIZE = 100f    // Size L for shape normalization
+        private const val PRUNING_THRESHOLD = 80f      // Max start/end key distance for pruning (pixels)
+        private const val SHAPE_WEIGHT = 0.4f          // Weight for shape channel (α)
+        private const val LOCATION_WEIGHT = 0.6f       // Weight for location channel (β) - α + β = 1
+        private const val TOP_N_CANDIDATES = 10        // Number of candidates for final ranking
+        private const val MIN_WORD_LENGTH = 2          // Minimum word length to consider
     }
 
+    // =================================================================================
+    // DATA STRUCTURES
+    // =================================================================================
+    
     class TrieNode {
         val children = HashMap<Char, TrieNode>()
         var isEndOfWord = false
@@ -25,12 +53,29 @@ class PredictionEngine {
         var rank: Int = Int.MAX_VALUE // 0 = Most Frequent
     }
 
+    /**
+     * Pre-computed template for a word containing sampled key positions
+     */
+    data class WordTemplate(
+        val word: String,
+        val rank: Int,
+        val rawPoints: List<PointF>,        // Key centers for each letter
+        var sampledPoints: List<PointF>? = null,  // Will be computed when keyboard layout is known
+        var normalizedPoints: List<PointF>? = null // Scale-normalized version
+    )
+
     private val root = TrieNode()
-    // We keep a flat list for swipe path iteration
     private val wordList = ArrayList<String>()
+    
+    // Template cache - maps word to its template (lazy-computed per keyboard layout)
+    private val templateCache = HashMap<String, WordTemplate>()
+    private var lastKeyMapHash = 0  // Track if keyboard layout changed
+    
+    // =================================================================================
+    // END DATA STRUCTURES
+    // =================================================================================
 
     init {
-        // Load defaults immediately so we have basic words before file I/O completes
         loadDefaults()
     }
 
@@ -41,19 +86,32 @@ class PredictionEngine {
             "this", "but", "his", "by", "from", "they", "we", "say", "her",
             "she", "or", "an", "will", "my", "one", "all", "would", "there",
             "their", "what", "so", "up", "out", "if", "about", "who", "get",
-            "which", "go", "me", "swipe", "keyboard", "trackpad", "android"
+            "which", "go", "me", "when", "make", "can", "like", "time", "no",
+            "just", "him", "know", "take", "people", "into", "year", "your",
+            "good", "some", "could", "them", "see", "other", "than", "then",
+            "now", "look", "only", "come", "its", "over", "think", "also",
+            "back", "after", "use", "two", "how", "our", "work", "first",
+            "well", "way", "even", "new", "want", "because", "any", "these",
+            "give", "day", "most", "us", "is", "was", "are", "been", "has",
+            "more", "or", "had", "did", "said", "each", "she", "may", "find",
+            "long", "down", "did", "get", "made", "live", "back", "little",
+            "only", "round", "man", "year", "came", "show", "every", "good",
+            "great", "help", "through", "much", "before", "line", "right", 
+            "too", "old", "mean", "same", "tell", "boy", "follow", "very",
+            "just", "why", "ask", "went", "men", "read", "need", "land",
+            "here", "home", "big", "high", "such", "again", "turn", "hand",
+            "play", "small", "end", "put", "while", "next", "sound", "below",
+            // Common mobile/tech words
+            "swipe", "keyboard", "trackpad", "android", "phone", "text", "type",
+            "hello", "yes", "no", "ok", "okay", "thanks", "please", "sorry",
+            "love", "like", "cool", "nice", "awesome", "great", "good", "bad"
         )
-        // Insert with arbitrary ranks (0 to N)
         for ((index, word) in commonWords.withIndex()) {
             insert(word, index)
         }
     }
 
-    /**
-     * Loads the weighted dictionary from assets asynchronously.
-     * The file is expected to be sorted by frequency (most common first).
-     */
-// =================================================================================
+    // =================================================================================
     // FUNCTION: loadDictionary
     // SUMMARY: Loads the weighted dictionary from assets asynchronously with enhanced
     //          logging for debugging. The file should be at assets/dictionary.txt and
@@ -65,7 +123,6 @@ class PredictionEngine {
             try {
                 val start = System.currentTimeMillis()
                 
-                // Log available assets for debugging
                 try {
                     val assetList = context.assets.list("") ?: emptyArray()
                     android.util.Log.d("DroidOS_Prediction", "Available assets: ${assetList.joinToString(", ")}")
@@ -77,7 +134,6 @@ class PredictionEngine {
                     android.util.Log.e("DroidOS_Prediction", "Failed to list assets", e)
                 }
                 
-                // Temporary structures to avoid clearing the active dictionary during a swipe/type
                 val newRoot = TrieNode()
                 val newWordList = ArrayList<String>()
                 var lineCount = 0
@@ -85,19 +141,17 @@ class PredictionEngine {
                 context.assets.open("dictionary.txt").bufferedReader().useLines { lines ->
                     lines.forEachIndexed { index, line ->
                         val word = line.trim()
-                        if (word.isNotEmpty() && word.all { it.isLetter() }) {
+                        if (word.isNotEmpty() && word.all { it.isLetter() } && word.length >= MIN_WORD_LENGTH) {
                             val lower = word.lowercase(Locale.ROOT)
                             newWordList.add(lower)
                             lineCount++
                             
-                            // Insert into temp Trie
                             var current = newRoot
                             for (char in lower) {
                                 current = current.children.computeIfAbsent(char) { TrieNode() }
                             }
                             current.isEndOfWord = true
                             current.word = lower
-                            // Store rank (Line Number = Frequency Rank)
                             if (index < current.rank) current.rank = index
                         }
                     }
@@ -108,16 +162,15 @@ class PredictionEngine {
                     return@Thread
                 }
 
-                // Atomic swap
                 synchronized(this) {
                     wordList.clear()
                     wordList.addAll(newWordList)
                     root.children.clear()
                     root.children.putAll(newRoot.children)
+                    templateCache.clear() // Clear cache when dictionary changes
                 }
                 
                 android.util.Log.d("DroidOS_Prediction", "Dictionary loaded SUCCESS: $lineCount words in ${System.currentTimeMillis() - start}ms")
-                android.util.Log.d("DroidOS_Prediction", "Sample words: ${newWordList.take(10).joinToString(", ")}")
                 
             } catch (e: java.io.FileNotFoundException) {
                 android.util.Log.e("DroidOS_Prediction", "dictionary.txt not found in assets! Rebuild APK after adding assets/dictionary.txt", e)
@@ -157,11 +210,8 @@ class PredictionEngine {
             current = current.children[char] ?: return emptyList()
         }
 
-        // Collect all candidates in the subtree
         val candidates = ArrayList<Pair<String, Int>>()
         collectCandidates(current, candidates)
-
-        // Sort by Rank (Low number = High frequency), then by length
         candidates.sortWith(compareBy<Pair<String, Int>> { it.second }.thenBy { it.first.length })
 
         return candidates.take(maxResults).map { it.first }
@@ -176,47 +226,281 @@ class PredictionEngine {
         }
     }
 
-    // --- SWIPE DECODER LOGIC ---
+    // =================================================================================
+    // SHARK2-INSPIRED SWIPE DECODER LOGIC
+    // =================================================================================
+    
+    /**
+     * Main entry point for decoding a swipe gesture into word candidates.
+     * Implements SHARK2-style dual-channel matching with:
+     * 1. Path sampling to uniform N points
+     * 2. Candidate pruning by start/end keys
+     * 3. Shape channel scoring (normalized patterns)
+     * 4. Location channel scoring (absolute positions)  
+     * 5. Integration with frequency weighting
+     */
     fun decodeSwipe(swipePath: List<PointF>, keyMap: Map<String, PointF>): List<String> {
-        if (swipePath.size < 5) return emptyList()
+        if (swipePath.size < 5) {
+            android.util.Log.d("DroidOS_Swipe", "Path too short: ${swipePath.size} points")
+            return emptyList()
+        }
+        
+        // Check if keyboard layout changed - invalidate template cache if so
+        val keyMapHash = keyMap.hashCode()
+        if (keyMapHash != lastKeyMapHash) {
+            templateCache.clear()
+            lastKeyMapHash = keyMapHash
+        }
 
+        // Step 1: Sample the input gesture to SAMPLE_POINTS uniform points
+        val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
+        if (sampledInput.size < SAMPLE_POINTS) {
+            android.util.Log.d("DroidOS_Swipe", "Failed to sample path properly")
+            return emptyList()
+        }
+        
+        // Step 2: Create normalized version of input for shape channel
+        val normalizedInput = normalizePath(sampledInput)
+        
+        // Step 3: Prune candidates based on start/end key proximity
         val startPt = swipePath.first()
         val endPt = swipePath.last()
+        val startKeys = findKeysNear(startPt, keyMap, PRUNING_THRESHOLD)
+        val endKeys = findKeysNear(endPt, keyMap, PRUNING_THRESHOLD)
+
+        if (startKeys.isEmpty() || endKeys.isEmpty()) {
+            android.util.Log.d("DroidOS_Swipe", "No keys found near start/end. Start: $startPt, End: $endPt")
+            return emptyList()
+        }
         
-        // 1. Identify vague Start/End letters (Radius 150px)
-        val startKeys = findKeysNear(startPt, keyMap)
-        val endKeys = findKeysNear(endPt, keyMap)
+        android.util.Log.d("DroidOS_Swipe", "Start keys: $startKeys, End keys: $endKeys")
 
-        if (startKeys.isEmpty() || endKeys.isEmpty()) return emptyList()
-
-        // 2. Filter dictionary: Word must start/end with keys near the swipe endpoints
+        // Step 4: Filter dictionary words and build/retrieve templates
         val candidates = wordList.filter { word ->
-            if (word.isEmpty()) return@filter false
-            val first = word.first().toString()
-            val last = word.last().toString()
+            if (word.length < MIN_WORD_LENGTH) return@filter false
+            val first = word.first().toString().lowercase()
+            val last = word.last().toString().lowercase()
             startKeys.contains(first) && endKeys.contains(last)
         }
 
-        if (candidates.isEmpty()) return emptyList()
+        if (candidates.isEmpty()) {
+            android.util.Log.d("DroidOS_Swipe", "No candidates after pruning")
+            return emptyList()
+        }
+        
+        android.util.Log.d("DroidOS_Swipe", "Candidates after pruning: ${candidates.size}")
 
-        // 3. Score Candidates
-        // Score = Path Distance + Rank Penalty
-        // Rank Penalty helps prefer "the" over "thy" when path is ambiguous.
-        val scored = candidates.map { word ->
-            val pathScore = calculatePathScore(word, swipePath, keyMap)
+        // Step 5: Score each candidate using dual-channel approach
+        val scored = candidates.mapNotNull { word ->
+            val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
             
-            // Lookup rank efficiently from Trie
-            val rank = getWordRank(word)
-            // Logarithmic penalty: Common words (Rank 0-100) get almost 0 penalty.
-            // Rare words (Rank 9000) get a higher score penalty.
-            val rankPenalty = ln((rank + 1).toDouble()).toFloat() * 15f 
+            // Ensure template has sampled points
+            if (template.sampledPoints == null) {
+                template.sampledPoints = samplePath(template.rawPoints, SAMPLE_POINTS)
+                template.normalizedPoints = normalizePath(template.sampledPoints!!)
+            }
             
-            val totalScore = pathScore + rankPenalty
-            Triple(word, totalScore, rank)
+            if (template.sampledPoints?.size != SAMPLE_POINTS) return@mapNotNull null
+            
+            // Shape channel: compare normalized patterns
+            val shapeScore = calculateShapeScore(normalizedInput, template.normalizedPoints!!)
+            
+            // Location channel: compare absolute positions
+            val locationScore = calculateLocationScore(sampledInput, template.sampledPoints!!)
+            
+            // Integration: weighted combination
+            val integrationScore = SHAPE_WEIGHT * shapeScore + LOCATION_WEIGHT * locationScore
+            
+            // Apply frequency weighting
+            val rank = template.rank
+            val frequencyBonus = 1.0f / (1.0f + ln((rank + 1).toFloat()))
+            val finalScore = integrationScore * (1.0f - 0.3f * frequencyBonus) // Lower score is better
+            
+            Triple(word, finalScore, rank)
         }
 
-        // Return top 3 matches with lowest score
-        return scored.sortedBy { it.second }.take(3).map { it.first }
+        // Return top candidates sorted by score (lower is better)
+        val results = scored.sortedBy { it.second }.take(3).map { it.first }
+        android.util.Log.d("DroidOS_Swipe", "Top results: $results")
+        return results
+    }
+    
+    /**
+     * Get or create a word template with key positions
+     */
+    private fun getOrCreateTemplate(word: String, keyMap: Map<String, PointF>): WordTemplate? {
+        templateCache[word]?.let { return it }
+        
+        // Build raw points from key centers
+        val rawPoints = ArrayList<PointF>()
+        for (char in word) {
+            val keyPos = keyMap[char.toString().uppercase()] 
+                ?: keyMap[char.toString().lowercase()]
+                ?: return null
+            rawPoints.add(PointF(keyPos.x, keyPos.y))
+        }
+        
+        if (rawPoints.size < MIN_WORD_LENGTH) return null
+        
+        val rank = getWordRank(word)
+        val template = WordTemplate(word, rank, rawPoints)
+        templateCache[word] = template
+        return template
+    }
+
+    /**
+     * Uniformly sample N points along a path.
+     * This makes paths of different lengths comparable.
+     */
+    private fun samplePath(path: List<PointF>, numSamples: Int): List<PointF> {
+        if (path.size < 2) return path
+        if (path.size == numSamples) return path
+        
+        // Calculate total path length
+        var totalLength = 0f
+        for (i in 1 until path.size) {
+            totalLength += hypot(path[i].x - path[i-1].x, path[i].y - path[i-1].y)
+        }
+        
+        if (totalLength < 0.001f) {
+            // Path is essentially a point - return copies of first point
+            return List(numSamples) { PointF(path[0].x, path[0].y) }
+        }
+        
+        val segmentLength = totalLength / (numSamples - 1)
+        val sampled = ArrayList<PointF>(numSamples)
+        sampled.add(PointF(path[0].x, path[0].y))
+        
+        var currentDist = 0f
+        var pathIndex = 0
+        var targetDist = segmentLength
+        
+        while (sampled.size < numSamples - 1 && pathIndex < path.size - 1) {
+            val p1 = path[pathIndex]
+            val p2 = path[pathIndex + 1]
+            val segLen = hypot(p2.x - p1.x, p2.y - p1.y)
+            
+            while (currentDist + segLen >= targetDist && sampled.size < numSamples - 1) {
+                val ratio = (targetDist - currentDist) / segLen
+                val x = p1.x + ratio * (p2.x - p1.x)
+                val y = p1.y + ratio * (p2.y - p1.y)
+                sampled.add(PointF(x, y))
+                targetDist += segmentLength
+            }
+            
+            currentDist += segLen
+            pathIndex++
+        }
+        
+        // Ensure we have exactly numSamples by adding the last point
+        while (sampled.size < numSamples) {
+            sampled.add(PointF(path.last().x, path.last().y))
+        }
+        
+        return sampled
+    }
+    
+    /**
+     * Normalize a path to fit within a square of size NORMALIZATION_SIZE.
+     * This removes scale and translation differences for shape comparison.
+     */
+    private fun normalizePath(path: List<PointF>): List<PointF> {
+        if (path.isEmpty()) return path
+        
+        // Find bounding box
+        var minX = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = Float.MIN_VALUE
+        
+        for (pt in path) {
+            minX = min(minX, pt.x)
+            maxX = max(maxX, pt.x)
+            minY = min(minY, pt.y)
+            maxY = max(maxY, pt.y)
+        }
+        
+        val width = maxX - minX
+        val height = maxY - minY
+        val maxDim = max(width, height)
+        
+        if (maxDim < 0.001f) {
+            // All points are the same - return centered points
+            return path.map { PointF(NORMALIZATION_SIZE / 2, NORMALIZATION_SIZE / 2) }
+        }
+        
+        // Scale to NORMALIZATION_SIZE and center at origin
+        val scale = NORMALIZATION_SIZE / maxDim
+        val centerX = (minX + maxX) / 2
+        val centerY = (minY + maxY) / 2
+        
+        return path.map { pt ->
+            PointF(
+                (pt.x - centerX) * scale + NORMALIZATION_SIZE / 2,
+                (pt.y - centerY) * scale + NORMALIZATION_SIZE / 2
+            )
+        }
+    }
+    
+    /**
+     * Calculate shape score between two normalized paths.
+     * Uses average point-to-point distance.
+     * Lower score = better match.
+     */
+    private fun calculateShapeScore(input: List<PointF>, template: List<PointF>): Float {
+        if (input.size != template.size) return Float.MAX_VALUE
+        
+        var totalDist = 0f
+        for (i in input.indices) {
+            val dx = input[i].x - template[i].x
+            val dy = input[i].y - template[i].y
+            totalDist += sqrt(dx * dx + dy * dy)
+        }
+        
+        return totalDist / input.size
+    }
+    
+    /**
+     * Calculate location score between two paths (absolute positions).
+     * Uses average point-to-point distance with position weighting.
+     * Points at the beginning and end are weighted more heavily.
+     * Lower score = better match.
+     */
+    private fun calculateLocationScore(input: List<PointF>, template: List<PointF>): Float {
+        if (input.size != template.size) return Float.MAX_VALUE
+        
+        var totalDist = 0f
+        var totalWeight = 0f
+        
+        for (i in input.indices) {
+            val dx = input[i].x - template[i].x
+            val dy = input[i].y - template[i].y
+            val dist = sqrt(dx * dx + dy * dy)
+            
+            // Weight endpoints more heavily (helps distinguish similar words)
+            val position = i.toFloat() / (input.size - 1)
+            val weight = if (position < 0.15f || position > 0.85f) 2.0f else 1.0f
+            
+            totalDist += dist * weight
+            totalWeight += weight
+        }
+        
+        return totalDist / totalWeight
+    }
+    
+    /**
+     * Find all keys within threshold distance of a point.
+     */
+    private fun findKeysNear(pt: PointF, keyMap: Map<String, PointF>, threshold: Float): List<String> {
+        val keys = ArrayList<String>()
+        for ((key, pos) in keyMap) {
+            if (key.length != 1) continue // Only single character keys
+            val dist = hypot(pt.x - pos.x, pt.y - pos.y)
+            if (dist < threshold) {
+                keys.add(key.lowercase())
+            }
+        }
+        return keys.distinct()
     }
     
     private fun getWordRank(word: String): Int {
@@ -226,43 +510,8 @@ class PredictionEngine {
         }
         return if (current.isEndOfWord) current.rank else Int.MAX_VALUE
     }
-
-    private fun findKeysNear(pt: PointF, keyMap: Map<String, PointF>, threshold: Float = 150f): List<String> {
-        val keys = ArrayList<String>()
-        for ((key, pos) in keyMap) {
-            if (hypot(pt.x - pos.x, pt.y - pos.y) < threshold) {
-                keys.add(key.lowercase())
-            }
-        }
-        return keys
-    }
-
-    private fun calculatePathScore(word: String, path: List<PointF>, keyMap: Map<String, PointF>): Float {
-        var totalDist = 0f
-        var pathIndex = 0
-        
-        for (char in word) {
-            val keyPos = keyMap[char.toString().uppercase()] ?: keyMap[char.toString()] ?: continue
-            var localMin = Float.MAX_VALUE
-            var bestIndex = pathIndex
-            
-            // Search forward in the path for the closest point to this letter key
-            for (i in pathIndex until path.size) {
-                val dist = hypot(path[i].x - keyPos.x, path[i].y - keyPos.y)
-                if (dist < localMin) {
-                    localMin = dist
-                    bestIndex = i
-                }
-            }
-            
-            // If the key is wildly far from the path, punish it heavily
-            if (localMin > 300f) totalDist += 500f
-            
-            totalDist += localMin
-            pathIndex = bestIndex // Enforce chronological order
-        }
-        
-        // Normalize score by word length to be fair to long words
-        return totalDist / word.length
-    }
+    
+    // =================================================================================
+    // END BLOCK: SHARK2-INSPIRED SWIPE DECODER LOGIC
+    // =================================================================================
 }
