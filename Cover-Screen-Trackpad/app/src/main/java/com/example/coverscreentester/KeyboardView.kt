@@ -209,9 +209,14 @@ class KeyboardView @JvmOverloads constructor(
     private val navRow = listOf("SCREEN", "HIDE_KB", "MUTE", "VOL-", "VOL+", "BACK", "FWD", "MIC")
 
     // Keys allowed to repeat when held
+
     private val alwaysRepeatable = setOf(
-        "BKSP", "SPACE", "←", "→", "↑", "↓", "VOL+", "VOL-", "FWD", "BACK", "DELETE"
+        "BKSP", "⌫", "DEL", "SPACE", "ENTER", 
+        "◄", "▲", "▼", "►", 
+        "VOL_UP", "VOL_DOWN", "FWD_DEL", "MUTE",
+        "HOME", "END", "PGUP", "PGDN"
     )
+
 
     init {
         orientation = VERTICAL
@@ -788,41 +793,54 @@ class KeyboardView @JvmOverloads constructor(
     //          deferred to onKeyUp to prevent double-letters during swipe typing.
     //          Special/modifier keys still trigger immediately for responsiveness.
     // =================================================================================
+
+    // =================================================================================
+    // KEY HANDLING LOGIC (DEFERRED TOGGLES)
+    // =================================================================================
+    // Keys that trigger layout changes (?123, ABC) or state toggles (CTRL, ALT)
+    // must fire on UP to prevent "Flickering" caused by immediate layout rebuilds
+    // while the finger is still pressing the screen.
+    private val deferredKeys = setOf("SHIFT", "?123", "ABC", "SYM", "SYM1", "SYM2", "CTRL", "ALT", "MODE", "SCREEN")
+
     private fun onKeyDown(key: String, view: View) {
         setKeyVisual(view, true, key)
         
-        // Always provide haptic feedback on touch
+        // Haptic Feedback
         if (vibrationEnabled) {
             val v = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 v?.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
-            } else { @Suppress("DEPRECATION") v?.vibrate(30) }
+            } else {
+                @Suppress("DEPRECATION") v?.vibrate(30)
+            }
         }
-        
-        // Determine if this key should fire on DOWN (immediate) or UP (deferred for swipe)
+
         val isSwipeableKey = key.length == 1 && Character.isLetter(key[0])
-        
-        if (!isSwipeableKey) {
-            // NON-SWIPEABLE KEYS: Fire immediately on down (for responsiveness)
-            // This includes: BKSP, SPACE, ENTER, arrows, modifiers, symbols, numbers
+        val isDeferred = deferredKeys.contains(key)
+
+        // FIRE IMMEDIATE: Navigation, Numbers, Punctuation, Backspace
+        if (!isSwipeableKey && !isDeferred) {
             handleKeyPress(key, fromRepeat = false)
             
-            // Start repeat timer for repeatable keys
             if (isKeyRepeatable(key)) {
                 currentRepeatKey = key
                 isRepeating = true
                 repeatHandler.postDelayed(repeatRunnable, REPEAT_INITIAL_DELAY)
             }
         }
-        // SWIPEABLE KEYS (letters): Do NOT fire here - wait for onKeyUp
-        // This prevents double-letters when starting a swipe
-        
-        // SHIFT special handling (Caps Lock detection) - always runs
+
+        // SPECIAL: SHIFT Caps Lock Timer
         if (key == "SHIFT") {
             capsLockPending = false
             capsHandler.postDelayed(capsLockRunnable, 500)
         }
     }
+
+
+    // =================================================================================
+    // END BLOCK: KEY HANDLING LOGIC
+    // =================================================================================
+
     // =================================================================================
     // END BLOCK: onKeyDown
     // =================================================================================
@@ -834,6 +852,7 @@ class KeyboardView @JvmOverloads constructor(
     //          in a swipe gesture. This prevents double letters with swipe typing.
     //          Also handles SHIFT toggle and repeat cancellation.
     // =================================================================================
+
     private fun onKeyUp(key: String, view: View) {
         setKeyVisual(view, false, key)
         
@@ -847,8 +866,15 @@ class KeyboardView @JvmOverloads constructor(
             // SWIPEABLE KEY + NOT SWIPING = Normal tap, commit the character now
             handleKeyPress(key, fromRepeat = false)
         }
-        // If isSwiping is true, the swipe handler will take care of text input
-        // so we don't commit anything here to avoid double letters
+        
+        // --- FIX: Handle Deferred Keys (CTRL, ALT, SYM, etc) ---
+        // These are skipped in onKeyDown to prevent rebuild loops. 
+        // We must fire them here on release.
+        val isDeferred = deferredKeys.contains(key)
+        if (isDeferred && key != "SHIFT") {
+             handleKeyPress(key, fromRepeat = false)
+        }
+        // -------------------------------------------------------
         
         // SHIFT toggle handling
         if (key == "SHIFT") {
@@ -857,6 +883,7 @@ class KeyboardView @JvmOverloads constructor(
             capsLockPending = false
         }
     }
+
     // =================================================================================
     // END BLOCK: onKeyUp
     // =================================================================================
@@ -874,8 +901,14 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     private fun isKeyRepeatable(key: String): Boolean {
+        // 1. Strict Whitelist Check (Nav & Deletion)
         if (alwaysRepeatable.contains(key)) return true
+        
+        // 2. Single letters/numbers (Standard typing) should repeat
         if (key.length == 1) return true
+        
+        // 3. Explicitly BLOCK everything else (SHIFT, ?123, CTRL, ALT, TAB, ESC)
+        // This ensures they only trigger ONCE per press (Sticky/Toggle behavior)
         return false
     }
 
