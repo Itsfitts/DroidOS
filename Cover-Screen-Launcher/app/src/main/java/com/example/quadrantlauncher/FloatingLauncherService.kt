@@ -1415,7 +1415,11 @@ class FloatingLauncherService : AccessibilityService() {
                     Thread.sleep(100) 
                 }
                 
-                // Launch and tile each active app
+// === LAUNCH AND TILE APPS - START ===
+                // Launches each active app with staggered timing and repositions to tile bounds
+                // Special handling for Gemini: captures task ID immediately after launch before trampoline
+                // Trampoline apps redirect to different activities, making the original task disappear
+                // from am stack list. By capturing immediately, we cache the correct task ID.
                 for (i in 0 until minOf(activeApps.size, rects.size)) {
                     val app = activeApps[i]
                     val bounds = rects[i]
@@ -1437,14 +1441,45 @@ class FloatingLauncherService : AccessibilityService() {
                     // Stagger app launches by 800ms
                     val baseDelay = i * 800L
 
+                    // Check if this is a Gemini app that needs immediate task capture
+                    val isGeminiApp = basePkg.contains("bard") || basePkg.contains("gemini")
+
                     // Launch the app
                     uiHandler.postDelayed({
                         launchViaShell(basePkg, cls, bounds)
+                        
+                        // === GEMINI IMMEDIATE TASK CAPTURE - START ===
+                        // For Gemini: capture task ID immediately after launch (before trampoline)
+                        // The BardEntryPointActivity only exists briefly in am stack list
+                        // We need to capture it within ~500-1000ms before it redirects
+                        if (isGeminiApp) {
+                            Thread {
+                                try {
+                                    // Try to capture the task ID quickly, before trampoline completes
+                                    // Retry up to 5 times with 200ms intervals
+                                    for (attempt in 1..5) {
+                                        Thread.sleep(200)
+                                        val taskId = shellService?.getTaskId(basePkg, cls) ?: -1
+                                        Log.d(TAG, "Gemini immediate capture attempt $attempt: taskId=$taskId")
+                                        
+                                        // If we got a valid task ID that's not a trampoline target,
+                                        // the cache should be populated now by getTaskId
+                                        if (taskId > 0) {
+                                            Log.d(TAG, "Gemini task captured early: taskId=$taskId")
+                                            break
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Gemini immediate capture failed", e)
+                                }
+                            }.start()
+                        }
+                        // === GEMINI IMMEDIATE TASK CAPTURE - END ===
                     }, baseDelay)
 
-                    // Single reposition after app has time to start (3 seconds)
-                    // For trampolining apps like Gemini, we need more time
-                    val repositionDelay = if (basePkg.contains("bard") || basePkg.contains("gemini")) {
+                    // Reposition after app has time to start
+                    // Normal apps: 3 seconds, Gemini: 5 seconds (to allow for trampoline)
+                    val repositionDelay = if (isGeminiApp) {
                         5000L  // 5 seconds for Gemini
                     } else {
                         3000L  // 3 seconds for normal apps
@@ -1461,16 +1496,25 @@ class FloatingLauncherService : AccessibilityService() {
                         }.start()
                     }, baseDelay + repositionDelay)
 
-                    // Second attempt for stubborn apps
+                    // Second attempt for reliability (7 seconds for Gemini, 5 for others)
+                    val secondAttemptDelay = if (isGeminiApp) {
+                        7000L
+                    } else {
+                        5000L
+                    }
+
                     uiHandler.postDelayed({
                         Thread {
                             try {
+                                Log.d(TAG, "Tile[$i]: Second reposition ${app.label}")
                                 shellService?.repositionTask(basePkg, cls, bounds.left, bounds.top, bounds.right, bounds.bottom)
-                            } catch (e: Exception) {}
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Tile[$i]: Second reposition failed", e)
+                            }
                         }.start()
-                    }, baseDelay + repositionDelay + 2000L)
+                    }, baseDelay + secondAttemptDelay)
                 }
-                
+                // === LAUNCH AND TILE APPS - END ===                
                 // Clear queue after execution if closing drawer
                 if (closeDrawer) { 
                     uiHandler.post { 
