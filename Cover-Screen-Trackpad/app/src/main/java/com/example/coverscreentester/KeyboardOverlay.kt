@@ -64,8 +64,11 @@ class KeyboardOverlay(
 
 
     // Callbacks to talk back to OverlayService
-    var onCursorMove: ((Float, Float) -> Unit)? = null
+    var onCursorMove: ((Float, Float, Boolean) -> Unit)? = null // dx, dy, isDragging
     var onCursorClick: ((Boolean) -> Unit)? = null
+    var onTouchDown: (() -> Unit)? = null
+    var onTouchUp: (() -> Unit)? = null
+    var onTouchTap: (() -> Unit)? = null
 
 
 
@@ -421,14 +424,18 @@ class KeyboardOverlay(
         keyboardView = KeyboardView(context)
 
         // Bind KeyboardView events to our OverlayService callbacks
-        // We use these INSTEAD of inputHandler now.
-        keyboardView?.cursorMoveAction = { dx, dy ->
-            onCursorMove?.invoke(dx, dy)
+        keyboardView?.cursorMoveAction = { dx, dy, isDragging ->
+            onCursorMove?.invoke(dx, dy, isDragging)
         }
-        
+
         keyboardView?.cursorClickAction = { isRight ->
             onCursorClick?.invoke(isRight)
         }
+
+        // Touch Primitives
+        keyboardView?.touchDownAction = { onTouchDown?.invoke() }
+        keyboardView?.touchUpAction = { onTouchUp?.invoke() }
+        keyboardView?.touchTapAction = { onTouchTap?.invoke() }
 
 
         

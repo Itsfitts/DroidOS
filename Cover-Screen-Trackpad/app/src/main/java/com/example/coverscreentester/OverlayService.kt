@@ -1348,8 +1348,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         )
         
         // Wire up Trackpad Callbacks
-        keyboardOverlay?.onCursorMove = { dx, dy -> handleExternalMouseMove(dx, dy) }
+        keyboardOverlay?.onCursorMove = { dx, dy, isDragging -> handleExternalMouseMove(dx, dy, isDragging) }
         keyboardOverlay?.onCursorClick = { isRight -> handleExternalMouseClick(isRight) }
+
+        // Wire Touch Primitives
+        keyboardOverlay?.onTouchDown = { handleExternalTouchDown() }
+        keyboardOverlay?.onTouchUp = { handleExternalTouchUp() }
+        keyboardOverlay?.onTouchTap = { handleExternalTouchTap() }
         
         // FIX: Restore Saved Layout (fixes reset/aspect ratio issue)
         if (savedKbW > 0 && savedKbH > 0) {
@@ -1518,33 +1523,70 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun injectScroll(hScroll: Float, vScroll: Float) { if (shellService == null) return; Thread { try { shellService?.injectScroll(cursorX, cursorY, vScroll / 10f, hScroll / 10f, inputTargetDisplayId) } catch(e: Exception){} }.start() }
 
     // Helper to allow external components (like Keyboard) to control the cursor
-    fun handleExternalMouseMove(dx: Float, dy: Float) {
+    // Added 'isDragging' to switch between Hover (Mouse) and Drag (Touch)
+    fun handleExternalMouseMove(dx: Float, dy: Float, isDragging: Boolean) {
         // Calculate safe bounds
         val safeW = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth.toFloat() else uiScreenWidth.toFloat()
         val safeH = if (inputTargetDisplayId != currentDisplayId) targetScreenHeight.toFloat() else uiScreenHeight.toFloat()
-        
+
         // Update position
         cursorX = (cursorX + dx).coerceIn(0f, safeW)
         cursorY = (cursorY + dy).coerceIn(0f, safeH)
-        
+
         // Update Visuals (Redraw the cursor icon)
-        if (inputTargetDisplayId == currentDisplayId) { 
+        if (inputTargetDisplayId == currentDisplayId) {
              cursorParams.x = cursorX.toInt()
              cursorParams.y = cursorY.toInt()
-             try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {} 
+             try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {}
         } else {
              remoteCursorParams.x = cursorX.toInt()
              remoteCursorParams.y = cursorY.toInt()
              try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {}
         }
-        
-        // Inject Mouse Movement (HOVER) so apps react to the new position
-        injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+
+        // Input Injection
+        if (isDragging) {
+             // TOUCH DRAG: SOURCE_TOUCHSCREEN + ACTION_MOVE
+             injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, 0, SystemClock.uptimeMillis())
+        } else {
+             // MOUSE HOVER: SOURCE_MOUSE + ACTION_HOVER_MOVE
+             injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+        }
     }
 
+    // Explicit Touch Down (Start Drag/Hold)
+    fun handleExternalTouchDown() {
+        injectAction(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHSCREEN, 0, SystemClock.uptimeMillis())
+        android.util.Log.d("TouchInjection", "Touch DOWN at ($cursorX, $cursorY)")
+    }
+
+    // Explicit Touch Up (End Drag/Hold)
+    fun handleExternalTouchUp() {
+        injectAction(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHSCREEN, 0, SystemClock.uptimeMillis())
+        android.util.Log.d("TouchInjection", "Touch UP at ($cursorX, $cursorY)")
+    }
+
+    // Quick Tap (Down + Up)
+    fun handleExternalTouchTap() {
+        if (shellService == null) return
+        Thread {
+            val now = SystemClock.uptimeMillis()
+            try {
+                shellService?.injectMouse(MotionEvent.ACTION_DOWN, cursorX, cursorY, inputTargetDisplayId, InputDevice.SOURCE_TOUCHSCREEN, 0, now)
+                Thread.sleep(50)
+                shellService?.injectMouse(MotionEvent.ACTION_UP, cursorX, cursorY, inputTargetDisplayId, InputDevice.SOURCE_TOUCHSCREEN, 0, now + 50)
+                android.util.Log.d("TouchInjection", "Touch TAP at ($cursorX, $cursorY)")
+            } catch (e: Exception) {
+                android.util.Log.e("TouchInjection", "TAP failed", e)
+            }
+        }.start()
+    }
+
+    // Keep Right Click for the predictive bar if needed
     fun handleExternalMouseClick(isRight: Boolean) {
         performClick(isRight)
     }
+
     fun performClick(right: Boolean) { if (shellService == null) return; Thread { try { if (right) shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId) else shellService?.execClick(cursorX, cursorY, inputTargetDisplayId) } catch(e: Exception){} }.start() }
     fun resetCursorCenter() { cursorX = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth/2f else uiScreenWidth/2f; cursorY = if (inputTargetDisplayId != currentDisplayId) targetScreenHeight/2f else uiScreenHeight/2f; if (inputTargetDisplayId == currentDisplayId) { cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); windowManager?.updateViewLayout(cursorLayout, cursorParams) } else { remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt(); try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception){} } }
     fun performRotation() { rotationAngle = (rotationAngle + 90) % 360; cursorView?.rotation = rotationAngle.toFloat() }
