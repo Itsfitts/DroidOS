@@ -256,6 +256,14 @@ class TrackpadMenuManager(
         })
         // --- END ANCHOR TOGGLE ---
         
+        // Toggle Trackpad (Using correct icon
+        // Toggle Trackpad
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Trackpad", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) {
+            service.toggleTrackpad()
+            hide()
+        })
+
+
         list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
             if (service.isCustomKeyboardVisible) service.performSmartHide()
             else service.toggleCustomKeyboard()

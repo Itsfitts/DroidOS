@@ -1011,9 +1011,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     fun toggleTrackpad() { 
         isTrackpadVisible = !isTrackpadVisible
+        
+        // Toggle Visibility
         trackpadLayout?.visibility = if (isTrackpadVisible) View.VISIBLE else View.GONE
-        if (isTrackpadVisible) updateBorderColor(currentBorderColor) 
-        else if (isCustomKeyboardVisible) toggleCustomKeyboard(suppressAutomation = true)
+        
+        // Update Border if showing
+        if (isTrackpadVisible) {
+            updateBorderColor(currentBorderColor) 
+        }
+        
+        // PREVIOUSLY: else if (isCustomKeyboardVisible) toggleCustomKeyboard(...)
+        // We removed that line so the keyboard stays open.
     }
     
     private fun handleBubbleTap() {
@@ -1367,6 +1375,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             keyboardOverlay?.updateSize(uiScreenWidth, defaultH)
         }
     }
+
 
 
 
