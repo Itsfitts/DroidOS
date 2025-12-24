@@ -106,6 +106,7 @@ class KeyboardView @JvmOverloads constructor(
     private var cand3: TextView? = null
     private var div1: View? = null
     private var div2: View? = null
+    private val handler = Handler(Looper.getMainLooper())
 
 // =================================================================================
     // GESTURE TYPING STATE
@@ -153,10 +154,19 @@ class KeyboardView @JvmOverloads constructor(
 
     // Touch Mode State
     private var isTrackpadTouchMode = false
-    private val trackpadResetRunnable = Runnable {
+
+    private val trackpadResetRunnable = Runnable { 
         isTrackpadTouchMode = false
-        android.util.Log.d("SpaceTrackpad", "Touch Mode ended (1s timer)")
+        
+        // Find Spacebar and turn off highlight
+        val spaceView = findViewWithTag<View>("SPACE")
+        if (spaceView != null) {
+            setKeyVisual(spaceView, false, "SPACE")
+            spaceView.invalidate() // Force redraw
+        }
+        this.invalidate() // Force keyboard redraw
     }
+
 
     // Hold / Drag Logic
     private var isDragging = false
@@ -172,12 +182,21 @@ class KeyboardView @JvmOverloads constructor(
         }
     }
 
+
     private fun startTrackpadTimer() {
         isTrackpadTouchMode = true
+        
+        // FORCE VISUAL: Keep Spacebar Green while timer is active
+        val spaceView = findViewWithTag<View>("SPACE")
+        if (spaceView != null) {
+            setKeyVisual(spaceView, true, "SPACE")
+            spaceView.invalidate()
+        }
+        
         handler.removeCallbacks(trackpadResetRunnable)
         handler.postDelayed(trackpadResetRunnable, 1000)
-        android.util.Log.d("SpaceTrackpad", "Touch Mode activated/refreshed (1s timer)")
     }
+
 
     private fun handleSpacebarClick(xRelativeToKey: Float, keyWidth: Int) {
         val zone = xRelativeToKey / keyWidth
@@ -747,72 +766,68 @@ class KeyboardView @JvmOverloads constructor(
                         return true
                     }
                 }
+
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                     if (pointerId == spacebarPointerId) {
                         handler.removeCallbacks(holdToDragRunnable)
 
+                        // VISUAL LOGIC:
+                        // Only reset to Grey if we are NOT staying in Touch Mode.
+                        // If we are in Touch Mode, startTrackpadTimer() will ensure it stays Green.
+                        val stayingInMode = isTrackpadTouchMode || isSpaceTrackpadActive
+                        
                         val spaceView = if (touchedView?.tag == "SPACE") touchedView else findViewWithTag("SPACE")
-                        if (spaceView != null) setKeyVisual(spaceView, false, "SPACE")
+                        if (spaceView != null && !stayingInMode) {
+                            setKeyVisual(spaceView, false, "SPACE")
+                        }
 
                         if (isTrackpadTouchMode) {
                             if (isDragging) {
-                                // We were holding/dragging -> Release
                                 touchUpAction?.invoke()
                                 isDragging = false
-                                android.util.Log.d("SpaceTrackpad", "Touch Mode: Drag released -> Touch UP injected")
                             } else if (!hasMovedWhileDown) {
-                                // We didn't hold long enough, and didn't move -> TAP
                                 touchTapAction?.invoke()
-                                android.util.Log.d("SpaceTrackpad", "Touch Mode: Quick tap -> Touch TAP injected")
                             }
                             startTrackpadTimer()
                         } else {
-                            // NOT in touch mode yet
                             if (!isSpaceTrackpadActive) {
-                                // Normal Space Key (or Predictive Click)
+                                // Normal Space Tap (Turns Grey immediately above)
                                 if (isPredictiveBarEmpty) {
-                                     // Empty bar click zones (if you want to keep this feature)
-                                     var keyLeft = 0f
-                                     if (touchedView != null) {
-                                         val row = touchedView.parent as? View
-                                         if (row != null) keyLeft = row.x + touchedView.x
-                                     }
-                                     val relativeX = x - keyLeft
-                                     val width = touchedView?.width ?: 100
-                                     handleSpacebarClick(relativeX, width)
-                                     android.util.Log.d("SpaceTrackpad", "Empty bar -> Click zone")
+                                    listener?.onSpecialKey(SpecialKey.SPACE, 0)
+                                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 } else {
                                     listener?.onSpecialKey(SpecialKey.SPACE, 0)
                                     performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    android.util.Log.d("SpaceTrackpad", "Normal space input")
                                 }
                             } else {
-                                // We just finished a slide -> Enter Touch Mode
+                                // Drag Finished -> Enter Touch Mode (Stays Green)
                                 startTrackpadTimer()
-                                android.util.Log.d("SpaceTrackpad", "Trackpad drag finished -> Touch Mode activated")
                             }
                         }
-
+                        
                         spacebarPointerId = -1
                         isSpaceTrackpadActive = false
                         return true
                     }
                 }
+
+
                 MotionEvent.ACTION_CANCEL -> {
                     if (pointerId == spacebarPointerId) {
                         handler.removeCallbacks(holdToDragRunnable)
-                        if (isDragging) {
-                            touchUpAction?.invoke()
-                            isDragging = false
-                            android.util.Log.d("SpaceTrackpad", "Touch cancelled -> Touch UP injected")
-                        }
+                        if (isDragging) { touchUpAction?.invoke(); isDragging = false }
                         spacebarPointerId = -1
                         isSpaceTrackpadActive = false
-                        val spaceView = findViewWithTag<View>("SPACE")
-                        if (spaceView != null) setKeyVisual(spaceView, false, "SPACE")
+                        
+                        // Only turn off visual if timer isn't running
+                        if (!isTrackpadTouchMode) {
+                            val spaceView = findViewWithTag<View>("SPACE")
+                            if (spaceView != null) setKeyVisual(spaceView, false, "SPACE")
+                        }
                         return true
                     }
                 }
+
             }
         }
 
@@ -1202,10 +1217,14 @@ class KeyboardView @JvmOverloads constructor(
         TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), resources.displayMetrics
     ).roundToInt()
 
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        stopRepeat()
+        handler.removeCallbacks(trackpadResetRunnable)
+        handler.removeCallbacks(holdToDragRunnable)
+        // ... (keep existing cleanup like stopRepeat)
     }
+
     fun setSuggestions(words: List<String>) {
         if (suggestionStrip == null) return
 
