@@ -354,38 +354,29 @@ class PredictionEngine {
 
     fun decodeSwipe(swipePath: List<PointF>, keyMap: Map<String, PointF>): List<String> {
         val startT = System.currentTimeMillis()
-        android.util.Log.d("DroidOS_Swipe", "--- Decoding Swipe: ${swipePath.size} points ---")
 
-        if (swipePath.size < 5) {
-            android.util.Log.d("DroidOS_Swipe", "Path too short (<5), ignoring.")
-            return emptyList()
+        // Safety Check: Empty Dictionary?
+        if (wordList.isEmpty()) {
+            android.util.Log.e("DroidOS_Prediction", "Word list is empty! Loading defaults immediately.")
+            loadDefaults()
         }
+
+        if (swipePath.size < 3) return emptyList()
 
         val keyMapHash = keyMap.hashCode()
         if (keyMapHash != lastKeyMapHash) {
             templateCache.clear()
             lastKeyMapHash = keyMapHash
-            android.util.Log.d("DroidOS_Prediction", "Keymap changed, clearing cache.")
         }
 
-        // Step 1: Sample input
+        // 1. Prepare Input
         val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
-
-        // Step 2: Get distances to ALL keys (Use large radius 1000f to capture everything)
-        // We filter strictly later, but we need the data now.
-        val startKeyDists = findKeysWithDist(sampledInput.first(), keyMap, 1000f)
-        val endKeyDists = findKeysWithDist(sampledInput.last(), keyMap, 1000f)
-
-        if (startKeyDists.isEmpty() || endKeyDists.isEmpty()) {
-            return emptyList()
-        }
-
         val normalizedInput = normalizePath(sampledInput)
+        val startKeyDists = findKeysWithDist(sampledInput.first(), keyMap, 5000f)
+        val endKeyDists = findKeysWithDist(sampledInput.last(), keyMap, 5000f)
 
-        // Step 3: Candidate Selection (Two-Pass)
-
-        // Helper function to filter candidates
-        fun getCandidates(commonRadius: Float, rareRadius: Float): List<String> {
+        // 2. Candidate Filtering
+        fun getCandidates(commonRadius: Float, rareRadius: Float, commonRankLimit: Int): List<String> {
             return wordList.filter { word ->
                 if (word.length < MIN_WORD_LENGTH) return@filter false
 
@@ -396,31 +387,42 @@ class PredictionEngine {
                 val dEnd = endKeyDists[last] ?: return@filter false
 
                 val rank = getWordRank(word)
-                // If word is common (Rank < 1000), use commonRadius, else rareRadius
-                val maxDist = if (rank < 1000) commonRadius else rareRadius
-
+                val maxDist = if (rank < commonRankLimit) commonRadius else rareRadius
                 dStart <= maxDist && dEnd <= maxDist
             }
         }
 
-        // PASS 1: Standard Hybrid (Common=350px, Rare=140px)
-        var candidates = getCandidates(350f, 140f)
-        var passUsed = 1
+        // PASS 1: Strict (Accurate Swiping)
+        // Common: 400px, Rare: 150px
+        var candidates = getCandidates(400f, 150f, 1000)
+        var currentPass = 1
+        var shapeWeight = 0.4f
+        var locationWeight = 0.6f
 
-        // PASS 2: Desperation (If empty, open the floodgates for common words)
-        // Common=1000px (Basically global), Rare=300px
-        if (candidates.isEmpty()) {
-            android.util.Log.d("DroidOS_Swipe", "Pass 1 empty. Trying loose constraints...")
-            candidates = getCandidates(1000f, 300f)
-            passUsed = 2
+        // PASS 2: Loose (Sloppy Swiping)
+        // If Pass 1 yielded few results, broaden the search significantly.
+        if (candidates.size < 3) {
+            // Common: 3000px (Ignore Start/End), Rare: 350px
+            val pass2 = getCandidates(3000f, 350f, 5000)
+            candidates = (candidates + pass2).distinct()
+            currentPass = 2
+
+            // ADJUST WEIGHTS: Trust Shape more, Location less
+            shapeWeight = 0.8f
+            locationWeight = 0.2f
         }
 
+        // PASS 3: Hail Mary (Guarantee a result)
+        // If we STILL have nothing, just take the top 500 words and match strictly on SHAPE.
         if (candidates.isEmpty()) {
-            android.util.Log.d("DroidOS_Swipe", "No candidates after Pass 2")
-            return emptyList()
+            android.util.Log.d("DroidOS_Swipe", "Pass 2 failed. Activating Hail Mary.")
+            candidates = wordList.sortedBy { getWordRank(it) }.take(500)
+            currentPass = 3
+            shapeWeight = 1.0f // Shape is everything
+            locationWeight = 0.0f
         }
 
-        // Step 4: Score candidates
+        // 3. Scoring
         val scored = candidates.mapNotNull { word ->
             val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
 
@@ -428,35 +430,29 @@ class PredictionEngine {
                 template.sampledPoints = samplePath(template.rawPoints, SAMPLE_POINTS)
                 template.normalizedPoints = normalizePath(template.sampledPoints!!)
             }
-
             if (template.sampledPoints?.size != SAMPLE_POINTS) return@mapNotNull null
 
             val shapeScore = calculateShapeScore(normalizedInput, template.normalizedPoints!!)
-            val locationScore = calculateLocationScore(sampledInput, template.sampledPoints!!)
+            val locationScore = if (locationWeight > 0) calculateLocationScore(sampledInput, template.sampledPoints!!) else 0f
 
-            val integrationScore = SHAPE_WEIGHT * shapeScore + LOCATION_WEIGHT * locationScore
+            val integrationScore = shapeWeight * shapeScore + locationWeight * locationScore
 
             val rank = template.rank
-            val frequencyBonus = 1.0f / (1.0f + ln((rank + 1).toFloat()))
+            // Boost frequency heavily, especially in later passes
+            val freqBonusMultiplier = if (currentPass >= 2) 0.8f else 0.5f
+            val frequencyBonus = 1.0f / (1.0f + 0.3f * ln((rank + 1).toFloat()))
 
-            // Apply stronger frequency bias if we used the Loose Pass
-            val freqWeight = if (passUsed == 2) 0.6f else 0.5f
-            val finalScore = integrationScore * (1.0f - freqWeight * frequencyBonus)
+            val finalScore = integrationScore * (1.0f - freqBonusMultiplier * frequencyBonus)
 
             Triple(word, finalScore, rank)
         }
 
-        // Return top candidates sorted by score (lower is better)
+        // 4. Return Results
         val sorted = scored.sortedBy { it.second }
+        val results = sorted.take(3).map { it.first }
 
-        if (sorted.isNotEmpty()) {
-            val top3 = sorted.take(3).joinToString { "${it.first}(${"%.2f".format(it.second)})" }
-            android.util.Log.d("DroidOS_Prediction", "Result (Pass $passUsed, ${System.currentTimeMillis() - startT}ms): $top3")
-        } else {
-            android.util.Log.d("DroidOS_Prediction", "No candidates found.")
-        }
-
-        return sorted.take(3).map { it.first }
+        android.util.Log.d("DroidOS_Prediction", "Pass $currentPass Result (${System.currentTimeMillis() - startT}ms): $results")
+        return results
     }
 
     
