@@ -616,33 +616,60 @@ class KeyboardOverlay(
 
 
     override fun onKeyPress(keyCode: Int, char: Char?, metaState: Int) {
-        // Log the key press for debugging
         android.util.Log.d("DroidOS_Key", "Press: $keyCode ('$char')")
 
         // 1. Inject the key event
         injectKey(keyCode, metaState)
 
         // 2. Clear Swipe History on manual typing
-        // If user manually types/deletes, we lose the "swipe correction" context
         if (keyCode != KeyEvent.KEYCODE_SHIFT_LEFT && keyCode != KeyEvent.KEYCODE_SHIFT_RIGHT) {
             lastCommittedSwipeWord = null
         }
 
-        // 3. Track Sentence Start
+        // 3. Handle Backspace (Fixes "deleted text persists" bug)
+        if (keyCode == KeyEvent.KEYCODE_DEL) {
+            if (currentComposingWord.isNotEmpty()) {
+                currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
+                updateSuggestions()
+            }
+            return
+        }
+
+        // 4. Track Sentence Start
         if (keyCode == KeyEvent.KEYCODE_ENTER || char == '.' || char == '!' || char == '?') {
             isSentenceStart = true
+
+            // Auto-learn on punctuation
+            if (currentComposingWord.isNotEmpty()) {
+                val word = currentComposingWord.toString()
+                if (word.length >= 2) {
+                    predictionEngine.learnWord(context, word)
+                }
+            }
+            currentComposingWord.clear()
+
         } else if (char != null && !Character.isWhitespace(char)) {
-            // If we typed a visible character that isn't punctuation, sentence has started
             isSentenceStart = false
         }
 
-        // 4. Update Composing Word (For manual suggestion lookups)
+        // 5. Update Composing Word
         if (char != null && Character.isLetterOrDigit(char)) {
             currentComposingWord.append(char)
             updateSuggestions()
+        } else if (char != null && Character.isWhitespace(char)) {
+            // Space finishes a word
+            if (currentComposingWord.isNotEmpty()) {
+                val word = currentComposingWord.toString()
+                if (word.length >= 2) {
+                    predictionEngine.learnWord(context, word)
+                }
+            }
+            currentComposingWord.clear()
+            updateSuggestions()
         } else {
-            // Punctuation or space usually ends a word context
-            resetComposition()
+            // Other symbols clear composition
+            currentComposingWord.clear()
+            updateSuggestions()
         }
     }
 
@@ -811,24 +838,19 @@ class KeyboardOverlay(
             return
         }
 
-        // 1. Get raw suggestions from engine
+        // 1. Get dictionary suggestions
         val suggestions = predictionEngine.getSuggestions(prefix, 3)
 
-        // 2. Convert to Candidate objects
         val candidates = ArrayList<KeyboardView.Candidate>()
 
-        // Always add the raw Typed Word if it's not in the list (so user can type "zorg" without autocorrect)
-        // If it IS in the dict, it will just show as normal.
-        // If NOT in dict, show as NEW.
+        // 2. ALWAYS add the Raw Input as the first option
+        // This fixes the issue where "Chris" wouldn't show because "Christmas" existed
         val rawExists = predictionEngine.hasWord(prefix)
+        candidates.add(KeyboardView.Candidate(prefix, isNew = !rawExists))
 
-        if (!rawExists) {
-            // Add raw input as the first option (flagged as new)
-            candidates.add(KeyboardView.Candidate(prefix, isNew = true))
-        }
-
-        // Add dictionary suggestions
+        // 3. Add dictionary suggestions (avoiding duplicates)
         for (s in suggestions) {
+            // Don't show if it looks exactly like the raw input (ignore case)
             if (!s.equals(prefix, ignoreCase = true)) {
                 candidates.add(KeyboardView.Candidate(s, isNew = false))
             }
