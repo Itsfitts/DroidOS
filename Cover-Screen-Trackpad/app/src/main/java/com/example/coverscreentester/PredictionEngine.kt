@@ -370,25 +370,35 @@ class PredictionEngine {
 
         // Step 1: Sample input
         val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
-        
-        // Step 2: Identify Start/End keys
-        val startKeys = findKeysNear(sampledInput.first(), keyMap, 150f)
-        val endKeys = findKeysNear(sampledInput.last(), keyMap, 150f)
-        
-        android.util.Log.d("DroidOS_Swipe", "Start Keys: $startKeys | End Keys: $endKeys")
 
-        if (startKeys.isEmpty() || endKeys.isEmpty()) { 
-            return emptyList() 
+        // Step 2: Identify Start/End keys with WIDE search radius
+        // We look broadly (350px) but will filter strictly later for rare words
+        val startKeyDists = findKeysWithDist(sampledInput.first(), keyMap, 350f)
+        val endKeyDists = findKeysWithDist(sampledInput.last(), keyMap, 350f)
+
+        if (startKeyDists.isEmpty() || endKeyDists.isEmpty()) {
+            return emptyList()
         }
-        
+
         val normalizedInput = normalizePath(sampledInput)
 
-        // Step 3: Filter dictionary words
+        // Step 3: Hybrid Pruning Filter
         val candidates = wordList.filter { word ->
             if (word.length < MIN_WORD_LENGTH) return@filter false
+
             val first = word.first().toString().lowercase()
             val last = word.last().toString().lowercase()
-            startKeys.contains(first) && endKeys.contains(last)
+
+            val dStart = startKeyDists[first] ?: return@filter false
+            val dEnd = endKeyDists[last] ?: return@filter false
+
+            // --- HYBRID LOGIC ---
+            // If word is Common (Rank < 1000), allow sloppy typing (up to 350px off)
+            // If word is Rare, require precision (within 140px)
+            val rank = getWordRank(word)
+            val maxDist = if (rank < 1000) 350f else 140f
+
+            dStart <= maxDist && dEnd <= maxDist
         }
 
         if (candidates.isEmpty()) {
@@ -399,31 +409,38 @@ class PredictionEngine {
         // Step 4: Score candidates
         val scored = candidates.mapNotNull { word ->
             val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
-            
+
             if (template.sampledPoints == null) {
                 template.sampledPoints = samplePath(template.rawPoints, SAMPLE_POINTS)
                 template.normalizedPoints = normalizePath(template.sampledPoints!!)
             }
-            
+
             if (template.sampledPoints?.size != SAMPLE_POINTS) return@mapNotNull null
-            
+
             val shapeScore = calculateShapeScore(normalizedInput, template.normalizedPoints!!)
             val locationScore = calculateLocationScore(sampledInput, template.sampledPoints!!)
-            
+
             val integrationScore = SHAPE_WEIGHT * shapeScore + LOCATION_WEIGHT * locationScore
-            
+
             val rank = template.rank
+            // BOOST: Increased frequency weight from 0.3 to 0.5 to prioritize common words
             val frequencyBonus = 1.0f / (1.0f + ln((rank + 1).toFloat()))
-            val finalScore = integrationScore * (1.0f - 0.3f * frequencyBonus)
-            
+            val finalScore = integrationScore * (1.0f - 0.5f * frequencyBonus)
+
             Triple(word, finalScore, rank)
         }
 
         // Return top candidates sorted by score (lower is better)
-        val results = scored.sortedBy { it.second }.take(3).map { it.first }
-        
-        android.util.Log.d("DroidOS_Swipe", "Result (${System.currentTimeMillis() - startT}ms): $results")
-        return results
+        val sorted = scored.sortedBy { it.second }
+
+        if (sorted.isNotEmpty()) {
+            val top3 = sorted.take(3).joinToString { "${it.first}(${"%.2f".format(it.second)})" }
+            android.util.Log.d("DroidOS_Prediction", "Result (${System.currentTimeMillis() - startT}ms): $top3")
+        } else {
+            android.util.Log.d("DroidOS_Prediction", "No candidates found.")
+        }
+
+        return sorted.take(3).map { it.first }
     }
 
     
@@ -592,17 +609,22 @@ class PredictionEngine {
     
     /**
      * Find all keys within threshold distance of a point.
+     * Returns a Map of Key -> Distance for O(1) lookups.
      */
-    private fun findKeysNear(pt: PointF, keyMap: Map<String, PointF>, threshold: Float): List<String> {
-        val keys = ArrayList<String>()
+    private fun findKeysWithDist(pt: PointF, keyMap: Map<String, PointF>, threshold: Float): Map<String, Float> {
+        val keys = HashMap<String, Float>()
         for ((key, pos) in keyMap) {
-            if (key.length != 1) continue // Only single character keys
+            if (key.length != 1) continue
             val dist = hypot(pt.x - pos.x, pt.y - pos.y)
             if (dist < threshold) {
-                keys.add(key.lowercase())
+                // If key exists (e.g. from another case), keep smallest dist
+                val existing = keys[key.lowercase()]
+                if (existing == null || dist < existing) {
+                    keys[key.lowercase()] = dist
+                }
             }
         }
-        return keys.distinct()
+        return keys
     }
     
     private fun getWordRank(word: String): Int {
