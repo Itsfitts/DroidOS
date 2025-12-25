@@ -74,6 +74,8 @@ class PredictionEngine {
     // --- CUSTOM DICTIONARY STORAGE ---
     private val blockedWords = java.util.HashSet<String>()
     private val customWords = java.util.HashSet<String>()
+    // Cache for the top 1000 words to make "Hail Mary" pass instant
+    private val commonWordsCache = ArrayList<String>()
     // Fix: Removed 'const' (not allowed in class body)
     private val USER_DICT_FILE = "user_words.txt"
     private val BLOCKED_DICT_FILE = "blocked_words.txt"
@@ -213,8 +215,14 @@ class PredictionEngine {
                     customWords.addAll(newCustom)
 
                     templateCache.clear()
+
+                    // Populate Common Words Cache (Top 1000)
+                    commonWordsCache.clear()
+                    commonWordsCache.addAll(
+                        wordList.sortedBy { getWordRank(it) }.take(1000)
+                    )
                 }
-                android.util.Log.d("DroidOS_Prediction", "Dictionary Loaded: $lineCount asset + ${newCustom.size} user words.")
+                android.util.Log.d("DroidOS_Prediction", "Dictionary Loaded: $lineCount asset + ${newCustom.size} user words. Common Cache: ${commonWordsCache.size}")
 
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -355,27 +363,56 @@ class PredictionEngine {
     fun decodeSwipe(swipePath: List<PointF>, keyMap: Map<String, PointF>): List<String> {
         val startT = System.currentTimeMillis()
 
-        // Safety Check: Empty Dictionary?
-        if (wordList.isEmpty()) {
-            android.util.Log.e("DroidOS_Prediction", "Word list is empty! Loading defaults immediately.")
-            loadDefaults()
+        // --- DIAGNOSTIC: COORDINATE CHECK ---
+        if (swipePath.isNotEmpty()) {
+            val firstPt = swipePath[0]
+            val keyE = keyMap["e"] ?: keyMap["E"]
+            if (keyE != null) {
+                // Log touch vs key to ensure they are in the same coordinate system
+                android.util.Log.d("DroidOS_Swipe", "Coords -> Touch: (${firstPt.x.toInt()}, ${firstPt.y.toInt()}) vs Key 'e': (${keyE.x.toInt()}, ${keyE.y.toInt()})")
+            } else {
+                android.util.Log.e("DroidOS_Swipe", "CRITICAL: Key 'e' not found in KeyMap!")
+            }
         }
 
-        if (swipePath.size < 3) return emptyList()
+        // --- DIAGNOSTIC: WORD CHECK ---
+        val debugWord = "example"
+        if (!wordList.contains(debugWord)) {
+            android.util.Log.e("DroidOS_Swipe", "CRITICAL: '$debugWord' is MISSING from dictionary!")
+        }
+
+        // AUTO-RECOVERY: If dictionary is gone, reload it immediately
+        if (wordList.isEmpty()) {
+            android.util.Log.e("DroidOS_Swipe", "EXIT: Word list empty. Reloading...")
+            loadDefaults()
+            return emptyList()
+        }
+
+        // EXIT 1: Path too short
+        if (swipePath.size < 3) {
+            android.util.Log.d("DroidOS_Swipe", "EXIT: Path too short (${swipePath.size} < 3)")
+            return emptyList()
+        }
 
         val keyMapHash = keyMap.hashCode()
         if (keyMapHash != lastKeyMapHash) {
             templateCache.clear()
             lastKeyMapHash = keyMapHash
+            android.util.Log.d("DroidOS_Prediction", "Keymap changed, clearing cache.")
         }
 
-        // 1. Prepare Input
+        // 1. Processing Input
         val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
         val normalizedInput = normalizePath(sampledInput)
         val startKeyDists = findKeysWithDist(sampledInput.first(), keyMap, 5000f)
         val endKeyDists = findKeysWithDist(sampledInput.last(), keyMap, 5000f)
 
-        // 2. Candidate Filtering
+        // Log the start/end keys to see if we are detecting them correctly
+        val startKeys = startKeyDists.filter { it.value < 150 }.keys.joinToString()
+        val endKeys = endKeyDists.filter { it.value < 150 }.keys.joinToString()
+        android.util.Log.d("DroidOS_Swipe", "Input Start Near: [$startKeys] | End Near: [$endKeys]")
+
+        // 2. Candidate Filtering Helper
         fun getCandidates(commonRadius: Float, rareRadius: Float, commonRankLimit: Int): List<String> {
             return wordList.filter { word ->
                 if (word.length < MIN_WORD_LENGTH) return@filter false
@@ -393,66 +430,73 @@ class PredictionEngine {
         }
 
         // PASS 1: Strict (Accurate Swiping)
-        // Common: 400px, Rare: 150px
         var candidates = getCandidates(400f, 150f, 1000)
         var currentPass = 1
         var shapeWeight = 0.4f
         var locationWeight = 0.6f
 
+        android.util.Log.d("DroidOS_Swipe", "Pass 1 Candidates: ${candidates.size}")
+
         // PASS 2: Loose (Sloppy Swiping)
-        // If Pass 1 yielded few results, broaden the search significantly.
         if (candidates.size < 3) {
-            // Common: 3000px (Ignore Start/End), Rare: 350px
             val pass2 = getCandidates(3000f, 350f, 5000)
             candidates = (candidates + pass2).distinct()
             currentPass = 2
-
-            // ADJUST WEIGHTS: Trust Shape more, Location less
             shapeWeight = 0.8f
             locationWeight = 0.2f
+            android.util.Log.d("DroidOS_Swipe", "Pass 2 Triggered. Total Candidates: ${candidates.size}")
         }
 
-        // PASS 3: Hail Mary (Guarantee a result)
-        // If we STILL have nothing, just take the top 500 words and match strictly on SHAPE.
+        // PASS 3: Hail Mary (Use Cached Common Words)
         if (candidates.isEmpty()) {
-            android.util.Log.d("DroidOS_Swipe", "Pass 2 failed. Activating Hail Mary.")
-            candidates = wordList.sortedBy { getWordRank(it) }.take(500)
+            android.util.Log.d("DroidOS_Swipe", "Pass 2 failed. Using Cached Hail Mary.")
+            candidates = ArrayList(commonWordsCache) // Use pre-computed list
             currentPass = 3
-            shapeWeight = 1.0f // Shape is everything
+            shapeWeight = 1.0f
             locationWeight = 0.0f
         }
 
-        // 3. Scoring
-        val scored = candidates.mapNotNull { word ->
-            val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
+        // 3. Scoring (Wrapped in Try-Catch to prevent silent thread death)
+        try {
+            val scored = candidates.mapNotNull { word ->
+                val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
 
-            if (template.sampledPoints == null) {
-                template.sampledPoints = samplePath(template.rawPoints, SAMPLE_POINTS)
-                template.normalizedPoints = normalizePath(template.sampledPoints!!)
+                if (template.sampledPoints == null) {
+                    template.sampledPoints = samplePath(template.rawPoints, SAMPLE_POINTS)
+                    template.normalizedPoints = normalizePath(template.sampledPoints!!)
+                }
+                if (template.sampledPoints?.size != SAMPLE_POINTS) return@mapNotNull null
+
+                val shapeScore = calculateShapeScore(normalizedInput, template.normalizedPoints!!)
+                val locationScore = if (locationWeight > 0) calculateLocationScore(sampledInput, template.sampledPoints!!) else 0f
+
+                val integrationScore = shapeWeight * shapeScore + locationWeight * locationScore
+
+                val rank = template.rank
+                val freqBonusMultiplier = if (currentPass >= 2) 0.8f else 0.5f
+                val frequencyBonus = 1.0f / (1.0f + 0.3f * ln((rank + 1).toFloat()))
+
+                val finalScore = integrationScore * (1.0f - freqBonusMultiplier * frequencyBonus)
+
+                Triple(word, finalScore, rank)
             }
-            if (template.sampledPoints?.size != SAMPLE_POINTS) return@mapNotNull null
 
-            val shapeScore = calculateShapeScore(normalizedInput, template.normalizedPoints!!)
-            val locationScore = if (locationWeight > 0) calculateLocationScore(sampledInput, template.sampledPoints!!) else 0f
+            val sorted = scored.sortedBy { it.second }
+            val results = sorted.take(3).map { it.first }
 
-            val integrationScore = shapeWeight * shapeScore + locationWeight * locationScore
+            // Log if our debug word made it
+            if (results.contains(debugWord)) {
+                android.util.Log.d("DroidOS_Swipe", "SUCCESS: '$debugWord' found!")
+            }
 
-            val rank = template.rank
-            // Boost frequency heavily, especially in later passes
-            val freqBonusMultiplier = if (currentPass >= 2) 0.8f else 0.5f
-            val frequencyBonus = 1.0f / (1.0f + 0.3f * ln((rank + 1).toFloat()))
+            android.util.Log.d("DroidOS_Swipe", "FINAL (Pass $currentPass, ${System.currentTimeMillis() - startT}ms): $results")
+            return results
 
-            val finalScore = integrationScore * (1.0f - freqBonusMultiplier * frequencyBonus)
-
-            Triple(word, finalScore, rank)
+        } catch (e: Exception) {
+            android.util.Log.e("DroidOS_Swipe", "CRASH during Scoring: ${e.message}", e)
+            e.printStackTrace()
+            return emptyList()
         }
-
-        // 4. Return Results
-        val sorted = scored.sortedBy { it.second }
-        val results = sorted.take(3).map { it.first }
-
-        android.util.Log.d("DroidOS_Prediction", "Pass $currentPass Result (${System.currentTimeMillis() - startT}ms): $results")
-        return results
     }
 
     

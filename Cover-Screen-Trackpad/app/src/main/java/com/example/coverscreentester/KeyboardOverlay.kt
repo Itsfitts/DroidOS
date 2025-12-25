@@ -792,41 +792,44 @@ class KeyboardOverlay(
     override fun onSwipeDetected(path: List<android.graphics.PointF>) {
         val keyMap = keyboardView?.getKeyCenters() ?: return
 
-        // Run decoding on background thread to keep UI smooth
         Thread {
-            val suggestions = predictionEngine.decodeSwipe(path, keyMap)
+            try {
+                // --- DEBUG TRACE: START ---
+                // This proves the UI actually detected the swipe
+                android.util.Log.d("DroidOS_Swipe", "--- New Swipe UI Detected (${path.size} points) ---")
 
-            if (suggestions.isNotEmpty()) {
-                // UI updates must happen on main thread
-                handler.post {
-                    var bestMatch = suggestions[0]
+                val suggestions = predictionEngine.decodeSwipe(path, keyMap)
 
-                    // --- LOGIC: Capitalize Start of Sentence ---
-                    if (isSentenceStart) {
-                        bestMatch = bestMatch.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                        // Don't reset isSentenceStart here; let the next logic decide if it ends with space
+                if (suggestions.isNotEmpty()) {
+                    handler.post {
+                        // (Existing UI Logic)
+                        var bestMatch = suggestions[0]
+                        if (isSentenceStart) {
+                            bestMatch = bestMatch.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        }
+
+                        val isCap = Character.isUpperCase(bestMatch.firstOrNull() ?: ' ')
+                        val displaySuggestions = if (isCap) {
+                            suggestions.map { it.replaceFirstChar { c -> c.titlecase() } }
+                        } else {
+                            suggestions
+                        }.map { KeyboardView.Candidate(it, isNew = false) }
+
+                        keyboardView?.setSuggestions(displaySuggestions)
+
+                        val textToCommit = "$bestMatch "
+                        injectText(textToCommit)
+                        lastCommittedSwipeWord = textToCommit
+                        isSentenceStart = false
                     }
-
-                    // Prepare display candidates (Capitalize all if the best match was capitalized)
-                    val isCap = Character.isUpperCase(bestMatch.firstOrNull() ?: ' ')
-                    val displaySuggestions = suggestions.map {
-                        val text = if (isCap) it.replaceFirstChar { c -> c.titlecase() } else it
-                        KeyboardView.Candidate(text, isNew = false) // Swipe suggestions are always from dictionary
-                    }
-
-                    // Update UI
-                    keyboardView?.setSuggestions(displaySuggestions)
-
-                    // --- LOGIC: Auto-Commit ---
-                    val textToCommit = "$bestMatch "
-                    injectText(textToCommit)
-
-                    // Save for replacement if user clicks a different suggestion
-                    lastCommittedSwipeWord = textToCommit
-
-                    // Update Sentence State (Word + Space usually means we are inside a sentence now)
-                    isSentenceStart = false
+                } else {
+                    android.util.Log.d("DroidOS_Swipe", "UI: Received 0 suggestions (Engine returned empty).")
                 }
+            } catch (e: Exception) {
+                // --- DEBUG TRACE: CRASH CAUGHT ---
+                // This ensures you see the error even with your filters
+                android.util.Log.e("DroidOS_Swipe", "CRASH in Swipe Thread: ${e.message}", e)
+                e.printStackTrace()
             }
         }.start()
     }
