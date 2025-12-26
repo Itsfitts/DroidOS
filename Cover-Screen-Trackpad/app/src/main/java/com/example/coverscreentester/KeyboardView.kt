@@ -157,6 +157,22 @@ class KeyboardView @JvmOverloads constructor(
     var touchUpAction: (() -> Unit)? = null
     var touchTapAction: (() -> Unit)? = null
 
+
+    // =================================================================================
+    // VIRTUAL MIRROR MODE CALLBACK
+    // SUMMARY: Callback to forward touch events to OverlayService for mirror keyboard.
+    //          Called at the START of every touch event. If it returns true, the touch
+    //          is in orientation mode and normal key input should be blocked.
+    // @param x - Touch X coordinate
+    // @param y - Touch Y coordinate  
+    // @param action - MotionEvent action (DOWN, MOVE, UP, CANCEL)
+    // @return true if orientation mode is active (block key input), false otherwise
+    // =================================================================================
+    var mirrorTouchCallback: ((Float, Float, Int) -> Boolean)? = null
+    // =================================================================================
+    // END BLOCK: VIRTUAL MIRROR MODE CALLBACK
+    // =================================================================================
+
     private var spacebarPointerId = -1
     private var isSpaceTrackpadActive = false
     private var lastSpaceX = 0f
@@ -809,6 +825,24 @@ class KeyboardView @JvmOverloads constructor(
         val pointerId = event.getPointerId(pointerIndex)
         val x = event.getX(pointerIndex)
         val y = event.getY(pointerIndex)
+
+        // =================================================================================
+        // VIRTUAL MIRROR MODE TOUCH FORWARDING
+        // SUMMARY: Forward ALL touch events to the mirror callback first.
+        //          This allows OverlayService to show the orange orientation trail
+        //          on both the physical and virtual mirror keyboards.
+        //          The callback returns true if orientation mode is now active.
+        // =================================================================================
+        mirrorTouchCallback?.let { callback ->
+            val orientationActive = callback.invoke(x, y, action)
+            if (orientationActive) {
+                // Orientation mode is active - set the flag so key input is blocked
+                isOrientationModeActive = true
+            }
+        }
+        // =================================================================================
+        // END BLOCK: VIRTUAL MIRROR MODE TOUCH FORWARDING
+        // =================================================================================
 
         // =================================================================================
         // ORIENTATION MODE CHECK

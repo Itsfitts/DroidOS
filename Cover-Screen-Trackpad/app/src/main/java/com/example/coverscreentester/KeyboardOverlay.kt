@@ -548,6 +548,19 @@ class KeyboardOverlay(
         keyboardView?.touchUpAction = { onTouchUp?.invoke() }
         keyboardView?.touchTapAction = { onTouchTap?.invoke() }
 
+        // =================================================================================
+        // VIRTUAL MIRROR MODE TOUCH CALLBACK
+        // SUMMARY: Wire up the mirror touch callback directly on KeyboardView.
+        //          This ensures ALL touch events are forwarded to OverlayService
+        //          for mirror keyboard synchronization.
+        // =================================================================================
+        keyboardView?.mirrorTouchCallback = { x, y, action ->
+            onMirrorTouch?.invoke(x, y, action) ?: false
+        }
+        // =================================================================================
+        // END BLOCK: VIRTUAL MIRROR MODE TOUCH CALLBACK
+        // =================================================================================
+
 
         
 
@@ -562,38 +575,7 @@ class KeyboardOverlay(
         kbParams.setMargins(6, 28, 6, 6)
         keyboardContainer?.addView(keyboardView, kbParams)
 
-        // =================================================================================
-        // VIRTUAL MIRROR MODE TOUCH INTERCEPTOR
-        // SUMMARY: Intercepts touch events on the keyboard container. When virtual mirror
-        //          mode is active, forwards touch coordinates to the mirror callback first.
-        //          If callback returns true (orientation mode), the touch is consumed for
-        //          trail rendering. Otherwise, touch passes through to KeyboardView.
-        // =================================================================================
-        keyboardContainer?.setOnTouchListener { _, event ->
-            // Only intercept if we have a mirror touch callback configured
-            val callback = onMirrorTouch
-            if (callback != null) {
-                // Adjust coordinates to be relative to keyboard view area
-                // (accounting for the drag handle margin at top)
-                val adjustedX = event.x - 6  // Left margin
-                val adjustedY = event.y - 28 // Top margin (drag handle)
-
-                val consumed = callback.invoke(adjustedX, adjustedY, event.actionMasked)
-
-                if (consumed) {
-                    // Orientation mode is active - consume touch for trail
-                    // The KeyboardView's onTouchEvent will see isOrientationModeActive=true
-                    // and ignore key input
-                    return@setOnTouchListener false // Return false to let child views get the event too
-                }
-            }
-
-            // No callback or not consumed - let normal touch handling proceed
-            false // Return false to pass touch to children (KeyboardView)
-        }
-        // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE TOUCH INTERCEPTOR
-        // =================================================================================
+        
 
         // 2. The Swipe Trail Overlay (Must match keyboard params to align coordinates)
         val trailView = SwipeTrailView(context)
