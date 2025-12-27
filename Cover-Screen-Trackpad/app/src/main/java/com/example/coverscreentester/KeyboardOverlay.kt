@@ -101,6 +101,13 @@ class KeyboardOverlay(
     // END BLOCK: VIRTUAL MIRROR CALLBACK
     // =================================================================================
 
+    // Layer change callback for syncing mirror keyboard
+    var onLayerChanged: ((KeyboardView.KeyboardState) -> Unit)? = null
+
+    // Suggestions sync for mirror keyboard
+    var onSuggestionsChanged: ((List<String>) -> Unit)? = null
+    private var lastSuggestions = listOf<String>()
+
 
 
     fun setScreenDimensions(width: Int, height: Int, displayId: Int) {
@@ -503,6 +510,41 @@ class KeyboardOverlay(
     }
     // =================================================================================
     // END BLOCK: handleDeferredTap
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: getKeyboardState
+    // SUMMARY: Gets current keyboard state (layer) from KeyboardView.
+    // =================================================================================
+    fun getKeyboardState(): KeyboardView.KeyboardState? {
+        return keyboardView?.getKeyboardState()
+    }
+
+    // =================================================================================
+    // FUNCTION: setKeyboardState
+    // SUMMARY: Sets keyboard state (layer) in KeyboardView.
+    // =================================================================================
+    fun setKeyboardState(state: KeyboardView.KeyboardState) {
+        keyboardView?.setKeyboardState(state)
+    }
+
+    // =================================================================================
+    // FUNCTION: getCtrlAltState
+    // SUMMARY: Gets current Ctrl/Alt modifier states from KeyboardView.
+    // =================================================================================
+    fun getCtrlAltState(): Pair<Boolean, Boolean>? {
+        return keyboardView?.getCtrlAltState()
+    }
+
+    // =================================================================================
+    // FUNCTION: setCtrlAltState
+    // SUMMARY: Sets Ctrl/Alt modifier states in KeyboardView.
+    // =================================================================================
+    fun setCtrlAltState(ctrl: Boolean, alt: Boolean) {
+        keyboardView?.setCtrlAltState(ctrl, alt)
+    }
+    // =================================================================================
+    // END BLOCK: State accessor functions for mirror sync
     // =================================================================================
 
     // =================================================================================
@@ -1078,6 +1120,11 @@ class KeyboardOverlay(
     // END BLOCK: onSuggestionDropped with debug logging
     // =================================================================================
 
+    // Layer change notification for mirror keyboard sync
+    override fun onLayerChanged(state: KeyboardView.KeyboardState) {
+        onLayerChanged?.invoke(state)
+    }
+
     // =================================================================================
     // FUNCTION: onSwipeDetected
     // SUMMARY: Handles swipe gesture completion. Runs decoding in background thread.
@@ -1181,6 +1228,8 @@ class KeyboardOverlay(
         val prefix = currentComposingWord.toString()
         if (prefix.isEmpty()) {
             keyboardView?.setSuggestions(emptyList())
+            lastSuggestions = emptyList()
+            onSuggestionsChanged?.invoke(emptyList())
             return
         }
 
@@ -1206,7 +1255,12 @@ class KeyboardOverlay(
             }
         }
 
-        keyboardView?.setSuggestions(candidates.take(3))
+        val finalCandidates = candidates.take(3)
+        keyboardView?.setSuggestions(finalCandidates)
+
+        // Sync to mirror keyboard
+        lastSuggestions = finalCandidates.map { it.text }
+        onSuggestionsChanged?.invoke(lastSuggestions)
     }
     // =================================================================================
     // END BLOCK: updateSuggestions
@@ -1215,6 +1269,8 @@ class KeyboardOverlay(
     private fun resetComposition() {
         currentComposingWord.clear()
         keyboardView?.setSuggestions(emptyList())
+        lastSuggestions = emptyList()
+        onSuggestionsChanged?.invoke(emptyList())
     }
 
     private fun injectKey(keyCode: Int, metaState: Int) {

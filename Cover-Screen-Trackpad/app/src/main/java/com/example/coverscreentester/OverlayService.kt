@@ -1496,6 +1496,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // END BLOCK: VIRTUAL MIRROR TOUCH CALLBACK
         // =================================================================================
 
+        // Wire up layer change callback for mirror keyboard sync
+        keyboardOverlay?.onLayerChanged = { state ->
+            syncMirrorKeyboardLayer(state)
+        }
+
+        // Wire up suggestions callback for mirror keyboard sync
+        keyboardOverlay?.onSuggestionsChanged = { suggestions ->
+            syncMirrorSuggestions(suggestions)
+        }
+
         // FIX: Restore Saved Layout (fixes reset/aspect ratio issue)
         if (savedKbW > 0 && savedKbH > 0) {
             keyboardOverlay?.updatePosition(savedKbX, savedKbY)
@@ -1927,6 +1937,36 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
         isInOrientationMode = false
     }
+
+    // =================================================================================
+    // FUNCTION: syncMirrorKeyboardLayer
+    // SUMMARY: Syncs keyboard layer (state) from physical to mirror keyboard.
+    //          Called when layer changes (shift, symbols, etc.)
+    // =================================================================================
+    private fun syncMirrorKeyboardLayer(state: KeyboardView.KeyboardState) {
+        mirrorKeyboardView?.setKeyboardState(state)
+
+        // Also sync Ctrl/Alt state
+        keyboardOverlay?.getCtrlAltState()?.let { (ctrl, alt) ->
+            mirrorKeyboardView?.setCtrlAltState(ctrl, alt)
+        }
+    }
+    // =================================================================================
+    // END BLOCK: syncMirrorKeyboardLayer
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: syncMirrorSuggestions
+    // SUMMARY: Syncs prediction/suggestion bar from physical to mirror keyboard.
+    //          Called when suggestions change during typing.
+    // =================================================================================
+    private fun syncMirrorSuggestions(suggestions: List<String>) {
+        val candidates = suggestions.map { KeyboardView.Candidate(it, isNew = false) }
+        mirrorKeyboardView?.setSuggestions(candidates)
+    }
+    // =================================================================================
+    // END BLOCK: syncMirrorSuggestions
+    // =================================================================================
 
     // =================================================================================
     // FUNCTION: onMirrorKeyboardTouch

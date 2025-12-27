@@ -42,6 +42,7 @@ class KeyboardView @JvmOverloads constructor(
         fun onSuggestionClick(text: String, isNew: Boolean) // Updated
         fun onSwipeDetected(path: List<android.graphics.PointF>)
         fun onSuggestionDropped(text: String) // New: Drag to Delete
+        fun onLayerChanged(state: KeyboardState) // Sync to mirror keyboard
     }
 
     enum class SpecialKey {
@@ -414,6 +415,44 @@ class KeyboardView @JvmOverloads constructor(
     // =================================================================================
 
     // =================================================================================
+    // FUNCTION: getKeyboardState / setKeyboardState
+    // SUMMARY: Gets/sets the current keyboard layer state for syncing to mirror.
+    // =================================================================================
+    fun getKeyboardState(): KeyboardState {
+        return currentState
+    }
+
+    fun setKeyboardState(state: KeyboardState) {
+        if (currentState != state) {
+            currentState = state
+            buildKeyboard()
+        }
+    }
+
+    fun getShiftState(): Pair<Boolean, Boolean> {
+        // Returns (isShifted, isCapsLock)
+        return Pair(
+            currentState == KeyboardState.UPPERCASE,
+            currentState == KeyboardState.CAPS_LOCK
+        )
+    }
+
+    fun getCtrlAltState(): Pair<Boolean, Boolean> {
+        return Pair(isCtrlActive, isAltActive)
+    }
+
+    fun setCtrlAltState(ctrl: Boolean, alt: Boolean) {
+        if (isCtrlActive != ctrl || isAltActive != alt) {
+            isCtrlActive = ctrl
+            isAltActive = alt
+            buildKeyboard()
+        }
+    }
+    // =================================================================================
+    // END BLOCK: getKeyboardState / setKeyboardState
+    // =================================================================================
+
+    // =================================================================================
     // FUNCTION: isOrientationModeActive
     // SUMMARY: Returns whether orientation mode is currently active.
     // @return true if orientation mode is blocking key input
@@ -593,10 +632,13 @@ class KeyboardView @JvmOverloads constructor(
         
         enterContainer.addView(enterKey)
         bottomContainer.addView(enterContainer)
-        
+
         addView(bottomContainer)
-        
+
         addView(createRow(navRow, 5))
+
+        // Notify listener of layer change for mirror sync
+        listener?.onLayerChanged(currentState)
     }
 
     private fun createRow(keys: List<String>, rowIndex: Int): LinearLayout {
