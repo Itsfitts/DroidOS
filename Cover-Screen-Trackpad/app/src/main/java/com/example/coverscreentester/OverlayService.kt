@@ -1907,7 +1907,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 PixelFormat.TRANSLUCENT
             )
             mirrorKeyboardParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            mirrorKeyboardParams?.y = 20
+            mirrorKeyboardParams?.y = 0
 
             mirrorWindowManager?.addView(mirrorKeyboardContainer, mirrorKeyboardParams)
 

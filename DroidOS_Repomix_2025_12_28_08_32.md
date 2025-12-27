@@ -3080,6 +3080,70 @@ class KeyboardManager(
 }
 ````
 
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardPickerActivity.kt
+````kotlin
+package com.example.coverscreentester
+
+import android.app.Activity
+import android.content.Context
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+
+class KeyboardPickerActivity : Activity() {
+    
+    private var hasLaunchedPicker = false
+    private var pickerWasOpened = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // Transparent touchable view
+        val view = View(this)
+        view.setBackgroundColor(0x00000000) 
+        view.isClickable = true
+        
+        // Safety Net: If logic fails, user can tap screen to close
+        view.setOnClickListener { finish() }
+        setContentView(view)
+        
+        // Launch picker after window is ready
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (!isFinishing) launchPicker()
+        }, 300)
+    }
+
+    private fun launchPicker() {
+        if (hasLaunchedPicker) return
+        try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showInputMethodPicker()
+            hasLaunchedPicker = true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            finish()
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        
+        if (hasLaunchedPicker) {
+            if (!hasFocus) {
+                // We lost focus -> The Picker Dialog is now showing
+                pickerWasOpened = true
+            } else if (hasFocus && pickerWasOpened) {
+                // We regained focus -> The Picker Dialog just closed
+                // We are done.
+                finish()
+            }
+        }
+    }
+}
+````
+
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardUtils.kt
 ````kotlin
 package com.example.coverscreentester
@@ -4840,6 +4904,12 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
     </data-extraction-rules>
 ````
 
+## File: Cover-Screen-Trackpad/app/src/main/res/xml/method.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android" />
+````
+
 ## File: Cover-Screen-Trackpad/app/.gitignore
 ````
 /build
@@ -6518,6 +6588,500 @@ class ManualAdjustActivity : Activity() {
 }
 ````
 
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/NullInputMethodService.kt
+````kotlin
+package com.example.coverscreentester
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.inputmethodservice.InputMethodService
+import android.view.KeyEvent
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.os.Build
+import androidx.core.content.ContextCompat
+
+class NullInputMethodService : InputMethodService() {
+
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                // COMMAND 1: SWITCH KEYBOARD (Restore Gboard)
+                "com.example.coverscreentester.RESTORE_IME" -> {
+                    val targetIme = intent.getStringExtra("target_ime")
+                    if (!targetIme.isNullOrEmpty()) {
+                        try {
+                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                            val token = window?.window?.attributes?.token
+                            if (token != null) {
+                                imm.setInputMethod(token, targetIme)
+                            }
+                        } catch (e: Exception) { e.printStackTrace() }
+                    }
+                }
+
+                // COMMAND 2: TYPE KEY (Native Input)
+                "com.example.coverscreentester.INJECT_KEY" -> {
+                    val keyCode = intent.getIntExtra("keyCode", 0)
+                    val metaState = intent.getIntExtra("metaState", 0)
+
+                    if (keyCode != 0 && currentInputConnection != null) {
+                        val now = System.currentTimeMillis()
+                        currentInputConnection.sendKeyEvent(
+                            KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0, metaState)
+                        )
+                        currentInputConnection.sendKeyEvent(
+                            KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0, metaState)
+                        )
+                    }
+                }
+
+                // COMMAND 3: INJECT TEXT (Swipe/Prediction Support)
+                "com.example.coverscreentester.INJECT_TEXT" -> {
+                    val text = intent.getStringExtra("text")
+                    if (!text.isNullOrEmpty() && currentInputConnection != null) {
+                        // commitText inserts the string at the cursor position
+                        // '1' moves the cursor to the end of the inserted text
+                        currentInputConnection.commitText(text, 1)
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        val filter = IntentFilter().apply {
+            addAction("com.example.coverscreentester.RESTORE_IME")
+            addAction("com.example.coverscreentester.INJECT_KEY")
+            addAction("com.example.coverscreentester.INJECT_TEXT")
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(receiver) } catch (e: Exception) {}
+    }
+
+    override fun onCreateInputView(): View {
+        // Return a zero-sized, hidden view
+        return View(this).apply { 
+            layoutParams = android.view.ViewGroup.LayoutParams(0, 0)
+            visibility = View.GONE
+        }
+    }
+    
+    override fun onEvaluateInputViewShown(): Boolean {
+        super.onEvaluateInputViewShown()
+        // Crucial: Tell system NOT to allocate screen space for this keyboard
+        return false 
+    }
+    
+    override fun onEvaluateFullscreenMode(): Boolean = false // Important: Never take over full screen
+}
+````
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShellUserService.kt
+````kotlin
+package com.example.coverscreentester
+
+import android.os.Binder
+import android.os.IBinder
+import android.os.Process
+import android.os.SystemClock
+import android.util.Log
+import android.view.InputDevice
+import android.view.InputEvent
+import android.view.KeyEvent
+import android.view.MotionEvent
+import com.example.coverscreentester.IShellService
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.lang.reflect.Method
+import java.util.ArrayList
+import android.os.Build
+import android.annotation.SuppressLint
+
+class ShellUserService : IShellService.Stub() {
+
+    private val TAG = "ShellUserService"
+    private lateinit var inputManager: Any
+    private lateinit var injectInputEventMethod: Method
+    private val INJECT_MODE_ASYNC = 0
+    private var isReflectionBroken = false
+
+    // --- Screen Control Reflection ---
+    companion object {
+        const val POWER_MODE_OFF = 0
+        const val POWER_MODE_NORMAL = 2
+        
+        @Volatile private var displayControlClass: Class<*>? = null
+        @Volatile private var displayControlClassLoaded = false
+    }
+
+    private val surfaceControlClass: Class<*> by lazy {
+        Class.forName("android.view.SurfaceControl")
+    }
+
+    init {
+        setupReflection()
+    }
+
+    private fun setupReflection() {
+        try {
+            val imClass = Class.forName("android.hardware.input.InputManager")
+            val getInstance = imClass.getMethod("getInstance")
+            inputManager = getInstance.invoke(null)!!
+            injectInputEventMethod = imClass.getMethod("injectInputEvent", InputEvent::class.java, Int::class.javaPrimitiveType)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to setup reflection", e)
+            isReflectionBroken = true
+        }
+    }
+
+    // --- HELPER: Display Control Class (Android 14+) ---
+    @SuppressLint("BlockedPrivateApi")
+    private fun getDisplayControlClass(): Class<*>? {
+        if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
+        
+        return try {
+            val classLoaderFactoryClass = Class.forName("com.android.internal.os.ClassLoaderFactory")
+            val createClassLoaderMethod = classLoaderFactoryClass.getDeclaredMethod(
+                "createClassLoader",
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                ClassLoader::class.java,
+                Int::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                String::class.java
+            )
+            val classLoader = createClassLoaderMethod.invoke(
+                null, "/system/framework/services.jar", null, null,
+                ClassLoader.getSystemClassLoader(), 0, true, null
+            ) as ClassLoader
+
+            val loadedClass = classLoader.loadClass("com.android.server.display.DisplayControl").also {
+                val loadMethod = Runtime::class.java.getDeclaredMethod(
+                    "loadLibrary0",
+                    Class::class.java,
+                    String::class.java
+                )
+                loadMethod.isAccessible = true
+                loadMethod.invoke(Runtime.getRuntime(), it, "android_servers")
+            }
+            
+            displayControlClass = loadedClass
+            displayControlClassLoaded = true
+            loadedClass
+        } catch (e: Exception) {
+            Log.w(TAG, "DisplayControl not available", e)
+            null
+        }
+    }
+
+    // --- HELPER: Get Physical Display Tokens ---
+    private fun getAllPhysicalDisplayTokens(): List<IBinder> {
+        val tokens = ArrayList<IBinder>()
+        try {
+            val physicalIds: LongArray = if (Build.VERSION.SDK_INT >= 34) {
+                val controlClass = getDisplayControlClass()
+                if (controlClass != null) {
+                    controlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                } else {
+                     try {
+                        surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                     } catch (e: Exception) { LongArray(0) }
+                }
+            } else {
+                surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+            }
+
+            if (physicalIds.isEmpty()) {
+                getSurfaceControlInternalToken()?.let { tokens.add(it) }
+                return tokens
+            }
+
+            for (id in physicalIds) {
+                try {
+                    val token: IBinder? = if (Build.VERSION.SDK_INT >= 34) {
+                        val controlClass = getDisplayControlClass()
+                        if (controlClass != null) {
+                             controlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        } else {
+                            surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        }
+                    } else {
+                        surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                            .invoke(null, id) as? IBinder
+                    }
+                    
+                    if (token != null) tokens.add(token)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to get token for physical ID $id", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Critical failure getting display tokens", e)
+        }
+        return tokens
+    }
+
+    private fun getSurfaceControlInternalToken(): IBinder? {
+        return try {
+            if (Build.VERSION.SDK_INT < 29) {
+                surfaceControlClass.getMethod("getBuiltInDisplay", Int::class.java).invoke(null, 0) as IBinder
+            } else {
+                surfaceControlClass.getMethod("getInternalDisplayToken").invoke(null) as IBinder
+            }
+        } catch (e: Exception) { null }
+    }
+
+    private fun setPowerModeOnToken(token: IBinder, mode: Int) {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayPowerMode",
+                IBinder::class.java,
+                Int::class.javaPrimitiveType
+            )
+            method.invoke(null, token, mode)
+        } catch (e: Exception) {
+            Log.e(TAG, "setDisplayPowerMode failed for token $token", e)
+        }
+    }
+
+    private fun setDisplayBrightnessOnToken(token: IBinder, brightness: Float): Boolean {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayBrightness",
+                IBinder::class.java,
+                Float::class.javaPrimitiveType
+            )
+            method.invoke(null, token, brightness)
+            return true
+        } catch (e: Exception) {
+             try {
+                val method = surfaceControlClass.getMethod(
+                    "setDisplayBrightness",
+                    IBinder::class.java,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType
+                )
+                method.invoke(null, token, brightness, brightness, brightness, brightness)
+                return true
+            } catch (e2: Exception) {
+                return false
+            }
+        }
+    }
+
+    // --- SHELL COMMAND HELPER ---
+    private fun execShell(cmd: String) {
+        try {
+            Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd)).waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "Shell command failed", e)
+        }
+    }
+
+    // --- IMPLEMENTATION: BRIGHTNESS (ALTERNATE MODE) ---
+    override fun setBrightness(value: Int) {
+        val token = Binder.clearCallingIdentity()
+        try {
+            Log.i(TAG, "setBrightness: $value")
+            execShell("settings put system screen_brightness_mode 0")
+
+            if (value == -1) {
+                // Alternate Mode (Extinguish)
+                execShell("settings put system screen_brightness_min 0")
+                execShell("settings put system screen_brightness_float -1.0")
+                execShell("settings put system screen_brightness -1")
+                
+                val tokens = getAllPhysicalDisplayTokens()
+                val safeTokens = tokens.take(2)
+                for (t in safeTokens) {
+                    setDisplayBrightnessOnToken(t, -1.0f)
+                }
+            } else {
+                // Wake Up
+                val safeVal = value.coerceIn(1, 255)
+                val floatVal = safeVal / 255.0f
+                
+                execShell("settings put system screen_brightness_float $floatVal")
+                execShell("settings put system screen_brightness $safeVal")
+                
+                val tokens = getAllPhysicalDisplayTokens()
+                for (t in tokens) {
+                    setDisplayBrightnessOnToken(t, floatVal)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in setBrightness", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+
+    // --- IMPLEMENTATION: SCREEN OFF (STANDARD MODE) ---
+    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
+        val token = Binder.clearCallingIdentity()
+        try {
+            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
+            
+            val tokens = getAllPhysicalDisplayTokens()
+            val safeTokens = tokens.take(2) // Safety: Only target first 2 displays
+            
+            for (t in safeTokens) {
+                setPowerModeOnToken(t, mode)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setScreenOff failed", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    
+    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean {
+        return false
+    }
+
+    // --- INPUT INJECTION ---
+    override fun injectKey(keyCode: Int, action: Int, metaState: Int, displayId: Int, deviceId: Int) {
+        if (!this::inputManager.isInitialized) return
+        val now = SystemClock.uptimeMillis()
+        
+        // CRITICAL CONFIGURATION:
+        // Device ID = 1 (Mimics the "Hardware Keyboard" we use to block soft-kb)
+        // Scan Code = 0 (Generic/Ignore). Setting this to 1 caused the buffering/reject issue.
+        val forcedDeviceId = 1 
+        val finalScanCode = 0 
+        val finalFlags = 8 // FLAG_FROM_SYSTEM
+        
+        val event = KeyEvent(
+            now, now, action, keyCode, 0, metaState, 
+            forcedDeviceId, finalScanCode, finalFlags, 
+            InputDevice.SOURCE_KEYBOARD
+        )
+        
+        try {
+            // Restore Display Targeting
+            // We MUST target the display where the user is looking.
+            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
+            method.invoke(event, displayId)
+            
+            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
+        } catch (e: Exception) {
+            // Fallback
+            if (action == KeyEvent.ACTION_DOWN) execShell("input keyevent $keyCode")
+        }
+    }
+
+    // Trigger to force system to update "Hardware Keyboard" status immediately
+    override fun injectDummyHardwareKey(displayId: Int) {
+         if (!this::inputManager.isInitialized) return
+         val now = SystemClock.uptimeMillis()
+         
+         // Use SAME ID (1) as the text injection to maintain consistency
+         val eventDown = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
+         val eventUp = KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
+         
+         try {
+            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
+            method.invoke(eventDown, displayId)
+            method.invoke(eventUp, displayId)
+            
+            injectInputEventMethod.invoke(inputManager, eventDown, INJECT_MODE_ASYNC)
+            injectInputEventMethod.invoke(inputManager, eventUp, INJECT_MODE_ASYNC)
+         } catch(e: Exception) {}
+    }
+
+    override fun injectMouse(action: Int, x: Float, y: Float, displayId: Int, source: Int, buttonState: Int, downTime: Long) {
+        injectInternal(action, x, y, displayId, downTime, SystemClock.uptimeMillis(), source, buttonState)
+    }
+    
+    override fun injectScroll(x: Float, y: Float, vDistance: Float, hDistance: Float, displayId: Int) {
+         if (!this::inputManager.isInitialized) return
+         val now = SystemClock.uptimeMillis()
+         val props = MotionEvent.PointerProperties(); props.id = 0; props.toolType = MotionEvent.TOOL_TYPE_MOUSE
+         val coords = MotionEvent.PointerCoords(); coords.x = x; coords.y = y; coords.pressure = 1.0f; coords.size = 1.0f
+         coords.setAxisValue(MotionEvent.AXIS_VSCROLL, vDistance)
+         coords.setAxisValue(MotionEvent.AXIS_HSCROLL, hDistance)
+         try {
+             val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_SCROLL, 1, arrayOf(props), arrayOf(coords), 0, 0, 1.0f, 1.0f, 0, 0, InputDevice.SOURCE_MOUSE, 0)
+             val method = MotionEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
+             method.invoke(event, displayId)
+             injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
+             event.recycle()
+         } catch(e: Exception){}
+    }
+
+    override fun execClick(x: Float, y: Float, displayId: Int) {
+        val now = SystemClock.uptimeMillis()
+        // Fix: Use SOURCE_TOUCHSCREEN to mimic a physical Finger tap
+        // This is more reliable than Mouse events for Android UI elements
+        injectInternal(MotionEvent.ACTION_DOWN, x, y, displayId, now, now, InputDevice.SOURCE_TOUCHSCREEN, 0)
+        try { Thread.sleep(60) } catch (e: InterruptedException) {}
+        injectInternal(MotionEvent.ACTION_UP, x, y, displayId, now, now+60, InputDevice.SOURCE_TOUCHSCREEN, 0)
+    }
+
+    override fun execRightClick(x: Float, y: Float, displayId: Int) {
+        val now = SystemClock.uptimeMillis()
+        // Right click must remain MOUSE (Android doesn't have right-click for touch)
+        injectInternal(MotionEvent.ACTION_DOWN, x, y, displayId, now, now, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_SECONDARY)
+        try { Thread.sleep(60) } catch (e: InterruptedException) {}
+        injectInternal(MotionEvent.ACTION_UP, x, y, displayId, now, now+60, InputDevice.SOURCE_MOUSE, 0)
+    }
+
+    private fun injectInternal(action: Int, x: Float, y: Float, displayId: Int, downTime: Long, eventTime: Long, source: Int, buttonState: Int) {
+        if (!this::inputManager.isInitialized) return
+        val props = MotionEvent.PointerProperties(); props.id = 0
+        props.toolType = if (source == InputDevice.SOURCE_MOUSE) MotionEvent.TOOL_TYPE_MOUSE else MotionEvent.TOOL_TYPE_FINGER
+        val coords = MotionEvent.PointerCoords(); coords.x = x; coords.y = y
+        coords.pressure = if (buttonState != 0 || action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE) 1.0f else 0.0f; coords.size = 1.0f
+        try {
+            val event = MotionEvent.obtain(downTime, eventTime, action, 1, arrayOf(props), arrayOf(coords), 0, buttonState, 1.0f, 1.0f, 0, 0, source, 0)
+            val method = MotionEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
+            method.invoke(event, displayId)
+            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
+            event.recycle()
+        } catch (e: Exception) { Log.e(TAG, "Injection failed", e) }
+    }
+
+    override fun setWindowingMode(taskId: Int, mode: Int) {}
+    override fun resizeTask(taskId: Int, left: Int, top: Int, right: Int, bottom: Int) {}
+    override fun runCommand(cmd: String): String {
+        val token = Binder.clearCallingIdentity()
+        val output = StringBuilder()
+        try {
+            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                output.append(line).append("\n")
+            }
+            reader.close()
+            process.waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "runCommand failed: $cmd", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+        return output.toString()
+    }
+}
+````
+
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShizukuInputHandler.kt
 ````kotlin
 package com.example.coverscreentester
@@ -6820,10 +7384,136 @@ class TrackpadService : Service() {
     android:accessibilityFlags="flagRequestTouchExplorationMode|flagRequestFilterKeyEvents" />
 ````
 
-## File: Cover-Screen-Trackpad/app/src/main/res/xml/method.xml
+## File: Cover-Screen-Trackpad/app/src/main/AndroidManifest.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
-<input-method xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="rikka.shizuku.ui" />
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VOICE_COMMAND" />
+        </intent>
+        <package android:name="com.google.android.googlequicksearchbox" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_trackpad_adaptive"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_trackpad_adaptive"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CoverScreenTester"
+        android:resizeableActivity="true"> 
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|density|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            
+            <meta-data android:name="android.max_aspect" android:value="4.0" />
+        </activity>
+
+        <activity 
+            android:name=".SettingsActivity"
+            android:exported="false" 
+            android:theme="@style/Theme.CoverScreenTester" />
+
+        <activity 
+            android:name=".ProfilesActivity"
+            android:exported="false" 
+            android:theme="@style/Theme.CoverScreenTester" />
+
+        <activity 
+            android:name=".ManualAdjustActivity"
+            android:exported="false" 
+            android:theme="@style/Theme.CoverScreenTester" />
+            
+        <activity 
+            android:name=".KeyboardActivity"
+            android:exported="false" 
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true" />
+
+        <activity
+            android:name=".KeyboardPickerActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance"
+            android:exported="false" />
+
+        <service
+            android:name=".OverlayService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+                <action android:name="PREVIEW_UPDATE" />
+                <action android:name="RESET_POSITION" />
+                <action android:name="ROTATE" />
+                <action android:name="SAVE_LAYOUT" />
+                <action android:name="LOAD_LAYOUT" />
+                <action android:name="RELOAD_PREFS" />
+                <action android:name="DELETE_PROFILE" />
+                <action android:name="MANUAL_ADJUST" /> 
+                <action android:name="CYCLE_INPUT_TARGET" />
+                <action android:name="RESET_CURSOR" />
+                <action android:name="TOGGLE_DEBUG" />
+                <action android:name="FORCE_KEYBOARD" />
+                <action android:name="TOGGLE_CUSTOM_KEYBOARD" />
+                <action android:name="SET_TRACKPAD_VISIBILITY" />
+                <action android:name="SET_PREVIEW_MODE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <service
+            android:name=".NullInputMethodService"
+            android:label="DroidOS Null Keyboard"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false" />
+
+    </application>
+
+</manifest>
 ````
 
 ## File: Cover-Screen-Trackpad/app/build.gradle.kts
@@ -17623,70 +18313,6 @@ configurations
 poiso
 ````
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardPickerActivity.kt
-````kotlin
-package com.example.coverscreentester
-
-import android.app.Activity
-import android.content.Context
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.view.View
-import android.view.inputmethod.InputMethodManager
-
-class KeyboardPickerActivity : Activity() {
-    
-    private var hasLaunchedPicker = false
-    private var pickerWasOpened = false
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        
-        // Transparent touchable view
-        val view = View(this)
-        view.setBackgroundColor(0x00000000) 
-        view.isClickable = true
-        
-        // Safety Net: If logic fails, user can tap screen to close
-        view.setOnClickListener { finish() }
-        setContentView(view)
-        
-        // Launch picker after window is ready
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (!isFinishing) launchPicker()
-        }, 300)
-    }
-
-    private fun launchPicker() {
-        if (hasLaunchedPicker) return
-        try {
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showInputMethodPicker()
-            hasLaunchedPicker = true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            finish()
-        }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        
-        if (hasLaunchedPicker) {
-            if (!hasFocus) {
-                // We lost focus -> The Picker Dialog is now showing
-                pickerWasOpened = true
-            } else if (hasFocus && pickerWasOpened) {
-                // We regained focus -> The Picker Dialog just closed
-                // We are done.
-                finish()
-            }
-        }
-    }
-}
-````
-
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/SettingsActivity.kt
 ````kotlin
 package com.example.coverscreentester
@@ -17821,400 +18447,6 @@ class SettingsActivity : Activity() {
         }
         override fun onStartTrackingTouch(s: SeekBar) {}
         override fun onStopTrackingTouch(s: SeekBar) {}
-    }
-}
-````
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShellUserService.kt
-````kotlin
-package com.example.coverscreentester
-
-import android.os.Binder
-import android.os.IBinder
-import android.os.Process
-import android.os.SystemClock
-import android.util.Log
-import android.view.InputDevice
-import android.view.InputEvent
-import android.view.KeyEvent
-import android.view.MotionEvent
-import com.example.coverscreentester.IShellService
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.lang.reflect.Method
-import java.util.ArrayList
-import android.os.Build
-import android.annotation.SuppressLint
-
-class ShellUserService : IShellService.Stub() {
-
-    private val TAG = "ShellUserService"
-    private lateinit var inputManager: Any
-    private lateinit var injectInputEventMethod: Method
-    private val INJECT_MODE_ASYNC = 0
-    private var isReflectionBroken = false
-
-    // --- Screen Control Reflection ---
-    companion object {
-        const val POWER_MODE_OFF = 0
-        const val POWER_MODE_NORMAL = 2
-        
-        @Volatile private var displayControlClass: Class<*>? = null
-        @Volatile private var displayControlClassLoaded = false
-    }
-
-    private val surfaceControlClass: Class<*> by lazy {
-        Class.forName("android.view.SurfaceControl")
-    }
-
-    init {
-        setupReflection()
-    }
-
-    private fun setupReflection() {
-        try {
-            val imClass = Class.forName("android.hardware.input.InputManager")
-            val getInstance = imClass.getMethod("getInstance")
-            inputManager = getInstance.invoke(null)!!
-            injectInputEventMethod = imClass.getMethod("injectInputEvent", InputEvent::class.java, Int::class.javaPrimitiveType)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to setup reflection", e)
-            isReflectionBroken = true
-        }
-    }
-
-    // --- HELPER: Display Control Class (Android 14+) ---
-    @SuppressLint("BlockedPrivateApi")
-    private fun getDisplayControlClass(): Class<*>? {
-        if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
-        
-        return try {
-            val classLoaderFactoryClass = Class.forName("com.android.internal.os.ClassLoaderFactory")
-            val createClassLoaderMethod = classLoaderFactoryClass.getDeclaredMethod(
-                "createClassLoader",
-                String::class.java,
-                String::class.java,
-                String::class.java,
-                ClassLoader::class.java,
-                Int::class.javaPrimitiveType,
-                Boolean::class.javaPrimitiveType,
-                String::class.java
-            )
-            val classLoader = createClassLoaderMethod.invoke(
-                null, "/system/framework/services.jar", null, null,
-                ClassLoader.getSystemClassLoader(), 0, true, null
-            ) as ClassLoader
-
-            val loadedClass = classLoader.loadClass("com.android.server.display.DisplayControl").also {
-                val loadMethod = Runtime::class.java.getDeclaredMethod(
-                    "loadLibrary0",
-                    Class::class.java,
-                    String::class.java
-                )
-                loadMethod.isAccessible = true
-                loadMethod.invoke(Runtime.getRuntime(), it, "android_servers")
-            }
-            
-            displayControlClass = loadedClass
-            displayControlClassLoaded = true
-            loadedClass
-        } catch (e: Exception) {
-            Log.w(TAG, "DisplayControl not available", e)
-            null
-        }
-    }
-
-    // --- HELPER: Get Physical Display Tokens ---
-    private fun getAllPhysicalDisplayTokens(): List<IBinder> {
-        val tokens = ArrayList<IBinder>()
-        try {
-            val physicalIds: LongArray = if (Build.VERSION.SDK_INT >= 34) {
-                val controlClass = getDisplayControlClass()
-                if (controlClass != null) {
-                    controlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-                } else {
-                     try {
-                        surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-                     } catch (e: Exception) { LongArray(0) }
-                }
-            } else {
-                surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-            }
-
-            if (physicalIds.isEmpty()) {
-                getSurfaceControlInternalToken()?.let { tokens.add(it) }
-                return tokens
-            }
-
-            for (id in physicalIds) {
-                try {
-                    val token: IBinder? = if (Build.VERSION.SDK_INT >= 34) {
-                        val controlClass = getDisplayControlClass()
-                        if (controlClass != null) {
-                             controlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                                .invoke(null, id) as? IBinder
-                        } else {
-                            surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                                .invoke(null, id) as? IBinder
-                        }
-                    } else {
-                        surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                            .invoke(null, id) as? IBinder
-                    }
-                    
-                    if (token != null) tokens.add(token)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to get token for physical ID $id", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Critical failure getting display tokens", e)
-        }
-        return tokens
-    }
-
-    private fun getSurfaceControlInternalToken(): IBinder? {
-        return try {
-            if (Build.VERSION.SDK_INT < 29) {
-                surfaceControlClass.getMethod("getBuiltInDisplay", Int::class.java).invoke(null, 0) as IBinder
-            } else {
-                surfaceControlClass.getMethod("getInternalDisplayToken").invoke(null) as IBinder
-            }
-        } catch (e: Exception) { null }
-    }
-
-    private fun setPowerModeOnToken(token: IBinder, mode: Int) {
-        try {
-            val method = surfaceControlClass.getMethod(
-                "setDisplayPowerMode",
-                IBinder::class.java,
-                Int::class.javaPrimitiveType
-            )
-            method.invoke(null, token, mode)
-        } catch (e: Exception) {
-            Log.e(TAG, "setDisplayPowerMode failed for token $token", e)
-        }
-    }
-
-    private fun setDisplayBrightnessOnToken(token: IBinder, brightness: Float): Boolean {
-        try {
-            val method = surfaceControlClass.getMethod(
-                "setDisplayBrightness",
-                IBinder::class.java,
-                Float::class.javaPrimitiveType
-            )
-            method.invoke(null, token, brightness)
-            return true
-        } catch (e: Exception) {
-             try {
-                val method = surfaceControlClass.getMethod(
-                    "setDisplayBrightness",
-                    IBinder::class.java,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType
-                )
-                method.invoke(null, token, brightness, brightness, brightness, brightness)
-                return true
-            } catch (e2: Exception) {
-                return false
-            }
-        }
-    }
-
-    // --- SHELL COMMAND HELPER ---
-    private fun execShell(cmd: String) {
-        try {
-            Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd)).waitFor()
-        } catch (e: Exception) {
-            Log.e(TAG, "Shell command failed", e)
-        }
-    }
-
-    // --- IMPLEMENTATION: BRIGHTNESS (ALTERNATE MODE) ---
-    override fun setBrightness(value: Int) {
-        val token = Binder.clearCallingIdentity()
-        try {
-            Log.i(TAG, "setBrightness: $value")
-            execShell("settings put system screen_brightness_mode 0")
-
-            if (value == -1) {
-                // Alternate Mode (Extinguish)
-                execShell("settings put system screen_brightness_min 0")
-                execShell("settings put system screen_brightness_float -1.0")
-                execShell("settings put system screen_brightness -1")
-                
-                val tokens = getAllPhysicalDisplayTokens()
-                val safeTokens = tokens.take(2)
-                for (t in safeTokens) {
-                    setDisplayBrightnessOnToken(t, -1.0f)
-                }
-            } else {
-                // Wake Up
-                val safeVal = value.coerceIn(1, 255)
-                val floatVal = safeVal / 255.0f
-                
-                execShell("settings put system screen_brightness_float $floatVal")
-                execShell("settings put system screen_brightness $safeVal")
-                
-                val tokens = getAllPhysicalDisplayTokens()
-                for (t in tokens) {
-                    setDisplayBrightnessOnToken(t, floatVal)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in setBrightness", e)
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-    }
-
-    // --- IMPLEMENTATION: SCREEN OFF (STANDARD MODE) ---
-    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
-        val token = Binder.clearCallingIdentity()
-        try {
-            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
-            
-            val tokens = getAllPhysicalDisplayTokens()
-            val safeTokens = tokens.take(2) // Safety: Only target first 2 displays
-            
-            for (t in safeTokens) {
-                setPowerModeOnToken(t, mode)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "setScreenOff failed", e)
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-    }
-    
-    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean {
-        return false
-    }
-
-    // --- INPUT INJECTION ---
-    override fun injectKey(keyCode: Int, action: Int, metaState: Int, displayId: Int, deviceId: Int) {
-        if (!this::inputManager.isInitialized) return
-        val now = SystemClock.uptimeMillis()
-        
-        // CRITICAL CONFIGURATION:
-        // Device ID = 1 (Mimics the "Hardware Keyboard" we use to block soft-kb)
-        // Scan Code = 0 (Generic/Ignore). Setting this to 1 caused the buffering/reject issue.
-        val forcedDeviceId = 1 
-        val finalScanCode = 0 
-        val finalFlags = 8 // FLAG_FROM_SYSTEM
-        
-        val event = KeyEvent(
-            now, now, action, keyCode, 0, metaState, 
-            forcedDeviceId, finalScanCode, finalFlags, 
-            InputDevice.SOURCE_KEYBOARD
-        )
-        
-        try {
-            // Restore Display Targeting
-            // We MUST target the display where the user is looking.
-            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-            method.invoke(event, displayId)
-            
-            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
-        } catch (e: Exception) {
-            // Fallback
-            if (action == KeyEvent.ACTION_DOWN) execShell("input keyevent $keyCode")
-        }
-    }
-
-    // Trigger to force system to update "Hardware Keyboard" status immediately
-    override fun injectDummyHardwareKey(displayId: Int) {
-         if (!this::inputManager.isInitialized) return
-         val now = SystemClock.uptimeMillis()
-         
-         // Use SAME ID (1) as the text injection to maintain consistency
-         val eventDown = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
-         val eventUp = KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0, 1, 1, 8, InputDevice.SOURCE_KEYBOARD)
-         
-         try {
-            val method = InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-            method.invoke(eventDown, displayId)
-            method.invoke(eventUp, displayId)
-            
-            injectInputEventMethod.invoke(inputManager, eventDown, INJECT_MODE_ASYNC)
-            injectInputEventMethod.invoke(inputManager, eventUp, INJECT_MODE_ASYNC)
-         } catch(e: Exception) {}
-    }
-
-    override fun injectMouse(action: Int, x: Float, y: Float, displayId: Int, source: Int, buttonState: Int, downTime: Long) {
-        injectInternal(action, x, y, displayId, downTime, SystemClock.uptimeMillis(), source, buttonState)
-    }
-    
-    override fun injectScroll(x: Float, y: Float, vDistance: Float, hDistance: Float, displayId: Int) {
-         if (!this::inputManager.isInitialized) return
-         val now = SystemClock.uptimeMillis()
-         val props = MotionEvent.PointerProperties(); props.id = 0; props.toolType = MotionEvent.TOOL_TYPE_MOUSE
-         val coords = MotionEvent.PointerCoords(); coords.x = x; coords.y = y; coords.pressure = 1.0f; coords.size = 1.0f
-         coords.setAxisValue(MotionEvent.AXIS_VSCROLL, vDistance)
-         coords.setAxisValue(MotionEvent.AXIS_HSCROLL, hDistance)
-         try {
-             val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_SCROLL, 1, arrayOf(props), arrayOf(coords), 0, 0, 1.0f, 1.0f, 0, 0, InputDevice.SOURCE_MOUSE, 0)
-             val method = MotionEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-             method.invoke(event, displayId)
-             injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
-             event.recycle()
-         } catch(e: Exception){}
-    }
-
-    override fun execClick(x: Float, y: Float, displayId: Int) {
-        val now = SystemClock.uptimeMillis()
-        // Fix: Use SOURCE_TOUCHSCREEN to mimic a physical Finger tap
-        // This is more reliable than Mouse events for Android UI elements
-        injectInternal(MotionEvent.ACTION_DOWN, x, y, displayId, now, now, InputDevice.SOURCE_TOUCHSCREEN, 0)
-        try { Thread.sleep(60) } catch (e: InterruptedException) {}
-        injectInternal(MotionEvent.ACTION_UP, x, y, displayId, now, now+60, InputDevice.SOURCE_TOUCHSCREEN, 0)
-    }
-
-    override fun execRightClick(x: Float, y: Float, displayId: Int) {
-        val now = SystemClock.uptimeMillis()
-        // Right click must remain MOUSE (Android doesn't have right-click for touch)
-        injectInternal(MotionEvent.ACTION_DOWN, x, y, displayId, now, now, InputDevice.SOURCE_MOUSE, MotionEvent.BUTTON_SECONDARY)
-        try { Thread.sleep(60) } catch (e: InterruptedException) {}
-        injectInternal(MotionEvent.ACTION_UP, x, y, displayId, now, now+60, InputDevice.SOURCE_MOUSE, 0)
-    }
-
-    private fun injectInternal(action: Int, x: Float, y: Float, displayId: Int, downTime: Long, eventTime: Long, source: Int, buttonState: Int) {
-        if (!this::inputManager.isInitialized) return
-        val props = MotionEvent.PointerProperties(); props.id = 0
-        props.toolType = if (source == InputDevice.SOURCE_MOUSE) MotionEvent.TOOL_TYPE_MOUSE else MotionEvent.TOOL_TYPE_FINGER
-        val coords = MotionEvent.PointerCoords(); coords.x = x; coords.y = y
-        coords.pressure = if (buttonState != 0 || action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE) 1.0f else 0.0f; coords.size = 1.0f
-        try {
-            val event = MotionEvent.obtain(downTime, eventTime, action, 1, arrayOf(props), arrayOf(coords), 0, buttonState, 1.0f, 1.0f, 0, 0, source, 0)
-            val method = MotionEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType)
-            method.invoke(event, displayId)
-            injectInputEventMethod.invoke(inputManager, event, INJECT_MODE_ASYNC)
-            event.recycle()
-        } catch (e: Exception) { Log.e(TAG, "Injection failed", e) }
-    }
-
-    override fun setWindowingMode(taskId: Int, mode: Int) {}
-    override fun resizeTask(taskId: Int, left: Int, top: Int, right: Int, bottom: Int) {}
-    override fun runCommand(cmd: String): String {
-        val token = Binder.clearCallingIdentity()
-        val output = StringBuilder()
-        try {
-            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                output.append(line).append("\n")
-            }
-            reader.close()
-            process.waitFor()
-        } catch (e: Exception) {
-            Log.e(TAG, "runCommand failed: $cmd", e)
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-        return output.toString()
     }
 }
 ````
@@ -18655,138 +18887,6 @@ class TrackpadPrefs {
 }
 ````
 
-## File: Cover-Screen-Trackpad/app/src/main/AndroidManifest.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <queries>
-        <package android:name="moe.shizuku.privileged.api" />
-        <package android:name="rikka.shizuku.ui" />
-        <intent>
-            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VOICE_COMMAND" />
-        </intent>
-        <package android:name="com.google.android.googlequicksearchbox" />
-    </queries>
-
-    <application
-        android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_trackpad_adaptive"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_trackpad_adaptive"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.CoverScreenTester"
-        android:resizeableActivity="true"> 
-        
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|density|smallestScreenSize"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            
-            <meta-data android:name="android.max_aspect" android:value="4.0" />
-        </activity>
-
-        <activity 
-            android:name=".SettingsActivity"
-            android:exported="false" 
-            android:theme="@style/Theme.CoverScreenTester" />
-
-        <activity 
-            android:name=".ProfilesActivity"
-            android:exported="false" 
-            android:theme="@style/Theme.CoverScreenTester" />
-
-        <activity 
-            android:name=".ManualAdjustActivity"
-            android:exported="false" 
-            android:theme="@style/Theme.CoverScreenTester" />
-            
-        <activity 
-            android:name=".KeyboardActivity"
-            android:exported="false" 
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:excludeFromRecents="true"
-            android:noHistory="true" />
-
-        <activity
-            android:name=".KeyboardPickerActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:launchMode="singleInstance"
-            android:exported="false" />
-
-        <service
-            android:name=".OverlayService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true"
-            android:foregroundServiceType="specialUse">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-                <action android:name="PREVIEW_UPDATE" />
-                <action android:name="RESET_POSITION" />
-                <action android:name="ROTATE" />
-                <action android:name="SAVE_LAYOUT" />
-                <action android:name="LOAD_LAYOUT" />
-                <action android:name="RELOAD_PREFS" />
-                <action android:name="DELETE_PROFILE" />
-                <action android:name="MANUAL_ADJUST" /> 
-                <action android:name="CYCLE_INPUT_TARGET" />
-                <action android:name="RESET_CURSOR" />
-                <action android:name="TOGGLE_DEBUG" />
-                <action android:name="FORCE_KEYBOARD" />
-                <action android:name="TOGGLE_CUSTOM_KEYBOARD" />
-                <action android:name="SET_TRACKPAD_VISIBILITY" />
-                <action android:name="SET_PREVIEW_MODE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-
-        <service
-            android:name=".NullInputMethodService"
-            android:label="DroidOS Null Keyboard"
-            android:permission="android.permission.BIND_INPUT_METHOD"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.view.InputMethod" />
-            </intent-filter>
-            <meta-data
-                android:name="android.view.im"
-                android:resource="@xml/method" />
-        </service>
-
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            android:authorities="${applicationId}.shizuku"
-            android:enabled="true"
-            android:exported="true"
-            android:multiprocess="false" />
-
-    </application>
-
-</manifest>
-````
-
 ## File: GEMINI.md
 ````markdown
 CLI AGENT CONTEXT INSTRUCTIONS
@@ -18890,498 +18990,6 @@ CleanBuildTrackpad='cd ~/projects/DroidOS/Cover-Screen-Trackpad && ./gradlew cle
 
     </application>
 </manifest>
-````
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/NullInputMethodService.kt
-````kotlin
-package com.example.coverscreentester
-
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.inputmethodservice.InputMethodService
-import android.view.KeyEvent
-import android.view.View
-import android.view.inputmethod.InputMethodManager
-import android.os.Build
-import androidx.core.content.ContextCompat
-
-class NullInputMethodService : InputMethodService() {
-
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            when (intent.action) {
-                // COMMAND 1: SWITCH KEYBOARD (Restore Gboard)
-                "com.example.coverscreentester.RESTORE_IME" -> {
-                    val targetIme = intent.getStringExtra("target_ime")
-                    if (!targetIme.isNullOrEmpty()) {
-                        try {
-                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                            val token = window?.window?.attributes?.token
-                            if (token != null) {
-                                imm.setInputMethod(token, targetIme)
-                            }
-                        } catch (e: Exception) { e.printStackTrace() }
-                    }
-                }
-
-                // COMMAND 2: TYPE KEY (Native Input)
-                "com.example.coverscreentester.INJECT_KEY" -> {
-                    val keyCode = intent.getIntExtra("keyCode", 0)
-                    val metaState = intent.getIntExtra("metaState", 0)
-
-                    if (keyCode != 0 && currentInputConnection != null) {
-                        val now = System.currentTimeMillis()
-                        currentInputConnection.sendKeyEvent(
-                            KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0, metaState)
-                        )
-                        currentInputConnection.sendKeyEvent(
-                            KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0, metaState)
-                        )
-                    }
-                }
-
-                // COMMAND 3: INJECT TEXT (Swipe/Prediction Support)
-                "com.example.coverscreentester.INJECT_TEXT" -> {
-                    val text = intent.getStringExtra("text")
-                    if (!text.isNullOrEmpty() && currentInputConnection != null) {
-                        // commitText inserts the string at the cursor position
-                        // '1' moves the cursor to the end of the inserted text
-                        currentInputConnection.commitText(text, 1)
-                    }
-                }
-            }
-        }
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        val filter = IntentFilter().apply {
-            addAction("com.example.coverscreentester.RESTORE_IME")
-            addAction("com.example.coverscreentester.INJECT_KEY")
-            addAction("com.example.coverscreentester.INJECT_TEXT")
-        }
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        try { unregisterReceiver(receiver) } catch (e: Exception) {}
-    }
-
-    override fun onCreateInputView(): View {
-        // Return a zero-sized, hidden view
-        return View(this).apply { 
-            layoutParams = android.view.ViewGroup.LayoutParams(0, 0)
-            visibility = View.GONE
-        }
-    }
-    
-    override fun onEvaluateInputViewShown(): Boolean {
-        super.onEvaluateInputViewShown()
-        // Crucial: Tell system NOT to allocate screen space for this keyboard
-        return false 
-    }
-    
-    override fun onEvaluateFullscreenMode(): Boolean = false // Important: Never take over full screen
-}
-````
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_menu.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#121212"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp"
-        android:gravity="center_horizontal">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Trackpad Setup"
-            android:textColor="#FFFFFF"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="24dp" />
-
-        <TextView
-            android:id="@+id/tvStep1Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 1: Initialize Restriction"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Disclosure: This app uses the AccessibilityService API to function as a trackpad. It simulates touch inputs (clicks and swipes) on the cover screen on your behalf. This app does not collect, store, or transmit any personal user data through this service."
-            android:textColor="#DDDDDD"
-            android:textSize="12sp"
-            android:background="#222222"
-            android:padding="12dp"
-            android:layout_marginBottom="12dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Instructions: Find 'Cover Screen Trackpad' and tap it. If a 'Restricted Setting' dialog appears, click OK and proceed to Step 2. If it enables successfully, you can skip to Step 4."
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep1Trigger"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Open Accessibility"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvStep2Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 2: Allow Restricted Settings"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="1. Click button below to open App Info.\n2. Tap the 3-dot menu (top right).\n3. Select 'Allow Restricted Settings'."
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep2Unblock"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Open App Info"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvStep3Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 3: Enable Accessibility"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Go back to Accessibility and enable 'Cover Screen Trackpad'. It should now work."
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep3Enable"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Grant Accessibility"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <!-- NEW: Step for Null Keyboard -->
-        <TextView
-            android:id="@+id/tvStepNullKeyboardTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 3.5: Enable Null Keyboard"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Required for keyboard input handling without blocking the screen. Enable 'DroidOS Null Keyboard' in the next screen."
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStepNullKeyboardEnable"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Enable Null Keyboard"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvStep4Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 4: Overlay Permission"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Disclosure: This app requires the 'Display over other apps' permission to render the mouse cursor and trackpad controls on top of your screen."
-            android:textColor="#DDDDDD"
-            android:textSize="12sp"
-            android:background="#222222"
-            android:padding="8dp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep4Overlay"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Grant Overlay"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvStep5Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 5: Shizuku Permission"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep5Shizuku"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Grant Shizuku"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Note: If Shizuku permissions are lost, a red dot may appear in the app."
-            android:textColor="#AAAAAA"
-            android:textSize="11sp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="32dp"/>
-
-        <Button
-            android:id="@+id/btnStartApp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="LAUNCH DROIDOS"
-            android:backgroundTint="#009688"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:minHeight="60dp"
-            android:layout_marginTop="8dp"/>
-
-        <Button
-            android:id="@+id/btnOpenSettings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="OPEN DROIDOS SETTINGS"
-            android:backgroundTint="#444444"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:minHeight="60dp"
-            android:layout_marginTop="16dp"/>
-
-    </LinearLayout>
-</ScrollView>
-````
-
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
-````kotlin
-package com.example.quadrantlauncher
-
-import android.accessibilityservice.AccessibilityServiceInfo
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import android.provider.Settings
-import android.util.Log
-import android.view.accessibility.AccessibilityManager
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import rikka.shizuku.Shizuku
-
-class MainActivity : AppCompatActivity() {
-
-    companion object {
-        const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
-    }
-
-    // === APP INFO DATA CLASS - START ===
-    // Represents an installed app with package name, activity class, and state info
-    // getIdentifier() returns a unique string for app identification including className when needed
-    data class AppInfo(
-        val label: String,
-        val packageName: String,
-        val className: String? = null,
-        var isFavorite: Boolean = false,
-        var isMinimized: Boolean = false
-    ) {
-        // Returns unique identifier for the app
-        fun getIdentifier(): String {
-            return if (!className.isNullOrEmpty() && packageName == "com.google.android.googlequicksearchbox") {
-                if (className.lowercase().contains("assistant") || className.lowercase().contains("gemini")) {
-                    "$packageName:gemini"
-                } else {
-                    packageName
-                }
-            } else {
-                packageName
-            }
-        }
-        
-        // === GET BASE PACKAGE - START ===
-        // Returns the base package name without any suffix
-        // Use this for shell commands that need the actual Android package name
-        fun getBasePackage(): String {
-            return if (packageName.contains(":")) {
-                packageName.substringBefore(":")
-            } else {
-                packageName
-            }
-        }
-        // === GET BASE PACKAGE - END ===
-
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (other !is AppInfo) return false
-            return packageName == other.packageName && className == other.className && label == other.label
-        }
-
-        override fun hashCode(): Int {
-            var result = packageName.hashCode()
-            result = 31 * result + (className?.hashCode() ?: 0)
-            result = 31 * result + label.hashCode()
-            return result
-        }
-    }
-    // === APP INFO DATA CLASS - END ===
-
-    /* * FUNCTION: onCreate
-     * SUMMARY: Detects the display ID where the app icon was clicked and
-     * passes it to the service to ensure the bubble follows the user.
-     */
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // Redirect to PermissionActivity if essential permissions are missing
-        if (!hasAllPermissions()) {
-            val intent = Intent(this, PermissionActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
-            finish()
-            return
-        }
-
-        // Determine which display this activity is running on
-        val displayId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            this.display?.displayId ?: 0
-        } else {
-            @Suppress("DEPRECATION")
-            windowManager.defaultDisplay.displayId
-        }
-
-        Log.d("DroidOS_Main", "Launched on Display $displayId")
-
-        // Start service and pass the current display ID to recall the bubble
-        val serviceIntent = Intent(this, FloatingLauncherService::class.java)
-        serviceIntent.putExtra("DISPLAY_ID", displayId)
-        startService(serviceIntent)
-
-        // Finish immediately so the launcher remains a service-only overlay
-        finish()
-    }
-
-    private fun hasAllPermissions(): Boolean {
-        // 1. Overlay
-        if (!Settings.canDrawOverlays(this)) return false
-
-        // 2. Shizuku
-        val shizukuGranted = try {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: Exception) {
-            false
-        }
-        if (!shizukuGranted) return false
-
-        // 3. Accessibility
-        if (!isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)) return false
-
-        // 4. Notifications removed (Not strictly required for service to run)
-
-        return true
-    }
-
-    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        for (enabledService in enabledServices) {
-            val serviceInfo = enabledService.resolveInfo.serviceInfo
-            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
-                return true
-            }
-        }
-        return false
-    }
-}
 ````
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuManager.kt
@@ -20121,6 +19729,398 @@ class TrackpadMenuManager(
         list.add(TrackpadMenuAdapter.MenuItem(text2, 0, TrackpadMenuAdapter.Type.INFO))
         
         return list
+    }
+}
+````
+
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_menu.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Trackpad Setup"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:id="@+id/tvStep1Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 1: Initialize Restriction"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Disclosure: This app uses the AccessibilityService API to function as a trackpad. It simulates touch inputs (clicks and swipes) on the cover screen on your behalf. This app does not collect, store, or transmit any personal user data through this service."
+            android:textColor="#DDDDDD"
+            android:textSize="12sp"
+            android:background="#222222"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Instructions: Find 'Cover Screen Trackpad' and tap it. If a 'Restricted Setting' dialog appears, click OK and proceed to Step 2. If it enables successfully, you can skip to Step 4."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep1Trigger"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Open Accessibility"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvStep2Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 2: Allow Restricted Settings"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. Click button below to open App Info.\n2. Tap the 3-dot menu (top right).\n3. Select 'Allow Restricted Settings'."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep2Unblock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Open App Info"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvStep3Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 3: Enable Accessibility"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Go back to Accessibility and enable 'Cover Screen Trackpad'. It should now work."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep3Enable"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Grant Accessibility"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- NEW: Step for Null Keyboard -->
+        <TextView
+            android:id="@+id/tvStepNullKeyboardTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 3.5: Enable Null Keyboard"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Required for keyboard input handling without blocking the screen. Enable 'DroidOS Null Keyboard' in the next screen."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStepNullKeyboardEnable"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Null Keyboard"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvStep4Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 4: Overlay Permission"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Disclosure: This app requires the 'Display over other apps' permission to render the mouse cursor and trackpad controls on top of your screen."
+            android:textColor="#DDDDDD"
+            android:textSize="12sp"
+            android:background="#222222"
+            android:padding="8dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep4Overlay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Grant Overlay"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvStep5Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 5: Shizuku Permission"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep5Shizuku"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Grant Shizuku"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Note: If Shizuku permissions are lost, a red dot may appear in the app."
+            android:textColor="#AAAAAA"
+            android:textSize="11sp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="32dp"/>
+
+        <Button
+            android:id="@+id/btnStartApp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="LAUNCH DROIDOS"
+            android:backgroundTint="#009688"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:minHeight="60dp"
+            android:layout_marginTop="8dp"/>
+
+        <Button
+            android:id="@+id/btnOpenSettings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="OPEN DROIDOS SETTINGS"
+            android:backgroundTint="#444444"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:minHeight="60dp"
+            android:layout_marginTop="16dp"/>
+
+    </LinearLayout>
+</ScrollView>
+````
+
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
+````kotlin
+package com.example.quadrantlauncher
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.util.Log
+import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import rikka.shizuku.Shizuku
+
+class MainActivity : AppCompatActivity() {
+
+    companion object {
+        const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
+    }
+
+    // === APP INFO DATA CLASS - START ===
+    // Represents an installed app with package name, activity class, and state info
+    // getIdentifier() returns a unique string for app identification including className when needed
+    data class AppInfo(
+        val label: String,
+        val packageName: String,
+        val className: String? = null,
+        var isFavorite: Boolean = false,
+        var isMinimized: Boolean = false
+    ) {
+        // Returns unique identifier for the app
+        fun getIdentifier(): String {
+            return if (!className.isNullOrEmpty() && packageName == "com.google.android.googlequicksearchbox") {
+                if (className.lowercase().contains("assistant") || className.lowercase().contains("gemini")) {
+                    "$packageName:gemini"
+                } else {
+                    packageName
+                }
+            } else {
+                packageName
+            }
+        }
+        
+        // === GET BASE PACKAGE - START ===
+        // Returns the base package name without any suffix
+        // Use this for shell commands that need the actual Android package name
+        fun getBasePackage(): String {
+            return if (packageName.contains(":")) {
+                packageName.substringBefore(":")
+            } else {
+                packageName
+            }
+        }
+        // === GET BASE PACKAGE - END ===
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is AppInfo) return false
+            return packageName == other.packageName && className == other.className && label == other.label
+        }
+
+        override fun hashCode(): Int {
+            var result = packageName.hashCode()
+            result = 31 * result + (className?.hashCode() ?: 0)
+            result = 31 * result + label.hashCode()
+            return result
+        }
+    }
+    // === APP INFO DATA CLASS - END ===
+
+    /* * FUNCTION: onCreate
+     * SUMMARY: Detects the display ID where the app icon was clicked and
+     * passes it to the service to ensure the bubble follows the user.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Redirect to PermissionActivity if essential permissions are missing
+        if (!hasAllPermissions()) {
+            val intent = Intent(this, PermissionActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        // Determine which display this activity is running on
+        val displayId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            this.display?.displayId ?: 0
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.displayId
+        }
+
+        Log.d("DroidOS_Main", "Launched on Display $displayId")
+
+        // Start service and pass the current display ID to recall the bubble
+        val serviceIntent = Intent(this, FloatingLauncherService::class.java)
+        serviceIntent.putExtra("DISPLAY_ID", displayId)
+        startService(serviceIntent)
+
+        // Finish immediately so the launcher remains a service-only overlay
+        finish()
+    }
+
+    private fun hasAllPermissions(): Boolean {
+        // 1. Overlay
+        if (!Settings.canDrawOverlays(this)) return false
+
+        // 2. Shizuku
+        val shizukuGranted = try {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
+        if (!shizukuGranted) return false
+
+        // 3. Accessibility
+        if (!isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)) return false
+
+        // 4. Notifications removed (Not strictly required for service to run)
+
+        return true
+    }
+
+    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (enabledService in enabledServices) {
+            val serviceInfo = enabledService.resolveInfo.serviceInfo
+            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
+                return true
+            }
+        }
+        return false
     }
 }
 ````
@@ -23670,6 +23670,7 @@ class KeyboardView @JvmOverloads constructor(
         fun onSuggestionClick(text: String, isNew: Boolean) // Updated
         fun onSwipeDetected(path: List<android.graphics.PointF>)
         fun onSuggestionDropped(text: String) // New: Drag to Delete
+        fun onLayerChanged(state: KeyboardState) // Sync to mirror keyboard
     }
 
     enum class SpecialKey {
@@ -23988,6 +23989,98 @@ class KeyboardView @JvmOverloads constructor(
     // =================================================================================
 
     // =================================================================================
+    // FUNCTION: startSwipeFromPosition
+    // SUMMARY: Initializes swipe tracking from a given position mid-gesture.
+    //          Called when switching from orange (orientation) to blue (typing) trail.
+    //          Sets up all the swipe state so subsequent MOVE events are tracked.
+    // =================================================================================
+    fun startSwipeFromPosition(x: Float, y: Float) {
+        Log.d("KeyboardView", "Starting swipe from position ($x, $y)")
+
+        // Initialize swipe tracking as if this was the ACTION_DOWN point
+        startTouchX = x
+        startTouchY = y
+        isSwiping = true  // Already swiping
+        swipePointerId = 0  // Assume primary pointer
+
+        // Clear and start the blue trail
+        swipeTrail?.clear()
+        swipeTrail?.visibility = View.VISIBLE
+        swipeTrail?.addPoint(x, y)
+
+        // Start the path collection
+        currentPath.clear()
+        currentPath.add(android.graphics.PointF(x, y))
+    }
+    // =================================================================================
+    // END BLOCK: startSwipeFromPosition
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: handleDeferredTap
+    // SUMMARY: Called when a quick tap happens during mirror orientation mode.
+    //          Handles all keys including spacebar for single character input.
+    // =================================================================================
+    fun handleDeferredTap(x: Float, y: Float) {
+        val touchedView = findKeyView(x, y)
+        val keyTag = touchedView?.tag as? String
+
+        if (touchedView != null && keyTag != null) {
+            Log.d("KeyboardView", "Deferred tap on key: $keyTag")
+
+            if (keyTag == "SPACE") {
+                // For spacebar, trigger space character
+                listener?.onSpecialKey(SpecialKey.SPACE, 0)
+            } else {
+                // For other keys, trigger the full key press sequence
+                onKeyDown(keyTag, touchedView)
+                onKeyUp(keyTag, touchedView)
+            }
+        }
+    }
+    // =================================================================================
+    // END BLOCK: handleDeferredTap
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: getKeyboardState / setKeyboardState
+    // SUMMARY: Gets/sets the current keyboard layer state for syncing to mirror.
+    // =================================================================================
+    fun getKeyboardState(): KeyboardState {
+        return currentState
+    }
+
+    fun setKeyboardState(state: KeyboardState) {
+        if (currentState != state) {
+            currentState = state
+            buildKeyboard()
+        }
+    }
+
+    fun getShiftState(): Pair<Boolean, Boolean> {
+        // Returns (isShifted, isCapsLock)
+        return Pair(
+            currentState == KeyboardState.UPPERCASE,
+            currentState == KeyboardState.CAPS_LOCK
+        )
+    }
+
+    fun getCtrlAltState(): Pair<Boolean, Boolean> {
+        return Pair(isCtrlActive, isAltActive)
+    }
+
+    fun setCtrlAltState(ctrl: Boolean, alt: Boolean) {
+        if (isCtrlActive != ctrl || isAltActive != alt) {
+            isCtrlActive = ctrl
+            isAltActive = alt
+            buildKeyboard()
+        }
+    }
+    // =================================================================================
+    // END BLOCK: getKeyboardState / setKeyboardState
+    // =================================================================================
+
+    // =================================================================================
     // FUNCTION: isOrientationModeActive
     // SUMMARY: Returns whether orientation mode is currently active.
     // @return true if orientation mode is blocking key input
@@ -24167,10 +24260,13 @@ class KeyboardView @JvmOverloads constructor(
         
         enterContainer.addView(enterKey)
         bottomContainer.addView(enterContainer)
-        
+
         addView(bottomContainer)
-        
+
         addView(createRow(navRow, 5))
+
+        // Notify listener of layer change for mirror sync
+        listener?.onLayerChanged(currentState)
     }
 
     private fun createRow(keys: List<String>, rowIndex: Int): LinearLayout {
@@ -24250,6 +24346,53 @@ class KeyboardView @JvmOverloads constructor(
     //          4. Validates swipe has enough points and distance
     // =================================================================================
     override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        // =================================================================================
+        // VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING
+        // SUMMARY: When orientation mode is active, we must block swipe typing here
+        //          because dispatchTouchEvent runs BEFORE onTouchEvent. If we don't
+        //          block here, swipe paths get collected and committed even though
+        //          onTouchEvent blocks individual key presses.
+        // =================================================================================
+        val callback = mirrorTouchCallback
+        if (callback != null) {
+            val shouldBlock = callback.invoke(event.x, event.y, event.actionMasked)
+            if (shouldBlock) {
+                // Orientation mode - block ALL input including swipe
+                isOrientationModeActive = true
+
+                // Cancel any in-progress swipe
+                if (isSwiping) {
+                    isSwiping = false
+                    swipeTrail?.clear()
+                    swipeTrail?.visibility = View.INVISIBLE
+                }
+                currentPath.clear()
+                swipePointerId = -1
+
+                // Still call super so child views can process, but return true to consume
+                super.dispatchTouchEvent(event)
+                return true
+            }
+        }
+
+        // Also check the flag directly (for when callback isn't active)
+        if (isOrientationModeActive) {
+            // Cancel any in-progress swipe
+            if (isSwiping) {
+                isSwiping = false
+                swipeTrail?.clear()
+                swipeTrail?.visibility = View.INVISIBLE
+            }
+            currentPath.clear()
+            swipePointerId = -1
+
+            super.dispatchTouchEvent(event)
+            return true
+        }
+        // =================================================================================
+        // END BLOCK: VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING
+        // =================================================================================
+
         // --- 1. PREVENT SWIPE TRAIL ON SPACEBAR ---
         // If the touch starts on the SPACE key, we skip the swipe detection logic entirely.
         if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
@@ -24455,37 +24598,37 @@ class KeyboardView @JvmOverloads constructor(
         val y = event.getY(pointerIndex)
 
         // =================================================================================
-        // VIRTUAL MIRROR MODE - INTERCEPT TOUCH FIRST
-        // SUMMARY: Forward ALL touch events to mirror callback BEFORE any processing.
-        //          If callback returns true, we're in orientation mode - block input
-        //          and return immediately. This is the ONLY way to intercept touches
-        //          since parent container's OnTouchListener doesn't work.
+        // BLOCK: VIRTUAL MIRROR MODE - INTERCEPT ALL TOUCHES
+        // SUMMARY: All keys including spacebar go through orientation mode.
+        //          Spacebar trackpad will work after orientation completes.
         // =================================================================================
+        val touchedView = findKeyView(x, y)
+        val keyTag = touchedView?.tag as? String
+
         val callback = mirrorTouchCallback
         if (callback != null) {
             val shouldBlock = callback.invoke(x, y, action)
             if (shouldBlock) {
                 // Orientation mode is active - set flag and block ALL input
                 isOrientationModeActive = true
-                
+
                 // Clear any active key highlight
                 currentActiveKey?.let { key ->
                     val tag = key.tag as? String
                     if (tag != null) setKeyVisual(key, false, tag)
                 }
                 currentActiveKey = null
-                
+
                 // CRITICAL: Return immediately - do not process as key input
                 return true
             }
         }
         // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE - INTERCEPT TOUCH FIRST
+        // END BLOCK: VIRTUAL MIRROR MODE - INTERCEPT TOUCH
         // =================================================================================
 
         // =================================================================================
-        // ORIENTATION MODE CHECK (fallback for when callback isn't set)
-        // SUMMARY: Secondary check in case orientation mode was set externally.
+        // ORIENTATION MODE CHECK (fallback)
         // =================================================================================
         if (isOrientationModeActive) {
             currentActiveKey?.let {
@@ -24499,8 +24642,7 @@ class KeyboardView @JvmOverloads constructor(
         // END BLOCK: ORIENTATION MODE CHECK
         // =================================================================================
 
-        val touchedView = findKeyView(x, y)
-        val keyTag = touchedView?.tag as? String
+        // Note: touchedView and keyTag already computed above
 
         // --- SPACEBAR TRACKPAD HANDLING ---
         if ((keyTag == "SPACE" && action == MotionEvent.ACTION_DOWN) || spacebarPointerId == pointerId) {
@@ -24631,12 +24773,18 @@ class KeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_MOVE -> {
                 // If we slid to a new key
                 if (touchedView != currentActiveKey) {
-                    // Deactivate old
-                    currentActiveKey?.let { 
+                    // Deactivate old key
+                    currentActiveKey?.let {
                         val oldTag = it.tag as? String
-                        if (oldTag != null) setKeyVisual(it, false, oldTag) // Just visual off, don't commit input on slide-off
+                        if (oldTag != null) {
+                            setKeyVisual(it, false, oldTag)
+                            // CRITICAL: Stop any repeat when sliding off a key
+                            if (oldTag == currentRepeatKey) {
+                                stopRepeat()
+                            }
+                        }
                     }
-                    
+
                     // Activate new
                     if (touchedView != null && keyTag != null && keyTag != "SPACE") {
                         currentActiveKey = touchedView
@@ -25287,6 +25435,18 @@ class KeyboardOverlay(
     // END BLOCK: VIRTUAL MIRROR CALLBACK
     // =================================================================================
 
+    // Layer change callback for syncing mirror keyboard
+    var onLayerChanged: ((KeyboardView.KeyboardState) -> Unit)? = null
+
+    // =================================================================================
+    // CALLBACK: onSuggestionsChanged
+    // SUMMARY: Called whenever the suggestion bar is updated. Used to sync mirror keyboard.
+    // =================================================================================
+    var onSuggestionsChanged: ((List<KeyboardView.Candidate>) -> Unit)? = null
+    // =================================================================================
+    // END BLOCK: onSuggestionsChanged
+    // =================================================================================
+
 
 
     fun setScreenDimensions(width: Int, height: Int, displayId: Int) {
@@ -25655,6 +25815,87 @@ class KeyboardOverlay(
     }
     // =================================================================================
     // END BLOCK: clearOrientationTrail
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: setOrientationTrailColor
+    // SUMMARY: Sets the color of the orientation trail on the physical display.
+    // =================================================================================
+    fun setOrientationTrailColor(color: Int) {
+        orientationTrailView?.setTrailColor(color)
+    }
+    // =================================================================================
+    // END BLOCK: setOrientationTrailColor
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: startSwipeFromCurrentPosition
+    // SUMMARY: Called when switching from orange to blue trail mid-gesture.
+    //          Initializes swipe tracking so the path starts from the given position.
+    // =================================================================================
+    fun startSwipeFromCurrentPosition(x: Float, y: Float) {
+        keyboardView?.startSwipeFromPosition(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: startSwipeFromCurrentPosition
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: handleDeferredTap
+    // SUMMARY: Forwards deferred tap to KeyboardView for single key press in mirror mode.
+    // =================================================================================
+    fun handleDeferredTap(x: Float, y: Float) {
+        keyboardView?.handleDeferredTap(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: handleDeferredTap
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: getKeyboardState
+    // SUMMARY: Gets current keyboard state (layer) from KeyboardView.
+    // =================================================================================
+    fun getKeyboardState(): KeyboardView.KeyboardState? {
+        return keyboardView?.getKeyboardState()
+    }
+
+    // =================================================================================
+    // FUNCTION: setKeyboardState
+    // SUMMARY: Sets keyboard state (layer) in KeyboardView.
+    // =================================================================================
+    fun setKeyboardState(state: KeyboardView.KeyboardState) {
+        keyboardView?.setKeyboardState(state)
+    }
+
+    // =================================================================================
+    // FUNCTION: getCtrlAltState
+    // SUMMARY: Gets current Ctrl/Alt modifier states from KeyboardView.
+    // =================================================================================
+    fun getCtrlAltState(): Pair<Boolean, Boolean>? {
+        return keyboardView?.getCtrlAltState()
+    }
+
+    // =================================================================================
+    // FUNCTION: setCtrlAltState
+    // SUMMARY: Sets Ctrl/Alt modifier states in KeyboardView.
+    // =================================================================================
+    fun setCtrlAltState(ctrl: Boolean, alt: Boolean) {
+        keyboardView?.setCtrlAltState(ctrl, alt)
+    }
+    // =================================================================================
+    // END BLOCK: State accessor functions for mirror sync
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: updateSuggestionsWithSync
+    // SUMMARY: Sets suggestions on the keyboard view AND notifies callback for mirror sync.
+    // =================================================================================
+    private fun updateSuggestionsWithSync(candidates: List<KeyboardView.Candidate>) {
+        keyboardView?.setSuggestions(candidates)
+        onSuggestionsChanged?.invoke(candidates)
+    }
+    // =================================================================================
+    // END BLOCK: updateSuggestionsWithSync
     // =================================================================================
 
     // =================================================================================
@@ -26230,6 +26471,11 @@ class KeyboardOverlay(
     // END BLOCK: onSuggestionDropped with debug logging
     // =================================================================================
 
+    // Layer change notification for mirror keyboard sync
+    override fun onLayerChanged(state: KeyboardView.KeyboardState) {
+        onLayerChanged?.invoke(state)
+    }
+
     // =================================================================================
     // FUNCTION: onSwipeDetected
     // SUMMARY: Handles swipe gesture completion. Runs decoding in background thread.
@@ -26280,7 +26526,7 @@ class KeyboardOverlay(
                             suggestions
                         }.map { KeyboardView.Candidate(it, isNew = false) }
 
-                        keyboardView?.setSuggestions(displaySuggestions)
+                        updateSuggestionsWithSync(displaySuggestions)
 
                         // =================================================================================
                         // SWIPE TEXT COMMIT WITH SPACE HANDLING
@@ -26332,7 +26578,7 @@ class KeyboardOverlay(
     private fun updateSuggestions() {
         val prefix = currentComposingWord.toString()
         if (prefix.isEmpty()) {
-            keyboardView?.setSuggestions(emptyList())
+            updateSuggestionsWithSync(emptyList())
             return
         }
 
@@ -26358,7 +26604,7 @@ class KeyboardOverlay(
             }
         }
 
-        keyboardView?.setSuggestions(candidates.take(3))
+        updateSuggestionsWithSync(candidates.take(3))
     }
     // =================================================================================
     // END BLOCK: updateSuggestions
@@ -26366,7 +26612,7 @@ class KeyboardOverlay(
 
     private fun resetComposition() {
         currentComposingWord.clear()
-        keyboardView?.setSuggestions(emptyList())
+        updateSuggestionsWithSync(emptyList())
     }
 
     private fun injectKey(keyCode: Int, metaState: Int) {
@@ -26907,33 +27153,60 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var mirrorKbHeight = 0f
 
     private var isInOrientationMode = false
+    private var lastOrientX = 0f
+    private var lastOrientY = 0f
+    private val MOVEMENT_THRESHOLD = 15f  // Pixels - ignore movement smaller than this
     private var orientationModeHandler = Handler(Looper.getMainLooper())
     private var lastOrientationTouchTime = 0L
 
     // =================================================================================
     // RUNNABLE: orientationModeTimeout
-    // SUMMARY: Called when finger stops moving for the configured delay.
-    //          Exits orientation mode, clears all trails, fades mirror back to dim.
-    //          After this, normal keyboard input resumes on the physical keyboard.
+    // SUMMARY: Fires when finger has been still for delay period.
+    //          Switches from orange trail to blue trail.
+    //          Initializes swipe tracking so path collection starts NOW.
     // =================================================================================
     private val orientationModeTimeout = Runnable {
-        Log.d(TAG, "Orientation mode timeout - exiting orientation, resuming input")
+        Log.d(TAG, ">>> TIMEOUT - switching to BLUE trail <<<")
 
         isInOrientationMode = false
 
-        // Clear trails on BOTH displays
+        // Clear orange trails
         mirrorTrailView?.clear()
         keyboardOverlay?.clearOrientationTrail()
 
-        // Tell KeyboardOverlay (and KeyboardView) to exit orientation mode
+        // Exit orientation mode
         keyboardOverlay?.setOrientationMode(false)
 
-        // Fade mirror back to semi-transparent
-        mirrorKeyboardView?.alpha = 0.2f
-        mirrorKeyboardContainer?.setBackgroundColor(0x40000000)
+        // Set BLUE trail color for typing phase
+        mirrorTrailView?.setTrailColor(0xFF4488FF.toInt())  // Blue
+
+        // Start swipe tracking from current position
+        keyboardOverlay?.startSwipeFromCurrentPosition(lastOrientX, lastOrientY)
+
+        // Add first point to blue trail on mirror
+        val scaleX = if (physicalKbWidth > 0) mirrorKbWidth / physicalKbWidth else 1f
+        val scaleY = if (physicalKbHeight > 0) mirrorKbHeight / physicalKbHeight else 1f
+        mirrorTrailView?.addPoint(lastOrientX * scaleX, lastOrientY * scaleY)
+
+        // Keep mirror visible
+        mirrorKeyboardView?.alpha = 0.7f
+        mirrorKeyboardContainer?.setBackgroundColor(0x60000000)
     }
     // =================================================================================
     // END BLOCK: orientationModeTimeout
+    // =================================================================================
+
+    // =================================================================================
+    // MIRROR FADE OUT HANDLER
+    // SUMMARY: Fades the mirror keyboard to fully transparent after inactivity.
+    // =================================================================================
+    private val mirrorFadeHandler = Handler(Looper.getMainLooper())
+    private val mirrorFadeRunnable = Runnable {
+        mirrorKeyboardView?.animate()?.alpha(0f)?.setDuration(300)?.start()
+        mirrorKeyboardContainer?.animate()?.alpha(0f)?.setDuration(300)?.start()
+    }
+    // =================================================================================
+    // END BLOCK: MIRROR FADE OUT HANDLER
     // =================================================================================
     // =================================================================================
     // END BLOCK: VIRTUAL MIRROR MODE VARIABLES
@@ -27919,6 +28192,23 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // END BLOCK: VIRTUAL MIRROR TOUCH CALLBACK
         // =================================================================================
 
+        // Wire up layer change callback for mirror keyboard sync
+        keyboardOverlay?.onLayerChanged = { state ->
+            syncMirrorKeyboardLayer(state)
+        }
+
+        // =================================================================================
+        // MIRROR SUGGESTIONS SYNC CALLBACK
+        // SUMMARY: When suggestions change on physical keyboard, sync to mirror keyboard.
+        //          This keeps the prediction bar in sync on both displays.
+        // =================================================================================
+        keyboardOverlay?.onSuggestionsChanged = { suggestions ->
+            mirrorKeyboardView?.setSuggestions(suggestions)
+        }
+        // =================================================================================
+        // END BLOCK: MIRROR SUGGESTIONS SYNC CALLBACK
+        // =================================================================================
+
         // FIX: Restore Saved Layout (fixes reset/aspect ratio issue)
         if (savedKbW > 0 && savedKbH > 0) {
             keyboardOverlay?.updatePosition(savedKbX, savedKbY)
@@ -28258,10 +28548,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             mirrorWindowManager = mirrorContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             mirrorKeyboardContainer = FrameLayout(mirrorContext)
             mirrorKeyboardContainer?.setBackgroundColor(0x40000000) // Semi-transparent bg
+            mirrorKeyboardContainer?.alpha = 0f // Start fully invisible
 
             // Create KeyboardView for the mirror
             mirrorKeyboardView = KeyboardView(mirrorContext, null, 0)
-            mirrorKeyboardView?.alpha = 0.2f // Start semi-transparent
+            mirrorKeyboardView?.alpha = 0f // Start fully invisible
 
             // Apply same scale
             val scale = prefs.prefKeyScale / 100f
@@ -28346,8 +28637,26 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         // Cancel any pending orientation mode timeout
         orientationModeHandler.removeCallbacks(orientationModeTimeout)
+        mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
         isInOrientationMode = false
     }
+
+    // =================================================================================
+    // FUNCTION: syncMirrorKeyboardLayer
+    // SUMMARY: Syncs keyboard layer (state) from physical to mirror keyboard.
+    //          Called when layer changes (shift, symbols, etc.)
+    // =================================================================================
+    private fun syncMirrorKeyboardLayer(state: KeyboardView.KeyboardState) {
+        mirrorKeyboardView?.setKeyboardState(state)
+
+        // Also sync Ctrl/Alt state
+        keyboardOverlay?.getCtrlAltState()?.let { (ctrl, alt) ->
+            mirrorKeyboardView?.setCtrlAltState(ctrl, alt)
+        }
+    }
+    // =================================================================================
+    // END BLOCK: syncMirrorKeyboardLayer
+    // =================================================================================
 
     // =================================================================================
     // FUNCTION: onMirrorKeyboardTouch
@@ -28355,12 +28664,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     //          Scales coordinates to match mirror keyboard dimensions.
     //          Shows orange trail on both displays during orientation mode.
     // =================================================================================
+    // =================================================================================
+    // FUNCTION: onMirrorKeyboardTouch
+    // SUMMARY: Virtual Mirror Mode touch handling.
+    //          - Every new touch: Show mirror + orange trail
+    //          - After timeout: Switch to blue trail, allow typing
+    //          - Single taps (quick touch) should also type after orientation
+    // @return true to block input, false to allow input
+    // =================================================================================
     fun onMirrorKeyboardTouch(x: Float, y: Float, action: Int): Boolean {
         if (!isVirtualMirrorModeActive()) {
             return false
         }
 
-        // Scale coordinates from physical keyboard to mirror keyboard
+        // Scale coordinates for mirror display
         val scaleX = if (physicalKbWidth > 0) mirrorKbWidth / physicalKbWidth else 1f
         val scaleY = if (physicalKbHeight > 0) mirrorKbHeight / physicalKbHeight else 1f
         val mirrorX = x * scaleX
@@ -28368,57 +28685,105 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         when (action) {
             MotionEvent.ACTION_DOWN -> {
-                Log.d(TAG, "Mirror touch DOWN at ($x, $y) -> mirror ($mirrorX, $mirrorY)")
+                Log.d(TAG, "Mirror touch DOWN - starting ORANGE trail")
 
-                // Enter orientation mode
-                isInOrientationMode = true
-                keyboardOverlay?.setOrientationMode(true)
-                lastOrientationTouchTime = System.currentTimeMillis()
+                // Cancel any pending fade
+                mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
 
-                // Make mirror more visible
+                // Make mirror VISIBLE on touch
                 mirrorKeyboardView?.alpha = 0.9f
+                mirrorKeyboardContainer?.alpha = 1f
                 mirrorKeyboardContainer?.setBackgroundColor(0x80000000.toInt())
 
-                // Clear old trails
+                // Start orientation mode
+                isInOrientationMode = true
+                keyboardOverlay?.setOrientationMode(true)
+
+                // Store position for movement threshold
+                lastOrientX = x
+                lastOrientY = y
+
+                // Set ORANGE trail color
+                mirrorTrailView?.setTrailColor(0xFFFF9900.toInt())
+                keyboardOverlay?.setOrientationTrailColor(0xFFFF9900.toInt())
+
+                // Clear old trails, start new orange trail on BOTH displays
                 mirrorTrailView?.clear()
                 keyboardOverlay?.clearOrientationTrail()
-
-                // Start new trails - use original coords for physical, scaled for mirror
                 keyboardOverlay?.startOrientationTrail(x, y)
                 mirrorTrailView?.addPoint(mirrorX, mirrorY)
 
-                // Cancel any pending timeout
+                // Start timeout
                 orientationModeHandler.removeCallbacks(orientationModeTimeout)
+                orientationModeHandler.postDelayed(
+                    orientationModeTimeout,
+                    prefs.prefMirrorOrientDelayMs
+                )
+
+                return true  // Block input during orange
             }
 
             MotionEvent.ACTION_MOVE -> {
                 if (isInOrientationMode) {
-                    lastOrientationTouchTime = System.currentTimeMillis()
+                    // ORANGE phase
+                    val dx = x - lastOrientX
+                    val dy = y - lastOrientY
+                    val distance = kotlin.math.sqrt(dx * dx + dy * dy)
 
-                    // Continue drawing trails
+                    // Draw orange trail
                     keyboardOverlay?.addOrientationTrailPoint(x, y)
                     mirrorTrailView?.addPoint(mirrorX, mirrorY)
 
-                    // Reset timeout
-                    orientationModeHandler.removeCallbacks(orientationModeTimeout)
-                    orientationModeHandler.postDelayed(
-                        orientationModeTimeout,
-                        prefs.prefMirrorOrientDelayMs
-                    )
+                    // Reset timeout only on significant movement
+                    if (distance > MOVEMENT_THRESHOLD) {
+                        lastOrientX = x
+                        lastOrientY = y
+                        orientationModeHandler.removeCallbacks(orientationModeTimeout)
+                        orientationModeHandler.postDelayed(
+                            orientationModeTimeout,
+                            prefs.prefMirrorOrientDelayMs
+                        )
+                    }
+
+                    return true  // Block input
+                } else {
+                    // BLUE phase - allow input, draw blue trail on mirror
+                    mirrorTrailView?.addPoint(mirrorX, mirrorY)
+                    return false
                 }
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 Log.d(TAG, "Mirror touch UP")
 
-                // Start countdown to exit orientation mode
+                orientationModeHandler.removeCallbacks(orientationModeTimeout)
+
+                val wasInOrientation = isInOrientationMode
+
                 if (isInOrientationMode) {
-                    orientationModeHandler.removeCallbacks(orientationModeTimeout)
-                    orientationModeHandler.postDelayed(
-                        orientationModeTimeout,
-                        prefs.prefMirrorOrientDelayMs
-                    )
+                    // Quick tap - lifted during orange phase
+                    Log.d(TAG, "Quick tap detected - triggering deferred key press")
+                    isInOrientationMode = false
+                    keyboardOverlay?.setOrientationMode(false)
+                    mirrorTrailView?.clear()
+                    keyboardOverlay?.clearOrientationTrail()
+
+                    // CRITICAL: Trigger the key press that was deferred
+                    keyboardOverlay?.handleDeferredTap(x, y)
+                } else {
+                    // Normal lift after blue phase - clear mirror trail
+                    mirrorTrailView?.clear()
                 }
+
+                // Fade mirror
+                mirrorKeyboardView?.alpha = 0.3f
+                mirrorKeyboardContainer?.setBackgroundColor(0x40000000)
+
+                // Schedule fade out
+                mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
+                mirrorFadeHandler.postDelayed(mirrorFadeRunnable, 2000)
+
+                return false
             }
         }
 
