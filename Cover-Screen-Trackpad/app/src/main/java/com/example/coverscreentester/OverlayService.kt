@@ -462,25 +462,28 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     // =================================================================================
     // RUNNABLE: orientationModeTimeout
-    // SUMMARY: Called when finger stops moving for the configured delay.
-    //          Exits orientation mode, clears all trails, fades mirror back to dim.
-    //          After this, normal keyboard input resumes on the physical keyboard.
+    // SUMMARY: Called when finger has been STILL for the configured delay.
+    //          This fires even while the finger is still touching the screen.
+    //          Exits orientation mode so the blue trail and typing can begin.
     // =================================================================================
     private val orientationModeTimeout = Runnable {
-        Log.d(TAG, "Orientation mode timeout - exiting orientation, resuming input")
+        Log.d(TAG, "Orientation timeout - switching to TYPING mode (blue trail)")
 
         isInOrientationMode = false
 
-        // Clear trails on BOTH displays
+        // Clear ORANGE trails on both displays
         mirrorTrailView?.clear()
         keyboardOverlay?.clearOrientationTrail()
 
-        // Tell KeyboardOverlay (and KeyboardView) to exit orientation mode
+        // Tell KeyboardOverlay (and KeyboardView) to exit orientation mode - this enables typing
         keyboardOverlay?.setOrientationMode(false)
 
-        // Fade mirror back to semi-transparent
-        mirrorKeyboardView?.alpha = 0.2f
-        mirrorKeyboardContainer?.setBackgroundColor(0x40000000)
+        // Keep mirror visible while typing (slightly transparent)
+        mirrorKeyboardView?.alpha = 0.7f
+        mirrorKeyboardContainer?.setBackgroundColor(0x60000000)
+
+        // Note: The blue swipe trail will now be handled by KeyboardView
+        // because isOrientationModeActive is false
     }
     // =================================================================================
     // END BLOCK: orientationModeTimeout
@@ -1905,6 +1908,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     //          Scales coordinates to match mirror keyboard dimensions.
     //          Shows orange trail on both displays during orientation mode.
     // =================================================================================
+    // =================================================================================
+    // FUNCTION: onMirrorKeyboardTouch
+    // SUMMARY: Handles touch events in Virtual Mirror Mode.
+    //          - Touch down: Enter orientation mode, show orange trail, start timeout
+    //          - Timeout fires (even while finger down): Exit orientation, allow typing
+    //          - After orientation ends: Allow normal input with blue trail
+    //          - Movement resets the timeout (finger must be STILL for delay)
+    // @return true to block input (orientation mode), false to allow normal input
+    // =================================================================================
     fun onMirrorKeyboardTouch(x: Float, y: Float, action: Int): Boolean {
         if (!isVirtualMirrorModeActive()) {
             return false
@@ -1918,57 +1930,75 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         when (action) {
             MotionEvent.ACTION_DOWN -> {
-                Log.d(TAG, "Mirror touch DOWN at ($x, $y) -> mirror ($mirrorX, $mirrorY)")
+                Log.d(TAG, "Mirror touch DOWN at ($x, $y) - entering orientation mode")
 
-                // Enter orientation mode
+                // Always enter orientation mode on new touch
                 isInOrientationMode = true
                 keyboardOverlay?.setOrientationMode(true)
-                lastOrientationTouchTime = System.currentTimeMillis()
 
                 // Make mirror more visible
                 mirrorKeyboardView?.alpha = 0.9f
                 mirrorKeyboardContainer?.setBackgroundColor(0x80000000.toInt())
 
-                // Clear old trails
+                // Clear old trails and start new orange trail
                 mirrorTrailView?.clear()
                 keyboardOverlay?.clearOrientationTrail()
-
-                // Start new trails - use original coords for physical, scaled for mirror
                 keyboardOverlay?.startOrientationTrail(x, y)
                 mirrorTrailView?.addPoint(mirrorX, mirrorY)
 
-                // Cancel any pending timeout
+                // Start timeout - will fire even while finger is still down
                 orientationModeHandler.removeCallbacks(orientationModeTimeout)
+                orientationModeHandler.postDelayed(
+                    orientationModeTimeout,
+                    prefs.prefMirrorOrientDelayMs
+                )
+
+                return true  // Block input during orientation
             }
 
             MotionEvent.ACTION_MOVE -> {
                 if (isInOrientationMode) {
-                    lastOrientationTouchTime = System.currentTimeMillis()
-
-                    // Continue drawing trails
+                    // Still in orientation mode - show orange trail, reset timeout
                     keyboardOverlay?.addOrientationTrailPoint(x, y)
                     mirrorTrailView?.addPoint(mirrorX, mirrorY)
 
-                    // Reset timeout
+                    // Reset timeout - finger moved, so restart the countdown
                     orientationModeHandler.removeCallbacks(orientationModeTimeout)
                     orientationModeHandler.postDelayed(
                         orientationModeTimeout,
                         prefs.prefMirrorOrientDelayMs
                     )
+
+                    return true  // Block input
+                } else {
+                    // Orientation completed - allow normal input
+                    // The blue swipe trail will be handled by KeyboardView
+                    return false
                 }
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 Log.d(TAG, "Mirror touch UP")
 
-                // Start countdown to exit orientation mode
+                // Cancel any pending timeout
+                orientationModeHandler.removeCallbacks(orientationModeTimeout)
+
                 if (isInOrientationMode) {
-                    orientationModeHandler.removeCallbacks(orientationModeTimeout)
-                    orientationModeHandler.postDelayed(
-                        orientationModeTimeout,
-                        prefs.prefMirrorOrientDelayMs
-                    )
+                    // Finger lifted while still in orientation mode
+                    // Exit orientation mode immediately
+                    isInOrientationMode = false
+                    keyboardOverlay?.setOrientationMode(false)
+
+                    // Clear orange trails
+                    mirrorTrailView?.clear()
+                    keyboardOverlay?.clearOrientationTrail()
+
+                    // Fade mirror
+                    mirrorKeyboardView?.alpha = 0.2f
+                    mirrorKeyboardContainer?.setBackgroundColor(0x40000000)
                 }
+
+                return false  // Allow the UP event through
             }
         }
 

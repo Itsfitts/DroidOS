@@ -549,16 +549,21 @@ class KeyboardOverlay(
         keyboardView?.touchTapAction = { onTouchTap?.invoke() }
 
         // =================================================================================
-        // VIRTUAL MIRROR MODE TOUCH CALLBACK
-        // SUMMARY: Wire up the mirror touch callback directly on KeyboardView.
-        //          This ensures ALL touch events are forwarded to OverlayService
-        //          for mirror keyboard synchronization.
+        // VIRTUAL MIRROR MODE - WIRE CALLBACK DIRECTLY TO KEYBOARDVIEW
+        // SUMMARY: The only way to intercept touches before KeyboardView processes them
+        //          is to have KeyboardView call us directly. Container listeners don't
+        //          work because child views receive touches first.
         // =================================================================================
         keyboardView?.mirrorTouchCallback = { x, y, action ->
-            onMirrorTouch?.invoke(x, y, action) ?: false
+            val cb = onMirrorTouch
+            if (cb != null) {
+                cb.invoke(x, y, action)
+            } else {
+                false
+            }
         }
         // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE TOUCH CALLBACK
+        // END BLOCK: VIRTUAL MIRROR MODE - WIRE CALLBACK
         // =================================================================================
 
 

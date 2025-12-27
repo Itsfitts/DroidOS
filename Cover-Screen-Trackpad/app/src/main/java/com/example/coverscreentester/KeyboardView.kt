@@ -622,6 +622,53 @@ class KeyboardView @JvmOverloads constructor(
     //          4. Validates swipe has enough points and distance
     // =================================================================================
     override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        // =================================================================================
+        // VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING
+        // SUMMARY: When orientation mode is active, we must block swipe typing here
+        //          because dispatchTouchEvent runs BEFORE onTouchEvent. If we don't
+        //          block here, swipe paths get collected and committed even though
+        //          onTouchEvent blocks individual key presses.
+        // =================================================================================
+        val callback = mirrorTouchCallback
+        if (callback != null) {
+            val shouldBlock = callback.invoke(event.x, event.y, event.actionMasked)
+            if (shouldBlock) {
+                // Orientation mode - block ALL input including swipe
+                isOrientationModeActive = true
+
+                // Cancel any in-progress swipe
+                if (isSwiping) {
+                    isSwiping = false
+                    swipeTrail?.clear()
+                    swipeTrail?.visibility = View.INVISIBLE
+                }
+                currentPath.clear()
+                swipePointerId = -1
+
+                // Still call super so child views can process, but return true to consume
+                super.dispatchTouchEvent(event)
+                return true
+            }
+        }
+
+        // Also check the flag directly (for when callback isn't active)
+        if (isOrientationModeActive) {
+            // Cancel any in-progress swipe
+            if (isSwiping) {
+                isSwiping = false
+                swipeTrail?.clear()
+                swipeTrail?.visibility = View.INVISIBLE
+            }
+            currentPath.clear()
+            swipePointerId = -1
+
+            super.dispatchTouchEvent(event)
+            return true
+        }
+        // =================================================================================
+        // END BLOCK: VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING
+        // =================================================================================
+
         // --- 1. PREVENT SWIPE TRAIL ON SPACEBAR ---
         // If the touch starts on the SPACE key, we skip the swipe detection logic entirely.
         if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
@@ -827,38 +874,44 @@ class KeyboardView @JvmOverloads constructor(
         val y = event.getY(pointerIndex)
 
         // =================================================================================
-        // VIRTUAL MIRROR MODE TOUCH FORWARDING
-        // SUMMARY: Forward ALL touch events to the mirror callback first.
-        //          This allows OverlayService to show the orange orientation trail
-        //          on both the physical and virtual mirror keyboards.
-        //          The callback returns true if orientation mode is now active.
+        // VIRTUAL MIRROR MODE - INTERCEPT TOUCH FIRST
+        // SUMMARY: Forward ALL touch events to mirror callback BEFORE any processing.
+        //          If callback returns true, we're in orientation mode - block input
+        //          and return immediately. This is the ONLY way to intercept touches
+        //          since parent container's OnTouchListener doesn't work.
         // =================================================================================
-        mirrorTouchCallback?.let { callback ->
-            val orientationActive = callback.invoke(x, y, action)
-            if (orientationActive) {
-                // Orientation mode is active - set the flag so key input is blocked
+        val callback = mirrorTouchCallback
+        if (callback != null) {
+            val shouldBlock = callback.invoke(x, y, action)
+            if (shouldBlock) {
+                // Orientation mode is active - set flag and block ALL input
                 isOrientationModeActive = true
+                
+                // Clear any active key highlight
+                currentActiveKey?.let { key ->
+                    val tag = key.tag as? String
+                    if (tag != null) setKeyVisual(key, false, tag)
+                }
+                currentActiveKey = null
+                
+                // CRITICAL: Return immediately - do not process as key input
+                return true
             }
         }
         // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE TOUCH FORWARDING
+        // END BLOCK: VIRTUAL MIRROR MODE - INTERCEPT TOUCH FIRST
         // =================================================================================
 
         // =================================================================================
-        // ORIENTATION MODE CHECK
-        // SUMMARY: When virtual mirror orientation mode is active, we block all normal
-        //          key input. The touch events are handled by KeyboardOverlay for trail
-        //          rendering. We still return true to consume the event.
+        // ORIENTATION MODE CHECK (fallback for when callback isn't set)
+        // SUMMARY: Secondary check in case orientation mode was set externally.
         // =================================================================================
         if (isOrientationModeActive) {
-            // Clear any visual key highlights during orientation mode
             currentActiveKey?.let {
                 val tag = it.tag as? String
                 if (tag != null) setKeyVisual(it, false, tag)
             }
             currentActiveKey = null
-
-            // Consume the event but don't process any key input
             return true
         }
         // =================================================================================
