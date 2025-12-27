@@ -390,18 +390,23 @@ class KeyboardView @JvmOverloads constructor(
     // =================================================================================
     // FUNCTION: handleDeferredTap
     // SUMMARY: Called when a quick tap happens during mirror orientation mode.
-    //          Since ACTION_DOWN was blocked, we manually trigger the key press here.
-    //          This allows single letter taps to work in virtual mirror mode.
+    //          Handles all keys including spacebar for single character input.
     // =================================================================================
     fun handleDeferredTap(x: Float, y: Float) {
         val touchedView = findKeyView(x, y)
         val keyTag = touchedView?.tag as? String
 
-        if (touchedView != null && keyTag != null && keyTag != "SPACE") {
+        if (touchedView != null && keyTag != null) {
             Log.d("KeyboardView", "Deferred tap on key: $keyTag")
-            // Trigger the full key press sequence
-            onKeyDown(keyTag, touchedView)
-            onKeyUp(keyTag, touchedView)
+
+            if (keyTag == "SPACE") {
+                // For spacebar, trigger space character
+                listener?.onSpecialKey(SpecialKey.SPACE, 0)
+            } else {
+                // For other keys, trigger the full key press sequence
+                onKeyDown(keyTag, touchedView)
+                onKeyUp(keyTag, touchedView)
+            }
         }
     }
     // =================================================================================
@@ -923,19 +928,15 @@ class KeyboardView @JvmOverloads constructor(
         val y = event.getY(pointerIndex)
 
         // =================================================================================
-        // BLOCK: VIRTUAL MIRROR MODE - INTERCEPT TOUCH (BUT ALLOW SPACEBAR)
-        // SUMMARY: When virtual mirror mode is active, the callback is invoked.
-        //          If callback returns true, we're in orientation mode - block input
-        //          EXCEPT for spacebar which should always work for trackpad.
+        // BLOCK: VIRTUAL MIRROR MODE - INTERCEPT ALL TOUCHES
+        // SUMMARY: All keys including spacebar go through orientation mode.
+        //          Spacebar trackpad will work after orientation completes.
         // =================================================================================
         val touchedView = findKeyView(x, y)
         val keyTag = touchedView?.tag as? String
 
-        // Check if this is a spacebar touch - spacebar trackpad should ALWAYS work
-        val isSpacebarTouch = (keyTag == "SPACE") || (spacebarPointerId == pointerId)
-
         val callback = mirrorTouchCallback
-        if (callback != null && !isSpacebarTouch) {
+        if (callback != null) {
             val shouldBlock = callback.invoke(x, y, action)
             if (shouldBlock) {
                 // Orientation mode is active - set flag and block ALL input
@@ -957,9 +958,9 @@ class KeyboardView @JvmOverloads constructor(
         // =================================================================================
 
         // =================================================================================
-        // ORIENTATION MODE CHECK (fallback, but skip for spacebar)
+        // ORIENTATION MODE CHECK (fallback)
         // =================================================================================
-        if (isOrientationModeActive && !isSpacebarTouch) {
+        if (isOrientationModeActive) {
             currentActiveKey?.let {
                 val tag = it.tag as? String
                 if (tag != null) setKeyVisual(it, false, tag)
