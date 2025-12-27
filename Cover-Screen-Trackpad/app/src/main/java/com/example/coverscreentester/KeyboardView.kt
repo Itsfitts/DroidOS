@@ -902,39 +902,43 @@ class KeyboardView @JvmOverloads constructor(
         val y = event.getY(pointerIndex)
 
         // =================================================================================
-        // VIRTUAL MIRROR MODE - INTERCEPT TOUCH FIRST
-        // SUMMARY: Forward ALL touch events to mirror callback BEFORE any processing.
+        // BLOCK: VIRTUAL MIRROR MODE - INTERCEPT TOUCH (BUT ALLOW SPACEBAR)
+        // SUMMARY: When virtual mirror mode is active, the callback is invoked.
         //          If callback returns true, we're in orientation mode - block input
-        //          and return immediately. This is the ONLY way to intercept touches
-        //          since parent container's OnTouchListener doesn't work.
+        //          EXCEPT for spacebar which should always work for trackpad.
         // =================================================================================
+        val touchedView = findKeyView(x, y)
+        val keyTag = touchedView?.tag as? String
+
+        // Check if this is a spacebar touch - spacebar trackpad should ALWAYS work
+        val isSpacebarTouch = (keyTag == "SPACE") || (spacebarPointerId == pointerId)
+
         val callback = mirrorTouchCallback
-        if (callback != null) {
+        if (callback != null && !isSpacebarTouch) {
             val shouldBlock = callback.invoke(x, y, action)
             if (shouldBlock) {
                 // Orientation mode is active - set flag and block ALL input
                 isOrientationModeActive = true
-                
+
                 // Clear any active key highlight
                 currentActiveKey?.let { key ->
                     val tag = key.tag as? String
                     if (tag != null) setKeyVisual(key, false, tag)
                 }
                 currentActiveKey = null
-                
+
                 // CRITICAL: Return immediately - do not process as key input
                 return true
             }
         }
         // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE - INTERCEPT TOUCH FIRST
+        // END BLOCK: VIRTUAL MIRROR MODE - INTERCEPT TOUCH
         // =================================================================================
 
         // =================================================================================
-        // ORIENTATION MODE CHECK (fallback for when callback isn't set)
-        // SUMMARY: Secondary check in case orientation mode was set externally.
+        // ORIENTATION MODE CHECK (fallback, but skip for spacebar)
         // =================================================================================
-        if (isOrientationModeActive) {
+        if (isOrientationModeActive && !isSpacebarTouch) {
             currentActiveKey?.let {
                 val tag = it.tag as? String
                 if (tag != null) setKeyVisual(it, false, tag)
@@ -946,8 +950,7 @@ class KeyboardView @JvmOverloads constructor(
         // END BLOCK: ORIENTATION MODE CHECK
         // =================================================================================
 
-        val touchedView = findKeyView(x, y)
-        val keyTag = touchedView?.tag as? String
+        // Note: touchedView and keyTag already computed above
 
         // --- SPACEBAR TRACKPAD HANDLING ---
         if ((keyTag == "SPACE" && action == MotionEvent.ACTION_DOWN) || spacebarPointerId == pointerId) {

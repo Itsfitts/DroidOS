@@ -472,6 +472,17 @@ class KeyboardOverlay(
     // =================================================================================
 
     // =================================================================================
+    // FUNCTION: setOrientationTrailColor
+    // SUMMARY: Sets the color of the orientation trail on the physical display.
+    // =================================================================================
+    fun setOrientationTrailColor(color: Int) {
+        orientationTrailView?.setTrailColor(color)
+    }
+    // =================================================================================
+    // END BLOCK: setOrientationTrailColor
+    // =================================================================================
+
+    // =================================================================================
     // FUNCTION: startSwipeFromCurrentPosition
     // SUMMARY: Called when switching from orange to blue trail mid-gesture.
     //          Initializes swipe tracking so the path starts from the given position.

@@ -478,16 +478,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         mirrorTrailView?.clear()
         keyboardOverlay?.clearOrientationTrail()
 
-        // Exit orientation mode AND start swipe tracking from current position
+        // Exit orientation mode
         keyboardOverlay?.setOrientationMode(false)
+
+        // Set BLUE trail color for typing phase
+        mirrorTrailView?.setTrailColor(0xFF4488FF.toInt())  // Blue
+
+        // Start swipe tracking from current position
         keyboardOverlay?.startSwipeFromCurrentPosition(lastOrientX, lastOrientY)
 
-        // Set blue trail color on mirror
-        mirrorTrailView?.setTrailColor(0xFF4488FF.toInt())  // Blue
-        mirrorTrailView?.addPoint(
-            lastOrientX * (if (physicalKbWidth > 0) mirrorKbWidth / physicalKbWidth else 1f),
-            lastOrientY * (if (physicalKbHeight > 0) mirrorKbHeight / physicalKbHeight else 1f)
-        )
+        // Add first point to blue trail on mirror
+        val scaleX = if (physicalKbWidth > 0) mirrorKbWidth / physicalKbWidth else 1f
+        val scaleY = if (physicalKbHeight > 0) mirrorKbHeight / physicalKbHeight else 1f
+        mirrorTrailView?.addPoint(lastOrientX * scaleX, lastOrientY * scaleY)
 
         // Keep mirror visible
         mirrorKeyboardView?.alpha = 0.7f
@@ -1950,6 +1953,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 // Make mirror visible
                 mirrorKeyboardView?.alpha = 0.9f
                 mirrorKeyboardContainer?.setBackgroundColor(0x80000000.toInt())
+
+                // RESET trail color to ORANGE for new touch
+                mirrorTrailView?.setTrailColor(0xFFFF9900.toInt())  // Orange
+                keyboardOverlay?.setOrientationTrailColor(0xFFFF9900.toInt())  // Orange
 
                 // Clear old trails, start new orange trail on BOTH displays
                 mirrorTrailView?.clear()
