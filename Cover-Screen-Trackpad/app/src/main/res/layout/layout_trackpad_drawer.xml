@@ -97,6 +97,14 @@
                         app:tint="#888888" />
 
                     <ImageView
+                        android:id="@+id/tab_mirror"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_kb_move"
+                        app:tint="#888888" />
+
+                    <ImageView
                         android:id="@+id/tab_config"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"

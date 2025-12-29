@@ -33,12 +33,13 @@ class TrackpadMenuManager(
     private val TAB_PRESETS = 1
     private val TAB_MOVE = 2
     private val TAB_KB_MOVE = 3
-    private val TAB_CONFIG = 4
-    private val TAB_TUNE = 5
-    private val TAB_HARDKEYS = 6    // Hardkey bindings configuration
-    private val TAB_BUBBLE = 7      // Bubble customization
-    private val TAB_PROFILES = 8
-    private val TAB_HELP = 9
+    private val TAB_MIRROR = 4      // NEW: Mirror keyboard config
+    private val TAB_CONFIG = 5
+    private val TAB_TUNE = 6
+    private val TAB_HARDKEYS = 7
+    private val TAB_BUBBLE = 8
+    private val TAB_PROFILES = 9
+    private val TAB_HELP = 10
     
     private var currentTab = TAB_MAIN
 
@@ -104,6 +105,7 @@ class TrackpadMenuManager(
             R.id.tab_presets to TAB_PRESETS,
             R.id.tab_move to TAB_MOVE,
             R.id.tab_kb_move to TAB_KB_MOVE,
+            R.id.tab_mirror to TAB_MIRROR,      // NEW
             R.id.tab_config to TAB_CONFIG,
             R.id.tab_tune to TAB_TUNE,
             R.id.tab_hardkeys to TAB_HARDKEYS,
@@ -194,6 +196,7 @@ class TrackpadMenuManager(
             TAB_PRESETS -> getPresetItems()
             TAB_MOVE -> getMoveItems(false)
             TAB_KB_MOVE -> getMoveItems(true)
+            TAB_MIRROR -> getMirrorItems()      // NEW
             TAB_CONFIG -> getConfigItems()
             TAB_TUNE -> getTuneItems()
             TAB_HARDKEYS -> getHardkeyItems()   // Hardkey bindings configuration
@@ -207,7 +210,7 @@ class TrackpadMenuManager(
     }
 
     private fun updateTabIcons(activeIdx: Int) {
-        val tabIds = listOf(R.id.tab_main, R.id.tab_presets, R.id.tab_move, R.id.tab_kb_move, R.id.tab_config, R.id.tab_tune, R.id.tab_hardkeys, R.id.tab_bubble, R.id.tab_profiles, R.id.tab_help)
+        val tabIds = listOf(R.id.tab_main, R.id.tab_presets, R.id.tab_move, R.id.tab_kb_move, R.id.tab_mirror, R.id.tab_config, R.id.tab_tune, R.id.tab_hardkeys, R.id.tab_bubble, R.id.tab_profiles, R.id.tab_help)
         for ((i, id) in tabIds.withIndex()) {
             val view = drawerView?.findViewById<ImageView>(id)
             if (i == activeIdx) view?.setColorFilter(Color.parseColor("#3DDC84")) 
@@ -381,6 +384,71 @@ class TrackpadMenuManager(
             
         return list
     }
+
+    // =========================
+    // GET MIRROR ITEMS - Mirror keyboard configuration
+    // =========================
+    private var isMirrorResizeMode = false
+    
+    private fun getMirrorItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("MIRROR KEYBOARD", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // Virtual Mirror Mode Toggle
+        list.add(TrackpadMenuAdapter.MenuItem("Virtual Mirror Mode", android.R.drawable.ic_menu_view, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVirtualMirrorMode) 1 else 0) { v ->
+            service.updatePref("virtual_mirror_mode", v as Boolean)
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("POSITION & SIZE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Mode Switcher (Position vs Resize)
+        val modeText = if (isMirrorResizeMode) "Resize (Size)" else "Position (Move)"
+        val modeIcon = if (isMirrorResizeMode) android.R.drawable.ic_menu_crop else android.R.drawable.ic_menu_mylocation
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Mode: $modeText", modeIcon, TrackpadMenuAdapter.Type.ACTION) {
+            isMirrorResizeMode = !isMirrorResizeMode
+            loadTab(currentTab) // Refresh UI
+        })
+        
+        // D-Pad for position/size
+        val actionText = if (isMirrorResizeMode) "Resize" else "Move"
+        list.add(TrackpadMenuAdapter.MenuItem("Mirror $actionText", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.DPAD) { cmd ->
+            val step = 20
+            val command = cmd as String
+            
+            when(command) {
+                "UP" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, -step)
+                "DOWN" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, step)
+                "LEFT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, -step, 0)
+                "RIGHT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, step, 0)
+                "CENTER" -> service.resetMirrorKeyboardPosition()
+            }
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Mirror Keyboard Opacity Slider
+        list.add(TrackpadMenuAdapter.MenuItem("Mirror Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefMirrorAlpha, 255) { v ->
+            service.updatePref("mirror_alpha", v)
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Orange Trail Delay Slider (100ms - 3000ms, show as 0.1s - 3.0s)
+        val currentDelayMs = p.prefMirrorOrientDelayMs
+        list.add(TrackpadMenuAdapter.MenuItem("Orient Delay: ${currentDelayMs}ms", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, (currentDelayMs / 100).toInt(), 30) { v ->
+            val newDelayMs = (v as Int) * 100L
+            service.updatePref("mirror_orient_delay", newDelayMs)
+            loadTab(currentTab) // Refresh to show new value
+        })
+        
+        return list
+    }
+    // =========================
+    // END GET MIRROR ITEMS
+    // =========================
 
     // =========================
     // GET CONFIG ITEMS - Trackpad configuration settings

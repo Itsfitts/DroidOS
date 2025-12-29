@@ -181,6 +181,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // =================================================================================
         var prefVirtualMirrorMode = false
         var prefMirrorOrientDelayMs = 1000L  // Default 1 second orientation delay
+        
+        // Mirror Keyboard Prefs
+        var prefMirrorAlpha = 200
+        var prefMirrorX = -1      // -1 = auto center
+        var prefMirrorY = 0
+        var prefMirrorWidth = -1  // -1 = auto
         // =================================================================================
         // END BLOCK: VIRTUAL MIRROR MODE PREFERENCES
         // =================================================================================
@@ -1332,6 +1338,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             "hardkey_vol_down_hold" -> prefs.hardkeyVolDownHold = value as String
             "double_tap_ms" -> prefs.doubleTapMs = value as Int
             "hold_duration_ms" -> prefs.holdDurationMs = value as Int
+            "mirror_alpha" -> {
+                val v = value as Int
+                prefs.prefMirrorAlpha = v
+                if (mirrorKeyboardView != null) {
+                    mirrorKeyboardView?.alpha = v / 255f
+                    mirrorKeyboardContainer?.alpha = v / 255f
+                }
+            }
+            "mirror_orient_delay" -> {
+                prefs.prefMirrorOrientDelayMs = value as Long
+            }
             // =================================================================================
             // VIRTUAL MIRROR MODE UPDATE HANDLERS
             // =================================================================================
@@ -1413,6 +1430,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // =================================================================================
         prefs.prefVirtualMirrorMode = p.getBoolean("virtual_mirror_mode", false)
         prefs.prefMirrorOrientDelayMs = p.getLong("mirror_orient_delay_ms", 1000L)
+
+        // Load Mirror Keyboard Prefs
+        prefs.prefMirrorAlpha = p.getInt("mirror_alpha", 200)
+        prefs.prefMirrorX = p.getInt("mirror_x", -1)
+        prefs.prefMirrorY = p.getInt("mirror_y", 0)
+        prefs.prefMirrorWidth = p.getInt("mirror_width", -1)
+        // Note: No height pref, it's wrap_content
         // =================================================================================
         // END BLOCK: VIRTUAL MIRROR MODE LOAD
         // =================================================================================
@@ -1465,6 +1489,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // =================================================================================
         e.putBoolean("virtual_mirror_mode", prefs.prefVirtualMirrorMode)
         e.putLong("mirror_orient_delay_ms", prefs.prefMirrorOrientDelayMs)
+
+        // Save Mirror Keyboard Prefs
+        e.putInt("mirror_alpha", prefs.prefMirrorAlpha)
+        e.putInt("mirror_x", prefs.prefMirrorX)
+        e.putInt("mirror_y", prefs.prefMirrorY)
+        e.putInt("mirror_width", prefs.prefMirrorWidth)
         // =================================================================================
         // END BLOCK: VIRTUAL MIRROR MODE SAVE
         // =================================================================================
@@ -1969,7 +1999,87 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         keyboardOverlay?.cycleRotation()
     }
 
-    fun resetTrackpadPosition() { trackpadParams.x = 100; trackpadParams.y = 100; trackpadParams.width = 400; trackpadParams.height = 300; windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }    fun cycleInputTarget() {
+    fun resetTrackpadPosition() { trackpadParams.x = 100; trackpadParams.y = 100; trackpadParams.width = 400; trackpadParams.height = 300; windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }    // =================================================================================
+    // FUNCTION: adjustMirrorKeyboard
+    // SUMMARY: Adjusts mirror keyboard position or size via D-pad controls.
+    // =================================================================================
+    fun adjustMirrorKeyboard(isResize: Boolean, deltaX: Int, deltaY: Int) {
+        if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
+        
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+
+        if (isResize) {
+            // Resize mode - adjust width/height
+            val currentWidth = mirrorKeyboardParams?.width ?: return
+            
+            // Only adjust width for horizontal, ignore vertical for now (WRAP_CONTENT)
+            if (deltaX != 0) {
+                 mirrorKeyboardParams?.width = (currentWidth + deltaX).coerceIn(200, 2000)
+            }
+            
+            // Save to prefs
+            prefs.prefMirrorWidth = mirrorKeyboardParams?.width ?: -1
+            p.putInt("mirror_width", prefs.prefMirrorWidth)
+
+        } else {
+            // Move mode - adjust x/y position
+            mirrorKeyboardParams?.x = (mirrorKeyboardParams?.x ?: 0) + deltaX
+            mirrorKeyboardParams?.y = (mirrorKeyboardParams?.y ?: 0) + deltaY
+            
+            // Save to prefs
+            prefs.prefMirrorX = mirrorKeyboardParams?.x ?: 0
+            prefs.prefMirrorY = mirrorKeyboardParams?.y ?: 0
+            p.putInt("mirror_x", prefs.prefMirrorX)
+            p.putInt("mirror_y", prefs.prefMirrorY)
+        }
+        
+        p.apply()
+
+        try {
+            mirrorWindowManager?.updateViewLayout(mirrorKeyboardContainer, mirrorKeyboardParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update mirror keyboard layout", e)
+        }
+    }
+    // =================================================================================
+    // END BLOCK: adjustMirrorKeyboard
+    // =================================================================================
+    
+    // =================================================================================
+    // FUNCTION: resetMirrorKeyboardPosition
+    // SUMMARY: Resets mirror keyboard to default centered position.
+    // =================================================================================
+    fun resetMirrorKeyboardPosition() {
+        if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
+        
+        // Reset to defaults
+        mirrorKeyboardParams?.x = 0
+        mirrorKeyboardParams?.y = 0
+        mirrorKeyboardParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        mirrorKeyboardParams?.width = (uiScreenWidth * 0.95f).toInt()
+
+        // Clear saved prefs
+        prefs.prefMirrorX = -1
+        prefs.prefMirrorY = 0
+        prefs.prefMirrorWidth = -1
+
+        getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+            .remove("mirror_x")
+            .remove("mirror_y")
+            .remove("mirror_width")
+            .apply()
+        
+        try {
+            mirrorWindowManager?.updateViewLayout(mirrorKeyboardContainer, mirrorKeyboardParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to reset mirror keyboard layout", e)
+        }
+    }
+    // =================================================================================
+    // END BLOCK: resetMirrorKeyboardPosition
+    // =================================================================================
+
+    fun cycleInputTarget() {
         if (displayManager == null) return; val displays = displayManager!!.displays; var nextId = -1
         for (d in displays) { if (d.displayId != currentDisplayId) { if (inputTargetDisplayId == currentDisplayId) { nextId = d.displayId; break } else if (inputTargetDisplayId == d.displayId) { continue } else { nextId = d.displayId } } }
         if (nextId == -1) { inputTargetDisplayId = currentDisplayId; targetScreenWidth = uiScreenWidth; targetScreenHeight = uiScreenHeight; removeRemoteCursor(); removeMirrorKeyboard(); cursorX = uiScreenWidth / 2f; cursorY = uiScreenHeight / 2f; cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception){}; cursorView?.visibility = View.VISIBLE; updateBorderColor(0x55FFFFFF.toInt()); showToast("Target: Local (Display $currentDisplayId)"); updateWakeLockState() }
@@ -2128,6 +2238,26 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             )
             mirrorKeyboardParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             mirrorKeyboardParams?.y = 0
+            
+            // Apply saved position if available
+            val savedX = prefs.prefMirrorX
+            val savedY = prefs.prefMirrorY
+            val savedWidth = prefs.prefMirrorWidth
+            
+            if (savedX != -1) {
+                mirrorKeyboardParams?.x = savedX
+                mirrorKeyboardParams?.gravity = Gravity.TOP or Gravity.START  // Switch to absolute positioning
+            }
+            if (savedY != -1) {
+                mirrorKeyboardParams?.y = savedY
+            }
+            if (savedWidth != -1 && savedWidth > 0) {
+                mirrorKeyboardParams?.width = savedWidth
+            }
+            
+            // Apply saved alpha
+            val savedAlpha = prefs.prefMirrorAlpha / 255f
+            mirrorKeyboardContainer?.alpha = savedAlpha
 
             mirrorWindowManager?.addView(mirrorKeyboardContainer, mirrorKeyboardParams)
 
