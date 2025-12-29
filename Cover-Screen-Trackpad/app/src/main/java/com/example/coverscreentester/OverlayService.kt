@@ -605,6 +605,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // SUMMARY: Turns the indicator GREEN when Voice is triggered.
     //          Sets isVoiceActive = true immediately.
     // =================================================================================
+    // =================================================================================
+    // INTER-APP COMMAND RECEIVER
+    // SUMMARY: BroadcastReceiver for ADB commands and inter-app communication.
+    //          Allows DroidOS Launcher to control Trackpad without killing permissions.
+    //          Commands can be sent via ADB: adb shell am broadcast -a <ACTION>
+    // =================================================================================
     private val switchReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -622,6 +628,64 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     else { if (menuDisplayId == -1 || menuDisplayId == currentDisplayId) setTrackpadVisibility(false) }
                 }
                 "SET_PREVIEW_MODE" -> setPreviewMode(intent.getBooleanExtra("PREVIEW_MODE", false))
+                
+                // =================================================================================
+                // INTER-APP COMMANDS: Soft Restart, Virtual Display Launch, Z-Order Fix
+                // USAGE (ADB): adb shell am broadcast -a com.example.coverscreentester.SOFT_RESTART
+                // =================================================================================
+                
+                // SOFT_RESTART: Recreates overlays without killing process/permissions
+                "com.example.coverscreentester.SOFT_RESTART" -> {
+                    Log.d(TAG, "Received SOFT_RESTART command")
+                    val targetDisplayId = intent.getIntExtra("DISPLAY_ID", currentDisplayId)
+                    handler.post {
+                        removeOldViews()
+                        handler.postDelayed({
+                            setupUI(targetDisplayId)
+                            enforceZOrder()
+                            showToast("Trackpad Soft Restarted")
+                        }, 200)
+                    }
+                }
+                
+                // MOVE_TO_VIRTUAL: Moves overlay to virtual display and enables mirror mode
+                "com.example.coverscreentester.MOVE_TO_VIRTUAL" -> {
+                    Log.d(TAG, "Received MOVE_TO_VIRTUAL command")
+                    val virtualDisplayId = intent.getIntExtra("DISPLAY_ID", 2)
+                    handler.post {
+                        moveToVirtualDisplayAndEnableMirror(virtualDisplayId)
+                    }
+                }
+                
+                // RETURN_TO_PHYSICAL: Returns overlay to physical display, disables mirror mode
+                "com.example.coverscreentester.RETURN_TO_PHYSICAL" -> {
+                    Log.d(TAG, "Received RETURN_TO_PHYSICAL command")
+                    val physicalDisplayId = intent.getIntExtra("DISPLAY_ID", 0)
+                    handler.post {
+                        returnToPhysicalDisplay(physicalDisplayId)
+                    }
+                }
+                
+                // ENFORCE_ZORDER: Forces overlay views to top of z-order
+                "com.example.coverscreentester.ENFORCE_ZORDER" -> {
+                    Log.d(TAG, "Received ENFORCE_ZORDER command")
+                    handler.post { enforceZOrder() }
+                }
+                
+                // TOGGLE_VIRTUAL_MIRROR: Toggle virtual mirror mode on/off
+                "com.example.coverscreentester.TOGGLE_VIRTUAL_MIRROR" -> {
+                    Log.d(TAG, "Received TOGGLE_VIRTUAL_MIRROR command")
+                    handler.post { toggleVirtualMirrorMode() }
+                }
+                
+                // GET_STATUS: Responds with current state (for debugging/coordination)
+                "com.example.coverscreentester.GET_STATUS" -> {
+                    Log.d(TAG, "Received GET_STATUS command - Display:$currentDisplayId Target:$inputTargetDisplayId Mirror:${prefs.prefVirtualMirrorMode}")
+                    showToast("D:$currentDisplayId T:$inputTargetDisplayId M:${if(prefs.prefVirtualMirrorMode) "ON" else "OFF"}")
+                }
+                // =================================================================================
+                // END BLOCK: INTER-APP COMMANDS
+                // =================================================================================
                 
                 // ACTION: Voice Input Triggered
                 "VOICE_TYPE_TRIGGERED" -> {
@@ -769,6 +833,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             addAction("OPEN_MENU")
             addAction("VOICE_TYPE_TRIGGERED") // <--- Add this
             addAction(Intent.ACTION_SCREEN_ON)
+            addAction("com.example.coverscreentester.SOFT_RESTART")
+            addAction("com.example.coverscreentester.MOVE_TO_VIRTUAL")
+            addAction("com.example.coverscreentester.RETURN_TO_PHYSICAL")
+            addAction("com.example.coverscreentester.ENFORCE_ZORDER")
+            addAction("com.example.coverscreentester.TOGGLE_VIRTUAL_MIRROR")
+            addAction("com.example.coverscreentester.GET_STATUS")
         }
         ContextCompat.registerReceiver(this, switchReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         
@@ -1280,6 +1350,105 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     fun forceMoveToCurrentDisplay() { setupUI(currentDisplayId) }
     fun forceMoveToDisplay(displayId: Int) { if (displayId == currentDisplayId) return; setupUI(displayId) }
     fun hideApp() { menuManager?.hide(); if (isTrackpadVisible) toggleTrackpad() }
+
+
+    // =================================================================================
+    // INTER-APP COMMUNICATION HELPER FUNCTIONS
+    // SUMMARY: Functions to support commands from DroidOS Launcher or ADB.
+    //          These enable coordinated display switching and z-order management.
+    // =================================================================================
+    
+    /**
+     * Moves overlay to virtual display and enables Virtual Mirror Mode.
+     * Called by MOVE_TO_VIRTUAL broadcast from Launcher or ADB.
+     */
+    private fun moveToVirtualDisplayAndEnableMirror(virtualDisplayId: Int) {
+        try {
+            Log.d(TAG, "Moving to virtual display $virtualDisplayId and enabling mirror mode")
+            
+            // Store current state for potential return
+            preMirrorTrackpadVisible = isTrackpadVisible
+            preMirrorKeyboardVisible = isCustomKeyboardVisible
+            preMirrorTargetDisplayId = inputTargetDisplayId
+            
+            // Move UI to virtual display
+            setupUI(virtualDisplayId)
+            
+            // Enable Virtual Mirror Mode
+            if (!prefs.prefVirtualMirrorMode) {
+                prefs.prefVirtualMirrorMode = true
+                savePrefs()
+            }
+            
+            // Set input target to virtual display
+            inputTargetDisplayId = virtualDisplayId
+            updateTargetMetrics(virtualDisplayId)
+            
+            // Show trackpad and keyboard
+            if (!isTrackpadVisible) toggleTrackpad()
+            if (!isCustomKeyboardVisible) toggleCustomKeyboard()
+            
+            // Create mirror keyboard on virtual display
+            createMirrorKeyboard(virtualDisplayId)
+            createRemoteCursor(virtualDisplayId)
+            
+            // Update visual indicators
+            updateBorderColor(0xFFFF00FF.toInt()) // Purple for remote mode
+            updateWakeLockState()
+            
+            showToast("Virtual Display Mode Active")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to move to virtual display", e)
+            showToast("Error: ${e.message}")
+        }
+    }
+    
+    /**
+     * Returns overlay to physical display and disables Virtual Mirror Mode.
+     * Called by RETURN_TO_PHYSICAL broadcast from Launcher or ADB.
+     */
+    private fun returnToPhysicalDisplay(physicalDisplayId: Int) {
+        try {
+            Log.d(TAG, "Returning to physical display $physicalDisplayId")
+            
+            // Disable Virtual Mirror Mode
+            if (prefs.prefVirtualMirrorMode) {
+                prefs.prefVirtualMirrorMode = false
+                savePrefs()
+            }
+            
+            // Remove remote cursor and mirror keyboard
+            removeRemoteCursor()
+            removeMirrorKeyboard()
+            
+            // Move UI to physical display
+            setupUI(physicalDisplayId)
+            
+            // Reset input target to local
+            inputTargetDisplayId = physicalDisplayId
+            cursorX = uiScreenWidth / 2f
+            cursorY = uiScreenHeight / 2f
+            cursorParams.x = cursorX.toInt()
+            cursorParams.y = cursorY.toInt()
+            try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception){}
+            cursorView?.visibility = View.VISIBLE
+            
+            // Update visual indicators
+            updateBorderColor(0x55FFFFFF.toInt()) // Default for local mode
+            releaseDisplayWakeLock()
+            
+            showToast("Returned to Physical Display")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to return to physical display", e)
+            showToast("Error: ${e.message}")
+        }
+    }
+    // =================================================================================
+    // END BLOCK: INTER-APP COMMUNICATION HELPER FUNCTIONS
+    // =================================================================================
+
     
     fun getSavedProfileList(): List<String> {
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)

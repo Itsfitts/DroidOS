@@ -115,6 +115,27 @@
                 android:name="android.view.im"
                 android:resource="@xml/method" />
         </service>
+        <!-- =================================================================================
+             INTER-APP COMMAND RECEIVER
+             SUMMARY: Static receiver to handle commands from DroidOS Launcher and ADB.
+                      Allows soft restart, z-order fixes, and virtual display coordination
+                      without requiring the Activity to be in foreground.
+             USAGE (ADB): adb shell am broadcast -a com.example.coverscreentester.SOFT_RESTART
+             ================================================================================= -->
+        <receiver
+            android:name=".InterAppCommandReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.coverscreentester.SOFT_RESTART" />
+                <action android:name="com.example.coverscreentester.MOVE_TO_VIRTUAL" />
+                <action android:name="com.example.coverscreentester.RETURN_TO_PHYSICAL" />
+                <action android:name="com.example.coverscreentester.ENFORCE_ZORDER" />
+                <action android:name="com.example.coverscreentester.TOGGLE_VIRTUAL_MIRROR" />
+                <action android:name="com.example.coverscreentester.GET_STATUS" />
+            </intent-filter>
+        </receiver>
+        <!-- END BLOCK: INTER-APP COMMAND RECEIVER -->
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
