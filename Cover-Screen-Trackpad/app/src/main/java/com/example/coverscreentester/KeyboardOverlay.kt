@@ -109,6 +109,7 @@ class KeyboardOverlay(
     // SUMMARY: Called whenever the suggestion bar is updated. Used to sync mirror keyboard.
     // =================================================================================
     var onSuggestionsChanged: ((List<KeyboardView.Candidate>) -> Unit)? = null
+    var onSizeChanged: (() -> Unit)? = null
     // =================================================================================
     // END BLOCK: onSuggestionsChanged
     // =================================================================================
@@ -583,7 +584,11 @@ class KeyboardOverlay(
     fun moveWindow(dx: Int, dy: Int) {
         if (!isVisible || keyboardParams == null) return
         keyboardParams!!.x += dx; keyboardParams!!.y += dy
-        try { windowManager.updateViewLayout(keyboardContainer, keyboardParams); saveKeyboardPosition() } catch (e: Exception) {}
+        try { 
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardPosition()
+            onSizeChanged?.invoke()
+        } catch (e: Exception) {}
     }
     
     fun resizeWindow(dw: Int, dh: Int) {
@@ -606,7 +611,11 @@ class KeyboardOverlay(
          keyboardWidth = keyboardParams!!.width
          keyboardHeight = keyboardParams!!.height
          
-         try { windowManager.updateViewLayout(keyboardContainer, keyboardParams); saveKeyboardSize() } catch (e: Exception) {}
+         try { 
+             windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+             saveKeyboardSize()
+             onSizeChanged?.invoke()
+         } catch (e: Exception) {}
     }
 
     private fun createKeyboardWindow() {
