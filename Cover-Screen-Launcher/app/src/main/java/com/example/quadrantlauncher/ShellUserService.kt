@@ -698,57 +698,56 @@ override fun getWindowLayouts(displayId: Int): List<String> {
     // === DEBUG DUMP TASKS - END ===
 
     // === MOVE TASK TO BACK / MINIMIZE TASK - START ===
-    // Minimizes a task by setting windowing mode to 0 (undefined/minimized)
-    // Mode 0 removes the task from freeform rendering, making it truly invisible
-    // This is what Android's native minimize button does
+    // Minimizes a task using Samsung's IMultiTaskingBinder from ActivityTaskManager
+    // This is what Android's freeform minimize button uses on Samsung devices
     override fun moveTaskToBack(taskId: Int) {
         val token = Binder.clearCallingIdentity()
         try {
-            Log.d(TAG, "moveTaskToBack: Minimizing taskId=$taskId via windowing mode 0")
+            Log.d(TAG, "moveTaskToBack: Minimizing taskId=$taskId via ATM.getMultiTaskingBinder()")
 
-            // Set windowing mode to 0 (WINDOWING_MODE_UNDEFINED = minimized)
-            val modeCmd = "am task set-windowing-mode $taskId 0"
-            Log.d(TAG, "moveTaskToBack: $modeCmd")
-            val modeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd))
-            val modeExit = modeProc.waitFor()
-            Log.d(TAG, "moveTaskToBack: set-windowing-mode 0 exitCode=$modeExit")
+            var success = false
 
-            if (modeExit == 0) {
-                Log.d(TAG, "moveTaskToBack: Task $taskId minimized successfully via mode 0")
-                return
+            try {
+                // Get ActivityTaskManager service
+                val atmClass = Class.forName("android.app.ActivityTaskManager")
+                val getServiceMethod = atmClass.getMethod("getService")
+                val atm = getServiceMethod.invoke(null)
+
+                Log.d(TAG, "moveTaskToBack: Got ATM service")
+
+                // Call getMultiTaskingBinder()
+                val getMultiTaskingBinder = atm.javaClass.getMethod("getMultiTaskingBinder")
+                val multiTaskingBinder = getMultiTaskingBinder.invoke(atm)
+
+                if (multiTaskingBinder != null) {
+                    Log.d(TAG, "moveTaskToBack: Got MultiTaskingBinder: ${multiTaskingBinder.javaClass.name}")
+
+                    // Call minimizeTaskById(taskId)
+                    val minimizeMethod = multiTaskingBinder.javaClass.getMethod(
+                        "minimizeTaskById",
+                        Int::class.javaPrimitiveType
+                    )
+                    minimizeMethod.invoke(multiTaskingBinder, taskId)
+
+                    Log.d(TAG, "moveTaskToBack: minimizeTaskById($taskId) SUCCEEDED!")
+                    success = true
+                } else {
+                    Log.w(TAG, "moveTaskToBack: getMultiTaskingBinder() returned null")
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "moveTaskToBack: Samsung MultiTaskingBinder failed", e)
+                e.printStackTrace()
             }
 
-            // If mode 0 didn't work, try the off-screen approach as fallback
-            Log.w(TAG, "moveTaskToBack: Mode 0 failed, trying off-screen fallback")
-
-            // Set to freeform first
-            val freeformCmd = "am task set-windowing-mode $taskId 5"
-            Runtime.getRuntime().exec(arrayOf("sh", "-c", freeformCmd)).waitFor()
-            Thread.sleep(100)
-
-            // Move far off-screen
-            val resizeCmd = "am task resize $taskId 99999 99999 100000 100000"
-            Log.d(TAG, "moveTaskToBack: $resizeCmd")
-            val resizeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd))
-            val resizeExit = resizeProc.waitFor()
-            Log.d(TAG, "moveTaskToBack: resize exitCode=$resizeExit")
-
-            if (resizeExit != 0) {
-                // Final fallback: legacy moveTaskToBack
-                Log.w(TAG, "moveTaskToBack: All methods failed, using legacy")
-                try {
-                    val am = Class.forName("android.app.ActivityManagerNative")
-                        .getMethod("getDefault").invoke(null)
-                    val moveMethod = am.javaClass.getMethod(
-                        "moveTaskToBack",
-                        Int::class.javaPrimitiveType,
-                        Boolean::class.javaPrimitiveType
-                    )
-                    moveMethod.invoke(am, taskId, true)
-                    Log.d(TAG, "moveTaskToBack: Legacy method succeeded")
-                } catch (e: Exception) {
-                    Log.e(TAG, "moveTaskToBack: Legacy method failed", e)
-                }
+            // FALLBACK: Off-screen positioning (only if Samsung API failed)
+            if (!success) {
+                Log.w(TAG, "moveTaskToBack: Using off-screen fallback")
+                val modeCmd = "am task set-windowing-mode $taskId 5"
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd)).waitFor()
+                Thread.sleep(100)
+                val resizeCmd = "am task resize $taskId 99999 99999 100000 100000"
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd)).waitFor()
             }
 
         } catch (e: Exception) {
