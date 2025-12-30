@@ -49,6 +49,60 @@ import com.example.coverscreentester.BuildConfig
 
 class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
+    // === RECEIVER & ACTIONS - START ===
+    private val commandReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                "com.example.coverscreentester.SOFT_RESTART" -> {
+                    Log.d("OverlayService", "Received SOFT_RESTART")
+                    performSoftRestart()
+                }
+                "com.example.coverscreentester.ENFORCE_ZORDER" -> {
+                    Log.d("OverlayService", "Received ENFORCE_ZORDER")
+                    enforceZOrder()
+                }
+            }
+        }
+    }
+
+    private fun performSoftRestart() {
+        try {
+            if (trackpadLayout != null && windowManager != null) {
+                // Remove and re-add to refresh z-order
+                try {
+                    windowManager?.removeView(trackpadLayout)
+                } catch (e: Exception) {
+                    Log.e("OverlayService", "Remove view failed", e)
+                }
+                
+                // Slight delay to ensure system processes removal
+                Handler(Looper.getMainLooper()).postDelayed({
+                    try {
+                        windowManager?.addView(trackpadLayout, trackpadParams)
+                        Toast.makeText(this, "Trackpad Refreshed", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e("OverlayService", "Add view failed", e)
+                    }
+                }, 100)
+            }
+        } catch (e: Exception) {
+            Log.e("OverlayService", "Restart failed", e)
+        }
+    }
+
+    fun enforceZOrder() {
+        try {
+            if (trackpadLayout != null && windowManager != null) {
+                // Updating layout params forces WindowManager to re-evaluate z-order
+                windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
+                Log.d("OverlayService", "Z-Order Enforced")
+            }
+        } catch (e: Exception) {
+            Log.e("OverlayService", "Z-Order failed", e)
+        }
+    }
+    // === RECEIVER & ACTIONS - END ===
+
     private val TAG = "OverlayService"
 
     var windowManager: WindowManager? = null
@@ -811,8 +865,18 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     override fun onCreate() {
         super.onCreate()
-        try { displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; displayManager?.registerDisplayListener(this, handler) } catch (e: Exception) {}
 
+        // Register Receiver
+        val commandFilter = IntentFilter().apply {
+            addAction("com.example.coverscreentester.SOFT_RESTART")
+            addAction("com.example.coverscreentester.ENFORCE_ZORDER")
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(commandReceiver, commandFilter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(commandReceiver, commandFilter)
+        }
+        try { displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; displayManager?.registerDisplayListener(this, handler) } catch (e: Exception) {}
         // =================================================================================
         // VIRTUAL DISPLAY KEEP-ALIVE: Initialize PowerManager
         // =================================================================================
@@ -2987,9 +3051,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     
     override fun onDestroy() {
         super.onDestroy()
-        // =================================================================================
+        try {
+            unregisterReceiver(commandReceiver)
+        } catch (e: Exception) {
+            // Ignore if not registered
+        }
+
         // VIRTUAL DISPLAY KEEP-ALIVE: Release wake lock on destroy
-        // =================================================================================
         releaseDisplayWakeLock()
         // =================================================================================
         // END BLOCK: VIRTUAL DISPLAY KEEP-ALIVE onDestroy cleanup
@@ -3013,12 +3081,6 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun showToast(msg: String) { handler.post { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show() } }
     private fun updateTargetMetrics(displayId: Int) { val display = displayManager?.getDisplay(displayId) ?: return; val metrics = android.util.DisplayMetrics(); display.getRealMetrics(metrics); targetScreenWidth = metrics.widthPixels; targetScreenHeight = metrics.heightPixels }
     
-    fun enforceZOrder() {
-        if (windowManager == null) return
-        menuManager?.bringToFront()
-        if (bubbleView != null && bubbleView!!.isAttachedToWindow) { try { windowManager?.removeView(bubbleView); windowManager?.addView(bubbleView, bubbleParams) } catch (e: Exception) {} }
-        if (cursorLayout != null && cursorLayout!!.isAttachedToWindow) { try { windowManager?.removeView(cursorLayout); windowManager?.addView(cursorLayout, cursorParams) } catch (e: Exception) {} }
-    }
 
     fun injectKeyFromKeyboard(keyCode: Int, metaState: Int) {
         // NEW: dismiss Voice if active

@@ -163,6 +163,7 @@ Cover-Screen-Trackpad/
           com/
             example/
               coverscreentester/
+                InterAppCommandReceiver.kt
                 KeyboardActivity.kt
                 KeyboardManager.kt
                 KeyboardOverlay.kt
@@ -4333,178 +4334,6 @@ class TrackpadMenuAdapter(private val items: List<MenuItem>) :
 </FrameLayout>
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad_drawer.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:background="@null"
-    android:elevation="0dp">
-
-    <LinearLayout
-        android:id="@+id/menu_container"
-        android:layout_width="320dp"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:background="@drawable/bg_trackpad_drawer"
-        android:orientation="vertical"
-        android:elevation="0dp"
-        android:minHeight="300dp">
-
-        <RelativeLayout
-            android:id="@+id/menu_drag_handle"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:background="#00000000"
-            android:paddingEnd="12dp"
-            android:clickable="true"
-            android:focusable="true">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_centerVertical="true"
-                android:layout_marginStart="16dp"
-                android:text="DroidOS Trackpad Keyboard"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold"
-                android:textSize="16sp" />
-
-            <ImageView
-                android:id="@+id/btn_close_menu"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:padding="6dp"
-                android:src="@android:drawable/ic_menu_close_clear_cancel"
-                app:tint="#FF5555" />
-        </RelativeLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="horizontal">
-
-            <ScrollView
-                android:layout_width="56dp"
-                android:layout_height="match_parent"
-                android:background="#222222">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp">
-
-                    <ImageView
-                        android:id="@+id/tab_main"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_cursor"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_presets"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_presets"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_move"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_move"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_kb_move"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_kb_move"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_mirror"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_kb_move"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_config"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_config"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_tune"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_tune"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_hardkeys"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_hardkeys"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_bubble"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_bubble"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_profiles"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_profiles"
-                        app:tint="#888888" />
-
-                    <ImageView
-                        android:id="@+id/tab_help"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_tab_help"
-                        app:tint="#888888" />
-
-                </LinearLayout>
-            </ScrollView>
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/menu_recycler"
-                android:layout_width="match_parent"
-                android:layout_height="350dp"
-                android:padding="8dp"
-                android:scrollbars="vertical" />
-
-        </LinearLayout>
-
-    </LinearLayout>
-</FrameLayout>
-```
-
 ## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad.xml
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -6053,6 +5882,96 @@ class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener
 </FrameLayout>
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/InterAppCommandReceiver.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.util.Log
+
+/**
+ * =================================================================================
+ * CLASS: InterAppCommandReceiver
+ * SUMMARY: Static BroadcastReceiver for inter-app communication.
+ *          Receives commands from DroidOS Launcher and ADB, then forwards them
+ *          to the OverlayService. This ensures commands work even when the
+ *          OverlayService's dynamic receiver isn't registered (background state).
+ * 
+ * USAGE (ADB):
+ *   adb shell am broadcast -a com.example.coverscreentester.SOFT_RESTART
+ *   adb shell am broadcast -a com.example.coverscreentester.MOVE_TO_VIRTUAL --ei DISPLAY_ID 2
+ *   adb shell am broadcast -a com.example.coverscreentester.RETURN_TO_PHYSICAL --ei DISPLAY_ID 0
+ *   adb shell am broadcast -a com.example.coverscreentester.ENFORCE_ZORDER
+ *   adb shell am broadcast -a com.example.coverscreentester.TOGGLE_VIRTUAL_MIRROR
+ *   adb shell am broadcast -a com.example.coverscreentester.GET_STATUS
+ * =================================================================================
+ */
+class InterAppCommandReceiver : BroadcastReceiver() {
+
+    companion object {
+        private const val TAG = "InterAppCmdReceiver"
+        
+        // Action constants
+        const val ACTION_SOFT_RESTART = "com.example.coverscreentester.SOFT_RESTART"
+        const val ACTION_MOVE_TO_VIRTUAL = "com.example.coverscreentester.MOVE_TO_VIRTUAL"
+        const val ACTION_RETURN_TO_PHYSICAL = "com.example.coverscreentester.RETURN_TO_PHYSICAL"
+        const val ACTION_ENFORCE_ZORDER = "com.example.coverscreentester.ENFORCE_ZORDER"
+        const val ACTION_TOGGLE_VIRTUAL_MIRROR = "com.example.coverscreentester.TOGGLE_VIRTUAL_MIRROR"
+        const val ACTION_GET_STATUS = "com.example.coverscreentester.GET_STATUS"
+        
+        // Extra keys
+        const val EXTRA_DISPLAY_ID = "DISPLAY_ID"
+    }
+
+    override fun onReceive(context: Context?, intent: Intent?) {
+        if (context == null || intent == null) return
+        
+        val action = intent.action ?: return
+        Log.d(TAG, "Received inter-app command: $action")
+        
+        // Forward the command to OverlayService via startService
+        // The OverlayService will handle the actual logic
+        val serviceIntent = Intent(context, OverlayService::class.java).apply {
+            this.action = action
+            
+            // Copy all extras from the original intent
+            intent.extras?.let { extras ->
+                putExtras(extras)
+            }
+        }
+        
+        try {
+            // Start the service with the command
+            // Using startService because AccessibilityService handles its own lifecycle
+            context.startService(serviceIntent)
+            Log.d(TAG, "Forwarded command to OverlayService: $action")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to forward command to OverlayService", e)
+            
+            // If service start fails, try broadcasting directly
+            // The OverlayService's dynamic receiver might pick it up
+            try {
+                val broadcastIntent = Intent(action).apply {
+                    setPackage(context.packageName)
+                    intent.extras?.let { extras ->
+                        putExtras(extras)
+                    }
+                }
+                context.sendBroadcast(broadcastIntent)
+                Log.d(TAG, "Sent internal broadcast as fallback: $action")
+            } catch (e2: Exception) {
+                Log.e(TAG, "Fallback broadcast also failed", e2)
+            }
+        }
+    }
+}
+// =================================================================================
+// END CLASS: InterAppCommandReceiver
+// =================================================================================
+```
+
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ManualAdjustActivity.kt
 ```kotlin
 package com.example.coverscreentester
@@ -6939,6 +6858,178 @@ class TrackpadService : Service() {
 </LinearLayout>
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/layout_trackpad_drawer.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@null"
+    android:elevation="0dp">
+
+    <LinearLayout
+        android:id="@+id/menu_container"
+        android:layout_width="320dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_trackpad_drawer"
+        android:orientation="vertical"
+        android:elevation="0dp"
+        android:minHeight="300dp">
+
+        <RelativeLayout
+            android:id="@+id/menu_drag_handle"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:background="#00000000"
+            android:paddingEnd="12dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="16dp"
+                android:text="DroidOS Trackpad Keyboard"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:textSize="16sp" />
+
+            <ImageView
+                android:id="@+id/btn_close_menu"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                app:tint="#FF5555" />
+        </RelativeLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <ScrollView
+                android:layout_width="56dp"
+                android:layout_height="match_parent"
+                android:background="#222222">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp">
+
+                    <ImageView
+                        android:id="@+id/tab_main"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_cursor"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_presets"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_presets"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_move"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_move"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_kb_move"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_kb_move"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_mirror"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_kb_move"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_config"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_config"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_tune"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_tune"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_hardkeys"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_hardkeys"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_bubble"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_bubble"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_profiles"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_profiles"
+                        app:tint="#888888" />
+
+                    <ImageView
+                        android:id="@+id/tab_help"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_tab_help"
+                        app:tint="#888888" />
+
+                </LinearLayout>
+            </ScrollView>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/menu_recycler"
+                android:layout_width="match_parent"
+                android:layout_height="350dp"
+                android:padding="8dp"
+                android:scrollbars="vertical" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</FrameLayout>
+```
+
 ## File: Cover-Screen-Trackpad/app/src/main/AndroidManifest.xml
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -7058,6 +7149,27 @@ class TrackpadService : Service() {
                 android:name="android.view.im"
                 android:resource="@xml/method" />
         </service>
+        <!-- =================================================================================
+             INTER-APP COMMAND RECEIVER
+             SUMMARY: Static receiver to handle commands from DroidOS Launcher and ADB.
+                      Allows soft restart, z-order fixes, and virtual display coordination
+                      without requiring the Activity to be in foreground.
+             USAGE (ADB): adb shell am broadcast -a com.example.coverscreentester.SOFT_RESTART
+             ================================================================================= -->
+        <receiver
+            android:name=".InterAppCommandReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.coverscreentester.SOFT_RESTART" />
+                <action android:name="com.example.coverscreentester.MOVE_TO_VIRTUAL" />
+                <action android:name="com.example.coverscreentester.RETURN_TO_PHYSICAL" />
+                <action android:name="com.example.coverscreentester.ENFORCE_ZORDER" />
+                <action android:name="com.example.coverscreentester.TOGGLE_VIRTUAL_MIRROR" />
+                <action android:name="com.example.coverscreentester.GET_STATUS" />
+            </intent-filter>
+        </receiver>
+        <!-- END BLOCK: INTER-APP COMMAND RECEIVER -->
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
@@ -20453,6 +20565,256 @@ CleanBuildTrackpad='cd ~/projects/DroidOS/Cover-Screen-Trackpad && ./gradlew cle
 </manifest>
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_menu.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Trackpad Setup"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:id="@+id/tvStep1Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 1: Initialize Restriction"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Disclosure: This app uses the AccessibilityService API to function as a trackpad. It simulates touch inputs (clicks and swipes) on the cover screen on your behalf. This app does not collect, store, or transmit any personal user data through this service."
+            android:textColor="#DDDDDD"
+            android:textSize="12sp"
+            android:background="#222222"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Instructions: Find 'Cover Screen Trackpad' and tap it. If a 'Restricted Setting' dialog appears, click OK and proceed to Step 2. If it enables successfully, you can skip to Step 4."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep1Trigger"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Open Accessibility"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvStep2Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 2: Allow Restricted Settings"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. Click button below to open App Info.\n2. Tap the 3-dot menu (top right).\n3. Select 'Allow Restricted Settings'."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep2Unblock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Open App Info"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvStep3Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 3: Enable Accessibility"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Go back to Accessibility and enable 'Cover Screen Trackpad'. It should now work."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep3Enable"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Grant Accessibility"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- NEW: Step for Null Keyboard -->
+        <TextView
+            android:id="@+id/tvStepNullKeyboardTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 3.5: Enable Null Keyboard"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Required for keyboard input handling without blocking the screen. Enable 'DroidOS Null Keyboard' in the next screen."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStepNullKeyboardEnable"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Null Keyboard"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvStep4Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 4: Overlay Permission"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Disclosure: This app requires the 'Display over other apps' permission to render the mouse cursor and trackpad controls on top of your screen."
+            android:textColor="#DDDDDD"
+            android:textSize="12sp"
+            android:background="#222222"
+            android:padding="8dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep4Overlay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Grant Overlay"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvStep5Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Step 5: Shizuku Permission"
+            android:textColor="#3DDC84"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStep5Shizuku"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Grant Shizuku"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Note: If Shizuku permissions are lost, a red dot may appear in the app."
+            android:textColor="#AAAAAA"
+            android:textSize="11sp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="32dp"/>
+
+        <Button
+            android:id="@+id/btnStartApp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="LAUNCH DROIDOS"
+            android:backgroundTint="#009688"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:minHeight="60dp"
+            android:layout_marginTop="8dp"/>
+
+        <Button
+            android:id="@+id/btnOpenSettings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="OPEN DROIDOS SETTINGS"
+            android:backgroundTint="#444444"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:minHeight="60dp"
+            android:layout_marginTop="16dp"/>
+
+    </LinearLayout>
+</ScrollView>
+```
+
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuManager.kt
 ```kotlin
 package com.example.coverscreentester
@@ -21265,256 +21627,6 @@ class TrackpadMenuManager(
         return list
     }
 }
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_menu.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#121212"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp"
-        android:gravity="center_horizontal">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Trackpad Setup"
-            android:textColor="#FFFFFF"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="24dp" />
-
-        <TextView
-            android:id="@+id/tvStep1Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 1: Initialize Restriction"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Disclosure: This app uses the AccessibilityService API to function as a trackpad. It simulates touch inputs (clicks and swipes) on the cover screen on your behalf. This app does not collect, store, or transmit any personal user data through this service."
-            android:textColor="#DDDDDD"
-            android:textSize="12sp"
-            android:background="#222222"
-            android:padding="12dp"
-            android:layout_marginBottom="12dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Instructions: Find 'Cover Screen Trackpad' and tap it. If a 'Restricted Setting' dialog appears, click OK and proceed to Step 2. If it enables successfully, you can skip to Step 4."
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep1Trigger"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Open Accessibility"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvStep2Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 2: Allow Restricted Settings"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="1. Click button below to open App Info.\n2. Tap the 3-dot menu (top right).\n3. Select 'Allow Restricted Settings'."
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep2Unblock"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Open App Info"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvStep3Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 3: Enable Accessibility"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Go back to Accessibility and enable 'Cover Screen Trackpad'. It should now work."
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep3Enable"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Grant Accessibility"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <!-- NEW: Step for Null Keyboard -->
-        <TextView
-            android:id="@+id/tvStepNullKeyboardTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 3.5: Enable Null Keyboard"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Required for keyboard input handling without blocking the screen. Enable 'DroidOS Null Keyboard' in the next screen."
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStepNullKeyboardEnable"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Enable Null Keyboard"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvStep4Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 4: Overlay Permission"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Disclosure: This app requires the 'Display over other apps' permission to render the mouse cursor and trackpad controls on top of your screen."
-            android:textColor="#DDDDDD"
-            android:textSize="12sp"
-            android:background="#222222"
-            android:padding="8dp"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep4Overlay"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Grant Overlay"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvStep5Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Step 5: Shizuku Permission"
-            android:textColor="#3DDC84"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnStep5Shizuku"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Grant Shizuku"
-            android:backgroundTint="#333333"
-            android:textColor="#FFFFFF"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Note: If Shizuku permissions are lost, a red dot may appear in the app."
-            android:textColor="#AAAAAA"
-            android:textSize="11sp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="32dp"/>
-
-        <Button
-            android:id="@+id/btnStartApp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="LAUNCH DROIDOS"
-            android:backgroundTint="#009688"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:minHeight="60dp"
-            android:layout_marginTop="8dp"/>
-
-        <Button
-            android:id="@+id/btnOpenSettings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="OPEN DROIDOS SETTINGS"
-            android:backgroundTint="#444444"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:minHeight="60dp"
-            android:layout_marginTop="16dp"/>
-
-    </LinearLayout>
-</ScrollView>
 ```
 
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
@@ -25522,6 +25634,7 @@ class KeyboardOverlay(
     // SUMMARY: Called whenever the suggestion bar is updated. Used to sync mirror keyboard.
     // =================================================================================
     var onSuggestionsChanged: ((List<KeyboardView.Candidate>) -> Unit)? = null
+    var onSizeChanged: (() -> Unit)? = null
     // =================================================================================
     // END BLOCK: onSuggestionsChanged
     // =================================================================================
@@ -25996,7 +26109,11 @@ class KeyboardOverlay(
     fun moveWindow(dx: Int, dy: Int) {
         if (!isVisible || keyboardParams == null) return
         keyboardParams!!.x += dx; keyboardParams!!.y += dy
-        try { windowManager.updateViewLayout(keyboardContainer, keyboardParams); saveKeyboardPosition() } catch (e: Exception) {}
+        try { 
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardPosition()
+            onSizeChanged?.invoke()
+        } catch (e: Exception) {}
     }
     
     fun resizeWindow(dw: Int, dh: Int) {
@@ -26019,7 +26136,11 @@ class KeyboardOverlay(
          keyboardWidth = keyboardParams!!.width
          keyboardHeight = keyboardParams!!.height
          
-         try { windowManager.updateViewLayout(keyboardContainer, keyboardParams); saveKeyboardSize() } catch (e: Exception) {}
+         try { 
+             windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+             saveKeyboardSize()
+             onSizeChanged?.invoke()
+         } catch (e: Exception) {}
     }
 
     private fun createKeyboardWindow() {
@@ -28723,6 +28844,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         var prefMirrorX = -1      // -1 = auto center
         var prefMirrorY = 0
         var prefMirrorWidth = -1  // -1 = auto
+        var prefMirrorHeight = -1 // -1 = auto
         // =================================================================================
         // END BLOCK: VIRTUAL MIRROR MODE PREFERENCES
         // =================================================================================
@@ -29140,6 +29262,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // SUMMARY: Turns the indicator GREEN when Voice is triggered.
     //          Sets isVoiceActive = true immediately.
     // =================================================================================
+    // =================================================================================
+    // INTER-APP COMMAND RECEIVER
+    // SUMMARY: BroadcastReceiver for ADB commands and inter-app communication.
+    //          Allows DroidOS Launcher to control Trackpad without killing permissions.
+    //          Commands can be sent via ADB: adb shell am broadcast -a <ACTION>
+    // =================================================================================
     private val switchReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -29157,6 +29285,64 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     else { if (menuDisplayId == -1 || menuDisplayId == currentDisplayId) setTrackpadVisibility(false) }
                 }
                 "SET_PREVIEW_MODE" -> setPreviewMode(intent.getBooleanExtra("PREVIEW_MODE", false))
+                
+                // =================================================================================
+                // INTER-APP COMMANDS: Soft Restart, Virtual Display Launch, Z-Order Fix
+                // USAGE (ADB): adb shell am broadcast -a com.example.coverscreentester.SOFT_RESTART
+                // =================================================================================
+                
+                // SOFT_RESTART: Recreates overlays without killing process/permissions
+                "com.example.coverscreentester.SOFT_RESTART" -> {
+                    Log.d(TAG, "Received SOFT_RESTART command")
+                    val targetDisplayId = intent.getIntExtra("DISPLAY_ID", currentDisplayId)
+                    handler.post {
+                        removeOldViews()
+                        handler.postDelayed({
+                            setupUI(targetDisplayId)
+                            enforceZOrder()
+                            showToast("Trackpad Soft Restarted")
+                        }, 200)
+                    }
+                }
+                
+                // MOVE_TO_VIRTUAL: Moves overlay to virtual display and enables mirror mode
+                "com.example.coverscreentester.MOVE_TO_VIRTUAL" -> {
+                    Log.d(TAG, "Received MOVE_TO_VIRTUAL command")
+                    val virtualDisplayId = intent.getIntExtra("DISPLAY_ID", 2)
+                    handler.post {
+                        moveToVirtualDisplayAndEnableMirror(virtualDisplayId)
+                    }
+                }
+                
+                // RETURN_TO_PHYSICAL: Returns overlay to physical display, disables mirror mode
+                "com.example.coverscreentester.RETURN_TO_PHYSICAL" -> {
+                    Log.d(TAG, "Received RETURN_TO_PHYSICAL command")
+                    val physicalDisplayId = intent.getIntExtra("DISPLAY_ID", 0)
+                    handler.post {
+                        returnToPhysicalDisplay(physicalDisplayId)
+                    }
+                }
+                
+                // ENFORCE_ZORDER: Forces overlay views to top of z-order
+                "com.example.coverscreentester.ENFORCE_ZORDER" -> {
+                    Log.d(TAG, "Received ENFORCE_ZORDER command")
+                    handler.post { enforceZOrder() }
+                }
+                
+                // TOGGLE_VIRTUAL_MIRROR: Toggle virtual mirror mode on/off
+                "com.example.coverscreentester.TOGGLE_VIRTUAL_MIRROR" -> {
+                    Log.d(TAG, "Received TOGGLE_VIRTUAL_MIRROR command")
+                    handler.post { toggleVirtualMirrorMode() }
+                }
+                
+                // GET_STATUS: Responds with current state (for debugging/coordination)
+                "com.example.coverscreentester.GET_STATUS" -> {
+                    Log.d(TAG, "Received GET_STATUS command - Display:$currentDisplayId Target:$inputTargetDisplayId Mirror:${prefs.prefVirtualMirrorMode}")
+                    showToast("D:$currentDisplayId T:$inputTargetDisplayId M:${if(prefs.prefVirtualMirrorMode) "ON" else "OFF"}")
+                }
+                // =================================================================================
+                // END BLOCK: INTER-APP COMMANDS
+                // =================================================================================
                 
                 // ACTION: Voice Input Triggered
                 "VOICE_TYPE_TRIGGERED" -> {
@@ -29304,6 +29490,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             addAction("OPEN_MENU")
             addAction("VOICE_TYPE_TRIGGERED") // <--- Add this
             addAction(Intent.ACTION_SCREEN_ON)
+            addAction("com.example.coverscreentester.SOFT_RESTART")
+            addAction("com.example.coverscreentester.MOVE_TO_VIRTUAL")
+            addAction("com.example.coverscreentester.RETURN_TO_PHYSICAL")
+            addAction("com.example.coverscreentester.ENFORCE_ZORDER")
+            addAction("com.example.coverscreentester.TOGGLE_VIRTUAL_MIRROR")
+            addAction("com.example.coverscreentester.GET_STATUS")
         }
         ContextCompat.registerReceiver(this, switchReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         
@@ -29384,6 +29576,59 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 "FORCE_KEYBOARD" -> toggleCustomKeyboard()
                 "TOGGLE_CUSTOM_KEYBOARD" -> toggleCustomKeyboard()
                 "OPEN_MENU" -> menuManager?.show()
+                
+                // =================================================================================
+                // INTER-APP COMMANDS (forwarded from InterAppCommandReceiver)
+                // SUMMARY: Handles commands from DroidOS Launcher and ADB.
+                //          These enable soft restart, z-order fixes, and virtual display control.
+                // =================================================================================
+                
+                "com.example.coverscreentester.SOFT_RESTART" -> {
+                    Log.d(TAG, "onStartCommand: SOFT_RESTART")
+                    val targetDisplayId = intent.getIntExtra("DISPLAY_ID", currentDisplayId)
+                    handler.post {
+                        removeOldViews()
+                        handler.postDelayed({
+                            setupUI(targetDisplayId)
+                            enforceZOrder()
+                            showToast("Trackpad Soft Restarted")
+                        }, 200)
+                    }
+                }
+                
+                "com.example.coverscreentester.MOVE_TO_VIRTUAL" -> {
+                    Log.d(TAG, "onStartCommand: MOVE_TO_VIRTUAL")
+                    val virtualDisplayId = intent.getIntExtra("DISPLAY_ID", 2)
+                    handler.post {
+                        moveToVirtualDisplayAndEnableMirror(virtualDisplayId)
+                    }
+                }
+                
+                "com.example.coverscreentester.RETURN_TO_PHYSICAL" -> {
+                    Log.d(TAG, "onStartCommand: RETURN_TO_PHYSICAL")
+                    val physicalDisplayId = intent.getIntExtra("DISPLAY_ID", 0)
+                    handler.post {
+                        returnToPhysicalDisplay(physicalDisplayId)
+                    }
+                }
+                
+                "com.example.coverscreentester.ENFORCE_ZORDER" -> {
+                    Log.d(TAG, "onStartCommand: ENFORCE_ZORDER")
+                    handler.post { enforceZOrder() }
+                }
+                
+                "com.example.coverscreentester.TOGGLE_VIRTUAL_MIRROR" -> {
+                    Log.d(TAG, "onStartCommand: TOGGLE_VIRTUAL_MIRROR")
+                    handler.post { toggleVirtualMirrorMode() }
+                }
+                
+                "com.example.coverscreentester.GET_STATUS" -> {
+                    Log.d(TAG, "onStartCommand: GET_STATUS - Display:$currentDisplayId Target:$inputTargetDisplayId Mirror:${prefs.prefVirtualMirrorMode}")
+                    showToast("D:$currentDisplayId T:$inputTargetDisplayId M:${if(prefs.prefVirtualMirrorMode) "ON" else "OFF"}")
+                }
+                // =================================================================================
+                // END BLOCK: INTER-APP COMMANDS
+                // =================================================================================
             }
             if (intent?.hasExtra("DISPLAY_ID") == true) {
                 val targetId = intent.getIntExtra("DISPLAY_ID", Display.DEFAULT_DISPLAY)
@@ -29815,6 +30060,105 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     fun forceMoveToCurrentDisplay() { setupUI(currentDisplayId) }
     fun forceMoveToDisplay(displayId: Int) { if (displayId == currentDisplayId) return; setupUI(displayId) }
     fun hideApp() { menuManager?.hide(); if (isTrackpadVisible) toggleTrackpad() }
+
+
+    // =================================================================================
+    // INTER-APP COMMUNICATION HELPER FUNCTIONS
+    // SUMMARY: Functions to support commands from DroidOS Launcher or ADB.
+    //          These enable coordinated display switching and z-order management.
+    // =================================================================================
+    
+    /**
+     * Moves overlay to virtual display and enables Virtual Mirror Mode.
+     * Called by MOVE_TO_VIRTUAL broadcast from Launcher or ADB.
+     */
+    private fun moveToVirtualDisplayAndEnableMirror(virtualDisplayId: Int) {
+        try {
+            Log.d(TAG, "Moving to virtual display $virtualDisplayId and enabling mirror mode")
+            
+            // Store current state for potential return
+            preMirrorTrackpadVisible = isTrackpadVisible
+            preMirrorKeyboardVisible = isCustomKeyboardVisible
+            preMirrorTargetDisplayId = inputTargetDisplayId
+            
+            // Move UI to virtual display
+            setupUI(virtualDisplayId)
+            
+            // Enable Virtual Mirror Mode
+            if (!prefs.prefVirtualMirrorMode) {
+                prefs.prefVirtualMirrorMode = true
+                savePrefs()
+            }
+            
+            // Set input target to virtual display
+            inputTargetDisplayId = virtualDisplayId
+            updateTargetMetrics(virtualDisplayId)
+            
+            // Show trackpad and keyboard
+            if (!isTrackpadVisible) toggleTrackpad()
+            if (!isCustomKeyboardVisible) toggleCustomKeyboard()
+            
+            // Create mirror keyboard on virtual display
+            createMirrorKeyboard(virtualDisplayId)
+            createRemoteCursor(virtualDisplayId)
+            
+            // Update visual indicators
+            updateBorderColor(0xFFFF00FF.toInt()) // Purple for remote mode
+            updateWakeLockState()
+            
+            showToast("Virtual Display Mode Active")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to move to virtual display", e)
+            showToast("Error: ${e.message}")
+        }
+    }
+    
+    /**
+     * Returns overlay to physical display and disables Virtual Mirror Mode.
+     * Called by RETURN_TO_PHYSICAL broadcast from Launcher or ADB.
+     */
+    private fun returnToPhysicalDisplay(physicalDisplayId: Int) {
+        try {
+            Log.d(TAG, "Returning to physical display $physicalDisplayId")
+            
+            // Disable Virtual Mirror Mode
+            if (prefs.prefVirtualMirrorMode) {
+                prefs.prefVirtualMirrorMode = false
+                savePrefs()
+            }
+            
+            // Remove remote cursor and mirror keyboard
+            removeRemoteCursor()
+            removeMirrorKeyboard()
+            
+            // Move UI to physical display
+            setupUI(physicalDisplayId)
+            
+            // Reset input target to local
+            inputTargetDisplayId = physicalDisplayId
+            cursorX = uiScreenWidth / 2f
+            cursorY = uiScreenHeight / 2f
+            cursorParams.x = cursorX.toInt()
+            cursorParams.y = cursorY.toInt()
+            try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception){}
+            cursorView?.visibility = View.VISIBLE
+            
+            // Update visual indicators
+            updateBorderColor(0x55FFFFFF.toInt()) // Default for local mode
+            releaseDisplayWakeLock()
+            
+            showToast("Returned to Physical Display")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to return to physical display", e)
+            showToast("Error: ${e.message}")
+        }
+    }
+    // =================================================================================
+    // END BLOCK: INTER-APP COMMUNICATION HELPER FUNCTIONS
+    // =================================================================================
+
     
     fun getSavedProfileList(): List<String> {
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
@@ -29832,8 +30176,33 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     fun forceExit() { try { stopSelf(); Process.killProcess(Process.myPid()) } catch (e: Exception) { e.printStackTrace() } }
     
+    // =================================================================================
+    // FUNCTION: syncMirrorWithPhysicalKeyboard
+    // SUMMARY: Updates mirror keyboard dimensions to match physical keyboard.
+    //          Called when physical keyboard is resized/moved.
+    // =================================================================================
+    fun syncMirrorWithPhysicalKeyboard() {
+        if (!prefs.prefVirtualMirrorMode || mirrorKeyboardView == null) return
+        
+        // Update coordinate scaling variables
+        physicalKbWidth = keyboardOverlay?.getViewWidth()?.toFloat() ?: 600f
+        physicalKbHeight = keyboardOverlay?.getViewHeight()?.toFloat() ?: 400f
+        
+        Log.d(TAG, "Mirror sync: Physical KB now ${physicalKbWidth}x${physicalKbHeight}")
+        
+        // If mirror has custom size, keep it. Otherwise, could auto-scale here.
+        // For now, just update the scaling ratios used for touch coordinate mapping.
+    }
+    // =================================================================================
+    // END BLOCK: syncMirrorWithPhysicalKeyboard
+    // =================================================================================
+    
     fun manualAdjust(isKeyboard: Boolean, isResize: Boolean, dx: Int, dy: Int) { 
-        if (isKeyboard) { if (isResize) keyboardOverlay?.resizeWindow(dx, dy) else keyboardOverlay?.moveWindow(dx, dy) } 
+        if (isKeyboard) { 
+            if (isResize) keyboardOverlay?.resizeWindow(dx, dy) else keyboardOverlay?.moveWindow(dx, dy)
+            // Sync mirror keyboard with physical keyboard changes
+            syncMirrorWithPhysicalKeyboard()
+        } 
         else { 
             if (trackpadLayout == null) return
             if (isResize) { trackpadParams.width = max(200, trackpadParams.width + dx); trackpadParams.height = max(200, trackpadParams.height + dy) } 
@@ -29877,10 +30246,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             "mirror_alpha" -> {
                 val v = value as Int
                 prefs.prefMirrorAlpha = v
-                if (mirrorKeyboardView != null) {
-                    mirrorKeyboardView?.alpha = v / 255f
-                    mirrorKeyboardContainer?.alpha = v / 255f
-                }
+                // Apply to BOTH container and keyboard view
+                val alpha = v / 255f
+                mirrorKeyboardContainer?.alpha = alpha
+                mirrorKeyboardView?.alpha = alpha
             }
             "mirror_orient_delay" -> {
                 prefs.prefMirrorOrientDelayMs = value as Long
@@ -29972,6 +30341,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         prefs.prefMirrorX = p.getInt("mirror_x", -1)
         prefs.prefMirrorY = p.getInt("mirror_y", 0)
         prefs.prefMirrorWidth = p.getInt("mirror_width", -1)
+        prefs.prefMirrorHeight = p.getInt("mirror_height", -1)
         // Note: No height pref, it's wrap_content
         // =================================================================================
         // END BLOCK: VIRTUAL MIRROR MODE LOAD
@@ -30031,6 +30401,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         e.putInt("mirror_x", prefs.prefMirrorX)
         e.putInt("mirror_y", prefs.prefMirrorY)
         e.putInt("mirror_width", prefs.prefMirrorWidth)
+        e.putInt("mirror_height", prefs.prefMirrorHeight)
         // =================================================================================
         // END BLOCK: VIRTUAL MIRROR MODE SAVE
         // =================================================================================
@@ -30116,6 +30487,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
         // =================================================================================
         // END BLOCK: MIRROR SUGGESTIONS SYNC CALLBACK
+        // =================================================================================
+
+        // =================================================================================
+        // PHYSICAL KEYBOARD SIZE/POSITION CHANGE CALLBACK
+        // SUMMARY: When physical keyboard is moved/resized, sync mirror keyboard.
+        // =================================================================================
+        keyboardOverlay?.onSizeChanged = {
+            syncMirrorWithPhysicalKeyboard()
+        }
+        // =================================================================================
+        // END BLOCK: PHYSICAL KEYBOARD SIZE/POSITION CHANGE CALLBACK
         // =================================================================================
 
         // FIX: Restore Saved Layout (fixes reset/aspect ratio issue)
@@ -30536,41 +30918,80 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
 
     fun resetTrackpadPosition() { trackpadParams.x = 100; trackpadParams.y = 100; trackpadParams.width = 400; trackpadParams.height = 300; windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }    // =================================================================================
+    // FUNCTION: showMirrorTemporarily
+    // SUMMARY: Makes mirror keyboard visible temporarily, like when touched.
+    //          Used during D-pad adjustments so user can see changes.
+    // =================================================================================
+    private fun showMirrorTemporarily() {
+        if (mirrorKeyboardContainer == null || mirrorKeyboardView == null) return
+        
+        // Cancel any pending fade
+        mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
+        
+        // Show mirror
+        val alpha = prefs.prefMirrorAlpha / 255f
+        mirrorKeyboardContainer?.alpha = 1f
+        mirrorKeyboardView?.alpha = alpha.coerceAtLeast(0.7f)  // At least 70% visible during adjustment
+        mirrorKeyboardContainer?.setBackgroundColor(0x80000000.toInt())
+        
+        // Schedule fade out after 2 seconds
+        mirrorFadeHandler.postDelayed(mirrorFadeRunnable, 2000)
+    }
+    // =================================================================================
+    // END BLOCK: showMirrorTemporarily
+    // =================================================================================
+
+    // =================================================================================
     // FUNCTION: adjustMirrorKeyboard
     // SUMMARY: Adjusts mirror keyboard position or size via D-pad controls.
+    //          Shows mirror during adjustment and syncs coordinate scaling.
     // =================================================================================
     fun adjustMirrorKeyboard(isResize: Boolean, deltaX: Int, deltaY: Int) {
         if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
         
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-
+        // Show mirror during adjustment (like touching keyboard)
+        showMirrorTemporarily()
+        
         if (isResize) {
             // Resize mode - adjust width/height
-            val currentWidth = mirrorKeyboardParams?.width ?: return
+            var currentWidth = mirrorKeyboardParams?.width ?: return
+            var currentHeight = mirrorKeyboardParams?.height ?: return
             
-            // Only adjust width for horizontal, ignore vertical for now (WRAP_CONTENT)
-            if (deltaX != 0) {
-                 mirrorKeyboardParams?.width = (currentWidth + deltaX).coerceIn(200, 2000)
+            // Handle WRAP_CONTENT
+            if (currentWidth == WindowManager.LayoutParams.WRAP_CONTENT) {
+                currentWidth = mirrorKeyboardContainer?.width ?: 600
+            }
+            if (currentHeight == WindowManager.LayoutParams.WRAP_CONTENT) {
+                currentHeight = mirrorKeyboardContainer?.height ?: 400
             }
             
-            // Save to prefs
-            prefs.prefMirrorWidth = mirrorKeyboardParams?.width ?: -1
-            p.putInt("mirror_width", prefs.prefMirrorWidth)
-
-        } else {
-            // Move mode - adjust x/y position
-            mirrorKeyboardParams?.x = (mirrorKeyboardParams?.x ?: 0) + deltaX
-            mirrorKeyboardParams?.y = (mirrorKeyboardParams?.y ?: 0) + deltaY
+            // Apply deltas with constraints
+            mirrorKeyboardParams?.width = (currentWidth + deltaX).coerceIn(200, 2000)
+            mirrorKeyboardParams?.height = (currentHeight + deltaY).coerceIn(150, 800)
             
             // Save to prefs
-            prefs.prefMirrorX = mirrorKeyboardParams?.x ?: 0
-            prefs.prefMirrorY = mirrorKeyboardParams?.y ?: 0
-            p.putInt("mirror_x", prefs.prefMirrorX)
-            p.putInt("mirror_y", prefs.prefMirrorY)
+            getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+                .putInt("mirror_width", mirrorKeyboardParams?.width ?: -1)
+                .putInt("mirror_height", mirrorKeyboardParams?.height ?: -1)
+                .apply()
+            
+            // Update coordinate scaling for touch sync
+            mirrorKbWidth = (mirrorKeyboardParams?.width ?: 600).toFloat()
+            mirrorKbHeight = (mirrorKeyboardParams?.height ?: 400).toFloat()
+            
+        } else {
+            // Move mode - adjust x/y position
+            // NOTE: For Gravity.BOTTOM, positive Y moves UP, so we invert deltaY
+            mirrorKeyboardParams?.x = (mirrorKeyboardParams?.x ?: 0) + deltaX
+            mirrorKeyboardParams?.y = (mirrorKeyboardParams?.y ?: 0) - deltaY  // INVERTED
+            
+            // Save to prefs
+            getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+                .putInt("mirror_x", mirrorKeyboardParams?.x ?: 0)
+                .putInt("mirror_y", mirrorKeyboardParams?.y ?: 0)
+                .apply()
         }
         
-        p.apply()
-
         try {
             mirrorWindowManager?.updateViewLayout(mirrorKeyboardContainer, mirrorKeyboardParams)
         } catch (e: Exception) {
@@ -30583,26 +31004,36 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     
     // =================================================================================
     // FUNCTION: resetMirrorKeyboardPosition
-    // SUMMARY: Resets mirror keyboard to default centered position.
+    // SUMMARY: Resets mirror keyboard to default centered position at bottom.
     // =================================================================================
     fun resetMirrorKeyboardPosition() {
         if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
+        
+        // Show during reset
+        showMirrorTemporarily()
+        
+        // Get display metrics for auto-sizing
+        val display = displayManager?.getDisplay(inputTargetDisplayId) ?: return
+        val metrics = android.util.DisplayMetrics()
+        display.getRealMetrics(metrics)
         
         // Reset to defaults
         mirrorKeyboardParams?.x = 0
         mirrorKeyboardParams?.y = 0
         mirrorKeyboardParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-        mirrorKeyboardParams?.width = (uiScreenWidth * 0.95f).toInt()
-
+        mirrorKeyboardParams?.width = (metrics.widthPixels * 0.95f).toInt()
+        mirrorKeyboardParams?.height = WindowManager.LayoutParams.WRAP_CONTENT
+        
+        // Update scaling
+        mirrorKbWidth = (mirrorKeyboardParams?.width ?: 600).toFloat()
+        mirrorKbHeight = 400f  // Will be updated when view measures
+        
         // Clear saved prefs
-        prefs.prefMirrorX = -1
-        prefs.prefMirrorY = 0
-        prefs.prefMirrorWidth = -1
-
         getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
             .remove("mirror_x")
             .remove("mirror_y")
             .remove("mirror_width")
+            .remove("mirror_height")
             .apply()
         
         try {
