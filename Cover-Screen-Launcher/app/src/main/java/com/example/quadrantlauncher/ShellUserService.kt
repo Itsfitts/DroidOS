@@ -762,9 +762,8 @@ override fun getWindowLayouts(displayId: Int): List<String> {
         if (pkg == "com.android.systemui") return false
         if (pkg == "com.android.launcher3") return false 
         if (pkg == "com.sec.android.app.launcher") return false 
-        if (pkg == "com.example.quadrantlauncher") return false
-        if (pkg == "com.example.com.katsuyamaki.coverscreenlauncher") return false
-        if (pkg == "com.example.coverscreentester") return false 
+        if (pkg == "com.katsuyamaki.DroidOSLauncher") return false
+        if (pkg == "com.example.coverscreentester") return false
         if (pkg == "com.katsuyamaki.trackpad") return false
         if (pkg.contains("inputmethod")) return false
         if (pkg.contains("navigationbar")) return false

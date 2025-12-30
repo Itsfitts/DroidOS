@@ -53,6 +53,29 @@ import kotlin.math.min
 
 class FloatingLauncherService : AccessibilityService() {
 
+    // === RECEIVER - START ===
+    private val launcherReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                "com.katsuyamaki.DroidOSTrackpadKeyboard.MOVE_TO_DISPLAY" -> {
+                    val targetId = intent.getIntExtra("displayId", 0)
+                    Log.d(TAG, "Launcher moving to Display: $targetId")
+                    uiHandler.post {
+                        currentDisplayId = targetId
+                        // Re-initialize window on new display
+                        if (windowManager != null && bubbleView != null) {
+                            try { windowManager.removeView(bubbleView) } catch(e: Exception) {}
+                        }
+                        initWindow()
+                    }
+                }
+            }
+        }
+    }
+    // === RECEIVER - END ===
+
+    private val TAG = "FloatingLauncherService"
+
     companion object {
         // === MODE CONSTANTS - START ===
         // Defines the different drawer modes/tabs
@@ -77,8 +100,9 @@ class FloatingLauncherService : AccessibilityService() {
         const val CHANNEL_ID = "OverlayServiceChannel"
         const val TAG = "FloatingService"
         const val DEBUG_TAG = "DROIDOS_DEBUG"
-        const val ACTION_OPEN_DRAWER = "com.example.quadrantlauncher.OPEN_DRAWER"
-        const val ACTION_UPDATE_ICON = "com.example.quadrantlauncher.UPDATE_ICON"
+        const val ACTION_OPEN_DRAWER = "com.katsuyamaki.DroidOSLauncher.OPEN_DRAWER"
+        const val ACTION_UPDATE_ICON = "com.katsuyamaki.DroidOSLauncher.UPDATE_ICON"
+        const val ACTION_CYCLE_DISPLAY = "com.katsuyamaki.DroidOSLauncher.CYCLE_DISPLAY"
         const val HIGHLIGHT_COLOR = 0xFF00A0E9.toInt()
     }
 
@@ -190,13 +214,27 @@ class FloatingLauncherService : AccessibilityService() {
     
     private var shellService: IShellService? = null
     private var isBound = false
-    private val uiHandler = Handler(Looper.getMainLooper())
+    lateinit var uiHandler: Handler // Declare uiHandler here
+    override fun onCreate() {
+        super.onCreate()
+        
+        // Register ADB Receiver
+        val filter = IntentFilter().apply {
+            addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.MOVE_TO_DISPLAY")
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(launcherReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(launcherReceiver, filter)
+        }
+
+        uiHandler = Handler(Looper.getMainLooper())
+    }
 
     private val shizukuBinderListener = Shizuku.OnBinderReceivedListener { if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) bindShizuku() }
     private val shizukuPermissionListener = Shizuku.OnRequestPermissionResultListener { _, grantResult -> if (grantResult == PackageManager.PERMISSION_GRANTED) bindShizuku() }
 
-    private val commandReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
+    private val commandReceiver = object : BroadcastReceiver() {        override fun onReceive(context: Context?, intent: Intent?) {
             val action = intent?.action
             if (action == ACTION_OPEN_DRAWER) { 
                 if (isScreenOffState) wakeUp() else if (!isExpanded) toggleDrawer() 
@@ -204,6 +242,9 @@ class FloatingLauncherService : AccessibilityService() {
             else if (action == ACTION_UPDATE_ICON) { 
                 updateBubbleIcon()
                 if (currentMode == MODE_SETTINGS) switchMode(MODE_SETTINGS) 
+            }
+            else if (action == ACTION_CYCLE_DISPLAY) {
+                cycleDisplay()
             }
             else if (action == Intent.ACTION_SCREEN_ON) {
                 if (isScreenOffState) {
@@ -361,6 +402,7 @@ class FloatingLauncherService : AccessibilityService() {
         val filter = IntentFilter().apply {
             addAction(ACTION_OPEN_DRAWER)
             addAction(ACTION_UPDATE_ICON)
+            addAction(ACTION_CYCLE_DISPLAY)
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
         }
@@ -470,6 +512,7 @@ class FloatingLauncherService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        try { unregisterReceiver(launcherReceiver) } catch(e: Exception) {}
         isScreenOffState = false
         wakeUp()
         try { Shizuku.removeBinderReceivedListener(shizukuBinderListener); Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener); unregisterReceiver(commandReceiver) } catch (e: Exception) {}
@@ -679,6 +722,18 @@ class FloatingLauncherService : AccessibilityService() {
         drawerView!!.setOnClickListener { toggleDrawer() }
         drawerView!!.isFocusableInTouchMode = true
         drawerView!!.setOnKeyListener { _, keyCode, event -> if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) { toggleDrawer(); true } else if (keyCode == KeyEvent.KEYCODE_VOLUME_UP && isScreenOffState) { wakeUp(); true } else false }
+    }
+
+    /**
+     * Initializes or re-initializes the window and all its components.
+     * This is called when the service starts or when the target display changes.
+     */
+    private fun initWindow() {
+        setupDisplayContext(currentDisplayId)
+        setupBubble()
+        setupDrawer()
+        updateBubbleIcon()
+        loadDisplaySettings(currentDisplayId)
     }
     
     private fun startReorderMode(index: Int) { if (!isReorderTapEnabled) return; if (index < 0 || index >= selectedAppsQueue.size) return; val prevIndex = reorderSelectionIndex; reorderSelectionIndex = index; val adapter = drawerView!!.findViewById<RecyclerView>(R.id.selected_apps_recycler).adapter; if (prevIndex != -1) adapter?.notifyItemChanged(prevIndex); adapter?.notifyItemChanged(reorderSelectionIndex); safeToast("Tap another app to Swap") }
