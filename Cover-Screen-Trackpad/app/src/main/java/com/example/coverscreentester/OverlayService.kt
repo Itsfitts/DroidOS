@@ -53,49 +53,57 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                "com.example.coverscreentester.SOFT_RESTART" -> {
+                "com.katsuyamaki.DroidOSTrackpadKeyboard.SOFT_RESTART" -> {
                     Log.d("OverlayService", "Received SOFT_RESTART")
                     performSoftRestart()
                 }
-                "com.example.coverscreentester.ENFORCE_ZORDER" -> {
+                "com.katsuyamaki.DroidOSTrackpadKeyboard.ENFORCE_ZORDER" -> {
                     Log.d("OverlayService", "Received ENFORCE_ZORDER")
                     enforceZOrder()
                 }
-            }
-        }
+            }        }
     }
 
     private fun performSoftRestart() {
-        try {
-            if (trackpadLayout != null && windowManager != null) {
-                // Remove and re-add to refresh z-order
-                try {
-                    windowManager?.removeView(trackpadLayout)
-                } catch (e: Exception) {
-                    Log.e("OverlayService", "Remove view failed", e)
-                }
-                
-                // Slight delay to ensure system processes removal
-                Handler(Looper.getMainLooper()).postDelayed({
-                    try {
-                        windowManager?.addView(trackpadLayout, trackpadParams)
-                        Toast.makeText(this, "Trackpad Refreshed", Toast.LENGTH_SHORT).show()
-                    } catch (e: Exception) {
-                        Log.e("OverlayService", "Add view failed", e)
-                    }
-                }, 100)
-            }
-        } catch (e: Exception) {
-            Log.e("OverlayService", "Restart failed", e)
+        // HARD RESTART: Kill the process to force a full WindowManager reset.
+        // This is the only way to fix persistent Z-order issues against the Launcher.
+        handler.post {
+            Toast.makeText(this, "Restarting Trackpad...", Toast.LENGTH_SHORT).show()
+            handler.postDelayed({
+                // This will kill the process. The system should restart it (START_STICKY).
+                forceExit()
+            }, 300)
         }
     }
 
     fun enforceZOrder() {
         try {
-            if (trackpadLayout != null && windowManager != null) {
-                // Updating layout params forces WindowManager to re-evaluate z-order
-                windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
-                Log.d("OverlayService", "Z-Order Enforced")
+            if (windowManager != null) {
+                // CRITICAL: Explicitly remove and re-add Cursor to force it to the top of the stack
+                // Simply updating layout params is often not enough to change Z-order relative to other apps.
+                if (cursorLayout != null && cursorLayout?.isAttachedToWindow == true) {
+                    try {
+                        windowManager?.removeView(cursorLayout)
+                        windowManager?.addView(cursorLayout, cursorParams)
+                    } catch (e: Exception) {
+                        // If remove fails (not attached), try adding
+                        try { windowManager?.addView(cursorLayout, cursorParams) } catch(z: Exception) {}
+                    }
+                } else if (cursorLayout != null) {
+                    // Not attached but exists? Try adding.
+                    try { windowManager?.addView(cursorLayout, cursorParams) } catch(e: Exception) {}
+                }
+
+                // For Trackpad and Bubble, standard update is usually fine, but re-adding is safer if issues persist.
+                // For now, we stick to update for large layers to reduce flicker, but ensure Cursor is top.
+                if (trackpadLayout != null) {
+                    try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception) {}
+                }
+                if (bubbleView != null) {
+                    try { windowManager?.updateViewLayout(bubbleView, bubbleParams) } catch(e: Exception) {}
+                }
+                
+                Log.d("OverlayService", "Z-Order Enforced (Cursor Popped to Top)")
             }
         } catch (e: Exception) {
             Log.e("OverlayService", "Z-Order failed", e)
@@ -866,10 +874,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     override fun onCreate() {
         super.onCreate()
 
-        // Register Receiver
         val commandFilter = IntentFilter().apply {
-            addAction("com.example.coverscreentester.SOFT_RESTART")
-            addAction("com.example.coverscreentester.ENFORCE_ZORDER")
+            addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.SOFT_RESTART")
+            addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.ENFORCE_ZORDER")
         }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(commandReceiver, commandFilter, Context.RECEIVER_EXPORTED)
@@ -1581,8 +1588,36 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         if (!prefs.prefPersistentService) forceExit()
     }
 
-    fun forceExit() { try { stopSelf(); Process.killProcess(Process.myPid()) } catch (e: Exception) { e.printStackTrace() } }
-    
+    fun forceExit() {
+        try {
+            // Schedule an Auto-Restart using AlarmManager
+            // This ensures the app comes back immediately after we kill it to fix Z-order
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                
+                val pendingIntent = android.app.PendingIntent.getActivity(
+                    this, 
+                    1999, 
+                    intent, 
+                    android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE
+                )
+                
+                val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+                // Fire the restart intent in 1000ms (1 second)
+                alarmManager.setExact(
+                    android.app.AlarmManager.RTC_WAKEUP, 
+                    System.currentTimeMillis() + 1000, 
+                    pendingIntent
+                )
+            }
+            
+            stopSelf()
+            android.os.Process.killProcess(android.os.Process.myPid())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
     // =================================================================================
     // FUNCTION: syncMirrorWithPhysicalKeyboard
     // SUMMARY: Updates mirror keyboard dimensions to match physical keyboard.
