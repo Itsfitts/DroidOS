@@ -61,6 +61,23 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     Log.d("OverlayService", "Received ENFORCE_ZORDER")
                     enforceZOrder()
                 }
+                "com.katsuyamaki.DroidOSTrackpadKeyboard.MOVE_TO_DISPLAY" -> {
+                    val targetId = intent.getIntExtra("displayId", 0)
+                    Log.d("OverlayService", "Moving to Display: $targetId")
+                    handler.post {
+                        removeOldViews()
+                        setupUI(targetId)
+                        enforceZOrder()
+                    }
+                }
+                "com.katsuyamaki.DroidOSTrackpadKeyboard.TOGGLE_MIRROR" -> {
+                    Log.d("OverlayService", "Toggling Mirror Mode")
+                    handler.post { toggleVirtualMirrorMode() }
+                }
+                "com.katsuyamaki.DroidOSTrackpadKeyboard.OPEN_DRAWER" -> {
+                    Log.d("OverlayService", "Opening Drawer")
+                    handler.post { toggleDrawer() }
+                }
             }        }
     }
 
@@ -877,6 +894,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val commandFilter = IntentFilter().apply {
             addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.SOFT_RESTART")
             addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.ENFORCE_ZORDER")
+            addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.MOVE_TO_DISPLAY")
+            addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.TOGGLE_MIRROR")
+            addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.OPEN_DRAWER")
         }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(commandReceiver, commandFilter, Context.RECEIVER_EXPORTED)
@@ -1352,6 +1372,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         // PREVIOUSLY: else if (isCustomKeyboardVisible) toggleCustomKeyboard(...)
         // We removed that line so the keyboard stays open.
+    }
+    
+    // NEW FUNCTION: Toggles the visibility of the trackpad menu drawer
+    private fun toggleDrawer() {
+        menuManager?.toggle()
+        enforceZOrder() // Ensure drawer is on top
     }
     
     private fun handleBubbleTap() {
