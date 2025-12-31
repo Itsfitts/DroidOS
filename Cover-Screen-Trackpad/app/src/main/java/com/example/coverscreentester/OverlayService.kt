@@ -2923,7 +2923,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         if (prefs.prefVirtualMirrorMode) {
             // === ENTERING MIRROR MODE ===
-            Log.d(TAG, "Entering Virtual Mirror Mode")
+            android.util.Log.d(TAG, "Entering Virtual Mirror Mode")
 
             // 1. Save current state before changes
             preMirrorTrackpadVisible = isTrackpadVisible
@@ -2977,6 +2977,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 updateVirtualMirrorMode()
 
                 showToast("Mirror Mode ON → Display ${inputTargetDisplayId}")
+                
+                // NEW: Tell Launcher to Cycle to Virtual Display
+                val intentCycle = Intent("com.katsuyamaki.DroidOSLauncher.CYCLE_DISPLAY")
+                intentCycle.setPackage("com.katsuyamaki.DroidOSLauncher")
+                sendBroadcast(intentCycle)
+                
             } else {
                 // No remote display available
                 prefs.prefVirtualMirrorMode = false
@@ -2985,7 +2991,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         } else {
             // === EXITING MIRROR MODE ===
-            Log.d(TAG, "Exiting Virtual Mirror Mode")
+            android.util.Log.d(TAG, "Exiting Virtual Mirror Mode")
 
             // 1. Save mirror mode layout
             saveMirrorModeLayout()
@@ -3014,6 +3020,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             if (isCustomKeyboardVisible != preMirrorKeyboardVisible) toggleCustomKeyboard(suppressAutomation = true)
 
             showToast("Mirror Mode OFF → Local Display")
+            
+            // NEW: Tell Launcher to Cycle back to Physical Display
+            val intentCycle = Intent("com.katsuyamaki.DroidOSLauncher.CYCLE_DISPLAY")
+            intentCycle.setPackage("com.katsuyamaki.DroidOSLauncher")
+            sendBroadcast(intentCycle)
         }
 
         savePrefs()
