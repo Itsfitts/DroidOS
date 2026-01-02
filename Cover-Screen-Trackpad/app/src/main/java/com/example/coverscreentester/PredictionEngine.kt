@@ -469,6 +469,10 @@ class PredictionEngine {
     // FUNCTION: getSuggestions
     // SUMMARY: Returns suggested words for a given prefix, sorted by popularity.
     //          Filters out blocked words to prevent them from appearing in suggestions.
+// =================================================================================
+    // FUNCTION: getSuggestions
+    // SUMMARY: Returns suggested words for a given prefix, sorted by popularity.
+    //          Filters out blocked words to prevent them from appearing in suggestions.
     // =================================================================================
     fun getSuggestions(prefix: String, maxResults: Int = 3): List<String> {
         if (prefix.isEmpty()) return emptyList()
@@ -486,13 +490,13 @@ class PredictionEngine {
         // Filter out blocked words before returning
         return candidates
             .filter { !blockedWords.contains(it.first) }
+            .distinctBy { it.first } // FIX: Ensure unique words
             .take(maxResults)
             .map { it.first }
     }
     // =================================================================================
     // END BLOCK: getSuggestions
     // =================================================================================
-
     // =================================================================================
     // FUNCTION: collectCandidates
     // SUMMARY: Recursively collects word candidates from trie nodes.
@@ -530,6 +534,15 @@ class PredictionEngine {
      */
 
     // =================================================================================
+    // FUNCTION: decodeSwipe (OPTIMIZED)
+    // SUMMARY: Decodes a swipe gesture into word suggestions.
+    //          OPTIMIZATIONS:
+    //          1. Uses first/last letter index for O(1) candidate lookup
+    //          2. Reduced logging (only errors and final result)
+    //          3. Early termination when excellent match found
+    //          4. Pre-computed templates for common words
+    // =================================================================================
+// =================================================================================
     // FUNCTION: decodeSwipe (OPTIMIZED)
     // SUMMARY: Decodes a swipe gesture into word suggestions.
     //          OPTIMIZATIONS:
@@ -626,8 +639,13 @@ class PredictionEngine {
             Pair(word, finalScore)
         }
         
-        // 9. Sort and return top 3
-        val results = scored.sortedBy { it.second }.take(3).map { it.first }
+        // 9. Sort and return top 3 UNIQUE results
+        // FIX: Added distinctBy to prevent duplicates in the toolbar
+        val results = scored
+            .sortedBy { it.second }
+            .distinctBy { it.first } 
+            .take(3)
+            .map { it.first }
         
         // Minimal logging - only log the result
         if (results.isNotEmpty()) {
