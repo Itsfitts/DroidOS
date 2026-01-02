@@ -424,10 +424,9 @@ class PredictionEngine {
     /**
      * Blocks a word: Removes from memory and saves to blocked_words.txt
      */
-    // =================================================================================
-    // FUNCTION: blockWord
-    // SUMMARY: Blocks a word from appearing in suggestions. Saves to persistent storage.
-    //          The word will remain blocked until user clears app data or unblocks it.
+
+// =================================================================================
+    // FUNCTION: blockWord (Complete Cleanup)
     // =================================================================================
     fun blockWord(context: Context, word: String) {
         val cleanWord = word.trim().lowercase(Locale.ROOT)
@@ -435,30 +434,44 @@ class PredictionEngine {
 
         Thread {
             try {
-                // 1. Update Memory
                 synchronized(this) {
+                    // 1. Add to Block List
                     blockedWords.add(cleanWord)
+                    
+                    // 2. Remove from ALL active lists
                     customWords.remove(cleanWord)
-
-                    // Remove from active lists
                     wordList.remove(cleanWord)
+                    
+                    // 3. Remove from Indices (Crucial for immediate disappearance)
+                    if (cleanWord.isNotEmpty()) {
+                        wordsByFirstLetter[cleanWord.first()]?.remove(cleanWord)
+                        if (cleanWord.length >= 2) {
+                            val key = "${cleanWord.first()}${cleanWord.last()}"
+                            wordsByFirstLastLetter[key]?.remove(cleanWord)
+                        }
+                    }
+                    
+                    // 4. Remove from User Stats (CRITICAL FIX: Stops "Zombie Words")
+                    // If we don't remove it here, the "User Rescue" in decodeSwipe will bring it back.
+                    synchronized(userFrequencyMap) {
+                        userFrequencyMap.remove(cleanWord)
+                    }
+                    
                     templateCache.remove(cleanWord)
                 }
 
-                // 2. Save to Files
+                // 5. Persist Changes
                 saveSetToFile(context, BLOCKED_DICT_FILE, blockedWords)
                 saveSetToFile(context, USER_DICT_FILE, customWords)
+                saveUserStats(context) // Save the removal from stats so it doesn't come back on reboot
 
-                // 3. Verify save
-                val blockFile = java.io.File(context.filesDir, BLOCKED_DICT_FILE)
-                val savedContent = if (blockFile.exists()) blockFile.readText() else "(file not found)"
-                android.util.Log.d("DroidOS_Prediction", "SAVE: Blocked '$cleanWord'. File now contains: $savedContent")
-                android.util.Log.d("DroidOS_Prediction", "SAVE: blockedWords set now has ${blockedWords.size} words: $blockedWords")
+                android.util.Log.d("DroidOS_Prediction", "BLOCKED: '$cleanWord' removed from all lists and stats.")
             } catch (e: Exception) {
-                android.util.Log.e("DroidOS_Prediction", "SAVE FAILED: ${e.message}", e)
+                android.util.Log.e("DroidOS_Prediction", "Block failed", e)
             }
         }.start()
     }
+
     // =================================================================================
     // END BLOCK: blockWord
     // =================================================================================
@@ -636,7 +649,7 @@ class PredictionEngine {
 
 
 // =================================================================================
-    // FUNCTION: decodeSwipe (Balanced Priority + Length Filter)
+    // FUNCTION: decodeSwipe (Blocked Word Safety Check)
     // =================================================================================
     fun decodeSwipe(swipePath: List<PointF>, keyMap: Map<String, PointF>): List<String> {
         if (swipePath.size < 3 || keyMap.isEmpty()) return emptyList()
@@ -652,7 +665,6 @@ class PredictionEngine {
         }
 
         val inputLength = getPathLength(swipePath)
-        // Guard against single tap being treated as swipe
         if (inputLength < 10f) return emptyList()
 
         val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
@@ -696,7 +708,7 @@ class PredictionEngine {
         
         // 3. Scoring
         val rankedCandidates = candidates
-            .filter { it.length >= MIN_WORD_LENGTH }
+            .filter { !isWordBlocked(it) && it.length >= MIN_WORD_LENGTH } // SAFETY: Filter blocked words
             .sortedWith(compareByDescending<String> { userFrequencyMap[it] ?: 0 }
                 .thenBy { getWordRank(it) })
             .take(100)
@@ -727,11 +739,7 @@ class PredictionEngine {
             
             val userCount = userFrequencyMap[word] ?: 0
             val userBoost = if (userCount > 0) {
-                // REDUCED BOOST:
-                // Old: 3.0 + 1.0*ln
-                // New: 1.2 base + 0.4 log factor.
-                // "Okay" (count 50) -> Divisor ~2.7 (was ~7.0)
-                // "Bug" (count 5) -> Divisor ~1.9
+                // Tuned Boost: 1.2 base + 0.4 log factor
                 1.2f + (0.4f * ln((userCount + 1).toFloat()))
             } else {
                 1.0f
@@ -748,6 +756,7 @@ class PredictionEngine {
             .take(3)
             .map { it.first }
     }
+
 
 
 
