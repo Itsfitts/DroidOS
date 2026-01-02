@@ -1074,98 +1074,51 @@ class KeyboardOverlay(
         injectKey(keyCode, metaState)
     }
 
+
     // =================================================================================
     // FUNCTION: onSuggestionClick
-    // SUMMARY: Handles when user taps a word in the prediction bar. Two modes:
-    //          1. Swipe Correction: Replaces the last swiped word entirely
-    //          2. Manual Typing Completion: Replaces partially typed word
-    //          Uses small delays between deletes and text injection to ensure
-    //          proper sequencing on the input field.
+    // SUMMARY: Handles when user taps a word in the prediction bar.
+    //          SCENARIO 1: Swipe Correction (Replaces last committed word)
+    //          SCENARIO 2: Manual Typing (Replaces current composing characters)
     // =================================================================================
     override fun onSuggestionClick(text: String, isNew: Boolean) {
-        android.util.Log.d("DroidOS_Prediction", "Suggestion clicked: '$text' (isNew=$isNew, swipeWord='$lastCommittedSwipeWord', composing='$currentComposingWord')")
+        android.util.Log.d("DroidOS_Prediction", "Suggestion clicked: '$text' (isNew=$isNew)")
 
         // 1. Learn word if it was flagged as New
         if (isNew) {
             predictionEngine.learnWord(context, text)
-            android.util.Log.d("DroidOS_Prediction", "Learned new word: $text")
         }
 
-        // 2. Commit logic
-        // --- LOGIC: Swipe Correction ---
-        if (lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.isNotEmpty()) {
+        // 2. Handle Deletion (Key Injection)
+        if (!lastCommittedSwipeWord.isNullOrEmpty()) {
+            // SCENARIO 1: Correcting a previously swiped word
+            // We must delete the full word + the space we added
             val deleteCount = lastCommittedSwipeWord!!.length
-            android.util.Log.d("DroidOS_Prediction", "SWIPE REPLACE: Deleting $deleteCount chars, inserting '$text'")
-
-            // Delete in a background thread with small delays for reliability
-            Thread {
-                try {
-                    // Delete character by character with small delay
-                    for (i in 0 until deleteCount) {
-                        injectKey(KeyEvent.KEYCODE_DEL, 0)
-                        Thread.sleep(5) // Small delay between deletes
-                    }
-
-                    // Small pause before injecting new text
-                    Thread.sleep(20)
-
-                    // Inject new word (Maintain capitalization of the replaced word)
-                    var newText = text
-                    val wasCap = Character.isUpperCase(lastCommittedSwipeWord!!.firstOrNull() ?: ' ')
-                    if (wasCap) {
-                        newText = newText.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                    }
-
-                    val finalText = "$newText "
-                    injectText(finalText)
-
-                    // Update history on UI thread
-                    handler.post {
-                        lastCommittedSwipeWord = finalText
-                        updateSuggestions()
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("DroidOS_Prediction", "Suggestion replace failed: ${e.message}")
-                }
-            }.start()
-
-        } else {
-            // --- LOGIC: Manual Typing Completion ---
-            val charsToDelete = currentComposingWord.length
-            android.util.Log.d("DroidOS_Prediction", "MANUAL REPLACE: Deleting $charsToDelete chars, inserting '$text'")
-
-            if (charsToDelete == 0) {
-                // Nothing to delete, just insert
-                injectText("$text ")
-                resetComposition()
-                return
+            for (i in 0 until deleteCount) {
+                injectKey(KeyEvent.KEYCODE_DEL, 0)
             }
-
-            // Delete and insert in background thread for reliability
-            Thread {
-                try {
-                    // Delete character by character with small delay
-                    for (i in 0 until charsToDelete) {
-                        injectKey(KeyEvent.KEYCODE_DEL, 0)
-                        Thread.sleep(5) // Small delay between deletes
-                    }
-
-                    // Small pause before injecting new text
-                    Thread.sleep(20)
-
-                    // Inject the full word + space
-                    injectText("$text ")
-
-                    // Reset on UI thread
-                    handler.post {
-                        resetComposition()
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("DroidOS_Prediction", "Suggestion insert failed: ${e.message}")
-                }
-            }.start()
+        } else if (currentComposingWord.isNotEmpty()) {
+            // SCENARIO 2: Completing a manually typed word (e.g. "partia" -> "partially")
+            // We delete the characters typed so far
+            val deleteCount = currentComposingWord.length
+            for (i in 0 until deleteCount) {
+                injectKey(KeyEvent.KEYCODE_DEL, 0)
+            }
         }
+
+        // 3. Insert new word (always add space for flow)
+        val newText = "$text "
+        injectText(newText)
+        
+        // 4. Update State
+        lastCommittedSwipeWord = newText
+        currentComposingWord.clear() // Reset manual typing state
+        
+        // Clear suggestions immediately since we just committed
+        updateSuggestionsWithSync(emptyList()) 
     }
+
+
     // =================================================================================
     // END BLOCK: onSuggestionClick with reliable replacement
     // =================================================================================

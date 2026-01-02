@@ -29,18 +29,26 @@ import kotlin.math.abs
  */
 class PredictionEngine {
 
+
     companion object {
         val instance = PredictionEngine()
+
+        // Tuning Parameters (Tweaked for Gboard-like accuracy)
+        private const val SAMPLE_POINTS = 64           // 64 points captures sharp turns (W/K) better
+        private const val NORMALIZATION_SIZE = 100f    // REQUIRED: Size L for shape normalization
+        private const val SEARCH_RADIUS = 70f
         
-        // SHARK2 Algorithm Parameters
-        private const val SAMPLE_POINTS = 64           // Number of uniform sample points (64 is good balance)
-        private const val NORMALIZATION_SIZE = 100f    // Size L for shape normalization
-        private const val PRUNING_THRESHOLD = 80f      // Max start/end key distance for pruning (pixels)
-        private const val SHAPE_WEIGHT = 0.4f          // Weight for shape channel (α)
-        private const val LOCATION_WEIGHT = 0.6f       // Weight for location channel (β) - α + β = 1
-        private const val TOP_N_CANDIDATES = 10        // Number of candidates for final ranking
-        private const val MIN_WORD_LENGTH = 2          // Minimum word length to consider
+        // Weights: Trust Location (actual key hits) more than Shape (abstract pattern)
+        private const val SHAPE_WEIGHT = 0.4f
+        private const val LOCATION_WEIGHT = 0.6f
+        
+        // File Names
+        private const val USER_STATS_FILE = "user_stats.json"
+        private const val BLOCKED_DICT_FILE = "blocked_words.txt"
+        private const val USER_DICT_FILE = "user_words.txt" // REQUIRED: For user added words
+        private const val MIN_WORD_LENGTH = 2
     }
+
 
     // =================================================================================
     // DATA STRUCTURES
@@ -92,9 +100,6 @@ class PredictionEngine {
     private val customWords = java.util.HashSet<String>()
     // Cache for the top 1000 words to make "Hail Mary" pass instant
     private val commonWordsCache = ArrayList<String>()
-    // Fix: Removed 'const' (not allowed in class body)
-    private val USER_DICT_FILE = "user_words.txt"
-    private val BLOCKED_DICT_FILE = "blocked_words.txt"
     // Throttle template failure logging
     private var lastTemplateMissLog = 0L
     
@@ -844,6 +849,7 @@ class PredictionEngine {
      * Calculates the total absolute length of a path in pixels.
      */
     private fun getPathLength(points: List<PointF>): Float {
+        if (points.size < 2) return 0f
         var length = 0f
         for (i in 0 until points.size - 1) {
             length += hypot(points[i+1].x - points[i].x, points[i+1].y - points[i].y)
