@@ -2222,6 +2222,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // VIRTUAL MIRROR MODE LAYOUT SAVE
     // SUMMARY: Saves the current layout to the mirror mode profile. Called when
     //          exiting mirror mode or when explicitly saving while in mirror mode.
+    //          Includes both physical keyboard AND mirror keyboard positions/sizes.
     // =================================================================================
     fun saveMirrorModeLayout() {
         val currentKbX = keyboardOverlay?.getViewX() ?: savedKbX
@@ -2233,6 +2234,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
         val key = getMirrorModeProfileKey()
 
+        // Save trackpad position/size
         p.putInt("X_$key", trackpadParams.x)
         p.putInt("Y_$key", trackpadParams.y)
         p.putInt("W_$key", trackpadParams.width)
@@ -2243,11 +2245,25 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val kbW = keyboardOverlay?.getViewWidth() ?: 0
         val kbH = keyboardOverlay?.getViewHeight() ?: 0
 
-        // Save settings specific to mirror mode
+        // Save settings specific to mirror mode (same format as normal profile)
         p.putString("SETTINGS_$key", "${prefs.cursorSpeed};${prefs.scrollSpeed};${if(prefs.prefTapScroll) 1 else 0};${if(prefs.prefReverseScroll) 1 else 0};${prefs.prefAlpha};${prefs.prefBgAlpha};${prefs.prefKeyboardAlpha};${prefs.prefHandleSize};${prefs.prefHandleTouchSize};${prefs.prefScrollTouchSize};${prefs.prefScrollVisualSize};${prefs.prefCursorSize};${prefs.prefKeyScale};${if(prefs.prefAutomationEnabled) 1 else 0};${if(prefs.prefAnchored) 1 else 0};${prefs.prefBubbleSize};${prefs.prefBubbleAlpha};${prefs.prefBubbleIconIndex};${prefs.prefBubbleX};${prefs.prefBubbleY};${prefs.hardkeyVolUpTap};${prefs.hardkeyVolUpDouble};${prefs.hardkeyVolUpHold};${prefs.hardkeyVolDownTap};${prefs.hardkeyVolDownDouble};${prefs.hardkeyVolDownHold};${prefs.hardkeyPowerDouble};$kbX;$kbY;$kbW;$kbH")
 
+        // FIX: Save mirror keyboard position/size/alpha separately
+        val mirrorX = mirrorKeyboardParams?.x ?: prefs.prefMirrorX
+        val mirrorY = mirrorKeyboardParams?.y ?: prefs.prefMirrorY
+        val mirrorW = mirrorKeyboardParams?.width ?: prefs.prefMirrorWidth
+        val mirrorH = mirrorKeyboardParams?.height ?: prefs.prefMirrorHeight
+        val mirrorAlpha = prefs.prefMirrorAlpha
+
+        p.putInt("MIRROR_X_$key", mirrorX)
+        p.putInt("MIRROR_Y_$key", mirrorY)
+        p.putInt("MIRROR_W_$key", mirrorW)
+        p.putInt("MIRROR_H_$key", mirrorH)
+        p.putInt("MIRROR_ALPHA_$key", mirrorAlpha)
+
         p.apply()
-        Log.d(TAG, "Mirror mode layout saved: $key")
+        Log.d(TAG, "Mirror mode layout saved: $key (Mirror KB: ${mirrorX},${mirrorY} ${mirrorW}x${mirrorH})")
+        showToast("Mirror Mode Layout Saved")
     }
     // =================================================================================
     // END BLOCK: VIRTUAL MIRROR MODE LAYOUT SAVE
@@ -2304,6 +2320,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     keyboardOverlay?.setAnchored(prefs.prefAnchored)
                 }
             }
+
+            // FIX: Load mirror keyboard position/size/alpha
+            if (p.contains("MIRROR_X_$key")) {
+                prefs.prefMirrorX = p.getInt("MIRROR_X_$key", -1)
+                prefs.prefMirrorY = p.getInt("MIRROR_Y_$key", 0)
+                prefs.prefMirrorWidth = p.getInt("MIRROR_W_$key", -1)
+                prefs.prefMirrorHeight = p.getInt("MIRROR_H_$key", -1)
+                prefs.prefMirrorAlpha = p.getInt("MIRROR_ALPHA_$key", 200)
+
+                // Apply to mirror keyboard if it exists
+                applyMirrorKeyboardSettings()
+
+                Log.d(TAG, "Mirror KB settings loaded: ${prefs.prefMirrorX},${prefs.prefMirrorY} ${prefs.prefMirrorWidth}x${prefs.prefMirrorHeight}")
+            }
+
             Log.d(TAG, "Mirror mode layout loaded: $key")
         } else {
             Log.d(TAG, "No saved mirror mode layout, using current settings")
@@ -2311,6 +2342,51 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     // =================================================================================
     // END BLOCK: VIRTUAL MIRROR MODE LAYOUT LOAD
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: applyMirrorKeyboardSettings
+    // SUMMARY: Applies saved mirror keyboard position/size/alpha to the live mirror
+    //          keyboard. Called after loading a mirror mode profile.
+    // =================================================================================
+    private fun applyMirrorKeyboardSettings() {
+        if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
+
+        // Apply saved position if valid
+        if (prefs.prefMirrorX != -1) {
+            mirrorKeyboardParams?.x = prefs.prefMirrorX
+            mirrorKeyboardParams?.gravity = Gravity.TOP or Gravity.START
+        }
+        if (prefs.prefMirrorY != 0 || prefs.prefMirrorX != -1) {
+            mirrorKeyboardParams?.y = prefs.prefMirrorY
+        }
+        if (prefs.prefMirrorWidth != -1 && prefs.prefMirrorWidth > 0) {
+            mirrorKeyboardParams?.width = prefs.prefMirrorWidth
+        }
+        if (prefs.prefMirrorHeight != -1 && prefs.prefMirrorHeight > 0) {
+            mirrorKeyboardParams?.height = prefs.prefMirrorHeight
+        }
+
+        // Apply alpha
+        val alpha = prefs.prefMirrorAlpha / 255f
+        mirrorKeyboardContainer?.alpha = alpha
+
+        // Update the window
+        try {
+            mirrorWindowManager?.updateViewLayout(mirrorKeyboardContainer, mirrorKeyboardParams)
+
+            // Update sync dimensions after layout change
+            handler.postDelayed({
+                updateMirrorSyncDimensions()
+            }, 100)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to apply mirror keyboard settings", e)
+        }
+
+        Log.d(TAG, "Mirror keyboard settings applied")
+    }
+    // =================================================================================
+    // END BLOCK: applyMirrorKeyboardSettings
     // =================================================================================
 
     fun saveLayout() {
