@@ -608,9 +608,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val scaleY = if (physicalKbHeight > 0) mirrorKbHeight / physicalKbHeight else 1f
         mirrorTrailView?.addPoint(lastOrientX * scaleX, lastOrientY * scaleY)
 
-        // Keep mirror visible
+        // Keep mirror visible - only adjust alpha, no background color
         mirrorKeyboardView?.alpha = 0.7f
-        mirrorKeyboardContainer?.setBackgroundColor(0x60000000)
+        // FIX: Removed setBackgroundColor - container is transparent
     }
     // =================================================================================
     // END BLOCK: orientationModeTimeout
@@ -2389,19 +2389,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // FUNCTION: showMirrorTemporarily
     // SUMMARY: Makes mirror keyboard visible temporarily, like when touched.
     //          Used during D-pad adjustments so user can see changes.
+    //          FIX: No container background - only adjust alpha.
     // =================================================================================
     private fun showMirrorTemporarily() {
         if (mirrorKeyboardContainer == null || mirrorKeyboardView == null) return
-        
+
         // Cancel any pending fade
         mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
-        
-        // Show mirror
+
+        // Show mirror - only adjust alpha, no background color change
         val alpha = prefs.prefMirrorAlpha / 255f
         mirrorKeyboardContainer?.alpha = 1f
         mirrorKeyboardView?.alpha = alpha.coerceAtLeast(0.7f)  // At least 70% visible during adjustment
-        mirrorKeyboardContainer?.setBackgroundColor(0x80000000.toInt())
-        
+        // FIX: Removed setBackgroundColor - container is transparent, KeyboardView has its own bg
+
         // Schedule fade out after 2 seconds
         mirrorFadeHandler.postDelayed(mirrorFadeRunnable, 2000)
     }
