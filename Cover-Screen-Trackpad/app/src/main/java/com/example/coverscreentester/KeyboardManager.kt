@@ -28,7 +28,9 @@ class KeyboardManager(
     
     // Config
     private var currentWidth = 450
-    private val MARGIN_PX = 2
+    // We use PROPORTIONAL spacing to ensure Aspect Ratio matches on all screens
+    // 0 margin on container, slight margin on keys handled by spacing
+    private val KEY_SPACING_RATIO = 0.005f 
     
     // Data Classes
     data class KeyDef(val label: String, val code: Int, val weight: Float = 1f, val isSpecial: Boolean = false)
@@ -85,7 +87,6 @@ class KeyboardManager(
     fun createView(): View {
         val root = FrameLayout(context)
         
-        // Window Background
         val bg = GradientDrawable()
         bg.setColor(Color.parseColor("#EE121212"))
         bg.cornerRadius = 20f
@@ -94,7 +95,8 @@ class KeyboardManager(
 
         val mainContainer = LinearLayout(context)
         mainContainer.orientation = LinearLayout.VERTICAL
-        mainContainer.setPadding(4, 4, 4, 4)
+        // Zero padding - we fill the aspect ratio box completely
+        mainContainer.setPadding(0, 0, 0, 0)
         
         mainContainer.addView(createRow(if (isSymbols) ROW_NUMS else ROW_1))
         mainContainer.addView(createRow(if (isSymbols) ROW_SYMS else ROW_2))
@@ -102,28 +104,19 @@ class KeyboardManager(
         mainContainer.addView(createRow(ROW_4))
         mainContainer.addView(createRow(ARROWS))
 
-        // Set Main Container to WRAP_CONTENT height so it only takes what it needs
-        root.addView(mainContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        // Match Parent (which is strictly controlled by Window Size)
+        root.addView(mainContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         
-        // --- DYNAMIC CONTENT SIZING ---
+        // --- SYNC LOCKER ---
+        // Ensure Physical Keyboard strictly follows the 0.55 Ratio
         root.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
             val width = right - left
-            val currentHeight = bottom - top
-            
+            val height = bottom - top
             if (width > 0) {
-                // Measure how tall the content WANTS to be (including scaling, margins)
-                root.measure(
-                    View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                )
-                val targetHeight = root.measuredHeight
-                
-                // If window height != content height, snap window to content
-                if (targetHeight > 0 && abs(currentHeight - targetHeight) > 5) {
+                val targetHeight = (width * 0.55f).toInt()
+                if (abs(height - targetHeight) > 10) {
                     layoutParams?.height = targetHeight
-                    try {
-                        windowManager.updateViewLayout(keyboardLayout, layoutParams)
-                    } catch (e: Exception) {}
+                    try { windowManager.updateViewLayout(keyboardLayout, layoutParams) } catch (e: Exception) {}
                 }
             }
         }
@@ -135,13 +128,9 @@ class KeyboardManager(
         val row = LinearLayout(context)
         row.orientation = LinearLayout.HORIZONTAL
         
-        // Minimum Row Height based on width (Square keys baseline)
-        // We use minHeight instead of fixed height so it can grow if font is large
-        val unitSize = (currentWidth / 10).coerceAtLeast(10)
-        row.minimumHeight = unitSize
-        
-        // Wrap Content height allows expansion
-        val rowParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        // Vertical Weight 1.0 -> 5 Rows = 20% height each
+        val rowParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0)
+        rowParams.weight = 1.0f
         row.layoutParams = rowParams
         
         val MAX_ROW_WEIGHT = 10f
@@ -150,12 +139,14 @@ class KeyboardManager(
         
         if (missingWeight > 0.1f) {
             val spacer = View(context)
-            val params = LinearLayout.LayoutParams(0, 1) // Height ignored due to parent
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
             params.weight = missingWeight / 2f
             row.addView(spacer, params)
         }
         
+        // Font scaled to Width
         val fontSize = (currentWidth / 30f).coerceIn(10f, 22f)
+        val marginPx = (currentWidth * KEY_SPACING_RATIO).toInt().coerceAtLeast(1)
         
         for (k in keys) {
             val btn = TextView(context)
@@ -172,10 +163,9 @@ class KeyboardManager(
             keyBg.cornerRadius = 10f
             btn.background = keyBg
             
-            // Fixed height for key matches row minimum
-            val params = LinearLayout.LayoutParams(0, unitSize)
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
             params.weight = k.weight
-            params.setMargins(MARGIN_PX, MARGIN_PX, MARGIN_PX, MARGIN_PX)
+            params.setMargins(marginPx, marginPx, marginPx, marginPx)
             row.addView(btn, params)
             
             btn.setOnClickListener {
@@ -187,7 +177,7 @@ class KeyboardManager(
         
         if (missingWeight > 0.1f) {
             val spacer = View(context)
-            val params = LinearLayout.LayoutParams(0, 1)
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
             params.weight = missingWeight / 2f
             row.addView(spacer, params)
         }
@@ -210,12 +200,12 @@ class KeyboardManager(
         if (isVisible) return
         
         currentWidth = width
+        // Strict Start
+        val targetHeight = (width * 0.55f).toInt()
         
-        // Initial Layout Params: WRAP_CONTENT height.
-        // The listener will measure and snap the exact pixels immediately.
         layoutParams = WindowManager.LayoutParams(
             currentWidth,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            targetHeight, 
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,

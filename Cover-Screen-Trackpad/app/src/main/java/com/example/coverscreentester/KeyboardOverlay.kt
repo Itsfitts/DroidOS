@@ -369,6 +369,11 @@ class KeyboardOverlay(
 
 
 
+
+
+
+
+
     fun show() { 
         if (isVisible) return
         try { 
@@ -377,44 +382,44 @@ class KeyboardOverlay(
 
             createKeyboardWindow()
 
-            // --- FIX: Dynamic Content Sizing ---
-            // Instead of forcing a 2:1 ratio, we MEASURE the content.
-            // This supports custom key scales, margins, and padding without cutting off keys.
+            // --- FIX: Strict Aspect Ratio Sync ---
+            // We force the Window Height to be exactly 55% of the Width.
+            // This guarantees that the Physical Keyboard and Mirror Keyboard 
+            // have the exact same shape, ensuring the Touch Trail aligns perfectly.
             keyboardContainer?.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
                 val width = right - left
-                val currentHeight = bottom - top
+                val height = bottom - top
                 
                 if (width > 0) {
-                    // 1. Ask the keyboard container exactly how tall it WANTS to be at this width
-                    keyboardContainer?.measure(
-                        View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                    )
+                    // Ratio 0.55 (Keys are slightly taller than square to fit text comfortably)
+                    // 10 keys wide, 5 rows tall. 0.5 would be square. 0.55 prevents cutoff.
+                    val targetHeight = (width * 0.55f).toInt()
                     
-                    val targetHeight = keyboardContainer?.measuredHeight ?: 0
-                    
-                    // 2. If the current Window height doesn't match the Content height, fix it.
-                    // This grows the window if keys are cut off, and shrinks it if there's extra space.
-                    if (targetHeight > 0 && kotlin.math.abs(currentHeight - targetHeight) > 5) {
+                    if (kotlin.math.abs(height - targetHeight) > 5) {
                         keyboardParams?.height = targetHeight
                         try { 
                             windowManager.updateViewLayout(keyboardContainer, keyboardParams) 
-                        } catch (e: Exception) {
-                            // Ignore race conditions
-                        }
+                        } catch (e: Exception) { }
                     }
                 }
             }
-            
-            // Ensure initial params use WRAP_CONTENT so the measure pass works correctly
-            if (keyboardParams?.height != WindowManager.LayoutParams.WRAP_CONTENT) {
-                 keyboardParams?.height = WindowManager.LayoutParams.WRAP_CONTENT
+
+            // Set initial params to match logic
+            if (keyboardParams?.width ?: 0 > 0) {
+                 keyboardParams?.height = ((keyboardParams?.width ?: 100) * 0.55f).toInt()
             }
 
             isVisible = true
             if (currentRotation != 0) setRotation(currentRotation)
         } catch (e: Exception) { android.util.Log.e("KeyboardOverlay", "Failed to show keyboard", e) } 
     }
+
+
+
+
+
+
+
 
 
     
