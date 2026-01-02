@@ -2386,47 +2386,46 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
 
     fun resetTrackpadPosition() { trackpadParams.x = 100; trackpadParams.y = 100; trackpadParams.width = 400; trackpadParams.height = 300; windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }    // =================================================================================
+// =================================================================================
     // FUNCTION: showMirrorTemporarily
     // SUMMARY: Makes mirror keyboard visible temporarily, like when touched.
     //          Used during D-pad adjustments so user can see changes.
-    //          FIX: No container background - only adjust alpha.
     // =================================================================================
     private fun showMirrorTemporarily() {
         if (mirrorKeyboardContainer == null || mirrorKeyboardView == null) return
-
+        
         // Cancel any pending fade
         mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
-
-        // Show mirror - only adjust alpha, no background color change
+        
+        // Show mirror - only adjust alpha, container is transparent
         val alpha = prefs.prefMirrorAlpha / 255f
         mirrorKeyboardContainer?.alpha = 1f
-        mirrorKeyboardView?.alpha = alpha.coerceAtLeast(0.7f)  // At least 70% visible during adjustment
-        // FIX: Removed setBackgroundColor - container is transparent, KeyboardView has its own bg
-
+        mirrorKeyboardView?.alpha = alpha.coerceAtLeast(0.7f)
+        
         // Schedule fade out after 2 seconds
         mirrorFadeHandler.postDelayed(mirrorFadeRunnable, 2000)
     }
     // =================================================================================
     // END BLOCK: showMirrorTemporarily
     // =================================================================================
-
     // =================================================================================
+// =================================================================================
     // FUNCTION: adjustMirrorKeyboard
     // SUMMARY: Adjusts mirror keyboard position or size via D-pad controls.
     //          Shows mirror during adjustment and syncs coordinate scaling.
-    //          Resize mode allows independent width/height adjustment for fine-tuning.
+    //          Resize mode triggers a layout pass which updates sync dimensions.
     // =================================================================================
     fun adjustMirrorKeyboard(isResize: Boolean, deltaX: Int, deltaY: Int) {
         if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
-
-        // Show mirror during adjustment (like touching keyboard)
+        
+        // Show mirror during adjustment
         showMirrorTemporarily()
-
+        
         if (isResize) {
             // Resize mode - adjust width/height independently
             var currentWidth = mirrorKeyboardParams?.width ?: return
             var currentHeight = mirrorKeyboardParams?.height ?: return
-
+            
             // Handle WRAP_CONTENT - get actual measured dimensions
             if (currentWidth == WindowManager.LayoutParams.WRAP_CONTENT) {
                 currentWidth = mirrorKeyboardContainer?.width ?: 600
@@ -2434,79 +2433,77 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             if (currentHeight == WindowManager.LayoutParams.WRAP_CONTENT) {
                 currentHeight = mirrorKeyboardContainer?.height ?: 400
             }
-
+            
             // Apply deltas with constraints
             val newWidth = (currentWidth + deltaX).coerceIn(200, 2000)
             val newHeight = (currentHeight + deltaY).coerceIn(100, 1000)
-
+            
             mirrorKeyboardParams?.width = newWidth
             mirrorKeyboardParams?.height = newHeight
-
+            
             // Save to prefs
             getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
                 .putInt("mirror_width", newWidth)
                 .putInt("mirror_height", newHeight)
                 .apply()
-
-            // Update coordinate scaling for touch sync
-            mirrorKbWidth = newWidth.toFloat()
-            mirrorKbHeight = newHeight.toFloat()
-
-            Log.d(TAG, "Mirror keyboard resized: ${newWidth}x${newHeight}")
-
+            
+            Log.d(TAG, "Mirror keyboard resized to: ${newWidth}x${newHeight}")
+            
         } else {
             // Move mode - adjust x/y position
-            // NOTE: For Gravity.BOTTOM, positive Y moves UP, so we invert deltaY
             mirrorKeyboardParams?.x = (mirrorKeyboardParams?.x ?: 0) + deltaX
-            mirrorKeyboardParams?.y = (mirrorKeyboardParams?.y ?: 0) - deltaY  // INVERTED
-
+            mirrorKeyboardParams?.y = (mirrorKeyboardParams?.y ?: 0) - deltaY  // INVERTED for Gravity.BOTTOM
+            
             // Save to prefs
             getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
                 .putInt("mirror_x", mirrorKeyboardParams?.x ?: 0)
                 .putInt("mirror_y", mirrorKeyboardParams?.y ?: 0)
                 .apply()
         }
-
+        
         try {
             mirrorWindowManager?.updateViewLayout(mirrorKeyboardContainer, mirrorKeyboardParams)
+            
+            // FIX: After layout update, post a delayed sync dimension update
+            // This ensures we capture the new measured dimensions after the layout pass
+            if (isResize) {
+                handler.postDelayed({
+                    updateMirrorSyncDimensions()
+                }, 100)  // Small delay to allow layout to complete
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update mirror keyboard layout", e)
         }
     }
     // =================================================================================
     // END BLOCK: adjustMirrorKeyboard
+    // =================================================================================    
     // =================================================================================
-    
-    // =================================================================================
+// =================================================================================
     // FUNCTION: resetMirrorKeyboardPosition
     // SUMMARY: Resets mirror keyboard to default centered position at bottom.
-    //          Uses WRAP_CONTENT height - container has no background so KeyboardView
-    //          background provides tight wrapping naturally.
+    //          Uses WRAP_CONTENT height and triggers sync dimension update.
     // =================================================================================
     fun resetMirrorKeyboardPosition() {
         if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
-
+        
         // Show during reset
         showMirrorTemporarily()
-
+        
         // Get display metrics for auto-sizing
         val display = displayManager?.getDisplay(inputTargetDisplayId) ?: return
         val metrics = android.util.DisplayMetrics()
         display.getRealMetrics(metrics)
-
+        
         val mirrorWidth = (metrics.widthPixels * 0.95f).toInt()
-
-        // Reset to defaults - WRAP_CONTENT works now because container has no background
+        
+        // Reset to defaults
         mirrorKeyboardParams?.x = 0
         mirrorKeyboardParams?.y = 0
         mirrorKeyboardParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         mirrorKeyboardParams?.width = mirrorWidth
         mirrorKeyboardParams?.height = WindowManager.LayoutParams.WRAP_CONTENT
-
-        // Update scaling - will be refined by OnLayoutChangeListener after layout
-        mirrorKbWidth = mirrorWidth.toFloat()
-        mirrorKbHeight = 400f  // Placeholder, updated by OnLayoutChangeListener
-
+        
         // Clear saved prefs
         getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
             .remove("mirror_x")
@@ -2514,19 +2511,23 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             .remove("mirror_width")
             .remove("mirror_height")
             .apply()
-
+        
         try {
             mirrorWindowManager?.updateViewLayout(mirrorKeyboardContainer, mirrorKeyboardParams)
+            
+            // FIX: Update sync dimensions after layout
+            handler.postDelayed({
+                updateMirrorSyncDimensions()
+            }, 100)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to reset mirror keyboard layout", e)
         }
-
+        
         Log.d(TAG, "Mirror keyboard reset to defaults")
     }
     // =================================================================================
     // END BLOCK: resetMirrorKeyboardPosition
     // =================================================================================
-
     fun cycleInputTarget() {
         if (displayManager == null) return; val displays = displayManager!!.displays; var nextId = -1
         for (d in displays) { if (d.displayId != currentDisplayId) { if (inputTargetDisplayId == currentDisplayId) { nextId = d.displayId; break } else if (inputTargetDisplayId == d.displayId) { continue } else { nextId = d.displayId } } }
@@ -2615,12 +2616,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 
-    // =================================================================================
+// =================================================================================
     // FUNCTION: createMirrorKeyboard
     // SUMMARY: Creates a transparent keyboard mirror on the remote display.
     //          Stores dimensions for coordinate scaling between physical and mirror.
     //          FIX: Container has NO background - KeyboardView's own #1A1A1A background
-    //          ensures tight wrapping. Uses WRAP_CONTENT for natural sizing.
+    //          ensures tight wrapping. Uses OnLayoutChangeListener to track actual
+    //          KeyboardView dimensions for accurate touch sync.
     // =================================================================================
     private fun createMirrorKeyboard(displayId: Int) {
         try {
@@ -2632,7 +2634,6 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             mirrorWindowManager = mirrorContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             mirrorKeyboardContainer = FrameLayout(mirrorContext)
             // FIX: NO background on container - let KeyboardView's own background show
-            // This ensures the visible background wraps tightly around keys
             mirrorKeyboardContainer?.setBackgroundColor(Color.TRANSPARENT)
             mirrorKeyboardContainer?.alpha = 0f // Start fully invisible
 
@@ -2640,7 +2641,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             mirrorKeyboardView = KeyboardView(mirrorContext, null, 0)
             mirrorKeyboardView?.alpha = 0f // Start fully invisible
 
-            // Apply same scale
+            // Apply same scale as physical keyboard
             val scale = prefs.prefKeyScale / 100f
             mirrorKeyboardView?.setScale(scale)
 
@@ -2669,17 +2670,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             val savedWidth = prefs.prefMirrorWidth
             val mirrorWidth = if (savedWidth != -1 && savedWidth > 0) savedWidth else (metrics.widthPixels * 0.95f).toInt()
 
-            // Store dimensions for coordinate scaling (height will be updated after layout)
+            // Initialize with placeholder dimensions (will be updated by OnLayoutChangeListener)
             mirrorKbWidth = mirrorWidth.toFloat()
-            mirrorKbHeight = 400f // Placeholder, will be updated by OnLayoutChangeListener
+            mirrorKbHeight = 400f
 
-            // Get physical keyboard dimensions for reference
-            physicalKbWidth = keyboardOverlay?.getViewWidth()?.toFloat() ?: 600f
-            physicalKbHeight = keyboardOverlay?.getViewHeight()?.toFloat() ?: 400f
+            // Get physical keyboard dimensions
+            physicalKbWidth = keyboardOverlay?.getKeyboardView()?.width?.toFloat() ?: 600f
+            physicalKbHeight = keyboardOverlay?.getKeyboardView()?.height?.toFloat() ?: 400f
 
             Log.d(TAG, "Mirror KB init: ${mirrorKbWidth}x${mirrorKbHeight}, Physical KB: ${physicalKbWidth}x${physicalKbHeight}")
 
-            // Window params - use WRAP_CONTENT for height to wrap around KeyboardView
+            // Window params - use WRAP_CONTENT for height
             mirrorKeyboardParams = WindowManager.LayoutParams(
                 mirrorWidth,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -2691,35 +2692,29 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             )
             mirrorKeyboardParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             mirrorKeyboardParams?.y = 0
-
+            
             // Apply saved position if available
             val savedX = prefs.prefMirrorX
             val savedY = prefs.prefMirrorY
-
+            
             if (savedX != -1) {
                 mirrorKeyboardParams?.x = savedX
-                mirrorKeyboardParams?.gravity = Gravity.TOP or Gravity.START  // Switch to absolute positioning
+                mirrorKeyboardParams?.gravity = Gravity.TOP or Gravity.START
             }
             if (savedY != -1) {
                 mirrorKeyboardParams?.y = savedY
             }
-
+            
             // Apply saved alpha
             val savedAlpha = prefs.prefMirrorAlpha / 255f
             mirrorKeyboardContainer?.alpha = savedAlpha
 
             mirrorWindowManager?.addView(mirrorKeyboardContainer, mirrorKeyboardParams)
 
-            // FIX: Add OnLayoutChangeListener to capture actual measured height
-            // This updates mirrorKbHeight for accurate coordinate scaling
-            mirrorKeyboardContainer?.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-                val measuredWidth = right - left
-                val measuredHeight = bottom - top
-                if (measuredWidth > 0 && measuredHeight > 0) {
-                    mirrorKbWidth = measuredWidth.toFloat()
-                    mirrorKbHeight = measuredHeight.toFloat()
-                    Log.d(TAG, "Mirror KB measured: ${mirrorKbWidth}x${mirrorKbHeight}")
-                }
+            // FIX: Track actual KeyboardView dimensions for accurate touch sync
+            // This listener fires after layout, giving us the real measured dimensions
+            mirrorKeyboardView?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                updateMirrorSyncDimensions()
             }
 
             Log.d(TAG, "Mirror keyboard created on display $displayId")
@@ -2755,6 +2750,35 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
         isInOrientationMode = false
     }
+
+    // =================================================================================
+    // FUNCTION: updateMirrorSyncDimensions
+    // SUMMARY: Updates the scaling dimensions used for touch coordinate sync.
+    //          Gets actual measured dimensions from both KeyboardViews to ensure
+    //          accurate mapping regardless of container sizes or aspect ratios.
+    //          Should be called after any layout change on either keyboard.
+    // =================================================================================
+    private fun updateMirrorSyncDimensions() {
+        // Get physical keyboard's actual KeyboardView dimensions
+        // Note: These are the dimensions where touch events are reported
+        val physicalView = keyboardOverlay?.getKeyboardView()
+        if (physicalView != null && physicalView.width > 0 && physicalView.height > 0) {
+            physicalKbWidth = physicalView.width.toFloat()
+            physicalKbHeight = physicalView.height.toFloat()
+        }
+        
+        // Get mirror keyboard's actual KeyboardView dimensions
+        val mirrorView = mirrorKeyboardView
+        if (mirrorView != null && mirrorView.width > 0 && mirrorView.height > 0) {
+            mirrorKbWidth = mirrorView.width.toFloat()
+            mirrorKbHeight = mirrorView.height.toFloat()
+        }
+        
+        Log.d(TAG, "Mirror sync updated: Physical=${physicalKbWidth}x${physicalKbHeight}, Mirror=${mirrorKbWidth}x${mirrorKbHeight}")
+    }
+    // =================================================================================
+    // END BLOCK: updateMirrorSyncDimensions
+    // =================================================================================
 
     // =================================================================================
     // FUNCTION: syncMirrorKeyboardLayer

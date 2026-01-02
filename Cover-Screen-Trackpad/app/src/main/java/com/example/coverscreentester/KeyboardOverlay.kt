@@ -250,6 +250,8 @@ class KeyboardOverlay(
     
     fun getViewWidth(): Int = keyboardWidth
     fun getViewHeight(): Int = keyboardHeight
+    fun getKeyboardView(): KeyboardView? = keyboardView
+
     
     // [START ROTATION FIX]
     fun setRotation(angle: Int) {
