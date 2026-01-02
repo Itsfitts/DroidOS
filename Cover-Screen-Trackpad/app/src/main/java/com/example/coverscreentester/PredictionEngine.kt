@@ -122,13 +122,8 @@ class PredictionEngine {
         }
     }
 
-    // =================================================================================
-    // FUNCTION: loadDictionary
-    // SUMMARY: Loads the weighted dictionary from assets asynchronously with enhanced
-    //          logging for debugging. The file should be at assets/dictionary.txt and
-    //          sorted by frequency (most common words first). Falls back to defaults
-    //          if loading fails.
-    // =================================================================================
+
+
     fun loadDictionary(context: Context) {
         Thread {
             try {
@@ -142,38 +137,42 @@ class PredictionEngine {
                 // =================================================================================
                 // LOAD CUSTOM LISTS (User & Blocked)
                 // SUMMARY: Loads user's custom words and blocked words from persistent storage.
-                //          These files are in the app's private filesDir.
                 // =================================================================================
                 try {
                     val blockFile = java.io.File(context.filesDir, BLOCKED_DICT_FILE)
                     if (blockFile.exists()) {
-                        val blockedLines = blockFile.readLines().map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+                        val blockedLines = blockFile.readLines().map { it.trim().lowercase(java.util.Locale.ROOT) }.filter { it.isNotEmpty() }
                         newBlocked.addAll(blockedLines)
-                        android.util.Log.d("DroidOS_Prediction", "LOAD: Blocked words file found, ${blockedLines.size} words: $blockedLines")
+                        android.util.Log.d("DroidOS_Prediction", "LOAD: Blocked words file found, ${blockedLines.size} words")
                     } else {
                         android.util.Log.d("DroidOS_Prediction", "LOAD: No blocked words file exists yet")
                     }
 
                     val userFile = java.io.File(context.filesDir, USER_DICT_FILE)
                     if (userFile.exists()) {
-                        val userLines = userFile.readLines().map { it.trim().lowercase() }.filter { it.isNotEmpty() }
-                        newCustom.addAll(userLines)
-                        android.util.Log.d("DroidOS_Prediction", "LOAD: User words file found, ${userLines.size} words")
+                        val userLines = userFile.readLines().map { it.trim().lowercase(java.util.Locale.ROOT) }.filter { it.isNotEmpty() }
+                        
+                        // FILTER: Check each user word against garbage filter on load
+                        for (w in userLines) {
+                            if (!looksLikeGarbage(w)) {
+                                newCustom.add(w)
+                            } else {
+                                android.util.Log.d("DroidOS_Prediction", "Pruned garbage from user dict: $w")
+                            }
+                        }
+                        android.util.Log.d("DroidOS_Prediction", "LOAD: User words file found, ${newCustom.size} valid words")
                     } else {
                         android.util.Log.d("DroidOS_Prediction", "LOAD: No user words file exists yet")
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("DroidOS_Prediction", "Failed to load user lists", e)
                 }
-                // =================================================================================
-                // END BLOCK: LOAD CUSTOM LISTS
-                // =================================================================================
 
                 // 2. Load Main Dictionary (Assets) - Filtering Blocked words
                 try {
                     context.assets.open("dictionary.txt").bufferedReader().useLines { lines ->
                         lines.forEachIndexed { index, line ->
-                            val word = line.trim().lowercase(Locale.ROOT)
+                            val word = line.trim().lowercase(java.util.Locale.ROOT)
                             // SKIP if blocked
                             if (!newBlocked.contains(word) && word.isNotEmpty() && word.all { it.isLetter() } && word.length >= MIN_WORD_LENGTH) {
                                 newWordList.add(word)
@@ -210,7 +209,7 @@ class PredictionEngine {
                 // 4. Merge Hardcoded Defaults
                 val existingDefaults = synchronized(this) { ArrayList(wordList) }
                 for (defaultWord in existingDefaults) {
-                    val lower = defaultWord.lowercase(Locale.ROOT)
+                    val lower = defaultWord.lowercase(java.util.Locale.ROOT)
                     if (!newBlocked.contains(lower) && !newWordList.contains(lower)) {
                         newWordList.add(lower)
                         var current = newRoot
@@ -244,41 +243,51 @@ class PredictionEngine {
                     )
                 }
                 android.util.Log.d("DroidOS_Prediction", "Dictionary Loaded: $lineCount asset + ${newCustom.size} user words + ${newBlocked.size} blocked. Common Cache: ${commonWordsCache.size}")
-                if (newBlocked.isNotEmpty()) {
-                    android.util.Log.d("DroidOS_Prediction", "Blocked words loaded: $newBlocked")
-                }
 
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }.start()
     }
-    // =================================================================================
-    // END BLOCK: loadDictionary
-    // =================================================================================
+
+
+
 
     /**
      * Learns a new word: Adds to memory and saves to user_words.txt
      */
     fun learnWord(context: Context, word: String) {
-        val cleanWord = word.trim().lowercase(Locale.ROOT)
-        if (cleanWord.length < MIN_WORD_LENGTH) return
-        if (hasWord(cleanWord)) return // Already known
+        if (word.length < 2) return
+
+        // 1. Standardize the word immediately
+        val cleanWord = word.trim().lowercase(java.util.Locale.ROOT)
+        
+        // FILTER: Don't learn garbage (random letters/typos)
+        if (looksLikeGarbage(cleanWord)) {
+            android.util.Log.d("DroidOS_Prediction", "Ignored garbage input: $cleanWord")
+            return
+        }
+
+        // FILTER: Don't learn blocked words
+        if (isWordBlocked(cleanWord)) return
+
+        // OPTIMIZATION: Don't relearn if we already know it
+        if (hasWord(cleanWord)) return
 
         Thread {
             try {
-                // 1. Update Memory
+                // 2. Update Memory
                 synchronized(this) {
                     customWords.add(cleanWord)
                     blockedWords.remove(cleanWord) // Unblock if previously blocked
                     insert(cleanWord, 0) // Rank 0 = High Priority
                 }
 
-                // 2. Append to File
+                // 3. Append to File
                 val file = java.io.File(context.filesDir, USER_DICT_FILE)
                 file.appendText("$cleanWord\n")
 
-                // 3. Ensure it's removed from blocked file if needed
+                // 4. Ensure it's removed from blocked file if needed
                 saveSetToFile(context, BLOCKED_DICT_FILE, blockedWords)
 
                 android.util.Log.d("DroidOS_Prediction", "Learned word: $cleanWord")
@@ -287,6 +296,7 @@ class PredictionEngine {
             }
         }.start()
     }
+
 
     /**
      * Blocks a word: Removes from memory and saves to blocked_words.txt
@@ -347,6 +357,26 @@ class PredictionEngine {
     // =================================================================================
     // END BLOCK: saveSetToFile
     // =================================================================================
+
+    // =================================================================================
+    // FILTER: GARBAGE DETECTION
+    // Rule: Must have at least one vowel/y OR be in the whitelist.
+    // =================================================================================
+    private val VALID_VOWELLESS = setOf(
+        "hmm", "shh", "psst", "brr", "pfft", "nth", "src", "jpg", "png", "gif",
+        "txt", "xml", "pdf", "css", "html", "tv", "pc", "ok", "id", "cv", "ad", "ex", "vs", "mr", "dr", "ms"
+    )
+
+    private fun looksLikeGarbage(word: String): Boolean {
+        if (word.length > 1) {
+            val hasVowel = word.any { "aeiouyAEIOUY".contains(it) }
+            if (!hasVowel) {
+                if (VALID_VOWELLESS.contains(word.lowercase(java.util.Locale.ROOT))) return false
+                return true // No vowel and not whitelisted -> Garbage
+            }
+        }
+        return false
+    }
 
     fun hasWord(word: String): Boolean {
         return wordList.contains(word.lowercase(Locale.ROOT))

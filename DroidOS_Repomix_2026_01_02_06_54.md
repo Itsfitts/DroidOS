@@ -28,7 +28,7 @@ The content is organized as follows:
 ## Notes
 - Some files may have been excluded based on .gitignore rules and Repomix's configuration
 - Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
-- Files matching these patterns are excluded: **/.gradle/**, **/build/**, **/.idea/**, **/*.iml, **/local.properties, **/**logcat**, **/build_log.txt, **/*.png, **/*.webp, **/*.jar, **/*.aar, **/captures/**, **/*Repomix*.md
+- Files matching these patterns are excluded: **/.gradle/**, **/build/**, **/.idea/**, **/*.iml, **/local.properties, **/**logcat**, **/build_log.txt, **/*.png, **/*.webp, **/**dictionary.txt, **/*.jar, **/*.aar, **/captures/**, **/*Repomix*.md
 - Files matching patterns in .gitignore are excluded
 - Files matching default ignore patterns are excluded
 - Files are sorted by Git change count (files with more changes are at the bottom)
@@ -157,8 +157,6 @@ Cover-Screen-Trackpad/
             example/
               coverscreentester/
                 IShellService.aidl
-        assets/
-          dictionary.txt
         java/
           com/
             example/
@@ -6169,248 +6167,6 @@ class InterAppCommandReceiver : BroadcastReceiver() {
 // =================================================================================
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardManager.kt
-```kotlin
-package com.example.coverscreentester
-
-import android.content.Context
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.view.Gravity
-import android.view.KeyEvent
-import android.view.View
-import android.view.WindowManager
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
-import kotlin.math.abs
-
-class KeyboardManager(
-    private val context: Context,
-    private val windowManager: WindowManager,
-    private val keyInjector: (Int) -> Unit
-) {
-    var keyboardLayout: FrameLayout? = null
-    var layoutParams: WindowManager.LayoutParams? = null
-    
-    private var isShifted = false
-    private var isSymbols = false
-    private var isVisible = false
-    
-    // Config
-    private var currentWidth = 450
-    // We use PROPORTIONAL spacing to ensure Aspect Ratio matches on all screens
-    // 0 margin on container, slight margin on keys handled by spacing
-    private val KEY_SPACING_RATIO = 0.005f 
-    
-    // Data Classes
-    data class KeyDef(val label: String, val code: Int, val weight: Float = 1f, val isSpecial: Boolean = false)
-
-    private val ROW_1 = listOf(
-        KeyDef("q", KeyEvent.KEYCODE_Q), KeyDef("w", KeyEvent.KEYCODE_W), KeyDef("e", KeyEvent.KEYCODE_E),
-        KeyDef("r", KeyEvent.KEYCODE_R), KeyDef("t", KeyEvent.KEYCODE_T), KeyDef("y", KeyEvent.KEYCODE_Y),
-        KeyDef("u", KeyEvent.KEYCODE_U), KeyDef("i", KeyEvent.KEYCODE_I), KeyDef("o", KeyEvent.KEYCODE_O),
-        KeyDef("p", KeyEvent.KEYCODE_P)
-    )
-    
-    private val ROW_2 = listOf(
-        KeyDef("a", KeyEvent.KEYCODE_A), KeyDef("s", KeyEvent.KEYCODE_S), KeyDef("d", KeyEvent.KEYCODE_D),
-        KeyDef("f", KeyEvent.KEYCODE_F), KeyDef("g", KeyEvent.KEYCODE_G), KeyDef("h", KeyEvent.KEYCODE_H),
-        KeyDef("j", KeyEvent.KEYCODE_J), KeyDef("k", KeyEvent.KEYCODE_K), KeyDef("l", KeyEvent.KEYCODE_L)
-    )
-    
-    private val ROW_3 = listOf(
-        KeyDef("SHIFT", -1, 1.5f, true),
-        KeyDef("z", KeyEvent.KEYCODE_Z), KeyDef("x", KeyEvent.KEYCODE_X), KeyDef("c", KeyEvent.KEYCODE_C),
-        KeyDef("v", KeyEvent.KEYCODE_V), KeyDef("b", KeyEvent.KEYCODE_B), KeyDef("n", KeyEvent.KEYCODE_N),
-        KeyDef("m", KeyEvent.KEYCODE_M),
-        KeyDef("⌫", KeyEvent.KEYCODE_DEL, 1.5f, true)
-    )
-    
-    private val ROW_4 = listOf(
-        KeyDef("?123", -2, 1.5f, true),
-        KeyDef(",", KeyEvent.KEYCODE_COMMA), 
-        KeyDef("SPACE", KeyEvent.KEYCODE_SPACE, 4f), 
-        KeyDef(".", KeyEvent.KEYCODE_PERIOD),
-        KeyDef("ENTER", KeyEvent.KEYCODE_ENTER, 1.5f, true)
-    )
-
-    private val ARROWS = listOf(
-        KeyDef("◄", KeyEvent.KEYCODE_DPAD_LEFT, 1f, true),
-        KeyDef("▲", KeyEvent.KEYCODE_DPAD_UP, 1f, true),
-        KeyDef("▼", KeyEvent.KEYCODE_DPAD_DOWN, 1f, true),
-        KeyDef("►", KeyEvent.KEYCODE_DPAD_RIGHT, 1f, true)
-    )
-
-    private val ROW_NUMS = listOf(
-        KeyDef("1", KeyEvent.KEYCODE_1), KeyDef("2", KeyEvent.KEYCODE_2), KeyDef("3", KeyEvent.KEYCODE_3),
-        KeyDef("4", KeyEvent.KEYCODE_4), KeyDef("5", KeyEvent.KEYCODE_5), KeyDef("6", KeyEvent.KEYCODE_6),
-        KeyDef("7", KeyEvent.KEYCODE_7), KeyDef("8", KeyEvent.KEYCODE_8), KeyDef("9", KeyEvent.KEYCODE_9),
-        KeyDef("0", KeyEvent.KEYCODE_0)
-    )
-    
-    private val ROW_SYMS = listOf(
-        KeyDef("@", KeyEvent.KEYCODE_AT), KeyDef("#", KeyEvent.KEYCODE_POUND), KeyDef("$", KeyEvent.KEYCODE_4), 
-        KeyDef("%", KeyEvent.KEYCODE_5), KeyDef("&", KeyEvent.KEYCODE_7), KeyDef("-", KeyEvent.KEYCODE_MINUS),
-        KeyDef("+", KeyEvent.KEYCODE_PLUS), KeyDef("(", KeyEvent.KEYCODE_NUMPAD_LEFT_PAREN), KeyDef(")", KeyEvent.KEYCODE_NUMPAD_RIGHT_PAREN)
-    )
-
-    fun createView(): View {
-        val root = FrameLayout(context)
-        
-        val bg = GradientDrawable()
-        bg.setColor(Color.parseColor("#EE121212"))
-        bg.cornerRadius = 20f
-        bg.setStroke(2, Color.parseColor("#44FFFFFF"))
-        root.background = bg
-
-        val mainContainer = LinearLayout(context)
-        mainContainer.orientation = LinearLayout.VERTICAL
-        // Zero padding - we fill the aspect ratio box completely
-        mainContainer.setPadding(0, 0, 0, 0)
-        
-        mainContainer.addView(createRow(if (isSymbols) ROW_NUMS else ROW_1))
-        mainContainer.addView(createRow(if (isSymbols) ROW_SYMS else ROW_2))
-        mainContainer.addView(createRow(ROW_3))
-        mainContainer.addView(createRow(ROW_4))
-        mainContainer.addView(createRow(ARROWS))
-
-        // Match Parent (which is strictly controlled by Window Size)
-        root.addView(mainContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-        
-        // --- SYNC LOCKER ---
-        // Ensure Physical Keyboard strictly follows the 0.55 Ratio
-        root.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-            val width = right - left
-            val height = bottom - top
-            if (width > 0) {
-                val targetHeight = (width * 0.55f).toInt()
-                if (abs(height - targetHeight) > 10) {
-                    layoutParams?.height = targetHeight
-                    try { windowManager.updateViewLayout(keyboardLayout, layoutParams) } catch (e: Exception) {}
-                }
-            }
-        }
-        
-        return root
-    }
-
-    private fun createRow(keys: List<KeyDef>): LinearLayout {
-        val row = LinearLayout(context)
-        row.orientation = LinearLayout.HORIZONTAL
-        
-        // Vertical Weight 1.0 -> 5 Rows = 20% height each
-        val rowParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0)
-        rowParams.weight = 1.0f
-        row.layoutParams = rowParams
-        
-        val MAX_ROW_WEIGHT = 10f
-        val currentWeight = keys.map { it.weight }.sum()
-        val missingWeight = MAX_ROW_WEIGHT - currentWeight
-        
-        if (missingWeight > 0.1f) {
-            val spacer = View(context)
-            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
-            params.weight = missingWeight / 2f
-            row.addView(spacer, params)
-        }
-        
-        // Font scaled to Width
-        val fontSize = (currentWidth / 30f).coerceIn(10f, 22f)
-        val marginPx = (currentWidth * KEY_SPACING_RATIO).toInt().coerceAtLeast(1)
-        
-        for (k in keys) {
-            val btn = TextView(context)
-            val label = if (!isSymbols && isShifted && k.label.length == 1) k.label.uppercase() else k.label
-            
-            btn.text = label
-            btn.setTextColor(Color.WHITE)
-            btn.textSize = fontSize
-            btn.gravity = Gravity.CENTER
-            btn.typeface = Typeface.DEFAULT_BOLD
-            
-            val keyBg = GradientDrawable()
-            keyBg.setColor(if (k.isSpecial) Color.parseColor("#444444") else Color.parseColor("#2A2A2A"))
-            keyBg.cornerRadius = 10f
-            btn.background = keyBg
-            
-            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
-            params.weight = k.weight
-            params.setMargins(marginPx, marginPx, marginPx, marginPx)
-            row.addView(btn, params)
-            
-            btn.setOnClickListener {
-                handleKeyPress(k)
-                btn.alpha = 0.5f
-                btn.postDelayed({ btn.alpha = 1.0f }, 50)
-            }
-        }
-        
-        if (missingWeight > 0.1f) {
-            val spacer = View(context)
-            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
-            params.weight = missingWeight / 2f
-            row.addView(spacer, params)
-        }
-
-        return row
-    }
-
-    private fun handleKeyPress(k: KeyDef) {
-        when (k.code) {
-            -1 -> { isShifted = !isShifted; refreshLayout() }
-            -2 -> { isSymbols = !isSymbols; refreshLayout() }
-            else -> {
-                keyInjector(k.code)
-                if (isShifted) { isShifted = false; refreshLayout() }
-            }
-        }
-    }
-
-    fun show(width: Int, height: Int) {
-        if (isVisible) return
-        
-        currentWidth = width
-        // Strict Start
-        val targetHeight = (width * 0.55f).toInt()
-        
-        layoutParams = WindowManager.LayoutParams(
-            currentWidth,
-            targetHeight, 
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            android.graphics.PixelFormat.TRANSLUCENT
-        )
-        
-        layoutParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-        layoutParams?.y = 0 
-
-        keyboardLayout = createView() as FrameLayout
-        windowManager.addView(keyboardLayout, layoutParams)
-        isVisible = true
-    }
-
-    fun hide() {
-        if (!isVisible) return
-        try { windowManager.removeView(keyboardLayout) } catch (e: Exception) {}
-        isVisible = false
-        keyboardLayout = null
-    }
-    
-    fun toggle(width: Int, height: Int) { if (isVisible) hide() else show(width, height) }
-
-    private fun refreshLayout() {
-        if (!isVisible) return
-        val p = keyboardLayout?.layoutParams
-        windowManager.removeView(keyboardLayout)
-        keyboardLayout = createView() as FrameLayout
-        windowManager.addView(keyboardLayout, p)
-    }
-}
-```
-
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/NullInputMethodService.kt
 ```kotlin
 package com.example.coverscreentester
@@ -6953,6 +6709,65 @@ class ShizukuInputHandler(
             }
         }.start()
     }
+}
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadPrefs.kt
+```kotlin
+package com.example.coverscreentester
+
+class TrackpadPrefs {
+    var cursorSpeed = 2.5f
+    var scrollSpeed = 6.0f
+    var prefTapScroll = true
+    var prefVibrate = false
+    var prefReverseScroll = false
+    var prefAlpha = 50
+    var prefBgAlpha = 220
+    var prefKeyboardAlpha = 255
+    var prefHandleSize = 14
+    var prefVPosLeft = false
+    var prefHPosTop = false
+    var prefLocked = false
+    var prefHandleTouchSize = 80
+    var prefScrollTouchSize = 80
+    var prefScrollVisualSize = 4
+    var prefCursorSize = 50
+    var prefKeyScale = 135
+    var prefUseAltScreenOff = true
+    var prefAutomationEnabled = true
+    var prefBubbleX = 50
+    var prefBubbleY = 300
+    var prefAnchored = false
+    var prefBubbleSize = 100
+    var prefBubbleIconIndex = 0
+    var prefBubbleAlpha = 255
+    var prefPersistentService = false
+    var prefBlockSoftKeyboard = false
+
+    // =================================================================================
+    // VIRTUAL MIRROR MODE PREFERENCES
+    // SUMMARY: Settings for displaying a mirror keyboard on remote/AR display.
+    //          When enabled, touching the physical keyboard shows an orange orientation
+    //          trail on both displays. After finger stops for orientDelayMs, normal
+    //          keyboard input resumes.
+    // =================================================================================
+    var prefVirtualMirrorMode = false
+    var prefMirrorOrientDelayMs = 1000L  // Default 1 second orientation delay
+    // =================================================================================
+    // END BLOCK: VIRTUAL MIRROR MODE PREFERENCES
+    // =================================================================================
+
+    var hardkeyVolUpTap = "left_click"
+    var hardkeyVolUpDouble = "left_click"
+    var hardkeyVolUpHold = "left_click"
+    var hardkeyVolDownTap = "toggle_keyboard"
+    var hardkeyVolDownDouble = "open_menu"
+    var hardkeyVolDownHold = "action_back"
+    var hardkeyPowerDouble = "none"
+    var doubleTapMs = 300
+    var holdDurationMs = 400
+    var displayOffMode = "alternate"
 }
 ```
 
@@ -10231,9892 +10046,246 @@ if "%OS%"=="Windows_NT" endlocal
 :omega
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/assets/dictionary.txt
-```
-the
-of
-and
-to
-a
-in
-for
-is
-on
-that
-by
-this
-with
-i
-you
-it
-not
-or
-be
-are
-from
-at
-as
-your
-all
-have
-new
-more
-an
-was
-we
-will
-home
-can
-us
-about
-if
-page
-my
-has
-search
-free
-but
-our
-one
-other
-do
-no
-information
-time
-they
-site
-he
-up
-may
-what
-which
-their
-news
-out
-use
-any
-there
-see
-only
-so
-his
-when
-contact
-here
-business
-who
-web
-also
-now
-help
-get
-pm
-view
-online
-c
-e
-first
-am
-been
-would
-how
-were
-me
-s
-services
-some
-these
-click
-its
-like
-service
-x
-than
-find
-price
-date
-back
-top
-people
-had
-list
-name
-just
-over
-state
-year
-day
-into
-email
-two
-health
-n
-world
-re
-next
-used
-go
-b
-work
-last
-most
-products
-music
-buy
-data
-make
-them
-should
-product
-system
-post
-her
-city
-t
-add
-policy
-number
-such
-please
-available
-copyright
-support
-message
-after
-best
-software
-then
-jan
-good
-video
-well
-d
-where
-info
-rights
-public
-books
-high
-school
-through
-m
-each
-links
-she
-review
-years
-order
-very
-privacy
-book
-items
-company
-r
-read
-group
-need
-many
-user
-said
-de
-does
-set
-under
-general
-research
-university
-january
-mail
-full
-map
-reviews
-program
-life
-know
-games
-way
-days
-management
-p
-part
-could
-great
-united
-hotel
-real
-f
-item
-international
-center
-ebay
-must
-store
-travel
-comments
-made
-development
-report
-off
-member
-details
-line
-terms
-before
-hotels
-did
-send
-right
-type
-because
-local
-those
-using
-results
-office
-education
-national
-car
-design
-take
-posted
-internet
-address
-community
-within
-states
-area
-want
-phone
-dvd
-shipping
-reserved
-subject
-between
-forum
-family
-l
-long
-based
-w
-code
-show
-o
-even
-black
-check
-special
-prices
-website
-index
-being
-women
-much
-sign
-file
-link
-open
-today
-technology
-south
-case
-project
-same
-pages
-uk
-version
-section
-own
-found
-sports
-house
-related
-security
-both
-g
-county
-american
-photo
-game
-members
-power
-while
-care
-network
-down
-computer
-systems
-three
-total
-place
-end
-following
-download
-h
-him
-without
-per
-access
-think
-north
-resources
-current
-posts
-big
-media
-law
-control
-water
-history
-pictures
-size
-art
-personal
-since
-including
-guide
-shop
-directory
-board
-location
-change
-white
-text
-small
-rating
-rate
-government
-children
-during
-usa
-return
-students
-v
-shopping
-account
-times
-sites
-level
-digital
-profile
-previous
-form
-events
-love
-old
-john
-main
-call
-hours
-image
-department
-title
-description
-non
-k
-y
-insurance
-another
-why
-shall
-property
-class
-cd
-still
-money
-quality
-every
-listing
-content
-country
-private
-little
-visit
-save
-tools
-low
-reply
-customer
-december
-compare
-movies
-include
-college
-value
-article
-york
-man
-card
-jobs
-provide
-j
-food
-source
-author
-different
-press
-u
-learn
-sale
-around
-print
-course
-job
-canada
-process
-teen
-room
-stock
-training
-too
-credit
-point
-join
-science
-men
-categories
-advanced
-west
-sales
-look
-english
-left
-team
-estate
-box
-conditions
-select
-windows
-photos
-gay
-thread
-week
-category
-note
-live
-large
-gallery
-table
-register
-however
-june
-october
-november
-market
-library
-really
-action
-start
-series
-model
-features
-air
-industry
-plan
-human
-provided
-tv
-yes
-required
-second
-hot
-accessories
-cost
-movie
-forums
-march
-la
-september
-better
-say
-questions
-july
-yahoo
-going
-medical
-test
-friend
-come
-dec
-server
-pc
-study
-application
-cart
-staff
-articles
-san
-feedback
-again
-play
-looking
-issues
-april
-never
-users
-complete
-street
-topic
-comment
-financial
-things
-working
-against
-standard
-tax
-person
-below
-mobile
-less
-got
-blog
-party
-payment
-equipment
-login
-student
-let
-programs
-offers
-legal
-above
-recent
-park
-stores
-side
-act
-problem
-red
-give
-memory
-performance
-social
-q
-august
-quote
-language
-story
-sell
-options
-experience
-rates
-create
-key
-body
-young
-america
-important
-field
-few
-east
-paper
-single
-ii
-age
-activities
-club
-example
-girls
-additional
-password
-z
-latest
-something
-road
-gift
-question
-changes
-night
-ca
-hard
-texas
-oct
-pay
-four
-poker
-status
-browse
-issue
-range
-building
-seller
-court
-february
-always
-result
-audio
-light
-write
-war
-nov
-offer
-blue
-groups
-al
-easy
-given
-files
-event
-release
-analysis
-request
-fax
-china
-making
-picture
-needs
-possible
-might
-professional
-yet
-month
-major
-star
-areas
-future
-space
-committee
-hand
-sun
-cards
-problems
-london
-washington
-meeting
-rss
-become
-interest
-id
-child
-keep
-enter
-california
-share
-similar
-garden
-schools
-million
-added
-reference
-companies
-listed
-baby
-learning
-energy
-run
-delivery
-net
-popular
-term
-film
-stories
-put
-computers
-journal
-reports
-co
-try
-welcome
-central
-images
-president
-notice
-original
-head
-radio
-until
-cell
-color
-self
-council
-away
-includes
-track
-australia
-discussion
-archive
-once
-others
-entertainment
-agreement
-format
-least
-society
-months
-log
-safety
-friends
-sure
-faq
-trade
-edition
-cars
-messages
-marketing
-tell
-further
-updated
-association
-able
-having
-provides
-david
-fun
-already
-green
-studies
-close
-common
-drive
-specific
-several
-gold
-feb
-living
-sep
-collection
-called
-short
-arts
-lot
-ask
-display
-limited
-powered
-solutions
-means
-director
-daily
-beach
-past
-natural
-whether
-due
-et
-electronics
-five
-upon
-period
-planning
-database
-says
-official
-weather
-mar
-land
-average
-done
-technical
-window
-france
-pro
-region
-island
-record
-direct
-microsoft
-conference
-environment
-records
-st
-district
-calendar
-costs
-style
-url
-front
-statement
-update
-parts
-aug
-ever
-downloads
-early
-miles
-sound
-resource
-present
-applications
-either
-ago
-document
-word
-works
-material
-bill
-apr
-written
-talk
-federal
-hosting
-rules
-final
-adult
-tickets
-thing
-centre
-requirements
-via
-cheap
-kids
-finance
-true
-minutes
-else
-mark
-third
-rock
-gifts
-europe
-reading
-topics
-bad
-individual
-tips
-plus
-auto
-cover
-usually
-edit
-together
-videos
-percent
-fast
-function
-fact
-unit
-getting
-global
-tech
-meet
-far
-economic
-en
-player
-projects
-lyrics
-often
-subscribe
-submit
-germany
-amount
-watch
-included
-feel
-though
-bank
-risk
-thanks
-everything
-deals
-various
-words
-linux
-jul
-production
-commercial
-james
-weight
-town
-heart
-advertising
-received
-choose
-treatment
-newsletter
-archives
-points
-knowledge
-magazine
-error
-camera
-jun
-girl
-currently
-construction
-toys
-registered
-clear
-golf
-receive
-domain
-methods
-chapter
-makes
-protection
-policies
-loan
-wide
-beauty
-manager
-india
-position
-taken
-sort
-listings
-models
-michael
-known
-half
-cases
-step
-engineering
-florida
-simple
-quick
-none
-wireless
-license
-paul
-friday
-lake
-whole
-annual
-published
-later
-basic
-sony
-shows
-corporate
-google
-church
-method
-purchase
-customers
-active
-response
-practice
-hardware
-figure
-materials
-fire
-holiday
-chat
-enough
-designed
-along
-among
-death
-writing
-speed
-html
-countries
-loss
-face
-brand
-discount
-higher
-effects
-created
-remember
-standards
-oil
-bit
-yellow
-political
-increase
-advertise
-kingdom
-base
-near
-environmental
-thought
-stuff
-french
-storage
-oh
-japan
-doing
-loans
-shoes
-entry
-stay
-nature
-orders
-availability
-africa
-summary
-turn
-mean
-growth
-notes
-agency
-king
-monday
-european
-activity
-copy
-although
-drug
-pics
-western
-income
-force
-cash
-employment
-overall
-bay
-river
-commission
-ad
-package
-contents
-seen
-players
-engine
-port
-album
-regional
-stop
-supplies
-started
-administration
-bar
-institute
-views
-plans
-double
-dog
-build
-screen
-exchange
-types
-soon
-sponsored
-lines
-electronic
-continue
-across
-benefits
-needed
-season
-apply
-someone
-held
-ny
-anything
-printer
-condition
-effective
-believe
-organization
-effect
-asked
-eur
-mind
-sunday
-selection
-casino
-pdf
-lost
-tour
-menu
-volume
-cross
-anyone
-mortgage
-hope
-silver
-corporation
-wish
-inside
-solution
-mature
-role
-rather
-weeks
-addition
-came
-supply
-nothing
-certain
-usr
-executive
-running
-lower
-necessary
-union
-jewelry
-according
-dc
-clothing
-mon
-com
-particular
-fine
-names
-robert
-homepage
-hour
-gas
-skills
-six
-bush
-islands
-advice
-career
-military
-rental
-decision
-leave
-british
-teens
-pre
-huge
-sat
-woman
-facilities
-zip
-bid
-kind
-sellers
-middle
-move
-cable
-opportunities
-taking
-values
-division
-coming
-tuesday
-object
-lesbian
-appropriate
-machine
-logo
-length
-actually
-nice
-score
-statistics
-client
-ok
-returns
-capital
-follow
-sample
-investment
-sent
-shown
-saturday
-christmas
-england
-culture
-band
-flash
-ms
-lead
-george
-choice
-went
-starting
-registration
-fri
-thursday
-courses
-consumer
-hi
-airport
-foreign
-artist
-outside
-furniture
-levels
-channel
-letter
-mode
-phones
-ideas
-wednesday
-structure
-fund
-summer
-allow
-degree
-contract
-button
-releases
-wed
-homes
-super
-male
-matter
-custom
-virginia
-almost
-took
-located
-multiple
-asian
-distribution
-editor
-inn
-industrial
-cause
-potential
-song
-cnet
-ltd
-los
-hp
-focus
-late
-fall
-featured
-idea
-rooms
-female
-responsible
-inc
-communications
-win
-associated
-thomas
-primary
-cancer
-numbers
-reason
-tool
-browser
-spring
-foundation
-answer
-voice
-eg
-friendly
-schedule
-documents
-communication
-purpose
-feature
-bed
-comes
-police
-everyone
-independent
-ip
-approach
-cameras
-brown
-physical
-operating
-hill
-maps
-medicine
-deal
-hold
-ratings
-chicago
-forms
-glass
-happy
-tue
-smith
-wanted
-developed
-thank
-safe
-unique
-survey
-prior
-telephone
-sport
-ready
-feed
-animal
-sources
-mexico
-population
-pa
-regular
-secure
-navigation
-operations
-therefore
-simply
-evidence
-station
-christian
-round
-paypal
-favorite
-understand
-option
-master
-valley
-recently
-probably
-thu
-rentals
-sea
-built
-publications
-blood
-cut
-worldwide
-improve
-connection
-publisher
-hall
-larger
-anti
-networks
-earth
-parents
-nokia
-impact
-transfer
-introduction
-kitchen
-strong
-tel
-carolina
-wedding
-properties
-hospital
-ground
-overview
-ship
-accommodation
-owners
-disease
-tx
-excellent
-paid
-italy
-perfect
-hair
-opportunity
-kit
-classic
-basis
-command
-cities
-william
-express
-award
-distance
-tree
-peter
-assessment
-ensure
-thus
-wall
-ie
-involved
-el
-extra
-especially
-interface
-partners
-budget
-rated
-guides
-success
-maximum
-ma
-operation
-existing
-quite
-selected
-boy
-amazon
-patients
-restaurants
-beautiful
-warning
-wine
-locations
-horse
-vote
-forward
-flowers
-stars
-significant
-lists
-technologies
-owner
-retail
-animals
-useful
-directly
-manufacturer
-ways
-est
-son
-providing
-rule
-mac
-housing
-takes
-iii
-gmt
-bring
-catalog
-searches
-max
-trying
-mother
-authority
-considered
-told
-xml
-traffic
-programme
-joined
-input
-strategy
-feet
-agent
-valid
-bin
-modern
-senior
-ireland
-teaching
-door
-grand
-testing
-trial
-charge
-units
-instead
-canadian
-cool
-normal
-wrote
-enterprise
-ships
-entire
-educational
-md
-leading
-metal
-positive
-fl
-fitness
-chinese
-opinion
-mb
-asia
-football
-abstract
-uses
-output
-funds
-mr
-greater
-likely
-develop
-employees
-artists
-alternative
-processing
-responsibility
-resolution
-java
-guest
-seems
-publication
-pass
-relations
-trust
-van
-contains
-session
-multi
-photography
-republic
-fees
-components
-vacation
-century
-academic
-assistance
-completed
-skin
-graphics
-indian
-prev
-ads
-mary
-il
-expected
-ring
-grade
-dating
-pacific
-mountain
-organizations
-pop
-filter
-mailing
-vehicle
-longer
-consider
-int
-northern
-behind
-panel
-floor
-german
-buying
-match
-proposed
-default
-require
-iraq
-boys
-outdoor
-deep
-morning
-otherwise
-allows
-rest
-protein
-plant
-reported
-hit
-transportation
-mm
-pool
-mini
-politics
-partner
-disclaimer
-authors
-boards
-faculty
-parties
-fish
-membership
-mission
-eye
-string
-sense
-modified
-pack
-released
-stage
-internal
-goods
-recommended
-born
-unless
-richard
-detailed
-japanese
-race
-approved
-background
-target
-except
-character
-usb
-maintenance
-ability
-maybe
-functions
-ed
-moving
-brands
-places
-php
-pretty
-trademarks
-phentermine
-spain
-southern
-yourself
-etc
-winter
-battery
-youth
-pressure
-submitted
-boston
-debt
-keywords
-medium
-television
-interested
-core
-break
-purposes
-throughout
-sets
-dance
-wood
-msn
-itself
-defined
-papers
-playing
-awards
-fee
-studio
-reader
-virtual
-device
-established
-answers
-rent
-las
-remote
-dark
-programming
-external
-apple
-le
-regarding
-instructions
-min
-offered
-theory
-enjoy
-remove
-aid
-surface
-minimum
-visual
-host
-variety
-teachers
-isbn
-martin
-manual
-block
-subjects
-agents
-increased
-repair
-fair
-civil
-steel
-understanding
-songs
-fixed
-wrong
-beginning
-hands
-associates
-finally
-az
-updates
-desktop
-classes
-paris
-ohio
-gets
-sector
-capacity
-requires
-jersey
-un
-fat
-fully
-father
-electric
-saw
-instruments
-quotes
-officer
-driver
-businesses
-dead
-respect
-unknown
-specified
-restaurant
-mike
-trip
-pst
-worth
-mi
-procedures
-poor
-teacher
-eyes
-relationship
-workers
-farm
-georgia
-peace
-traditional
-campus
-tom
-showing
-creative
-coast
-benefit
-progress
-funding
-devices
-lord
-grant
-sub
-agree
-fiction
-hear
-sometimes
-watches
-careers
-beyond
-goes
-families
-led
-museum
-themselves
-fan
-transport
-interesting
-blogs
-wife
-evaluation
-accepted
-former
-implementation
-ten
-hits
-zone
-complex
-th
-cat
-galleries
-references
-die
-presented
-jack
-flat
-flow
-agencies
-literature
-respective
-parent
-spanish
-michigan
-columbia
-setting
-dr
-scale
-stand
-economy
-highest
-helpful
-monthly
-critical
-frame
-musical
-definition
-secretary
-angeles
-networking
-path
-australian
-employee
-chief
-gives
-kb
-bottom
-magazines
-packages
-detail
-francisco
-laws
-changed
-pet
-heard
-begin
-individuals
-colorado
-royal
-clean
-switch
-russian
-largest
-african
-guy
-titles
-relevant
-guidelines
-justice
-connect
-bible
-dev
-cup
-basket
-applied
-weekly
-vol
-installation
-described
-demand
-pp
-suite
-vegas
-na
-square
-chris
-attention
-advance
-skip
-diet
-army
-auction
-gear
-lee
-os
-difference
-allowed
-correct
-charles
-nation
-selling
-lots
-piece
-sheet
-firm
-seven
-older
-illinois
-regulations
-elements
-species
-jump
-cells
-module
-resort
-facility
-random
-pricing
-dvds
-certificate
-minister
-motion
-looks
-fashion
-directions
-visitors
-documentation
-monitor
-trading
-forest
-calls
-whose
-coverage
-couple
-giving
-chance
-vision
-ball
-ending
-clients
-actions
-listen
-discuss
-accept
-automotive
-naked
-goal
-successful
-sold
-wind
-communities
-clinical
-situation
-sciences
-markets
-lowest
-highly
-publishing
-appear
-emergency
-developing
-lives
-currency
-leather
-determine
-temperature
-palm
-announcements
-patient
-actual
-historical
-stone
-bob
-commerce
-ringtones
-perhaps
-persons
-difficult
-scientific
-satellite
-fit
-tests
-village
-accounts
-amateur
-ex
-met
-pain
-xbox
-particularly
-factors
-coffee
-www
-settings
-buyer
-cultural
-steve
-easily
-oral
-ford
-poster
-edge
-functional
-root
-au
-fi
-closed
-holidays
-ice
-pink
-zealand
-balance
-monitoring
-graduate
-replies
-shot
-nc
-architecture
-initial
-label
-thinking
-scott
-llc
-sec
-recommend
-canon
-league
-waste
-minute
-bus
-provider
-optional
-dictionary
-cold
-accounting
-manufacturing
-sections
-chair
-fishing
-effort
-phase
-fields
-bag
-fantasy
-po
-letters
-motor
-va
-professor
-context
-install
-shirt
-apparel
-generally
-continued
-foot
-mass
-crime
-count
-breast
-techniques
-ibm
-rd
-johnson
-sc
-quickly
-dollars
-websites
-religion
-claim
-driving
-permission
-surgery
-patch
-heat
-wild
-measures
-generation
-kansas
-miss
-chemical
-doctor
-task
-reduce
-brought
-himself
-nor
-component
-enable
-exercise
-bug
-santa
-mid
-guarantee
-leader
-diamond
-israel
-se
-processes
-soft
-servers
-alone
-meetings
-seconds
-jones
-arizona
-keyword
-interests
-flight
-congress
-fuel
-username
-walk
-produced
-italian
-paperback
-classifieds
-wait
-supported
-pocket
-saint
-rose
-freedom
-argument
-competition
-creating
-jim
-drugs
-joint
-premium
-providers
-fresh
-characters
-attorney
-upgrade
-di
-factor
-growing
-thousands
-km
-stream
-apartments
-pick
-hearing
-eastern
-auctions
-therapy
-entries
-dates
-generated
-signed
-upper
-administrative
-serious
-prime
-samsung
-limit
-began
-louis
-steps
-errors
-shops
-del
-efforts
-informed
-ga
-ac
-thoughts
-creek
-ft
-worked
-quantity
-urban
-practices
-sorted
-reporting
-essential
-myself
-tours
-platform
-load
-affiliate
-labor
-immediately
-admin
-nursing
-defense
-machines
-designated
-tags
-heavy
-covered
-recovery
-joe
-guys
-integrated
-configuration
-merchant
-comprehensive
-expert
-universal
-protect
-drop
-solid
-cds
-presentation
-languages
-became
-orange
-compliance
-vehicles
-prevent
-theme
-rich
-im
-campaign
-marine
-improvement
-vs
-guitar
-finding
-pennsylvania
-examples
-ipod
-saying
-spirit
-ar
-claims
-challenge
-motorola
-acceptance
-strategies
-mo
-seem
-affairs
-touch
-intended
-towards
-sa
-goals
-hire
-election
-suggest
-branch
-charges
-serve
-affiliates
-reasons
-magic
-mount
-smart
-talking
-gave
-ones
-latin
-multimedia
-xp
-avoid
-certified
-manage
-corner
-rank
-computing
-oregon
-element
-birth
-virus
-abuse
-interactive
-requests
-separate
-quarter
-procedure
-leadership
-tables
-define
-racing
-religious
-facts
-breakfast
-kong
-column
-plants
-faith
-chain
-developer
-identify
-avenue
-missing
-died
-approximately
-domestic
-sitemap
-recommendations
-moved
-houston
-reach
-comparison
-mental
-viewed
-moment
-extended
-sequence
-inch
-attack
-sorry
-centers
-opening
-damage
-lab
-reserve
-recipes
-cvs
-gamma
-plastic
-produce
-snow
-placed
-truth
-counter
-failure
-follows
-eu
-weekend
-dollar
-camp
-ontario
-automatically
-des
-minnesota
-films
-bridge
-native
-fill
-williams
-movement
-printing
-baseball
-owned
-approval
-draft
-chart
-played
-contacts
-cc
-jesus
-readers
-clubs
-lcd
-wa
-jackson
-equal
-adventure
-matching
-offering
-shirts
-profit
-leaders
-posters
-institutions
-assistant
-variable
-ave
-dj
-advertisement
-expect
-parking
-headlines
-yesterday
-compared
-determined
-wholesale
-workshop
-russia
-gone
-codes
-kinds
-extension
-seattle
-statements
-golden
-completely
-teams
-fort
-cm
-wi
-lighting
-senate
-forces
-funny
-brother
-gene
-turned
-portable
-tried
-electrical
-applicable
-disc
-returned
-pattern
-ct
-boat
-named
-theatre
-laser
-earlier
-manufacturers
-sponsor
-classical
-icon
-warranty
-dedicated
-indiana
-direction
-harry
-basketball
-objects
-ends
-delete
-evening
-assembly
-nuclear
-taxes
-mouse
-signal
-criminal
-issued
-brain
-sexual
-wisconsin
-powerful
-dream
-obtained
-false
-da
-cast
-flower
-felt
-personnel
-passed
-supplied
-identified
-falls
-pic
-soul
-aids
-opinions
-promote
-stated
-stats
-hawaii
-professionals
-appears
-carry
-flag
-decided
-nj
-covers
-hr
-em
-advantage
-hello
-designs
-maintain
-tourism
-priority
-newsletters
-adults
-clips
-savings
-iv
-graphic
-atom
-payments
-rw
-estimated
-binding
-brief
-ended
-winning
-eight
-anonymous
-iron
-straight
-script
-served
-wants
-miscellaneous
-prepared
-void
-dining
-alert
-integration
-atlanta
-dakota
-tag
-interview
-mix
-framework
-disk
-installed
-queen
-vhs
-credits
-clearly
-fix
-handle
-sweet
-desk
-criteria
-pubmed
-dave
-massachusetts
-diego
-hong
-vice
-associate
-ne
-truck
-behavior
-enlarge
-ray
-frequently
-revenue
-measure
-changing
-votes
-du
-duty
-looked
-discussions
-bear
-gain
-festival
-laboratory
-ocean
-flights
-experts
-signs
-lack
-depth
-iowa
-whatever
-logged
-laptop
-vintage
-train
-exactly
-dry
-explore
-maryland
-spa
-concept
-nearly
-eligible
-checkout
-reality
-forgot
-handling
-origin
-knew
-gaming
-feeds
-billion
-destination
-scotland
-faster
-intelligence
-dallas
-bought
-con
-ups
-nations
-route
-followed
-specifications
-broken
-tripadvisor
-frank
-alaska
-zoom
-blow
-battle
-residential
-anime
-speak
-decisions
-industries
-protocol
-query
-clip
-partnership
-editorial
-nt
-expression
-es
-equity
-provisions
-speech
-wire
-principles
-suggestions
-rural
-shared
-sounds
-replacement
-tape
-strategic
-judge
-spam
-economics
-acid
-bytes
-cent
-forced
-compatible
-fight
-apartment
-height
-null
-zero
-speaker
-filed
-gb
-netherlands
-obtain
-bc
-consulting
-recreation
-offices
-designer
-remain
-managed
-pr
-failed
-marriage
-roll
-korea
-banks
-fr
-participants
-secret
-bath
-aa
-kelly
-leads
-negative
-austin
-favorites
-toronto
-theater
-springs
-missouri
-andrew
-var
-perform
-healthy
-translation
-estimates
-font
-assets
-injury
-mt
-joseph
-ministry
-drivers
-lawyer
-figures
-married
-protected
-proposal
-sharing
-philadelphia
-portal
-waiting
-birthday
-beta
-fail
-gratis
-banking
-officials
-brian
-toward
-won
-slightly
-assist
-conduct
-contained
-lingerie
-legislation
-calling
-parameters
-jazz
-serving
-bags
-profiles
-miami
-comics
-matters
-houses
-doc
-postal
-relationships
-tennessee
-wear
-controls
-breaking
-combined
-ultimate
-wales
-representative
-frequency
-introduced
-minor
-finish
-departments
-residents
-noted
-displayed
-mom
-reduced
-physics
-rare
-spent
-performed
-extreme
-samples
-davis
-daniel
-bars
-reviewed
-row
-oz
-forecast
-removed
-helps
-singles
-administrator
-cycle
-amounts
-contain
-accuracy
-dual
-rise
-usd
-sleep
-mg
-bird
-pharmacy
-brazil
-creation
-static
-scene
-hunter
-addresses
-lady
-crystal
-famous
-writer
-chairman
-violence
-fans
-oklahoma
-speakers
-drink
-academy
-dynamic
-gender
-eat
-permanent
-agriculture
-dell
-cleaning
-constitutes
-portfolio
-practical
-delivered
-collectibles
-infrastructure
-exclusive
-seat
-concerns
-vendor
-originally
-intel
-utilities
-philosophy
-regulation
-officers
-reduction
-aim
-bids
-referred
-supports
-nutrition
-recording
-regions
-junior
-toll
-les
-cape
-ann
-rings
-meaning
-tip
-secondary
-wonderful
-mine
-ladies
-henry
-ticket
-announced
-guess
-agreed
-prevention
-whom
-ski
-soccer
-math
-import
-posting
-presence
-instant
-mentioned
-automatic
-healthcare
-viewing
-maintained
-ch
-increasing
-majority
-connected
-christ
-dan
-dogs
-sd
-directors
-aspects
-austria
-ahead
-moon
-participation
-scheme
-utility
-preview
-fly
-manner
-matrix
-containing
-combination
-devel
-amendment
-despite
-strength
-guaranteed
-turkey
-libraries
-proper
-distributed
-degrees
-singapore
-enterprises
-delta
-fear
-seeking
-inches
-phoenix
-rs
-convention
-shares
-principal
-daughter
-standing
-comfort
-colors
-wars
-cisco
-ordering
-kept
-alpha
-appeal
-cruise
-bonus
-certification
-previously
-hey
-bookmark
-buildings
-specials
-beat
-disney
-household
-batteries
-adobe
-smoking
-bbc
-becomes
-drives
-arms
-alabama
-tea
-improved
-trees
-avg
-achieve
-positions
-dress
-subscription
-dealer
-contemporary
-sky
-utah
-nearby
-rom
-carried
-happen
-exposure
-panasonic
-hide
-permalink
-signature
-gambling
-refer
-miller
-provision
-outdoors
-clothes
-caused
-luxury
-babes
-frames
-certainly
-indeed
-newspaper
-toy
-circuit
-layer
-printed
-slow
-removal
-easier
-src
-liability
-trademark
-hip
-printers
-faqs
-nine
-adding
-kentucky
-mostly
-eric
-spot
-taylor
-trackback
-prints
-spend
-factory
-interior
-revised
-grow
-americans
-optical
-promotion
-relative
-amazing
-clock
-dot
-hiv
-identity
-suites
-conversion
-feeling
-hidden
-reasonable
-victoria
-serial
-relief
-revision
-broadband
-influence
-ratio
-pda
-importance
-rain
-onto
-dsl
-planet
-webmaster
-copies
-recipe
-zum
-permit
-seeing
-proof
-dna
-diff
-tennis
-bass
-prescription
-bedroom
-empty
-instance
-hole
-pets
-ride
-licensed
-orlando
-specifically
-tim
-bureau
-maine
-sql
-represent
-conservation
-pair
-ideal
-specs
-recorded
-don
-pieces
-finished
-parks
-dinner
-lawyers
-sydney
-stress
-cream
-ss
-runs
-trends
-yeah
-discover
-ap
-patterns
-boxes
-louisiana
-hills
-javascript
-fourth
-nm
-advisor
-mn
-marketplace
-nd
-evil
-aware
-wilson
-shape
-evolution
-irish
-certificates
-objectives
-stations
-suggested
-gps
-op
-remains
-acc
-greatest
-firms
-concerned
-euro
-operator
-structures
-generic
-encyclopedia
-usage
-cap
-ink
-charts
-continuing
-mixed
-census
-interracial
-peak
-tn
-competitive
-exist
-wheel
-transit
-suppliers
-salt
-compact
-poetry
-lights
-tracking
-angel
-bell
-keeping
-preparation
-attempt
-receiving
-matches
-accordance
-width
-noise
-engines
-forget
-array
-discussed
-accurate
-stephen
-elizabeth
-climate
-reservations
-pin
-playstation
-alcohol
-greek
-instruction
-managing
-annotation
-sister
-raw
-differences
-walking
-explain
-smaller
-newest
-establish
-gnu
-happened
-expressed
-jeff
-extent
-sharp
-lesbians
-ben
-lane
-paragraph
-kill
-mathematics
-aol
-compensation
-ce
-export
-managers
-aircraft
-modules
-sweden
-conflict
-conducted
-versions
-employer
-occur
-percentage
-knows
-mississippi
-describe
-concern
-backup
-requested
-citizens
-connecticut
-heritage
-personals
-immediate
-holding
-trouble
-spread
-coach
-kevin
-agricultural
-expand
-supporting
-audience
-assigned
-jordan
-collections
-ages
-participate
-plug
-specialist
-cook
-affect
-virgin
-experienced
-investigation
-raised
-hat
-institution
-directed
-dealers
-searching
-sporting
-helping
-perl
-affected
-lib
-bike
-totally
-plate
-expenses
-indicate
-blonde
-ab
-proceedings
-transmission
-anderson
-utc
-characteristics
-der
-lose
-organic
-seek
-experiences
-albums
-cheats
-extremely
-verzeichnis
-contracts
-guests
-hosted
-diseases
-concerning
-developers
-equivalent
-chemistry
-tony
-neighborhood
-nevada
-kits
-thailand
-variables
-agenda
-anyway
-continues
-tracks
-advisory
-cam
-curriculum
-logic
-template
-prince
-circle
-soil
-grants
-anywhere
-psychology
-responses
-atlantic
-wet
-circumstances
-edward
-investor
-identification
-ram
-leaving
-wildlife
-appliances
-matt
-elementary
-cooking
-speaking
-sponsors
-fox
-unlimited
-respond
-sizes
-plain
-exit
-entered
-iran
-arm
-keys
-launch
-wave
-checking
-costa
-belgium
-printable
-holy
-acts
-guidance
-mesh
-trail
-enforcement
-symbol
-crafts
-highway
-buddy
-hardcover
-observed
-dean
-setup
-poll
-booking
-glossary
-fiscal
-celebrity
-styles
-denver
-unix
-filled
-bond
-channels
-ericsson
-appendix
-notify
-blues
-chocolate
-pub
-portion
-scope
-hampshire
-supplier
-cables
-cotton
-bluetooth
-controlled
-requirement
-authorities
-biology
-dental
-killed
-border
-ancient
-debate
-representatives
-starts
-pregnancy
-causes
-arkansas
-biography
-leisure
-attractions
-learned
-transactions
-notebook
-explorer
-historic
-attached
-opened
-tm
-husband
-disabled
-authorized
-crazy
-upcoming
-britain
-concert
-retirement
-scores
-financing
-efficiency
-sp
-comedy
-adopted
-efficient
-weblog
-linear
-commitment
-specialty
-bears
-jean
-hop
-carrier
-edited
-constant
-visa
-mouth
-jewish
-meter
-linked
-portland
-interviews
-concepts
-nh
-gun
-reflect
-pure
-deliver
-wonder
-lessons
-fruit
-begins
-qualified
-reform
-lens
-alerts
-treated
-discovery
-draw
-mysql
-classified
-relating
-assume
-confidence
-alliance
-fm
-confirm
-warm
-neither
-lewis
-howard
-offline
-leaves
-engineer
-lifestyle
-consistent
-replace
-clearance
-connections
-inventory
-converter
-organisation
-babe
-checks
-reached
-becoming
-safari
-objective
-indicated
-sugar
-crew
-legs
-sam
-stick
-securities
-allen
-pdt
-relation
-enabled
-genre
-slide
-montana
-volunteer
-tested
-rear
-democratic
-enhance
-switzerland
-exact
-bound
-parameter
-adapter
-processor
-node
-formal
-dimensions
-contribute
-lock
-hockey
-storm
-micro
-colleges
-laptops
-mile
-showed
-challenges
-editors
-mens
-threads
-bowl
-supreme
-brothers
-recognition
-presents
-ref
-tank
-submission
-dolls
-estimate
-encourage
-navy
-kid
-regulatory
-inspection
-consumers
-cancel
-limits
-territory
-transaction
-manchester
-weapons
-paint
-delay
-pilot
-outlet
-contributions
-continuous
-db
-czech
-resulting
-cambridge
-initiative
-novel
-pan
-execution
-disability
-increases
-ultra
-winner
-idaho
-contractor
-ph
-episode
-examination
-potter
-dish
-plays
-bulletin
-ia
-pt
-indicates
-modify
-oxford
-adam
-truly
-epinions
-painting
-committed
-extensive
-affordable
-universe
-candidate
-databases
-patent
-slot
-psp
-outstanding
-ha
-eating
-perspective
-planned
-watching
-lodge
-messenger
-mirror
-tournament
-consideration
-ds
-discounts
-sterling
-sessions
-kernel
-stocks
-buyers
-journals
-gray
-catalogue
-ea
-jennifer
-antonio
-charged
-broad
-taiwan
-und
-chosen
-demo
-greece
-lg
-swiss
-sarah
-clark
-hate
-terminal
-publishers
-nights
-behalf
-caribbean
-liquid
-rice
-nebraska
-loop
-salary
-reservation
-foods
-gourmet
-guard
-properly
-orleans
-saving
-nfl
-remaining
-empire
-resume
-twenty
-newly
-raise
-prepare
-avatar
-gary
-depending
-illegal
-expansion
-vary
-hundreds
-rome
-arab
-lincoln
-helped
-premier
-tomorrow
-purchased
-milk
-decide
-consent
-drama
-visiting
-performing
-downtown
-keyboard
-contest
-collected
-nw
-bands
-boot
-suitable
-ff
-absolutely
-millions
-lunch
-audit
-push
-chamber
-guinea
-findings
-muscle
-featuring
-iso
-implement
-clicking
-scheduled
-polls
-typical
-tower
-yours
-sum
-misc
-calculator
-significantly
-chicken
-temporary
-attend
-shower
-alan
-sending
-jason
-tonight
-dear
-sufficient
-holdem
-shell
-province
-catholic
-oak
-vat
-awareness
-vancouver
-governor
-beer
-seemed
-contribution
-measurement
-swimming
-spyware
-formula
-constitution
-packaging
-solar
-jose
-catch
-jane
-pakistan
-ps
-reliable
-consultation
-northwest
-sir
-doubt
-earn
-finder
-unable
-periods
-classroom
-tasks
-democracy
-attacks
-kim
-wallpaper
-merchandise
-const
-resistance
-doors
-symptoms
-resorts
-biggest
-memorial
-visitor
-twin
-forth
-insert
-baltimore
-gateway
-ky
-dont
-alumni
-drawing
-candidates
-charlotte
-ordered
-biological
-fighting
-transition
-happens
-preferences
-spy
-romance
-instrument
-bruce
-split
-themes
-powers
-heaven
-br
-bits
-pregnant
-twice
-classification
-focused
-egypt
-physician
-hollywood
-bargain
-wikipedia
-cellular
-norway
-vermont
-asking
-blocks
-normally
-lo
-spiritual
-hunting
-diabetes
-suit
-ml
-shift
-chip
-res
-sit
-bodies
-photographs
-cutting
-wow
-simon
-writers
-marks
-flexible
-loved
-mapping
-numerous
-relatively
-birds
-satisfaction
-represents
-char
-indexed
-pittsburgh
-superior
-preferred
-saved
-paying
-cartoon
-shots
-intellectual
-moore
-granted
-choices
-carbon
-spending
-comfortable
-magnetic
-interaction
-listening
-effectively
-registry
-crisis
-outlook
-massive
-denmark
-employed
-bright
-treat
-header
-cs
-poverty
-formed
-piano
-echo
-que
-grid
-sheets
-patrick
-experimental
-puerto
-revolution
-consolidation
-displays
-plasma
-allowing
-earnings
-voip
-mystery
-landscape
-dependent
-mechanical
-journey
-delaware
-bidding
-consultants
-risks
-banner
-applicant
-charter
-fig
-barbara
-cooperation
-counties
-acquisition
-ports
-implemented
-sf
-directories
-recognized
-dreams
-blogger
-notification
-kg
-licensing
-stands
-teach
-occurred
-textbooks
-rapid
-pull
-hairy
-diversity
-cleveland
-ut
-reverse
-deposit
-seminar
-investments
-latina
-nasa
-wheels
-specify
-accessibility
-dutch
-sensitive
-templates
-formats
-tab
-depends
-boots
-holds
-router
-concrete
-si
-editing
-poland
-folder
-womens
-css
-completion
-upload
-pulse
-universities
-technique
-contractors
-voting
-courts
-notices
-subscriptions
-calculate
-mc
-detroit
-alexander
-broadcast
-converted
-metro
-toshiba
-anniversary
-improvements
-strip
-specification
-pearl
-accident
-nick
-accessible
-accessory
-resident
-plot
-qty
-possibly
-airline
-typically
-representation
-regard
-pump
-exists
-arrangements
-smooth
-conferences
-uniprotkb
-strike
-consumption
-birmingham
-flashing
-lp
-narrow
-afternoon
-threat
-surveys
-sitting
-putting
-consultant
-controller
-ownership
-committees
-legislative
-researchers
-vietnam
-trailer
-anne
-castle
-gardens
-missed
-malaysia
-unsubscribe
-antique
-labels
-willing
-bio
-molecular
-acting
-heads
-stored
-exam
-logos
-residence
-attorneys
-antiques
-density
-hundred
-ryan
-operators
-strange
-sustainable
-philippines
-statistical
-beds
-mention
-innovation
-pcs
-employers
-grey
-parallel
-honda
-amended
-operate
-bills
-bold
-bathroom
-stable
-opera
-definitions
-von
-doctors
-lesson
-cinema
-asset
-ag
-scan
-elections
-drinking
-reaction
-blank
-enhanced
-entitled
-severe
-generate
-stainless
-newspapers
-hospitals
-vi
-deluxe
-humor
-aged
-monitors
-exception
-lived
-duration
-bulk
-successfully
-indonesia
-pursuant
-sci
-fabric
-edt
-visits
-primarily
-tight
-domains
-capabilities
-pmid
-contrast
-recommendation
-flying
-recruitment
-sin
-berlin
-cute
-organized
-ba
-para
-siemens
-adoption
-improving
-cr
-expensive
-meant
-capture
-pounds
-buffalo
-organisations
-plane
-pg
-explained
-seed
-programmes
-desire
-expertise
-mechanism
-camping
-ee
-jewellery
-meets
-welfare
-peer
-caught
-eventually
-marked
-driven
-measured
-medline
-bottle
-agreements
-considering
-innovative
-marshall
-massage
-rubber
-conclusion
-closing
-tampa
-thousand
-meat
-legend
-grace
-susan
-ing
-ks
-adams
-python
-monster
-alex
-bang
-villa
-bone
-columns
-disorders
-bugs
-collaboration
-hamilton
-detection
-ftp
-cookies
-inner
-formation
-tutorial
-med
-engineers
-entity
-cruises
-gate
-holder
-proposals
-moderator
-sw
-tutorials
-settlement
-portugal
-lawrence
-roman
-duties
-valuable
-tone
-collectables
-ethics
-forever
-dragon
-busy
-captain
-fantastic
-imagine
-brings
-heating
-leg
-neck
-hd
-wing
-governments
-purchasing
-scripts
-abc
-stereo
-appointed
-taste
-dealing
-commit
-tiny
-operational
-rail
-airlines
-liberal
-livecam
-jay
-trips
-gap
-sides
-tube
-turns
-corresponding
-descriptions
-cache
-belt
-jacket
-determination
-animation
-oracle
-er
-matthew
-lease
-productions
-aviation
-hobbies
-proud
-excess
-disaster
-console
-commands
-jr
-telecommunications
-instructor
-giant
-achieved
-injuries
-shipped
-seats
-approaches
-biz
-alarm
-voltage
-anthony
-nintendo
-usual
-loading
-stamps
-appeared
-franklin
-angle
-rob
-vinyl
-highlights
-mining
-designers
-melbourne
-ongoing
-worst
-imaging
-betting
-scientists
-liberty
-wyoming
-blackjack
-argentina
-era
-convert
-possibility
-analyst
-commissioner
-dangerous
-garage
-exciting
-reliability
-thongs
-gcc
-unfortunately
-respectively
-volunteers
-attachment
-ringtone
-finland
-morgan
-derived
-pleasure
-honor
-asp
-oriented
-eagle
-desktops
-pants
-columbus
-nurse
-prayer
-appointment
-workshops
-hurricane
-quiet
-luck
-postage
-producer
-represented
-mortgages
-dial
-responsibilities
-cheese
-comic
-carefully
-jet
-productivity
-investors
-crown
-par
-underground
-diagnosis
-maker
-crack
-principle
-picks
-vacations
-gang
-semester
-calculated
-fetish
-applies
-casinos
-appearance
-smoke
-apache
-filters
-incorporated
-nv
-craft
-cake
-notebooks
-apart
-fellow
-blind
-lounge
-mad
-algorithm
-semi
-coins
-andy
-gross
-strongly
-cafe
-valentine
-hilton
-ken
-proteins
-horror
-su
-exp
-familiar
-capable
-douglas
-debian
-till
-involving
-pen
-investing
-christopher
-admission
-epson
-shoe
-elected
-carrying
-victory
-sand
-madison
-terrorism
-joy
-editions
-cpu
-mainly
-ethnic
-ran
-parliament
-actor
-finds
-seal
-situations
-fifth
-allocated
-citizen
-vertical
-corrections
-structural
-municipal
-describes
-prize
-sr
-occurs
-jon
-absolute
-disabilities
-consists
-anytime
-substance
-prohibited
-addressed
-lies
-pipe
-soldiers
-nr
-guardian
-lecture
-simulation
-layout
-initiatives
-ill
-concentration
-classics
-lbs
-lay
-interpretation
-horses
-lol
-dirty
-deck
-wayne
-donate
-taught
-bankruptcy
-mp
-worker
-optimization
-alive
-temple
-substances
-prove
-discovered
-wings
-breaks
-genetic
-restrictions
-participating
-waters
-promise
-thin
-exhibition
-prefer
-ridge
-cabinet
-modem
-harris
-mph
-bringing
-sick
-dose
-evaluate
-tiffany
-tropical
-collect
-bet
-composition
-toyota
-streets
-nationwide
-vector
-definitely
-shaved
-turning
-buffer
-purple
-existence
-commentary
-larry
-limousines
-developments
-def
-immigration
-destinations
-lets
-mutual
-pipeline
-necessarily
-syntax
-li
-attribute
-prison
-skill
-chairs
-nl
-everyday
-apparently
-surrounding
-mountains
-moves
-popularity
-inquiry
-ethernet
-checked
-exhibit
-throw
-trend
-sierra
-visible
-cats
-desert
-postposted
-ya
-oldest
-rhode
-nba
-coordinator
-obviously
-mercury
-steven
-handbook
-greg
-navigate
-worse
-summit
-victims
-epa
-spaces
-fundamental
-burning
-escape
-coupons
-somewhat
-receiver
-substantial
-tr
-progressive
-cialis
-bb
-boats
-glance
-scottish
-championship
-arcade
-richmond
-sacramento
-impossible
-ron
-russell
-tells
-obvious
-fiber
-depression
-graph
-covering
-platinum
-judgment
-bedrooms
-talks
-filing
-foster
-modeling
-passing
-awarded
-testimonials
-trials
-tissue
-nz
-memorabilia
-clinton
-masters
-bonds
-cartridge
-alberta
-explanation
-folk
-org
-commons
-cincinnati
-subsection
-fraud
-electricity
-permitted
-spectrum
-arrival
-okay
-pottery
-emphasis
-roger
-aspect
-workplace
-awesome
-mexican
-confirmed
-counts
-priced
-wallpapers
-hist
-crash
-lift
-desired
-inter
-closer
-assumes
-heights
-shadow
-riding
-infection
-firefox
-lisa
-expense
-grove
-eligibility
-venture
-clinic
-korean
-healing
-princess
-mall
-entering
-packet
-spray
-studios
-involvement
-dad
-buttons
-placement
-observations
-vbulletin
-funded
-thompson
-winners
-extend
-roads
-subsequent
-pat
-dublin
-rolling
-fell
-motorcycle
-yard
-disclosure
-establishment
-memories
-nelson
-te
-arrived
-creates
-faces
-tourist
-av
-mayor
-murder
-sean
-adequate
-senator
-yield
-presentations
-grades
-cartoons
-pour
-digest
-reg
-lodging
-tion
-dust
-hence
-wiki
-entirely
-replaced
-radar
-rescue
-undergraduate
-losses
-combat
-reducing
-stopped
-occupation
-lakes
-donations
-associations
-citysearch
-closely
-radiation
-diary
-seriously
-kings
-shooting
-kent
-adds
-nsw
-ear
-flags
-pci
-baker
-launched
-elsewhere
-pollution
-conservative
-guestbook
-shock
-effectiveness
-walls
-abroad
-ebony
-tie
-ward
-drawn
-arthur
-ian
-visited
-roof
-walker
-demonstrate
-atmosphere
-suggests
-kiss
-beast
-ra
-operated
-experiment
-targets
-overseas
-purchases
-dodge
-counsel
-federation
-pizza
-invited
-yards
-assignment
-chemicals
-gordon
-mod
-farmers
-rc
-queries
-bmw
-rush
-ukraine
-absence
-nearest
-cluster
-vendors
-mpeg
-whereas
-yoga
-serves
-woods
-surprise
-lamp
-rico
-partial
-shoppers
-phil
-everybody
-couples
-nashville
-ranking
-jokes
-cst
-http
-ceo
-simpson
-twiki
-sublime
-counseling
-palace
-acceptable
-satisfied
-glad
-wins
-measurements
-verify
-globe
-trusted
-copper
-milwaukee
-rack
-medication
-warehouse
-shareware
-ec
-rep
-dicke
-kerry
-receipt
-supposed
-ordinary
-nobody
-ghost
-violation
-configure
-stability
-mit
-applying
-southwest
-boss
-pride
-institutional
-expectations
-independence
-knowing
-reporter
-metabolism
-keith
-champion
-cloudy
-linda
-ross
-personally
-chile
-anna
-plenty
-solo
-sentence
-throat
-ignore
-maria
-uniform
-excellence
-wealth
-tall
-rm
-somewhere
-vacuum
-dancing
-attributes
-recognize
-brass
-writes
-plaza
-pdas
-outcomes
-survival
-quest
-publish
-sri
-screening
-toe
-thumbnail
-trans
-jonathan
-whenever
-nova
-lifetime
-api
-pioneer
-booty
-forgotten
-acrobat
-plates
-acres
-venue
-athletic
-thermal
-essays
-vital
-telling
-fairly
-coastal
-config
-cf
-charity
-intelligent
-edinburgh
-vt
-excel
-modes
-obligation
-campbell
-wake
-stupid
-harbor
-hungary
-traveler
-urw
-segment
-realize
-regardless
-lan
-enemy
-puzzle
-rising
-aluminum
-wells
-wishlist
-opens
-insight
-sms
-restricted
-republican
-secrets
-lucky
-latter
-merchants
-thick
-trailers
-repeat
-syndrome
-philips
-attendance
-penalty
-drum
-glasses
-enables
-nec
-iraqi
-builder
-vista
-jessica
-chips
-terry
-flood
-foto
-ease
-arguments
-amsterdam
-arena
-adventures
-pupils
-stewart
-announcement
-tabs
-outcome
-appreciate
-expanded
-casual
-grown
-polish
-lovely
-extras
-gm
-centres
-jerry
-clause
-smile
-lands
-ri
-troops
-indoor
-bulgaria
-armed
-broker
-charger
-regularly
-believed
-pine
-cooling
-tend
-gulf
-rt
-rick
-trucks
-cp
-mechanisms
-divorce
-laura
-shopper
-tokyo
-partly
-nikon
-customize
-tradition
-candy
-pills
-tiger
-donald
-folks
-sensor
-exposed
-telecom
-hunt
-angels
-deputy
-indicators
-sealed
-thai
-emissions
-physicians
-loaded
-fred
-complaint
-scenes
-experiments
-afghanistan
-dd
-boost
-spanking
-scholarship
-governance
-mill
-founded
-supplements
-chronic
-icons
-moral
-den
-catering
-aud
-finger
-keeps
-pound
-locate
-camcorder
-pl
-trained
-burn
-implementing
-roses
-labs
-ourselves
-bread
-tobacco
-wooden
-motors
-tough
-roberts
-incident
-gonna
-dynamics
-lie
-crm
-rf
-conversation
-decrease
-chest
-pension
-billy
-revenues
-emerging
-worship
-capability
-ak
-fe
-craig
-herself
-producing
-churches
-precision
-damages
-reserves
-contributed
-solve
-shorts
-reproduction
-minority
-td
-diverse
-amp
-ingredients
-sb
-ah
-johnny
-sole
-franchise
-recorder
-complaints
-facing
-sm
-nancy
-promotions
-tones
-passion
-rehabilitation
-maintaining
-sight
-laid
-clay
-defence
-patches
-weak
-refund
-usc
-towns
-environments
-trembl
-divided
-blvd
-reception
-amd
-wise
-emails
-cyprus
-wv
-odds
-correctly
-insider
-seminars
-consequences
-makers
-hearts
-geography
-appearing
-integrity
-worry
-ns
-discrimination
-eve
-carter
-legacy
-marc
-pleased
-danger
-vitamin
-widely
-processed
-phrase
-genuine
-raising
-implications
-functionality
-paradise
-hybrid
-reads
-roles
-intermediate
-emotional
-sons
-leaf
-pad
-glory
-platforms
-ja
-bigger
-billing
-diesel
-versus
-combine
-overnight
-geographic
-exceed
-bs
-rod
-saudi
-fault
-cuba
-hrs
-preliminary
-districts
-introduce
-silk
-promotional
-kate
-chevrolet
-babies
-bi
-karen
-compiled
-romantic
-revealed
-specialists
-generator
-albert
-examine
-jimmy
-graham
-suspension
-bristol
-margaret
-compaq
-sad
-correction
-wolf
-slowly
-authentication
-communicate
-rugby
-supplement
-showtimes
-cal
-portions
-infant
-promoting
-sectors
-samuel
-fluid
-grounds
-fits
-kick
-regards
-meal
-ta
-hurt
-machinery
-bandwidth
-unlike
-equation
-baskets
-probability
-pot
-dimension
-wright
-img
-barry
-proven
-schedules
-admissions
-cached
-warren
-slip
-studied
-reviewer
-involves
-quarterly
-rpm
-profits
-devil
-grass
-comply
-marie
-florist
-illustrated
-cherry
-continental
-alternate
-deutsch
-achievement
-limitations
-kenya
-webcam
-cuts
-funeral
-nutten
-earrings
-enjoyed
-automated
-chapters
-pee
-charlie
-quebec
-passenger
-convenient
-dennis
-mars
-francis
-tvs
-sized
-manga
-noticed
-socket
-silent
-literary
-egg
-mhz
-signals
-caps
-orientation
-pill
-theft
-childhood
-swing
-symbols
-lat
-meta
-humans
-analog
-facial
-choosing
-talent
-dated
-flexibility
-seeker
-wisdom
-shoot
-boundary
-mint
-packard
-offset
-payday
-philip
-elite
-gi
-spin
-holders
-believes
-swedish
-poems
-deadline
-jurisdiction
-robot
-displaying
-witness
-collins
-equipped
-stages
-encouraged
-sur
-winds
-powder
-broadway
-acquired
-assess
-wash
-cartridges
-stones
-entrance
-gnome
-roots
-declaration
-losing
-attempts
-gadgets
-noble
-glasgow
-automation
-impacts
-rev
-gospel
-advantages
-shore
-loves
-induced
-ll
-knight
-preparing
-loose
-aims
-recipient
-linking
-extensions
-appeals
-cl
-earned
-illness
-islamic
-athletics
-southeast
-ieee
-ho
-alternatives
-pending
-parker
-determining
-lebanon
-corp
-personalized
-kennedy
-gt
-sh
-conditioning
-teenage
-soap
-ae
-triple
-cooper
-nyc
-vincent
-jam
-secured
-unusual
-answered
-partnerships
-destruction
-slots
-increasingly
-migration
-disorder
-routine
-toolbar
-basically
-rocks
-conventional
-titans
-applicants
-wearing
-axis
-sought
-genes
-mounted
-habitat
-firewall
-median
-guns
-scanner
-herein
-occupational
-animated
-judicial
-rio
-hs
-adjustment
-hero
-integer
-treatments
-bachelor
-attitude
-camcorders
-engaged
-falling
-basics
-montreal
-carpet
-rv
-struct
-lenses
-binary
-genetics
-attended
-difficulty
-punk
-collective
-coalition
-pi
-dropped
-enrollment
-duke
-walter
-ai
-pace
-besides
-wage
-producers
-ot
-collector
-arc
-hosts
-interfaces
-advertisers
-moments
-atlas
-strings
-dawn
-representing
-observation
-feels
-torture
-carl
-deleted
-coat
-mitchell
-mrs
-rica
-restoration
-convenience
-returning
-ralph
-opposition
-container
-yr
-defendant
-warner
-confirmation
-app
-embedded
-inkjet
-supervisor
-wizard
-corps
-actors
-liver
-peripherals
-liable
-brochure
-morris
-bestsellers
-petition
-eminem
-recall
-antenna
-picked
-assumed
-departure
-minneapolis
-belief
-killing
-bikini
-memphis
-shoulder
-decor
-lookup
-texts
-harvard
-brokers
-roy
-ion
-diameter
-ottawa
-doll
-ic
-podcast
-seasons
-peru
-interactions
-refine
-bidder
-singer
-evans
-herald
-literacy
-fails
-aging
-nike
-intervention
-fed
-plugin
-attraction
-diving
-invite
-modification
-alice
-latinas
-suppose
-customized
-reed
-involve
-moderate
-terror
-younger
-thirty
-mice
-opposite
-understood
-rapidly
-dealtime
-ban
-temp
-intro
-mercedes
-zus
-assurance
-clerk
-happening
-vast
-mills
-outline
-amendments
-tramadol
-holland
-receives
-jeans
-metropolitan
-compilation
-verification
-fonts
-ent
-odd
-wrap
-refers
-mood
-favor
-veterans
-quiz
-mx
-sigma
-gr
-attractive
-xhtml
-occasion
-recordings
-jefferson
-victim
-demands
-sleeping
-careful
-ext
-beam
-gardening
-obligations
-arrive
-orchestra
-sunset
-tracked
-moreover
-minimal
-polyphonic
-lottery
-tops
-framed
-aside
-outsourcing
-licence
-adjustable
-allocation
-michelle
-essay
-discipline
-amy
-ts
-demonstrated
-dialogue
-identifying
-alphabetical
-camps
-declared
-dispatched
-aaron
-handheld
-trace
-disposal
-shut
-florists
-packs
-ge
-installing
-switches
-romania
-voluntary
-ncaa
-thou
-consult
-phd
-greatly
-blogging
-mask
-cycling
-midnight
-ng
-commonly
-pe
-photographer
-inform
-turkish
-coal
-cry
-messaging
-pentium
-quantum
-murray
-intent
-tt
-zoo
-largely
-pleasant
-announce
-constructed
-additions
-requiring
-spoke
-aka
-arrow
-engagement
-sampling
-rough
-weird
-tee
-refinance
-lion
-inspired
-holes
-weddings
-blade
-suddenly
-oxygen
-cookie
-meals
-canyon
-goto
-meters
-merely
-calendars
-arrangement
-conclusions
-passes
-bibliography
-pointer
-compatibility
-stretch
-durham
-furthermore
-permits
-cooperative
-muslim
-xl
-neil
-sleeve
-netscape
-cleaner
-cricket
-beef
-feeding
-stroke
-township
-rankings
-measuring
-cad
-hats
-robin
-robinson
-jacksonville
-strap
-headquarters
-sharon
-crowd
-tcp
-transfers
-surf
-olympic
-transformation
-remained
-attachments
-dv
-dir
-entities
-customs
-administrators
-personality
-rainbow
-hook
-roulette
-decline
-gloves
-israeli
-medicare
-cord
-skiing
-cloud
-facilitate
-subscriber
-valve
-val
-hewlett
-explains
-proceed
-flickr
-feelings
-knife
-jamaica
-priorities
-shelf
-bookstore
-timing
-liked
-parenting
-adopt
-denied
-fotos
-incredible
-britney
-freeware
-donation
-outer
-crop
-deaths
-rivers
-commonwealth
-pharmaceutical
-manhattan
-tales
-katrina
-workforce
-islam
-nodes
-tu
-fy
-thumbs
-seeds
-cited
-lite
-ghz
-hub
-targeted
-organizational
-skype
-realized
-twelve
-founder
-decade
-gamecube
-rr
-dispute
-portuguese
-tired
-titten
-adverse
-everywhere
-excerpt
-eng
-steam
-discharge
-ef
-drinks
-ace
-voices
-acute
-halloween
-climbing
-stood
-sing
-tons
-perfume
-carol
-honest
-albany
-hazardous
-restore
-stack
-methodology
-somebody
-sue
-ep
-housewares
-reputation
-resistant
-democrats
-recycling
-hang
-gbp
-curve
-creator
-amber
-qualifications
-museums
-coding
-slideshow
-tracker
-variation
-passage
-transferred
-trunk
-hiking
-lb
-pierre
-jelsoft
-headset
-photograph
-oakland
-colombia
-waves
-camel
-distributor
-lamps
-underlying
-hood
-wrestling
-suicide
-archived
-photoshop
-jp
-chi
-bt
-arabia
-gathering
-projection
-juice
-chase
-mathematical
-logical
-sauce
-fame
-extract
-specialized
-diagnostic
-panama
-indianapolis
-af
-payable
-corporations
-courtesy
-criticism
-automobile
-confidential
-rfc
-statutory
-accommodations
-athens
-northeast
-downloaded
-judges
-sl
-seo
-retired
-isp
-remarks
-detected
-decades
-paintings
-walked
-arising
-nissan
-bracelet
-ins
-eggs
-juvenile
-injection
-yorkshire
-populations
-protective
-afraid
-acoustic
-railway
-cassette
-initially
-indicator
-pointed
-hb
-jpg
-causing
-mistake
-norton
-locked
-eliminate
-tc
-fusion
-mineral
-sunglasses
-ruby
-steering
-beads
-fortune
-preference
-canvas
-threshold
-parish
-claimed
-screens
-cemetery
-planner
-croatia
-flows
-stadium
-venezuela
-exploration
-mins
-fewer
-sequences
-coupon
-nurses
-ssl
-stem
-proxy
-astronomy
-lanka
-opt
-edwards
-drew
-contests
-flu
-translate
-announces
-mlb
-costume
-tagged
-berkeley
-voted
-killer
-bikes
-gates
-adjusted
-rap
-tune
-bishop
-pulled
-corn
-gp
-shaped
-compression
-seasonal
-establishing
-farmer
-counters
-puts
-constitutional
-grew
-perfectly
-tin
-slave
-instantly
-cultures
-norfolk
-coaching
-examined
-trek
-encoding
-litigation
-submissions
-oem
-heroes
-painted
-lycos
-ir
-zdnet
-broadcasting
-horizontal
-artwork
-cosmetic
-resulted
-portrait
-terrorist
-informational
-ethical
-carriers
-ecommerce
-mobility
-floral
-builders
-ties
-struggle
-schemes
-suffering
-neutral
-fisher
-rat
-spears
-prospective
-bedding
-ultimately
-joining
-heading
-equally
-artificial
-bearing
-spectacular
-coordination
-connector
-brad
-combo
-seniors
-worlds
-guilty
-affiliated
-activation
-naturally
-haven
-tablet
-jury
-dos
-tail
-subscribers
-charm
-lawn
-violent
-mitsubishi
-underwear
-basin
-soup
-potentially
-ranch
-constraints
-crossing
-inclusive
-dimensional
-cottage
-drunk
-considerable
-crimes
-resolved
-mozilla
-byte
-toner
-nose
-latex
-branches
-anymore
-oclc
-delhi
-holdings
-alien
-locator
-selecting
-processors
-pantyhose
-plc
-broke
-nepal
-zimbabwe
-difficulties
-juan
-complexity
-msg
-constantly
-browsing
-resolve
-barcelona
-presidential
-documentary
-cod
-territories
-melissa
-moscow
-thesis
-thru
-jews
-nylon
-palestinian
-discs
-rocky
-bargains
-frequent
-trim
-nigeria
-ceiling
-pixels
-ensuring
-hispanic
-cv
-cb
-legislature
-hospitality
-gen
-anybody
-procurement
-diamonds
-espn
-fleet
-untitled
-bunch
-totals
-marriott
-singing
-theoretical
-afford
-exercises
-starring
-referral
-nhl
-surveillance
-optimal
-quit
-distinct
-protocols
-lung
-highlight
-substitute
-inclusion
-hopefully
-brilliant
-turner
-sucking
-cents
-reuters
-ti
-fc
-gel
-todd
-spoken
-omega
-evaluated
-stayed
-civic
-assignments
-fw
-manuals
-doug
-sees
-termination
-watched
-saver
-thereof
-grill
-households
-gs
-redeem
-rogers
-grain
-aaa
-authentic
-regime
-wanna
-wishes
-bull
-montgomery
-architectural
-louisville
-depend
-differ
-macintosh
-movements
-ranging
-monica
-repairs
-breath
-amenities
-virtually
-cole
-mart
-candle
-hanging
-colored
-authorization
-tale
-verified
-lynn
-formerly
-projector
-bp
-situated
-comparative
-std
-seeks
-herbal
-loving
-strictly
-routing
-docs
-stanley
-psychological
-surprised
-retailer
-vitamins
-elegant
-gains
-renewal
-vid
-genealogy
-opposed
-deemed
-scoring
-expenditure
-brooklyn
-liverpool
-sisters
-critics
-connectivity
-spots
-oo
-algorithms
-hacker
-madrid
-similarly
-margin
-coin
-solely
-fake
-salon
-collaborative
-norman
-fda
-excluding
-turbo
-headed
-voters
-cure
-madonna
-commander
-arch
-ni
-murphy
-thinks
-thats
-suggestion
-hdtv
-soldier
-phillips
-asin
-aimed
-justin
-bomb
-harm
-interval
-mirrors
-spotlight
-tricks
-reset
-brush
-investigate
-thy
-expansys
-panels
-repeated
-assault
-connecting
-spare
-logistics
-deer
-kodak
-tongue
-bowling
-tri
-danish
-pal
-monkey
-proportion
-filename
-skirt
-florence
-invest
-honey
-um
-analyzes
-drawings
-significance
-scenario
-ye
-fs
-lovers
-atomic
-approx
-symposium
-arabic
-gauge
-essentials
-junction
-protecting
-nn
-faced
-mat
-rachel
-solving
-transmitted
-weekends
-screenshots
-produces
-oven
-ted
-intensive
-chains
-kingston
-sixth
-engage
-deviant
-noon
-switching
-quoted
-adapters
-correspondence
-farms
-imports
-supervision
-cheat
-bronze
-expenditures
-sandy
-separation
-testimony
-suspect
-celebrities
-macro
-sender
-mandatory
-boundaries
-crucial
-syndication
-gym
-celebration
-kde
-adjacent
-filtering
-tuition
-spouse
-exotic
-viewer
-signup
-threats
-luxembourg
-puzzles
-reaching
-vb
-damaged
-cams
-receptor
-laugh
-joel
-surgical
-destroy
-citation
-pitch
-autos
-yo
-premises
-perry
-proved
-offensive
-imperial
-dozen
-benjamin
-deployment
-teeth
-cloth
-studying
-colleagues
-stamp
-lotus
-salmon
-olympus
-separated
-proc
-cargo
-tan
-directive
-fx
-salem
-mate
-dl
-starter
-upgrades
-likes
-butter
-pepper
-weapon
-luggage
-burden
-chef
-tapes
-zones
-races
-isle
-stylish
-slim
-maple
-luke
-grocery
-offshore
-governing
-retailers
-depot
-kenneth
-comp
-alt
-pie
-blend
-harrison
-ls
-julie
-occasionally
-cbs
-attending
-emission
-pete
-spec
-finest
-realty
-janet
-bow
-penn
-recruiting
-apparent
-instructional
-phpbb
-autumn
-traveling
-probe
-midi
-permissions
-biotechnology
-toilet
-ranked
-jackets
-routes
-packed
-excited
-outreach
-helen
-mounting
-recover
-tied
-lopez
-balanced
-prescribed
-catherine
-timely
-talked
-debug
-delayed
-chuck
-reproduced
-hon
-dale
-explicit
-calculation
-villas
-ebook
-consolidated
-exclude
-peeing
-occasions
-brooks
-equations
-newton
-oils
-sept
-exceptional
-anxiety
-bingo
-whilst
-spatial
-respondents
-unto
-lt
-ceramic
-prompt
-precious
-minds
-annually
-considerations
-scanners
-atm
-xanax
-eq
-pays
-fingers
-sunny
-ebooks
-delivers
-je
-queensland
-necklace
-musicians
-leeds
-composite
-unavailable
-cedar
-arranged
-lang
-theaters
-advocacy
-raleigh
-stud
-fold
-essentially
-designing
-threaded
-uv
-qualify
-blair
-hopes
-assessments
-cms
-mason
-diagram
-burns
-pumps
-footwear
-sg
-vic
-beijing
-peoples
-victor
-mario
-pos
-attach
-licenses
-utils
-removing
-advised
-brunswick
-spider
-phys
-ranges
-pairs
-sensitivity
-trails
-preservation
-hudson
-isolated
-calgary
-interim
-assisted
-divine
-streaming
-approve
-chose
-compound
-intensity
-technological
-syndicate
-abortion
-dialog
-venues
-blast
-wellness
-calcium
-newport
-antivirus
-addressing
-pole
-discounted
-indians
-shield
-harvest
-membrane
-prague
-previews
-bangladesh
-constitute
-locally
-concluded
-pickup
-desperate
-mothers
-nascar
-iceland
-demonstration
-governmental
-manufactured
-candles
-graduation
-mega
-bend
-sailing
-variations
-moms
-sacred
-addiction
-morocco
-chrome
-tommy
-springfield
-refused
-brake
-exterior
-greeting
-ecology
-oliver
-congo
-glen
-botswana
-nav
-delays
-synthesis
-olive
-undefined
-unemployment
-cyber
-verizon
-scored
-enhancement
-newcastle
-clone
-velocity
-lambda
-relay
-composed
-tears
-performances
-oasis
-baseline
-cab
-angry
-fa
-societies
-silicon
-brazilian
-identical
-petroleum
-compete
-ist
-norwegian
-lover
-belong
-honolulu
-beatles
-lips
-retention
-exchanges
-pond
-rolls
-thomson
-barnes
-soundtrack
-wondering
-malta
-daddy
-lc
-ferry
-rabbit
-profession
-seating
-dam
-cnn
-separately
-physiology
-lil
-collecting
-das
-exports
-omaha
-tire
-participant
-scholarships
-recreational
-dominican
-chad
-electron
-loads
-friendship
-heather
-passport
-motel
-unions
-treasury
-warrant
-sys
-solaris
-frozen
-occupied
-josh
-royalty
-scales
-rally
-observer
-sunshine
-strain
-drag
-ceremony
-somehow
-arrested
-expanding
-provincial
-investigations
-icq
-ripe
-yamaha
-rely
-medications
-hebrew
-gained
-rochester
-dying
-laundry
-stuck
-solomon
-placing
-stops
-homework
-adjust
-assessed
-advertiser
-enabling
-encryption
-filling
-downloadable
-sophisticated
-imposed
-silence
-scsi
-focuses
-soviet
-possession
-cu
-laboratories
-treaty
-vocal
-trainer
-organ
-stronger
-volumes
-advances
-vegetables
-lemon
-toxic
-dns
-thumbnails
-darkness
-pty
-ws
-nuts
-nail
-bizrate
-vienna
-implied
-span
-stanford
-sox
-stockings
-joke
-respondent
-packing
-statute
-rejected
-satisfy
-destroyed
-shelter
-chapel
-gamespot
-manufacture
-layers
-wordpress
-guided
-vulnerability
-accountability
-celebrate
-accredited
-appliance
-compressed
-bahamas
-powell
-mixture
-bench
-univ
-tub
-rider
-scheduling
-radius
-perspectives
-mortality
-logging
-hampton
-christians
-borders
-therapeutic
-pads
-butts
-inns
-bobby
-impressive
-sheep
-accordingly
-architect
-railroad
-lectures
-challenging
-wines
-nursery
-harder
-cups
-ash
-microwave
-cheapest
-accidents
-travesti
-relocation
-stuart
-contributors
-salvador
-ali
-salad
-np
-monroe
-tender
-violations
-foam
-temperatures
-paste
-clouds
-competitions
-discretion
-tft
-tanzania
-preserve
-jvc
-poem
-unsigned
-staying
-cosmetics
-easter
-theories
-repository
-praise
-jeremy
-venice
-concentrations
-estonia
-christianity
-veteran
-streams
-landing
-signing
-executed
-katie
-negotiations
-realistic
-dt
-cgi
-showcase
-integral
-asks
-relax
-namibia
-generating
-christina
-congressional
-synopsis
-hardly
-prairie
-reunion
-composer
-bean
-sword
-absent
-photographic
-sells
-ecuador
-hoping
-accessed
-spirits
-modifications
-coral
-pixel
-float
-colin
-bias
-imported
-paths
-bubble
-por
-acquire
-contrary
-millennium
-tribune
-vessel
-acids
-focusing
-viruses
-cheaper
-admitted
-dairy
-admit
-mem
-fancy
-equality
-samoa
-gc
-achieving
-tap
-stickers
-fisheries
-exceptions
-reactions
-leasing
-lauren
-beliefs
-ci
-macromedia
-companion
-squad
-analyze
-ashley
-scroll
-relate
-divisions
-swim
-wages
-additionally
-suffer
-forests
-fellowship
-nano
-invalid
-concerts
-martial
-males
-victorian
-retain
-execute
-tunnel
-genres
-cambodia
-patents
-copyrights
-yn
-chaos
-lithuania
-mastercard
-wheat
-chronicles
-obtaining
-beaver
-updating
-distribute
-readings
-decorative
-kijiji
-confused
-compiler
-enlargement
-eagles
-bases
-vii
-accused
-bee
-campaigns
-unity
-loud
-conjunction
-bride
-rats
-defines
-airports
-instances
-indigenous
-begun
-cfr
-brunette
-packets
-anchor
-socks
-validation
-parade
-corruption
-stat
-trigger
-incentives
-cholesterol
-gathered
-essex
-slovenia
-notified
-differential
-beaches
-folders
-dramatic
-surfaces
-terrible
-routers
-cruz
-pendant
-dresses
-baptist
-scientist
-starsmerchant
-hiring
-clocks
-arthritis
-bios
-females
-wallace
-nevertheless
-reflects
-taxation
-fever
-pmc
-cuisine
-surely
-practitioners
-transcript
-myspace
-theorem
-inflation
-thee
-nb
-ruth
-pray
-stylus
-compounds
-pope
-drums
-contracting
-arnold
-structured
-reasonably
-jeep
-chicks
-bare
-hung
-cattle
-mba
-radical
-graduates
-rover
-recommends
-controlling
-treasure
-reload
-distributors
-flame
-levitra
-tanks
-assuming
-monetary
-elderly
-pit
-arlington
-mono
-particles
-floating
-extraordinary
-tile
-indicating
-bolivia
-spell
-hottest
-stevens
-coordinate
-kuwait
-exclusively
-emily
-alleged
-limitation
-widescreen
-compile
-webster
-struck
-rx
-illustration
-plymouth
-warnings
-construct
-apps
-inquiries
-bridal
-annex
-mag
-gsm
-inspiration
-tribal
-curious
-affecting
-freight
-rebate
-meetup
-eclipse
-sudan
-ddr
-downloading
-rec
-shuttle
-aggregate
-stunning
-cycles
-affects
-forecasts
-detect
-actively
-ciao
-ampland
-knee
-prep
-pb
-complicated
-chem
-fastest
-butler
-shopzilla
-injured
-decorating
-payroll
-cookbook
-expressions
-ton
-courier
-uploaded
-shakespeare
-hints
-collapse
-americas
-connectors
-unlikely
-oe
-gif
-pros
-conflicts
-techno
-beverage
-tribute
-wired
-elvis
-immune
-latvia
-travelers
-forestry
-barriers
-cant
-jd
-rarely
-gpl
-infected
-offerings
-martha
-genesis
-barrier
-argue
-incorrect
-trains
-metals
-bicycle
-furnishings
-letting
-arise
-guatemala
-celtic
-thereby
-irc
-jamie
-particle
-perception
-minerals
-advise
-humidity
-bottles
-boxing
-wy
-dm
-bangkok
-renaissance
-pathology
-sara
-bra
-ordinance
-hughes
-photographers
-infections
-jeffrey
-chess
-operates
-brisbane
-configured
-survive
-oscar
-festivals
-menus
-joan
-possibilities
-duck
-reveal
-canal
-amino
-phi
-contributing
-herbs
-clinics
-mls
-cow
-manitoba
-analytical
-missions
-watson
-lying
-costumes
-strict
-dive
-saddam
-circulation
-drill
-offense
-bryan
-cet
-protest
-assumption
-jerusalem
-hobby
-tries
-transexuales
-invention
-nickname
-fiji
-technician
-inline
-executives
-enquiries
-washing
-audi
-staffing
-cognitive
-exploring
-trick
-enquiry
-closure
-raid
-ppc
-timber
-volt
-intense
-div
-playlist
-registrar
-showers
-supporters
-ruling
-steady
-dirt
-statutes
-withdrawal
-myers
-drops
-predicted
-wider
-saskatchewan
-jc
-cancellation
-plugins
-enrolled
-sensors
-screw
-ministers
-publicly
-hourly
-blame
-geneva
-freebsd
-veterinary
-acer
-prostores
-reseller
-dist
-handed
-suffered
-intake
-informal
-relevance
-incentive
-butterfly
-tucson
-mechanics
-heavily
-swingers
-fifty
-headers
-mistakes
-numerical
-ons
-geek
-uncle
-defining
-counting
-reflection
-sink
-accompanied
-assure
-invitation
-devoted
-princeton
-jacob
-sodium
-randy
-spirituality
-hormone
-meanwhile
-proprietary
-timothy
-childrens
-brick
-grip
-naval
-thumbzilla
-medieval
-porcelain
-avi
-bridges
-pichunter
-captured
-watt
-thehun
-decent
-casting
-dayton
-translated
-shortly
-cameron
-columnists
-pins
-carlos
-reno
-donna
-andreas
-warrior
-diploma
-cabin
-innocent
-scanning
-ide
-consensus
-polo
-valium
-copying
-rpg
-delivering
-cordless
-patricia
-horn
-eddie
-uganda
-fired
-journalism
-pd
-prot
-trivia
-adidas
-perth
-frog
-grammar
-intention
-syria
-disagree
-klein
-harvey
-tires
-logs
-undertaken
-tgp
-hazard
-retro
-leo
-statewide
-semiconductor
-gregory
-episodes
-boolean
-circular
-anger
-diy
-mainland
-illustrations
-suits
-chances
-interact
-snap
-happiness
-arg
-substantially
-bizarre
-glenn
-ur
-auckland
-olympics
-fruits
-identifier
-geo
-ribbon
-calculations
-doe
-jpeg
-conducting
-startup
-suzuki
-trinidad
-ati
-kissing
-wal
-handy
-swap
-exempt
-crops
-reduces
-accomplished
-calculators
-geometry
-impression
-abs
-slovakia
-flip
-guild
-correlation
-gorgeous
-capitol
-sim
-dishes
-rna
-barbados
-chrysler
-nervous
-refuse
-extends
-fragrance
-mcdonald
-replica
-plumbing
-brussels
-tribe
-neighbors
-trades
-superb
-buzz
-transparent
-nuke
-rid
-trinity
-charleston
-handled
-legends
-boom
-calm
-champions
-floors
-selections
-projectors
-inappropriate
-exhaust
-comparing
-shanghai
-speaks
-burton
-vocational
-davidson
-copied
-scotia
-farming
-gibson
-pharmacies
-fork
-troy
-ln
-roller
-introducing
-batch
-organize
-appreciated
-alter
-nicole
-latino
-ghana
-edges
-uc
-mixing
-handles
-skilled
-fitted
-albuquerque
-harmony
-distinguished
-asthma
-projected
-assumptions
-shareholders
-twins
-developmental
-rip
-zope
-regulated
-triangle
-amend
-anticipated
-oriental
-reward
-windsor
-zambia
-completing
-gmbh
-buf
-ld
-hydrogen
-webshots
-sprint
-comparable
-chick
-advocate
-sims
-confusion
-copyrighted
-tray
-inputs
-warranties
-genome
-escorts
-documented
-thong
-medal
-paperbacks
-coaches
-vessels
-walks
-sol
-keyboards
-sage
-knives
-eco
-vulnerable
-arrange
-artistic
-bat
-honors
-booth
-indie
-reflected
-unified
-bones
-breed
-detector
-ignored
-polar
-fallen
-precise
-sussex
-respiratory
-notifications
-msgid
-transexual
-mainstream
-invoice
-evaluating
-lip
-subcommittee
-sap
-gather
-suse
-maternity
-backed
-alfred
-colonial
-mf
-carey
-motels
-forming
-embassy
-cave
-journalists
-danny
-rebecca
-slight
-proceeds
-indirect
-amongst
-wool
-foundations
-msgstr
-arrest
-volleyball
-mw
-adipex
-horizon
-nu
-deeply
-toolbox
-ict
-marina
-liabilities
-prizes
-bosnia
-browsers
-decreased
-patio
-dp
-tolerance
-surfing
-creativity
-lloyd
-describing
-optics
-pursue
-lightning
-overcome
-eyed
-ou
-quotations
-grab
-inspector
-attract
-brighton
-beans
-bookmarks
-ellis
-disable
-snake
-succeed
-leonard
-lending
-oops
-reminder
-xi
-searched
-behavioral
-riverside
-bathrooms
-plains
-sku
-ht
-raymond
-insights
-abilities
-initiated
-sullivan
-za
-midwest
-karaoke
-trap
-lonely
-fool
-ve
-nonprofit
-lancaster
-suspended
-hereby
-observe
-julia
-containers
-attitudes
-karl
-berry
-collar
-simultaneously
-racial
-integrate
-bermuda
-amanda
-sociology
-mobiles
-screenshot
-exhibitions
-kelkoo
-confident
-retrieved
-exhibits
-officially
-consortium
-dies
-terrace
-bacteria
-pts
-replied
-seafood
-novels
-rh
-rrp
-recipients
-ought
-delicious
-traditions
-fg
-jail
-safely
-finite
-kidney
-periodically
-fixes
-sends
-durable
-mazda
-allied
-throws
-moisture
-hungarian
-roster
-referring
-symantec
-spencer
-wichita
-nasdaq
-uruguay
-ooo
-hz
-transform
-timer
-tablets
-tuning
-gotten
-educators
-tyler
-futures
-vegetable
-verse
-highs
-humanities
-independently
-wanting
-custody
-scratch
-launches
-ipaq
-alignment
-henderson
-bk
-britannica
-comm
-ellen
-competitors
-nhs
-rocket
-aye
-bullet
-towers
-racks
-lace
-nasty
-visibility
-latitude
-consciousness
-ste
-tumor
-ugly
-deposits
-beverly
-mistress
-encounter
-trustees
-watts
-duncan
-reprints
-hart
-bernard
-resolutions
-ment
-accessing
-forty
-tubes
-attempted
-col
-midlands
-priest
-floyd
-ronald
-analysts
-queue
-dx
-sk
-trance
-locale
-nicholas
-biol
-yu
-bundle
-hammer
-invasion
-witnesses
-runner
-rows
-administered
-notion
-sq
-skins
-mailed
-oc
-fujitsu
-spelling
-arctic
-exams
-rewards
-beneath
-strengthen
-defend
-aj
-frederick
-medicaid
-treo
-infrared
-seventh
-gods
-une
-welsh
-belly
-aggressive
-tex
-advertisements
-quarters
-stolen
-cia
-sublimedirectory
-soonest
-haiti
-disturbed
-determines
-sculpture
-poly
-ears
-dod
-wp
-fist
-naturals
-neo
-motivation
-lenders
-pharmacology
-fitting
-fixtures
-bloggers
-mere
-agrees
-passengers
-quantities
-petersburg
-consistently
-powerpoint
-cons
-surplus
-elder
-sonic
-obituaries
-cheers
-dig
-taxi
-punishment
-appreciation
-subsequently
-om
-belarus
-nat
-zoning
-gravity
-providence
-thumb
-restriction
-incorporate
-backgrounds
-treasurer
-guitars
-essence
-flooring
-lightweight
-ethiopia
-tp
-mighty
-athletes
-humanity
-transcription
-jm
-holmes
-complications
-scholars
-dpi
-scripting
-gis
-remembered
-galaxy
-chester
-snapshot
-caring
-loc
-worn
-synthetic
-shaw
-vp
-segments
-testament
-expo
-dominant
-twist
-specifics
-itunes
-stomach
-partially
-buried
-cn
-newbie
-minimize
-darwin
-ranks
-wilderness
-debut
-generations
-tournaments
-bradley
-deny
-anatomy
-bali
-judy
-sponsorship
-headphones
-fraction
-trio
-proceeding
-cube
-defects
-volkswagen
-uncertainty
-breakdown
-milton
-marker
-reconstruction
-subsidiary
-strengths
-clarity
-rugs
-sandra
-adelaide
-encouraging
-furnished
-monaco
-settled
-folding
-emirates
-terrorists
-airfare
-comparisons
-beneficial
-distributions
-vaccine
-belize
-fate
-viewpicture
-promised
-volvo
-penny
-robust
-bookings
-threatened
-minolta
-republicans
-discusses
-gui
-porter
-gras
-jungle
-ver
-rn
-responded
-rim
-abstracts
-zen
-ivory
-alpine
-dis
-prediction
-pharmaceuticals
-andale
-fabulous
-remix
-alias
-thesaurus
-individually
-battlefield
-literally
-newer
-kay
-ecological
-spice
-oval
-implies
-cg
-soma
-ser
-cooler
-appraisal
-consisting
-maritime
-periodic
-submitting
-overhead
-ascii
-prospect
-shipment
-breeding
-citations
-geographical
-donor
-mozambique
-tension
-href
-benz
-trash
-shapes
-wifi
-tier
-fwd
-earl
-manor
-envelope
-diane
-homeland
-disclaimers
-championships
-excluded
-andrea
-breeds
-rapids
-disco
-sheffield
-bailey
-aus
-endif
-finishing
-emotions
-wellington
-incoming
-prospects
-lexmark
-cleaners
-bulgarian
-hwy
-eternal
-cashiers
-guam
-cite
-aboriginal
-remarkable
-rotation
-nam
-preventing
-productive
-boulevard
-eugene
-ix
-gdp
-pig
-metric
-compliant
-minus
-penalties
-bennett
-imagination
-hotmail
-refurbished
-joshua
-armenia
-varied
-grande
-closest
-activated
-actress
-mess
-conferencing
-assign
-armstrong
-politicians
-trackbacks
-lit
-accommodate
-tigers
-aurora
-una
-slides
-milan
-premiere
-lender
-villages
-shade
-chorus
-christine
-rhythm
-digit
-argued
-dietary
-symphony
-clarke
-sudden
-accepting
-precipitation
-marilyn
-lions
-findlaw
-ada
-pools
-tb
-lyric
-claire
-isolation
-speeds
-sustained
-matched
-approximate
-rope
-carroll
-rational
-programmer
-fighters
-chambers
-dump
-greetings
-inherited
-warming
-incomplete
-vocals
-chronicle
-fountain
-chubby
-grave
-legitimate
-biographies
-burner
-yrs
-foo
-investigator
-gba
-plaintiff
-finnish
-gentle
-bm
-prisoners
-deeper
-muslims
-hose
-mediterranean
-nightlife
-footage
-howto
-worthy
-reveals
-architects
-saints
-entrepreneur
-carries
-sig
-freelance
-duo
-excessive
-devon
-screensaver
-helena
-saves
-regarded
-valuation
-unexpected
-cigarette
-fog
-characteristic
-marion
-lobby
-egyptian
-tunisia
-metallica
-outlined
-consequently
-headline
-treating
-punch
-appointments
-str
-gotta
-cowboy
-narrative
-bahrain
-enormous
-karma
-consist
-betty
-queens
-academics
-pubs
-quantitative
-lucas
-screensavers
-subdivision
-tribes
-vip
-defeat
-clicks
-distinction
-honduras
-naughty
-hazards
-insured
-harper
-livestock
-mardi
-exemption
-tenant
-sustainability
-cabinets
-tattoo
-shake
-algebra
-shadows
-holly
-formatting
-silly
-nutritional
-yea
-mercy
-hartford
-freely
-marcus
-sunrise
-wrapping
-mild
-fur
-nicaragua
-weblogs
-timeline
-tar
-belongs
-rj
-readily
-affiliation
-soc
-fence
-nudist
-infinite
-diana
-ensures
-relatives
-lindsay
-clan
-legally
-shame
-satisfactory
-revolutionary
-bracelets
-sync
-civilian
-telephony
-mesa
-fatal
-remedy
-realtors
-breathing
-briefly
-thickness
-adjustments
-graphical
-genius
-discussing
-aerospace
-fighter
-meaningful
-flesh
-retreat
-adapted
-barely
-wherever
-estates
-rug
-democrat
-borough
-maintains
-failing
-shortcuts
-ka
-retained
-voyeurweb
-pamela
-andrews
-marble
-extending
-jesse
-specifies
-hull
-logitech
-surrey
-briefing
-belkin
-dem
-accreditation
-wav
-blackberry
-highland
-meditation
-modular
-microphone
-macedonia
-combining
-brandon
-instrumental
-giants
-organizing
-shed
-balloon
-moderators
-winston
-memo
-ham
-solved
-tide
-kazakhstan
-hawaiian
-standings
-partition
-invisible
-gratuit
-consoles
-funk
-fbi
-qatar
-magnet
-translations
-porsche
-cayman
-jaguar
-reel
-sheer
-commodity
-posing
-kilometers
-rp
-bind
-thanksgiving
-rand
-hopkins
-urgent
-guarantees
-infants
-gothic
-cylinder
-witch
-buck
-indication
-eh
-congratulations
-tba
-cohen
-sie
-usgs
-puppy
-kathy
-acre
-graphs
-surround
-cigarettes
-revenge
-expires
-enemies
-lows
-controllers
-aqua
-chen
-emma
-consultancy
-finances
-accepts
-enjoying
-conventions
-eva
-patrol
-smell
-pest
-hc
-italiano
-coordinates
-rca
-fp
-carnival
-roughly
-sticker
-promises
-responding
-reef
-physically
-divide
-stakeholders
-hydrocodone
-gst
-consecutive
-cornell
-satin
-bon
-deserve
-attempting
-mailto
-promo
-jj
-representations
-chan
-worried
-tunes
-garbage
-competing
-combines
-mas
-beth
-bradford
-len
-phrases
-kai
-peninsula
-chelsea
-boring
-reynolds
-dom
-jill
-accurately
-speeches
-reaches
-schema
-considers
-sofa
-catalogs
-ministries
-vacancies
-quizzes
-parliamentary
-obj
-prefix
-lucia
-savannah
-barrel
-typing
-nerve
-dans
-planets
-deficit
-boulder
-pointing
-renew
-coupled
-viii
-myanmar
-metadata
-harold
-circuits
-floppy
-texture
-handbags
-jar
-ev
-somerset
-incurred
-acknowledge
-thoroughly
-antigua
-nottingham
-thunder
-tent
-caution
-identifies
-questionnaire
-qualification
-locks
-modelling
-namely
-miniature
-dept
-hack
-dare
-euros
-interstate
-pirates
-aerial
-hawk
-consequence
-rebel
-systematic
-perceived
-origins
-hired
-makeup
-textile
-lamb
-madagascar
-nathan
-tobago
-presenting
-cos
-troubleshooting
-uzbekistan
-indexes
-pac
-rl
-erp
-centuries
-gl
-magnitude
-ui
-richardson
-hindu
-dh
-fragrances
-vocabulary
-licking
-earthquake
-vpn
-fundraising
-fcc
-markers
-weights
-albania
-geological
-assessing
-lasting
-wicked
-eds
-introduces
-kills
-roommate
-webcams
-pushed
-webmasters
-ro
-df
-computational
-acdbentity
-participated
-junk
-handhelds
-wax
-lucy
-answering
-hans
-impressed
-slope
-reggae
-failures
-poet
-conspiracy
-surname
-theology
-nails
-evident
-whats
-rides
-rehab
-epic
-saturn
-organizer
-nut
-allergy
-sake
-twisted
-combinations
-preceding
-merit
-enzyme
-cumulative
-zshops
-planes
-edmonton
-tackle
-disks
-condo
-pokemon
-amplifier
-ambien
-arbitrary
-prominent
-retrieve
-lexington
-vernon
-sans
-worldcat
-titanium
-irs
-fairy
-builds
-contacted
-shaft
-lean
-bye
-cdt
-recorders
-occasional
-leslie
-casio
-deutsche
-ana
-postings
-innovations
-kitty
-postcards
-dude
-drain
-monte
-fires
-algeria
-blessed
-luis
-reviewing
-cardiff
-cornwall
-favors
-potato
-panic
-explicitly
-sticks
-leone
-transsexual
-ez
-citizenship
-excuse
-reforms
-basement
-onion
-strand
-pf
-sandwich
-uw
-lawsuit
-alto
-informative
-girlfriend
-bloomberg
-cheque
-hierarchy
-influenced
-banners
-reject
-eau
-abandoned
-bd
-circles
-italic
-beats
-merry
-mil
-scuba
-gore
-complement
-cult
-dash
-passive
-mauritius
-valued
-cage
-checklist
-requesting
-courage
-verde
-lauderdale
-scenarios
-gazette
-hitachi
-divx
-extraction
-batman
-elevation
-hearings
-coleman
-hugh
-lap
-utilization
-beverages
-calibration
-jake
-eval
-efficiently
-anaheim
-ping
-textbook
-dried
-entertaining
-prerequisite
-luther
-frontier
-settle
-stopping
-refugees
-knights
-hypothesis
-palmer
-medicines
-flux
-derby
-sao
-peaceful
-altered
-pontiac
-regression
-doctrine
-scenic
-trainers
-muze
-enhancements
-renewable
-intersection
-passwords
-sewing
-consistency
-collectors
-conclude
-munich
-oman
-celebs
-gmc
-propose
-hh
-azerbaijan
-lighter
-rage
-adsl
-uh
-prix
-astrology
-advisors
-pavilion
-tactics
-trusts
-occurring
-supplemental
-travelling
-talented
-annie
-pillow
-induction
-derek
-precisely
-shorter
-harley
-spreading
-provinces
-relying
-finals
-paraguay
-steal
-parcel
-refined
-fd
-bo
-fifteen
-widespread
-incidence
-fears
-predict
-boutique
-acrylic
-rolled
-tuner
-avon
-incidents
-peterson
-rays
-asn
-shannon
-toddler
-enhancing
-flavor
-alike
-walt
-homeless
-horrible
-hungry
-metallic
-acne
-blocked
-interference
-warriors
-palestine
-listprice
-libs
-undo
-cadillac
-atmospheric
-malawi
-wm
-pk
-sagem
-knowledgestorm
-dana
-halo
-ppm
-curtis
-parental
-referenced
-strikes
-lesser
-publicity
-marathon
-ant
-proposition
-gays
-pressing
-gasoline
-apt
-dressed
-scout
-belfast
-exec
-dealt
-niagara
-inf
-eos
-warcraft
-charms
-catalyst
-trader
-bucks
-allowance
-vcr
-denial
-uri
-designation
-thrown
-prepaid
-raises
-gem
-duplicate
-electro
-criterion
-badge
-wrist
-civilization
-analyzed
-vietnamese
-heath
-tremendous
-ballot
-lexus
-varying
-remedies
-validity
-trustee
-maui
-weighted
-angola
-performs
-plastics
-realm
-corrected
-jenny
-helmet
-salaries
-postcard
-elephant
-yemen
-encountered
-tsunami
-scholar
-nickel
-internationally
-surrounded
-psi
-buses
-expedia
-geology
-pct
-wb
-creatures
-coating
-commented
-wallet
-cleared
-smilies
-vids
-accomplish
-boating
-drainage
-shakira
-corners
-broader
-vegetarian
-rouge
-yeast
-yale
-newfoundland
-sn
-qld
-pas
-clearing
-investigated
-dk
-ambassador
-coated
-intend
-stephanie
-contacting
-vegetation
-doom
-findarticles
-louise
-kenny
-specially
-owen
-routines
-hitting
-yukon
-beings
-bite
-issn
-aquatic
-reliance
-habits
-striking
-myth
-infectious
-podcasts
-singh
-gig
-gilbert
-sas
-ferrari
-continuity
-brook
-fu
-outputs
-phenomenon
-ensemble
-insulin
-assured
-biblical
-weed
-conscious
-accent
-mysimon
-eleven
-wives
-ambient
-utilize
-mileage
-oecd
-prostate
-adaptor
-auburn
-unlock
-hyundai
-pledge
-vampire
-angela
-relates
-nitrogen
-xerox
-dice
-merger
-softball
-referrals
-quad
-dock
-differently
-firewire
-mods
-nextel
-framing
-musician
-blocking
-rwanda
-sorts
-integrating
-vsnet
-limiting
-dispatch
-revisions
-papua
-restored
-hint
-armor
-riders
-chargers
-remark
-dozens
-varies
-msie
-reasoning
-wn
-liz
-rendered
-picking
-charitable
-guards
-annotated
-ccd
-sv
-convinced
-openings
-buys
-burlington
-replacing
-researcher
-watershed
-councils
-occupations
-acknowledged
-kruger
-pockets
-granny
-pork
-zu
-equilibrium
-viral
-inquire
-pipes
-characterized
-laden
-aruba
-cottages
-realtor
-merge
-privilege
-edgar
-develops
-qualifying
-chassis
-dubai
-estimation
-barn
-pushing
-llp
-fleece
-pediatric
-boc
-fare
-dg
-asus
-pierce
-allan
-dressing
-techrepublic
-sperm
-vg
-bald
-filme
-craps
-fuji
-frost
-leon
-institutes
-mold
-dame
-fo
-sally
-yacht
-tracy
-prefers
-drilling
-brochures
-herb
-tmp
-alot
-ate
-breach
-whale
-traveller
-appropriations
-suspected
-tomatoes
-benchmark
-beginners
-instructors
-highlighted
-bedford
-stationery
-idle
-mustang
-unauthorized
-clusters
-antibody
-competent
-momentum
-fin
-wiring
-io
-pastor
-mud
-calvin
-uni
-shark
-contributor
-demonstrates
-phases
-grateful
-emerald
-gradually
-laughing
-grows
-cliff
-desirable
-tract
-ul
-ballet
-ol
-journalist
-abraham
-js
-bumper
-afterwards
-webpage
-religions
-garlic
-hostels
-shine
-senegal
-explosion
-pn
-banned
-wendy
-briefs
-signatures
-diffs
-cove
-mumbai
-ozone
-disciplines
-casa
-mu
-daughters
-conversations
-radios
-tariff
-nvidia
-opponent
-pasta
-simplified
-muscles
-serum
-wrapped
-swift
-motherboard
-runtime
-inbox
-focal
-bibliographic
-eden
-distant
-incl
-champagne
-ala
-decimal
-hq
-deviation
-superintendent
-propecia
-dip
-nbc
-samba
-hostel
-housewives
-employ
-mongolia
-penguin
-magical
-influences
-inspections
-irrigation
-miracle
-manually
-reprint
-reid
-wt
-hydraulic
-centered
-robertson
-flex
-yearly
-penetration
-wound
-belle
-rosa
-conviction
-hash
-omissions
-writings
-hamburg
-lazy
-mv
-mpg
-retrieval
-qualities
-cindy
-fathers
-carb
-charging
-cas
-marvel
-lined
-cio
-dow
-prototype
-importantly
-rb
-petite
-apparatus
-upc
-terrain
-dui
-pens
-explaining
-yen
-strips
-gossip
-rangers
-nomination
-empirical
-mh
-rotary
-worm
-dependence
-discrete
-beginner
-boxed
-lid
-sexuality
-polyester
-cubic
-deaf
-commitments
-suggesting
-sapphire
-kinase
-skirts
-mats
-remainder
-crawford
-labeled
-privileges
-televisions
-specializing
-marking
-commodities
-pvc
-serbia
-sheriff
-griffin
-declined
-guyana
-spies
-blah
-mime
-neighbor
-motorcycles
-elect
-highways
-thinkpad
-concentrate
-intimate
-reproductive
-preston
-deadly
-feof
-bunny
-chevy
-molecules
-rounds
-longest
-refrigerator
-tions
-intervals
-sentences
-dentists
-usda
-exclusion
-workstation
-holocaust
-keen
-flyer
-peas
-dosage
-receivers
-urls
-disposition
-variance
-navigator
-investigators
-cameroon
-baking
-marijuana
-adaptive
-computed
-needle
-baths
-enb
-gg
-cathedral
-brakes
-og
-nirvana
-ko
-fairfield
-owns
-til
-invision
-sticky
-destiny
-generous
-madness
-emacs
-climb
-blowing
-fascinating
-landscapes
-heated
-lafayette
-jackie
-wto
-computation
-hay
-cardiovascular
-ww
-sparc
-cardiac
-salvation
-dover
-adrian
-predictions
-accompanying
-vatican
-brutal
-learners
-gd
-selective
-arbitration
-configuring
-token
-editorials
-zinc
-sacrifice
-seekers
-guru
-isa
-removable
-convergence
-yields
-gibraltar
-levy
-suited
-numeric
-anthropology
-skating
-kinda
-aberdeen
-emperor
-grad
-malpractice
-dylan
-bras
-belts
-blacks
-educated
-rebates
-reporters
-burke
-proudly
-pix
-necessity
-rendering
-mic
-inserted
-pulling
-basename
-kyle
-obesity
-curves
-suburban
-touring
-clara
-vertex
-bw
-hepatitis
-nationally
-tomato
-andorra
-waterproof
-expired
-mj
-travels
-flush
-waiver
-pale
-specialties
-hayes
-humanitarian
-invitations
-functioning
-delight
-survivor
-garcia
-cingular
-economies
-alexandria
-bacterial
-moses
-counted
-undertake
-declare
-continuously
-johns
-valves
-gaps
-impaired
-achievements
-donors
-tear
-jewel
-teddy
-lf
-convertible
-ata
-teaches
-ventures
-nil
-bufing
-stranger
-tragedy
-julian
-nest
-pam
-dryer
-painful
-velvet
-tribunal
-ruled
-nato
-pensions
-prayers
-funky
-secretariat
-nowhere
-cop
-paragraphs
-gale
-joins
-adolescent
-nominations
-wesley
-dim
-lately
-cancelled
-scary
-mattress
-mpegs
-brunei
-likewise
-banana
-introductory
-slovak
-cakes
-stan
-reservoir
-occurrence
-idol
-mixer
-remind
-wc
-worcester
-sbjct
-demographic
-charming
-mai
-tooth
-disciplinary
-annoying
-respected
-stays
-disclose
-affair
-drove
-washer
-upset
-restrict
-springer
-beside
-mines
-portraits
-rebound
-logan
-mentor
-interpreted
-evaluations
-fought
-baghdad
-elimination
-metres
-hypothetical
-immigrants
-complimentary
-helicopter
-pencil
-freeze
-hk
-performer
-abu
-titled
-commissions
-sphere
-powerseller
-moss
-ratios
-concord
-graduated
-endorsed
-ty
-surprising
-walnut
-lance
-ladder
-italia
-unnecessary
-dramatically
-liberia
-sherman
-cork
-maximize
-cj
-hansen
-senators
-workout
-mali
-yugoslavia
-bleeding
-characterization
-colon
-likelihood
-lanes
-purse
-fundamentals
-contamination
-mtv
-endangered
-compromise
-optimize
-stating
-dome
-caroline
-leu
-expiration
-namespace
-align
-peripheral
-bless
-engaging
-negotiation
-crest
-opponents
-triumph
-nominated
-confidentiality
-electoral
-changelog
-welding
-deferred
-alternatively
-heel
-alloy
-condos
-plots
-polished
-yang
-gently
-greensboro
-tulsa
-locking
-casey
-controversial
-draws
-fridge
-blanket
-bloom
-qc
-simpsons
-lou
-elliott
-recovered
-fraser
-justify
-upgrading
-blades
-pgp
-loops
-surge
-frontpage
-trauma
-aw
-tahoe
-advert
-possess
-demanding
-defensive
-sip
-flashers
-subaru
-forbidden
-tf
-vanilla
-programmers
-pj
-monitored
-installations
-deutschland
-picnic
-souls
-arrivals
-spank
-cw
-practitioner
-motivated
-wr
-dumb
-smithsonian
-hollow
-vault
-securely
-examining
-fioricet
-groove
-revelation
-rg
-pursuit
-delegation
-wires
-bl
-dictionaries
-mails
-backing
-greenhouse
-sleeps
-vc
-blake
-transparency
-dee
-travis
-wx
-endless
-figured
-orbit
-currencies
-niger
-bacon
-survivors
-positioning
-heater
-colony
-cannon
-circus
-promoted
-forbes
-mae
-moldova
-mel
-descending
-paxil
-spine
-trout
-enclosed
-feat
-temporarily
-ntsc
-cooked
-thriller
-transmit
-apnic
-fatty
-gerald
-pressed
-frequencies
-scanned
-reflections
-hunger
-mariah
-sic
-municipality
-usps
-joyce
-detective
-surgeon
-cement
-experiencing
-fireplace
-endorsement
-bg
-planners
-disputes
-textiles
-missile
-intranet
-closes
-seq
-psychiatry
-persistent
-deborah
-conf
-marco
-assists
-summaries
-glow
-gabriel
-auditor
-wma
-aquarium
-violin
-prophet
-cir
-bracket
-looksmart
-isaac
-oxide
-oaks
-magnificent
-erik
-colleague
-naples
-promptly
-modems
-adaptation
-hu
-harmful
-paintball
-prozac
-sexually
-enclosure
-acm
-dividend
-newark
-kw
-paso
-glucose
-phantom
-norm
-playback
-supervisors
-westminster
-turtle
-ips
-distances
-absorption
-treasures
-dsc
-warned
-neural
-ware
-fossil
-mia
-hometown
-badly
-transcripts
-apollo
-wan
-disappointed
-persian
-continually
-communist
-collectible
-handmade
-greene
-entrepreneurs
-robots
-grenada
-creations
-jade
-scoop
-acquisitions
-foul
-keno
-gtk
-earning
-mailman
-sanyo
-nested
-biodiversity
-excitement
-somalia
-movers
-verbal
-blink
-presently
-seas
-carlo
-workflow
-mysterious
-novelty
-bryant
-tiles
-voyuer
-librarian
-subsidiaries
-switched
-stockholm
-tamil
-garmin
-ru
-pose
-fuzzy
-indonesian
-grams
-therapist
-richards
-mrna
-budgets
-toolkit
-promising
-relaxation
-goat
-render
-carmen
-ira
-sen
-thereafter
-hardwood
-erotica
-temporal
-sail
-forge
-commissioners
-dense
-dts
-brave
-forwarding
-qt
-awful
-nightmare
-airplane
-reductions
-southampton
-istanbul
-impose
-organisms
-sega
-telescope
-viewers
-asbestos
-portsmouth
-cdna
-meyer
-enters
-pod
-savage
-advancement
-wu
-harassment
-willow
-resumes
-bolt
-gage
-throwing
-existed
-generators
-lu
-wagon
-barbie
-dat
-soa
-knock
-urge
-smtp
-generates
-potatoes
-thorough
-replication
-inexpensive
-kurt
-receptors
-peers
-roland
-optimum
-neon
-interventions
-quilt
-huntington
-creature
-ours
-mounts
-syracuse
-internship
-lone
-refresh
-aluminium
-snowboard
-beastality
-webcast
-michel
-evanescence
-subtle
-coordinated
-notre
-shipments
-maldives
-stripes
-firmware
-antarctica
-cope
-shepherd
-lm
-canberra
-cradle
-chancellor
-mambo
-lime
-kirk
-flour
-controversy
-legendary
-bool
-sympathy
-choir
-avoiding
-beautifully
-blond
-expects
-cho
-jumping
-fabrics
-antibodies
-polymer
-hygiene
-wit
-poultry
-virtue
-burst
-examinations
-surgeons
-bouquet
-immunology
-promotes
-mandate
-wiley
-departmental
-bbs
-spas
-ind
-corpus
-johnston
-terminology
-gentleman
-fibre
-reproduce
-convicted
-shades
-jets
-indices
-roommates
-adware
-qui
-intl
-threatening
-spokesman
-zoloft
-activists
-frankfurt
-prisoner
-daisy
-halifax
-encourages
-ultram
-cursor
-assembled
-earliest
-donated
-stuffed
-restructuring
-insects
-terminals
-crude
-morrison
-maiden
-simulations
-cz
-sufficiently
-examines
-viking
-myrtle
-bored
-cleanup
-yarn
-knit
-conditional
-mug
-crossword
-bother
-budapest
-conceptual
-knitting
-attacked
-hl
-bhutan
-liechtenstein
-mating
-compute
-redhead
-arrives
-translator
-automobiles
-tractor
-allah
-continent
-ob
-unwrap
-fares
-longitude
-resist
-challenged
-telecharger
-hoped
-pike
-safer
-insertion
-instrumentation
-ids
-hugo
-wagner
-constraint
-groundwater
-touched
-strengthening
-cologne
-gzip
-wishing
-ranger
-smallest
-insulation
-newman
-marsh
-ricky
-ctrl
-scared
-theta
-infringement
-bent
-laos
-subjective
-monsters
-asylum
-lightbox
-robbie
-stake
-cocktail
-outlets
-swaziland
-varieties
-arbor
-mediawiki
-configurations
-poiso
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardManager.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.content.Context
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import kotlin.math.abs
+
+class KeyboardManager(
+    private val context: Context,
+    private val windowManager: WindowManager,
+    private val keyInjector: (Int) -> Unit
+) {
+    var keyboardLayout: FrameLayout? = null
+    var layoutParams: WindowManager.LayoutParams? = null
+    
+    private var isShifted = false
+    private var isSymbols = false
+    private var isVisible = false
+    
+    // Config
+    private var currentWidth = 450
+    // We use PROPORTIONAL spacing to ensure Aspect Ratio matches on all screens
+    // 0 margin on container, slight margin on keys handled by spacing
+    private val KEY_SPACING_RATIO = 0.005f 
+    
+    // Data Classes
+    data class KeyDef(val label: String, val code: Int, val weight: Float = 1f, val isSpecial: Boolean = false)
+
+    private val ROW_1 = listOf(
+        KeyDef("q", KeyEvent.KEYCODE_Q), KeyDef("w", KeyEvent.KEYCODE_W), KeyDef("e", KeyEvent.KEYCODE_E),
+        KeyDef("r", KeyEvent.KEYCODE_R), KeyDef("t", KeyEvent.KEYCODE_T), KeyDef("y", KeyEvent.KEYCODE_Y),
+        KeyDef("u", KeyEvent.KEYCODE_U), KeyDef("i", KeyEvent.KEYCODE_I), KeyDef("o", KeyEvent.KEYCODE_O),
+        KeyDef("p", KeyEvent.KEYCODE_P)
+    )
+    
+    private val ROW_2 = listOf(
+        KeyDef("a", KeyEvent.KEYCODE_A), KeyDef("s", KeyEvent.KEYCODE_S), KeyDef("d", KeyEvent.KEYCODE_D),
+        KeyDef("f", KeyEvent.KEYCODE_F), KeyDef("g", KeyEvent.KEYCODE_G), KeyDef("h", KeyEvent.KEYCODE_H),
+        KeyDef("j", KeyEvent.KEYCODE_J), KeyDef("k", KeyEvent.KEYCODE_K), KeyDef("l", KeyEvent.KEYCODE_L)
+    )
+    
+    private val ROW_3 = listOf(
+        KeyDef("SHIFT", -1, 1.5f, true),
+        KeyDef("z", KeyEvent.KEYCODE_Z), KeyDef("x", KeyEvent.KEYCODE_X), KeyDef("c", KeyEvent.KEYCODE_C),
+        KeyDef("v", KeyEvent.KEYCODE_V), KeyDef("b", KeyEvent.KEYCODE_B), KeyDef("n", KeyEvent.KEYCODE_N),
+        KeyDef("m", KeyEvent.KEYCODE_M),
+        KeyDef("⌫", KeyEvent.KEYCODE_DEL, 1.5f, true)
+    )
+    
+    private val ROW_4 = listOf(
+        KeyDef("?123", -2, 1.5f, true),
+        KeyDef(",", KeyEvent.KEYCODE_COMMA), 
+        KeyDef("SPACE", KeyEvent.KEYCODE_SPACE, 4f), 
+        KeyDef(".", KeyEvent.KEYCODE_PERIOD),
+        KeyDef("ENTER", KeyEvent.KEYCODE_ENTER, 1.5f, true)
+    )
+
+    private val ARROWS = listOf(
+        KeyDef("◄", KeyEvent.KEYCODE_DPAD_LEFT, 1f, true),
+        KeyDef("▲", KeyEvent.KEYCODE_DPAD_UP, 1f, true),
+        KeyDef("▼", KeyEvent.KEYCODE_DPAD_DOWN, 1f, true),
+        KeyDef("►", KeyEvent.KEYCODE_DPAD_RIGHT, 1f, true)
+    )
+
+    private val ROW_NUMS = listOf(
+        KeyDef("1", KeyEvent.KEYCODE_1), KeyDef("2", KeyEvent.KEYCODE_2), KeyDef("3", KeyEvent.KEYCODE_3),
+        KeyDef("4", KeyEvent.KEYCODE_4), KeyDef("5", KeyEvent.KEYCODE_5), KeyDef("6", KeyEvent.KEYCODE_6),
+        KeyDef("7", KeyEvent.KEYCODE_7), KeyDef("8", KeyEvent.KEYCODE_8), KeyDef("9", KeyEvent.KEYCODE_9),
+        KeyDef("0", KeyEvent.KEYCODE_0)
+    )
+    
+    private val ROW_SYMS = listOf(
+        KeyDef("@", KeyEvent.KEYCODE_AT), KeyDef("#", KeyEvent.KEYCODE_POUND), KeyDef("$", KeyEvent.KEYCODE_4), 
+        KeyDef("%", KeyEvent.KEYCODE_5), KeyDef("&", KeyEvent.KEYCODE_7), KeyDef("-", KeyEvent.KEYCODE_MINUS),
+        KeyDef("+", KeyEvent.KEYCODE_PLUS), KeyDef("(", KeyEvent.KEYCODE_NUMPAD_LEFT_PAREN), KeyDef(")", KeyEvent.KEYCODE_NUMPAD_RIGHT_PAREN)
+    )
+
+    fun createView(): View {
+        val root = FrameLayout(context)
+        
+        val bg = GradientDrawable()
+        bg.setColor(Color.parseColor("#EE121212"))
+        bg.cornerRadius = 20f
+        bg.setStroke(2, Color.parseColor("#44FFFFFF"))
+        root.background = bg
+
+        val mainContainer = LinearLayout(context)
+        mainContainer.orientation = LinearLayout.VERTICAL
+        // Zero padding - we fill the aspect ratio box completely
+        mainContainer.setPadding(0, 0, 0, 0)
+        
+        mainContainer.addView(createRow(if (isSymbols) ROW_NUMS else ROW_1))
+        mainContainer.addView(createRow(if (isSymbols) ROW_SYMS else ROW_2))
+        mainContainer.addView(createRow(ROW_3))
+        mainContainer.addView(createRow(ROW_4))
+        mainContainer.addView(createRow(ARROWS))
+
+        // Match Parent (which is strictly controlled by Window Size)
+        root.addView(mainContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        
+        // --- SYNC LOCKER ---
+        // Ensure Physical Keyboard strictly follows the 0.55 Ratio
+        root.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+            val width = right - left
+            val height = bottom - top
+            if (width > 0) {
+                val targetHeight = (width * 0.55f).toInt()
+                if (abs(height - targetHeight) > 10) {
+                    layoutParams?.height = targetHeight
+                    try { windowManager.updateViewLayout(keyboardLayout, layoutParams) } catch (e: Exception) {}
+                }
+            }
+        }
+        
+        return root
+    }
+
+    private fun createRow(keys: List<KeyDef>): LinearLayout {
+        val row = LinearLayout(context)
+        row.orientation = LinearLayout.HORIZONTAL
+        
+        // Vertical Weight 1.0 -> 5 Rows = 20% height each
+        val rowParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0)
+        rowParams.weight = 1.0f
+        row.layoutParams = rowParams
+        
+        val MAX_ROW_WEIGHT = 10f
+        val currentWeight = keys.map { it.weight }.sum()
+        val missingWeight = MAX_ROW_WEIGHT - currentWeight
+        
+        if (missingWeight > 0.1f) {
+            val spacer = View(context)
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
+            params.weight = missingWeight / 2f
+            row.addView(spacer, params)
+        }
+        
+        // Font scaled to Width
+        val fontSize = (currentWidth / 30f).coerceIn(10f, 22f)
+        val marginPx = (currentWidth * KEY_SPACING_RATIO).toInt().coerceAtLeast(1)
+        
+        for (k in keys) {
+            val btn = TextView(context)
+            val label = if (!isSymbols && isShifted && k.label.length == 1) k.label.uppercase() else k.label
+            
+            btn.text = label
+            btn.setTextColor(Color.WHITE)
+            btn.textSize = fontSize
+            btn.gravity = Gravity.CENTER
+            btn.typeface = Typeface.DEFAULT_BOLD
+            
+            val keyBg = GradientDrawable()
+            keyBg.setColor(if (k.isSpecial) Color.parseColor("#444444") else Color.parseColor("#2A2A2A"))
+            keyBg.cornerRadius = 10f
+            btn.background = keyBg
+            
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
+            params.weight = k.weight
+            params.setMargins(marginPx, marginPx, marginPx, marginPx)
+            row.addView(btn, params)
+            
+            btn.setOnClickListener {
+                handleKeyPress(k)
+                btn.alpha = 0.5f
+                btn.postDelayed({ btn.alpha = 1.0f }, 50)
+            }
+        }
+        
+        if (missingWeight > 0.1f) {
+            val spacer = View(context)
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
+            params.weight = missingWeight / 2f
+            row.addView(spacer, params)
+        }
+
+        return row
+    }
+
+    private fun handleKeyPress(k: KeyDef) {
+        when (k.code) {
+            -1 -> { isShifted = !isShifted; refreshLayout() }
+            -2 -> { isSymbols = !isSymbols; refreshLayout() }
+            else -> {
+                keyInjector(k.code)
+                if (isShifted) { isShifted = false; refreshLayout() }
+            }
+        }
+    }
+
+    fun show(width: Int, height: Int) {
+        if (isVisible) return
+        
+        currentWidth = width
+        // Strict Start
+        val targetHeight = (width * 0.55f).toInt()
+        
+        layoutParams = WindowManager.LayoutParams(
+            currentWidth,
+            targetHeight, 
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            android.graphics.PixelFormat.TRANSLUCENT
+        )
+        
+        layoutParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        layoutParams?.y = 0 
+
+        keyboardLayout = createView() as FrameLayout
+        windowManager.addView(keyboardLayout, layoutParams)
+        isVisible = true
+    }
+
+    fun hide() {
+        if (!isVisible) return
+        try { windowManager.removeView(keyboardLayout) } catch (e: Exception) {}
+        isVisible = false
+        keyboardLayout = null
+    }
+    
+    fun toggle(width: Int, height: Int) { if (isVisible) hide() else show(width, height) }
+
+    private fun refreshLayout() {
+        if (!isVisible) return
+        val p = keyboardLayout?.layoutParams
+        windowManager.removeView(keyboardLayout)
+        keyboardLayout = createView() as FrameLayout
+        windowManager.addView(keyboardLayout, p)
+    }
+}
 ```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/SettingsActivity.kt
@@ -20365,63 +10534,37 @@ class SwipeTrailView(context: Context) : View(context) {
 // =================================================================================
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadPrefs.kt
-```kotlin
-package com.example.coverscreentester
+## File: GEMINI.md
+```markdown
+CLI AGENT CONTEXT INSTRUCTIONS
 
-class TrackpadPrefs {
-    var cursorSpeed = 2.5f
-    var scrollSpeed = 6.0f
-    var prefTapScroll = true
-    var prefVibrate = false
-    var prefReverseScroll = false
-    var prefAlpha = 50
-    var prefBgAlpha = 220
-    var prefKeyboardAlpha = 255
-    var prefHandleSize = 14
-    var prefVPosLeft = false
-    var prefHPosTop = false
-    var prefLocked = false
-    var prefHandleTouchSize = 80
-    var prefScrollTouchSize = 80
-    var prefScrollVisualSize = 4
-    var prefCursorSize = 50
-    var prefKeyScale = 135
-    var prefUseAltScreenOff = true
-    var prefAutomationEnabled = true
-    var prefBubbleX = 50
-    var prefBubbleY = 300
-    var prefAnchored = false
-    var prefBubbleSize = 100
-    var prefBubbleIconIndex = 0
-    var prefBubbleAlpha = 255
-    var prefPersistentService = false
-    var prefBlockSoftKeyboard = false
+Role: You are an autonomous DevOps and Coding Agent operating in a Termux Android environment.
+Project Root: /data/data/com.termux/files/home/projects/DroidOS
+​Operational Guidelines:
+​File Editing Strategy:
+​Full File Replacement: If a code block is long and appears to contain the complete file content (imports, class declaration, closing braces), overwrite the entire file. This is the preferred method to avoid partial merge errors.
+Operational Guidelines:
+​ANCHOR & REPLACE: When adding new methods or variables, find a specific existing line (an "anchor") and replace that line with itself plus the new code. When searching for an anchor point, firet try fun FUNCTIONNAME - replafing FUNCTIONNAME with the actual funtion we are replacing accorring to the instructions.
+​Block Replacement: If the code block is a specific function or section, find the matching section in the existing file and replace it entirely. Replace or include any code block proceeding and ending comments in the existing code with the new/updated proceeding and ending comment blocks, if any.
+​Creation: If the file does not exist, create it including any necessary parent directories.
+​Navigation & commands:
+​Use nvim paths provided in the plan to open files.
+​Use sed only if explicitly provided in a separate command block.
+​Always ensure you are operating relative to the Project Root.
+​Safety:
+​If you see [OUTPUT NOT AVAILABLE], you must request the file content again.
+​Preserve imports unless the new code block explicitly changes them.
 
-    // =================================================================================
-    // VIRTUAL MIRROR MODE PREFERENCES
-    // SUMMARY: Settings for displaying a mirror keyboard on remote/AR display.
-    //          When enabled, touching the physical keyboard shows an orange orientation
-    //          trail on both displays. After finger stops for orientDelayMs, normal
-    //          keyboard input resumes.
-    // =================================================================================
-    var prefVirtualMirrorMode = false
-    var prefMirrorOrientDelayMs = 1000L  // Default 1 second orientation delay
-    // =================================================================================
-    // END BLOCK: VIRTUAL MIRROR MODE PREFERENCES
-    // =================================================================================
+​Input Format:
+​The user will provide a plan either aw a .md plqn (will provode path) or give instructions directly within prompt window.
 
-    var hardkeyVolUpTap = "left_click"
-    var hardkeyVolUpDouble = "left_click"
-    var hardkeyVolUpHold = "left_click"
-    var hardkeyVolDownTap = "toggle_keyboard"
-    var hardkeyVolDownDouble = "open_menu"
-    var hardkeyVolDownHold = "action_back"
-    var hardkeyPowerDouble = "none"
-    var doubleTapMs = 300
-    var holdDurationMs = 400
-    var displayOffMode = "alternate"
-}
+​Each section will contain: ### File: path/to/file followed by a code block.
+​Execute the changes sequentially.
+
+After making all instructed changes, build to check if errors. if errors, check if all updates applied correctly based on instructions. In particular check for syntax issues. If build errors seem to be out of scope of instructions, create a repomid with alias CleanBuildTrackpad if we are making updates in /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Trackpad or use alias CleanBuildLauncher for updates in /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher
+After successful build l, install with adb install -r app/build/outputs/apk/debug/app-debug.apk before commit
+qIf build success, commit to local with appropriate description (refer to instructions for summary if existing)
+CleanBuildTrackpad='cd ~/projects/DroidOS/Cover-Screen-Trackpad && ./gradlew clean assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk'
 ```
 
 ## File: README.md
@@ -20691,39 +10834,6 @@ dependencies {
     implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("dev.rikka.shizuku:aidl:13.1.5")
 }
-```
-
-## File: GEMINI.md
-```markdown
-CLI AGENT CONTEXT INSTRUCTIONS
-
-Role: You are an autonomous DevOps and Coding Agent operating in a Termux Android environment.
-Project Root: /data/data/com.termux/files/home/projects/DroidOS
-​Operational Guidelines:
-​File Editing Strategy:
-​Full File Replacement: If a code block is long and appears to contain the complete file content (imports, class declaration, closing braces), overwrite the entire file. This is the preferred method to avoid partial merge errors.
-Operational Guidelines:
-​ANCHOR & REPLACE: When adding new methods or variables, find a specific existing line (an "anchor") and replace that line with itself plus the new code. When searching for an anchor point, firet try fun FUNCTIONNAME - replafing FUNCTIONNAME with the actual funtion we are replacing accorring to the instructions.
-​Block Replacement: If the code block is a specific function or section, find the matching section in the existing file and replace it entirely. Replace or include any code block proceeding and ending comments in the existing code with the new/updated proceeding and ending comment blocks, if any.
-​Creation: If the file does not exist, create it including any necessary parent directories.
-​Navigation & commands:
-​Use nvim paths provided in the plan to open files.
-​Use sed only if explicitly provided in a separate command block.
-​Always ensure you are operating relative to the Project Root.
-​Safety:
-​If you see [OUTPUT NOT AVAILABLE], you must request the file content again.
-​Preserve imports unless the new code block explicitly changes them.
-
-​Input Format:
-​The user will provide a plan either aw a .md plqn (will provode path) or give instructions directly within prompt window.
-
-​Each section will contain: ### File: path/to/file followed by a code block.
-​Execute the changes sequentially.
-
-After making all instructed changes, build to check if errors. if errors, check if all updates applied correctly based on instructions. In particular check for syntax issues. If build errors seem to be out of scope of instructions, create a repomid with alias CleanBuildTrackpad if we are making updates in /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Trackpad or use alias CleanBuildLauncher for updates in /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher
-After successful build l, install with adb install -r app/build/outputs/apk/debug/app-debug.apk before commit
-qIf build success, commit to local with appropriate description (refer to instructions for summary if existing)
-CleanBuildTrackpad='cd ~/projects/DroidOS/Cover-Screen-Trackpad && ./gradlew clean assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk'
 ```
 
 ## File: Cover-Screen-Launcher/app/src/main/AndroidManifest.xml
@@ -22217,13 +12327,8 @@ class PredictionEngine {
         }
     }
 
-    // =================================================================================
-    // FUNCTION: loadDictionary
-    // SUMMARY: Loads the weighted dictionary from assets asynchronously with enhanced
-    //          logging for debugging. The file should be at assets/dictionary.txt and
-    //          sorted by frequency (most common words first). Falls back to defaults
-    //          if loading fails.
-    // =================================================================================
+
+
     fun loadDictionary(context: Context) {
         Thread {
             try {
@@ -22237,38 +12342,42 @@ class PredictionEngine {
                 // =================================================================================
                 // LOAD CUSTOM LISTS (User & Blocked)
                 // SUMMARY: Loads user's custom words and blocked words from persistent storage.
-                //          These files are in the app's private filesDir.
                 // =================================================================================
                 try {
                     val blockFile = java.io.File(context.filesDir, BLOCKED_DICT_FILE)
                     if (blockFile.exists()) {
-                        val blockedLines = blockFile.readLines().map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+                        val blockedLines = blockFile.readLines().map { it.trim().lowercase(java.util.Locale.ROOT) }.filter { it.isNotEmpty() }
                         newBlocked.addAll(blockedLines)
-                        android.util.Log.d("DroidOS_Prediction", "LOAD: Blocked words file found, ${blockedLines.size} words: $blockedLines")
+                        android.util.Log.d("DroidOS_Prediction", "LOAD: Blocked words file found, ${blockedLines.size} words")
                     } else {
                         android.util.Log.d("DroidOS_Prediction", "LOAD: No blocked words file exists yet")
                     }
 
                     val userFile = java.io.File(context.filesDir, USER_DICT_FILE)
                     if (userFile.exists()) {
-                        val userLines = userFile.readLines().map { it.trim().lowercase() }.filter { it.isNotEmpty() }
-                        newCustom.addAll(userLines)
-                        android.util.Log.d("DroidOS_Prediction", "LOAD: User words file found, ${userLines.size} words")
+                        val userLines = userFile.readLines().map { it.trim().lowercase(java.util.Locale.ROOT) }.filter { it.isNotEmpty() }
+                        
+                        // FILTER: Check each user word against garbage filter on load
+                        for (w in userLines) {
+                            if (!looksLikeGarbage(w)) {
+                                newCustom.add(w)
+                            } else {
+                                android.util.Log.d("DroidOS_Prediction", "Pruned garbage from user dict: $w")
+                            }
+                        }
+                        android.util.Log.d("DroidOS_Prediction", "LOAD: User words file found, ${newCustom.size} valid words")
                     } else {
                         android.util.Log.d("DroidOS_Prediction", "LOAD: No user words file exists yet")
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("DroidOS_Prediction", "Failed to load user lists", e)
                 }
-                // =================================================================================
-                // END BLOCK: LOAD CUSTOM LISTS
-                // =================================================================================
 
                 // 2. Load Main Dictionary (Assets) - Filtering Blocked words
                 try {
                     context.assets.open("dictionary.txt").bufferedReader().useLines { lines ->
                         lines.forEachIndexed { index, line ->
-                            val word = line.trim().lowercase(Locale.ROOT)
+                            val word = line.trim().lowercase(java.util.Locale.ROOT)
                             // SKIP if blocked
                             if (!newBlocked.contains(word) && word.isNotEmpty() && word.all { it.isLetter() } && word.length >= MIN_WORD_LENGTH) {
                                 newWordList.add(word)
@@ -22305,7 +12414,7 @@ class PredictionEngine {
                 // 4. Merge Hardcoded Defaults
                 val existingDefaults = synchronized(this) { ArrayList(wordList) }
                 for (defaultWord in existingDefaults) {
-                    val lower = defaultWord.lowercase(Locale.ROOT)
+                    val lower = defaultWord.lowercase(java.util.Locale.ROOT)
                     if (!newBlocked.contains(lower) && !newWordList.contains(lower)) {
                         newWordList.add(lower)
                         var current = newRoot
@@ -22339,41 +12448,51 @@ class PredictionEngine {
                     )
                 }
                 android.util.Log.d("DroidOS_Prediction", "Dictionary Loaded: $lineCount asset + ${newCustom.size} user words + ${newBlocked.size} blocked. Common Cache: ${commonWordsCache.size}")
-                if (newBlocked.isNotEmpty()) {
-                    android.util.Log.d("DroidOS_Prediction", "Blocked words loaded: $newBlocked")
-                }
 
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }.start()
     }
-    // =================================================================================
-    // END BLOCK: loadDictionary
-    // =================================================================================
+
+
+
 
     /**
      * Learns a new word: Adds to memory and saves to user_words.txt
      */
     fun learnWord(context: Context, word: String) {
-        val cleanWord = word.trim().lowercase(Locale.ROOT)
-        if (cleanWord.length < MIN_WORD_LENGTH) return
-        if (hasWord(cleanWord)) return // Already known
+        if (word.length < 2) return
+
+        // 1. Standardize the word immediately
+        val cleanWord = word.trim().lowercase(java.util.Locale.ROOT)
+        
+        // FILTER: Don't learn garbage (random letters/typos)
+        if (looksLikeGarbage(cleanWord)) {
+            android.util.Log.d("DroidOS_Prediction", "Ignored garbage input: $cleanWord")
+            return
+        }
+
+        // FILTER: Don't learn blocked words
+        if (isWordBlocked(cleanWord)) return
+
+        // OPTIMIZATION: Don't relearn if we already know it
+        if (hasWord(cleanWord)) return
 
         Thread {
             try {
-                // 1. Update Memory
+                // 2. Update Memory
                 synchronized(this) {
                     customWords.add(cleanWord)
                     blockedWords.remove(cleanWord) // Unblock if previously blocked
                     insert(cleanWord, 0) // Rank 0 = High Priority
                 }
 
-                // 2. Append to File
+                // 3. Append to File
                 val file = java.io.File(context.filesDir, USER_DICT_FILE)
                 file.appendText("$cleanWord\n")
 
-                // 3. Ensure it's removed from blocked file if needed
+                // 4. Ensure it's removed from blocked file if needed
                 saveSetToFile(context, BLOCKED_DICT_FILE, blockedWords)
 
                 android.util.Log.d("DroidOS_Prediction", "Learned word: $cleanWord")
@@ -22382,6 +12501,7 @@ class PredictionEngine {
             }
         }.start()
     }
+
 
     /**
      * Blocks a word: Removes from memory and saves to blocked_words.txt
@@ -22442,6 +12562,26 @@ class PredictionEngine {
     // =================================================================================
     // END BLOCK: saveSetToFile
     // =================================================================================
+
+    // =================================================================================
+    // FILTER: GARBAGE DETECTION
+    // Rule: Must have at least one vowel/y OR be in the whitelist.
+    // =================================================================================
+    private val VALID_VOWELLESS = setOf(
+        "hmm", "shh", "psst", "brr", "pfft", "nth", "src", "jpg", "png", "gif",
+        "txt", "xml", "pdf", "css", "html", "tv", "pc", "ok", "id", "cv", "ad", "ex", "vs", "mr", "dr", "ms"
+    )
+
+    private fun looksLikeGarbage(word: String): Boolean {
+        if (word.length > 1) {
+            val hasVowel = word.any { "aeiouyAEIOUY".contains(it) }
+            if (!hasVowel) {
+                if (VALID_VOWELLESS.contains(word.lowercase(java.util.Locale.ROOT))) return false
+                return true // No vowel and not whitelisted -> Garbage
+            }
+        }
+        return false
+    }
 
     fun hasWord(word: String): Boolean {
         return wordList.contains(word.lowercase(Locale.ROOT))
@@ -25695,1421 +15835,6 @@ class FloatingLauncherService : AccessibilityService() {
 }
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardOverlay.kt
-```kotlin
-package com.example.coverscreentester
-
-import android.content.Context
-import android.graphics.Color
-import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
-import android.media.AudioManager
-import android.media.AudioRecordingConfiguration
-import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
-import android.view.Gravity
-import android.view.KeyEvent
-import android.view.MotionEvent
-import android.view.View
-import android.view.WindowManager
-import android.widget.FrameLayout
-import android.widget.TextView
-import kotlin.math.max
-
-class KeyboardOverlay(
-    private val context: Context,
-    private val windowManager: WindowManager,
-    private val shellService: IShellService?,
-    private val targetDisplayId: Int,
-    private val onScreenToggleAction: () -> Unit,
-    private val onScreenModeChangeAction: () -> Unit,
-    private val onCloseAction: () -> Unit // New Parameter
-) : KeyboardView.KeyboardListener {
-
-    private var keyboardContainer: FrameLayout? = null
-    private var keyboardView: KeyboardView? = null
-    private var keyboardParams: WindowManager.LayoutParams? = null
-    private var isVisible = false
-    private val predictionEngine = PredictionEngine.instance
-    // State Variables
-    private var isMoving = false
-    private var isResizing = false
-    private var isAnchored = false
-    private var initialTouchX = 0f
-    private var initialTouchY = 0f
-    private var initialWindowX = 0
-    private var initialWindowY = 0
-    private var initialWidth = 0
-    private var initialHeight = 0
-
-    private val TAG = "KeyboardOverlay"
-
-    // =================================================================================
-    // VIRTUAL MIRROR ORIENTATION MODE VARIABLES
-    // SUMMARY: State for orientation mode when virtual mirror is active.
-    //          During orientation mode, an orange trail is shown and key input is blocked
-    //          until the finger stops moving for the configured delay.
-    // =================================================================================
-    private var isOrientationModeActive = false
-    private var orientationTrailView: SwipeTrailView? = null
-    // =================================================================================
-    // END BLOCK: VIRTUAL MIRROR ORIENTATION MODE VARIABLES
-    // =================================================================================
-
-    // --- PREDICTION STATE ---
-
-    private var currentComposingWord = StringBuilder()
-    private val handler = Handler(Looper.getMainLooper())
-
-    // NEW: Track sentence context and swipe history
-    private var lastCommittedSwipeWord: String? = null
-    private var isSentenceStart = true
-
-    // Helper to inject text via OverlayService
-    private fun injectText(text: String) {
-        (context as? OverlayService)?.injectText(text)
-    }
-
-    // FIX Default height to WRAP_CONTENT (-2) to avoid cutting off rows
-    private var keyboardWidth = 500
-    private var keyboardHeight = WindowManager.LayoutParams.WRAP_CONTENT 
-    
-    private var screenWidth = 720
-    private var screenHeight = 748
-    private var currentRotation = 0
-    private var currentAlpha = 200
-    private var currentDisplayId = 0
-
-
-    // Callbacks to talk back to OverlayService
-    var onCursorMove: ((Float, Float, Boolean) -> Unit)? = null // dx, dy, isDragging
-    var onCursorClick: ((Boolean) -> Unit)? = null
-    var onTouchDown: (() -> Unit)? = null
-    var onTouchUp: (() -> Unit)? = null
-    var onTouchTap: (() -> Unit)? = null
-
-    // =================================================================================
-    // VIRTUAL MIRROR CALLBACK
-    // SUMMARY: Callback to forward touch events to OverlayService for mirror sync.
-    //          Returns true if touch should be consumed (orientation mode active).
-    // =================================================================================
-    var onMirrorTouch: ((Float, Float, Int) -> Boolean)? = null // x, y, action -> consumed
-    // =================================================================================
-    // END BLOCK: VIRTUAL MIRROR CALLBACK
-    // =================================================================================
-
-    // Layer change callback for syncing mirror keyboard
-    var onLayerChanged: ((KeyboardView.KeyboardState) -> Unit)? = null
-
-    // =================================================================================
-    // CALLBACK: onSuggestionsChanged
-    // SUMMARY: Called whenever the suggestion bar is updated. Used to sync mirror keyboard.
-    // =================================================================================
-    var onSuggestionsChanged: ((List<KeyboardView.Candidate>) -> Unit)? = null
-    var onSizeChanged: (() -> Unit)? = null
-    // =================================================================================
-    // END BLOCK: onSuggestionsChanged
-    // =================================================================================
-
-
-
-    fun setScreenDimensions(width: Int, height: Int, displayId: Int) {
-        // We no longer update inputHandler here
-        
-        keyboardParams?.let {
-            it.width = width
-            it.height = height
-            try {
-                windowManager.updateViewLayout(keyboardContainer, it)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-
-
-    fun updateScale(scale: Float) {
-        if (keyboardView == null) return
-        keyboardView?.setScale(scale)
-        
-        // FIX: Removed forced reset of keyboardHeight to WRAP_CONTENT.
-        // We now respect the existing keyboardHeight (whether it's fixed pixels from a manual resize
-        // or WRAP_CONTENT from default).
-        
-        if (isVisible && keyboardParams != null) {
-            // If the window is set to WRAP_CONTENT, we might need to poke the WM to re-measure
-            // effectively, but we shouldn't change the param value itself if it's already -2.
-            // If it is fixed pixels, we leave it alone.
-            
-            // We only need to update layout if we want to ensure constraints are met,
-            // but simply invalidating the view is usually enough for internal changes.
-            // To be safe, we update the view layout with the *current* params.
-            try { 
-                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-                // Do NOT call saveKeyboardSize() here. Scaling shouldn't change the 
-                // "Window Size Preference" (Container), only the content scale.
-            } catch (e: Exception) {}
-        }
-    }
-    
-    fun updateAlpha(alpha: Int) {
-        currentAlpha = alpha
-        if (isVisible && keyboardContainer != null) {
-            val bg = keyboardContainer?.background as? GradientDrawable
-            if (bg != null) {
-                val fillColor = (alpha shl 24) or (0x1A1A1A)
-                bg.setColor(fillColor)
-                bg.setStroke(2, Color.parseColor("#44FFFFFF"))
-            }
-            val normalizedAlpha = alpha / 255f
-            keyboardView?.alpha = normalizedAlpha
-            keyboardContainer?.invalidate()
-        }
-    }
-    
-    fun setWindowBounds(x: Int, y: Int, width: Int, height: Int) {
-        keyboardWidth = width
-        keyboardHeight = height
-        if (isVisible && keyboardParams != null) {
-            keyboardParams?.x = x
-            keyboardParams?.y = y
-            keyboardParams?.width = width
-            keyboardParams?.height = height
-            try { 
-                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-                saveKeyboardPosition()
-                saveKeyboardSize()
-            } catch (e: Exception) {}
-        } else {
-            // Even if hidden, save the new bounds so they apply on next show
-            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            prefs.edit()
-                .putInt("keyboard_x_d$currentDisplayId", x)
-                .putInt("keyboard_y_d$currentDisplayId", y)
-                .putInt("keyboard_width_d$currentDisplayId", width)
-                .putInt("keyboard_height_d$currentDisplayId", height)
-                .apply()
-        }
-    }
-   
-    fun setAnchored(anchored: Boolean) {
-        isAnchored = anchored
-    }
-
-    // Helper for OverlayService Profile Load
-    fun updatePosition(x: Int, y: Int) {
-        if (keyboardContainer == null || keyboardParams == null) {
-            // Save to prefs if hidden
-            context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-                .putInt("keyboard_x_d$currentDisplayId", x)
-                .putInt("keyboard_y_d$currentDisplayId", y)
-                .apply()
-            return
-        }
-        keyboardParams?.x = x
-        keyboardParams?.y = y
-        try {
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-            saveKeyboardPosition()
-        } catch (e: Exception) { e.printStackTrace() }
-    }
-
-    // Helper for OverlayService Profile Load
-    fun updateSize(w: Int, h: Int) {
-        keyboardWidth = w
-        keyboardHeight = h
-        
-        if (keyboardContainer == null || keyboardParams == null) {
-            saveKeyboardSize()
-            return
-        }
-        keyboardParams?.width = w
-        keyboardParams?.height = h
-        try {
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-            saveKeyboardSize()
-        } catch (e: Exception) { e.printStackTrace() }
-    }
-    
-    // Robust Getters: Return live values if visible, otherwise return saved Prefs
-    fun getViewX(): Int {
-        if (keyboardParams != null) return keyboardParams!!.x
-        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            .getInt("keyboard_x_d$currentDisplayId", 0)
-    }
-    
-    fun getViewY(): Int {
-        if (keyboardParams != null) return keyboardParams!!.y
-        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            .getInt("keyboard_y_d$currentDisplayId", 0)
-    }
-    
-    fun getViewWidth(): Int = keyboardWidth
-    fun getViewHeight(): Int = keyboardHeight
-    
-    // [START ROTATION FIX]
-    fun setRotation(angle: Int) {
-        currentRotation = angle
-        if (!isVisible || keyboardContainer == null || keyboardParams == null || keyboardView == null) return
-
-        val isPortrait = (angle == 90 || angle == 270)
-
-        // 1. Determine Logical Dimensions (Unrotated size)
-        // We rely on keyboardWidth/Height being the canonical "Landscape" size.
-        val baseW = keyboardWidth
-        val baseH = keyboardHeight 
-
-        // 2. Configure WINDOW Params (The touchable area on screen)
-        // If rotated, we swap the dimensions passed to WindowManager
-        if (isPortrait) {
-            keyboardParams?.width = if (baseH == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseH
-            keyboardParams?.height = if (baseW == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseW
-        } else {
-            keyboardParams?.width = if (baseW == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseW
-            keyboardParams?.height = if (baseH == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseH
-        }
-
-        // 3. Configure VIEW Params (The Internal Content)
-        // The View must ALWAYS be the logical size (e.g. Wide) to layout keys in rows correctly.
-        val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
-        lp.width = if (baseW == -2) FrameLayout.LayoutParams.WRAP_CONTENT else baseW
-        lp.height = if (baseH == -2) FrameLayout.LayoutParams.WRAP_CONTENT else baseH
-        keyboardView!!.layoutParams = lp
-
-        // 4. Apply Rotation to View (Not Container)
-        keyboardView!!.rotation = angle.toFloat()
-        keyboardContainer!!.rotation = 0f // Ensure container is NOT rotated
-
-        // 5. Update Layout
-        try {
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-        } catch (e: Exception) {}
-
-        // 6. Post-Layout Alignment
-        // We must translate the view to re-center it because rotation happens around the pivot (center).
-        // Since we swapped the Window dimensions, the centers might not align by default without this.
-        keyboardView!!.post { alignRotatedView() }
-    }
-
-    private fun alignRotatedView() {
-        if (keyboardView == null) return
-        
-        val angle = currentRotation
-        val w = keyboardView!!.measuredWidth
-        val h = keyboardView!!.measuredHeight
-        
-        // When rotated 90/270, the "Visual" width matches the View's Height, and vice versa.
-        // We translate the view so its visual center matches the window's center.
-        
-        when (angle) {
-            90, 270 -> {
-                val tx = (h - w) / 2f
-                val ty = (w - h) / 2f
-                keyboardView!!.translationX = tx
-                keyboardView!!.translationY = ty
-            }
-            else -> {
-                keyboardView!!.translationX = 0f
-                keyboardView!!.translationY = 0f
-            }
-        }
-    }
-
-    fun cycleRotation() {
-        if (keyboardContainer == null) return
-        val nextRotation = (currentRotation + 90) % 360
-        setRotation(nextRotation)
-    }
-
-    fun resetPosition() {
-        if (keyboardParams == null) return
-        
-        // 1. Reset Rotation state
-        currentRotation = 0
-        keyboardContainer?.rotation = 0f
-        keyboardView?.rotation = 0f
-        keyboardView?.translationX = 0f
-        keyboardView?.translationY = 0f
-
-        // 2. Calculate Defaults
-        val defaultWidth = (screenWidth * 0.90f).toInt().coerceIn(300, 1200) // CHANGED: 90% width
-        val defaultHeight = WindowManager.LayoutParams.WRAP_CONTENT
-        val defaultX = (screenWidth - defaultWidth) / 2
-        val defaultY = (screenHeight / 2) // Place in middle
-
-        // 3. Update State & Params
-        keyboardWidth = defaultWidth
-        keyboardHeight = defaultHeight
-        
-        keyboardParams?.x = defaultX
-        keyboardParams?.y = defaultY
-        keyboardParams?.width = defaultWidth
-        keyboardParams?.height = defaultHeight
-
-        // 4. Update View Constraints
-        if (keyboardView != null) {
-            val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
-            lp.width = defaultWidth
-            lp.height = FrameLayout.LayoutParams.WRAP_CONTENT
-            keyboardView!!.layoutParams = lp
-        }
-
-        try {
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-        } catch (e: Exception) {}
-        
-        saveKeyboardPosition()
-        saveKeyboardSize()
-    }
-    // [END ROTATION FIX]
-
-
-
-
-
-
-
-
-    fun show() { 
-        if (isVisible) return
-        try { 
-            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            currentAlpha = prefs.getInt("keyboard_alpha", 200)
-
-            createKeyboardWindow()
-
-            // --- FIX: Strict Aspect Ratio Sync ---
-            // We force the Window Height to be exactly 55% of the Width.
-            // This guarantees that the Physical Keyboard and Mirror Keyboard 
-            // have the exact same shape, ensuring the Touch Trail aligns perfectly.
-            keyboardContainer?.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-                val width = right - left
-                val height = bottom - top
-                
-                if (width > 0) {
-                    // Ratio 0.55 (Keys are slightly taller than square to fit text comfortably)
-                    // 10 keys wide, 5 rows tall. 0.5 would be square. 0.55 prevents cutoff.
-                    val targetHeight = (width * 0.55f).toInt()
-                    
-                    if (kotlin.math.abs(height - targetHeight) > 5) {
-                        keyboardParams?.height = targetHeight
-                        try { 
-                            windowManager.updateViewLayout(keyboardContainer, keyboardParams) 
-                        } catch (e: Exception) { }
-                    }
-                }
-            }
-
-            // Set initial params to match logic
-            if (keyboardParams?.width ?: 0 > 0) {
-                 keyboardParams?.height = ((keyboardParams?.width ?: 100) * 0.55f).toInt()
-            }
-
-            isVisible = true
-            if (currentRotation != 0) setRotation(currentRotation)
-        } catch (e: Exception) { android.util.Log.e("KeyboardOverlay", "Failed to show keyboard", e) } 
-    }
-
-
-
-
-
-
-
-
-
-    
-    fun hide() { 
-        if (!isVisible) return
-        try { 
-            windowManager.removeView(keyboardContainer)
-            keyboardContainer = null
-            keyboardView = null
-            isVisible = false 
-        } catch (e: Exception) { Log.e(TAG, "Failed to hide keyboard", e) } 
-    }
-    
-    fun toggle() { if (isVisible) hide() else show() }
-    fun isShowing(): Boolean = isVisible
-
-    fun setFocusable(focusable: Boolean) {
-        try {
-            if (keyboardContainer == null || keyboardParams == null) return
-
-            if (focusable) {
-                // Remove NOT_FOCUSABLE (Make it focusable)
-                keyboardParams?.flags = keyboardParams?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
-            } else {
-                // Add NOT_FOCUSABLE (Make it click-through for focus purposes)
-                keyboardParams?.flags = keyboardParams?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-            }
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    // =================================================================================
-    // FUNCTION: setVoiceActive
-    // SUMMARY: Passes the voice state down to the keyboard view.
-    // =================================================================================
-    fun setVoiceActive(active: Boolean) {
-        keyboardView?.setVoiceActive(active)
-    }
-    // =================================================================================
-    // END BLOCK: setVoiceActive
-    // =================================================================================
-
-    // =================================================================================
-    // VIRTUAL MIRROR ORIENTATION MODE METHODS
-    // SUMMARY: Methods for managing orientation mode during virtual mirror operation.
-    //          These handle the orange trail that helps users locate their finger
-    //          position on the physical keyboard without looking at the screen.
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: setOrientationMode
-    // SUMMARY: Enables or disables orientation mode. When enabled, an orange trail
-    //          is shown and key input is blocked until the mode ends.
-    // @param active - true to enable orientation mode, false to disable
-    // =================================================================================
-    fun setOrientationMode(active: Boolean) {
-        isOrientationModeActive = active
-        keyboardView?.setOrientationModeActive(active)
-
-        if (!active) {
-            // Clear the orange trail when exiting orientation mode
-            orientationTrailView?.clear()
-        }
-    }
-    // =================================================================================
-    // END BLOCK: setOrientationMode
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: startOrientationTrail
-    // SUMMARY: Starts a new orange orientation trail at the specified position.
-    // @param x - Starting X coordinate
-    // @param y - Starting Y coordinate
-    // =================================================================================
-    fun startOrientationTrail(x: Float, y: Float) {
-        orientationTrailView?.clear()
-        orientationTrailView?.addPoint(x, y)
-    }
-    // =================================================================================
-    // END BLOCK: startOrientationTrail
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: addOrientationTrailPoint
-    // SUMMARY: Adds a point to the orange orientation trail.
-    // @param x - X coordinate of new point
-    // @param y - Y coordinate of new point
-    // =================================================================================
-    fun addOrientationTrailPoint(x: Float, y: Float) {
-        orientationTrailView?.addPoint(x, y)
-    }
-    // =================================================================================
-    // END BLOCK: addOrientationTrailPoint
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: clearOrientationTrail
-    // SUMMARY: Clears the orange orientation trail.
-    // =================================================================================
-    fun clearOrientationTrail() {
-        orientationTrailView?.clear()
-    }
-    // =================================================================================
-    // END BLOCK: clearOrientationTrail
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: setOrientationTrailColor
-    // SUMMARY: Sets the color of the orientation trail on the physical display.
-    // =================================================================================
-    fun setOrientationTrailColor(color: Int) {
-        orientationTrailView?.setTrailColor(color)
-    }
-    // =================================================================================
-    // END BLOCK: setOrientationTrailColor
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: startSwipeFromCurrentPosition
-    // SUMMARY: Called when switching from orange to blue trail mid-gesture.
-    //          Initializes swipe tracking so the path starts from the given position.
-    // =================================================================================
-    fun startSwipeFromCurrentPosition(x: Float, y: Float) {
-        keyboardView?.startSwipeFromPosition(x, y)
-    }
-    // =================================================================================
-    // END BLOCK: startSwipeFromCurrentPosition
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: handleDeferredTap
-    // SUMMARY: Forwards deferred tap to KeyboardView for single key press in mirror mode.
-    // =================================================================================
-    fun handleDeferredTap(x: Float, y: Float) {
-        keyboardView?.handleDeferredTap(x, y)
-    }
-    // =================================================================================
-    // END BLOCK: handleDeferredTap
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: getKeyboardState
-    // SUMMARY: Gets current keyboard state (layer) from KeyboardView.
-    // =================================================================================
-    fun getKeyboardState(): KeyboardView.KeyboardState? {
-        return keyboardView?.getKeyboardState()
-    }
-
-    // =================================================================================
-    // FUNCTION: setKeyboardState
-    // SUMMARY: Sets keyboard state (layer) in KeyboardView.
-    // =================================================================================
-    fun setKeyboardState(state: KeyboardView.KeyboardState) {
-        keyboardView?.setKeyboardState(state)
-    }
-
-    // =================================================================================
-    // FUNCTION: getCtrlAltState
-    // SUMMARY: Gets current Ctrl/Alt modifier states from KeyboardView.
-    // =================================================================================
-    fun getCtrlAltState(): Pair<Boolean, Boolean>? {
-        return keyboardView?.getCtrlAltState()
-    }
-
-    // =================================================================================
-    // FUNCTION: setCtrlAltState
-    // SUMMARY: Sets Ctrl/Alt modifier states in KeyboardView.
-    // =================================================================================
-    fun setCtrlAltState(ctrl: Boolean, alt: Boolean) {
-        keyboardView?.setCtrlAltState(ctrl, alt)
-    }
-    // =================================================================================
-    // END BLOCK: State accessor functions for mirror sync
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: updateSuggestionsWithSync
-    // SUMMARY: Sets suggestions on the keyboard view AND notifies callback for mirror sync.
-    // =================================================================================
-    private fun updateSuggestionsWithSync(candidates: List<KeyboardView.Candidate>) {
-        keyboardView?.setSuggestions(candidates)
-        onSuggestionsChanged?.invoke(candidates)
-    }
-    // =================================================================================
-    // END BLOCK: updateSuggestionsWithSync
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: isInOrientationMode
-    // SUMMARY: Returns whether orientation mode is currently active.
-    // @return true if orientation mode is active
-    // =================================================================================
-    fun isInOrientationMode(): Boolean {
-        return isOrientationModeActive
-    }
-    // =================================================================================
-    // END BLOCK: isInOrientationMode
-    // =================================================================================
-
-    // =================================================================================
-    // END BLOCK: VIRTUAL MIRROR ORIENTATION MODE METHODS
-    // =================================================================================
-
-    fun moveWindow(dx: Int, dy: Int) {
-        if (!isVisible || keyboardParams == null) return
-        keyboardParams!!.x += dx; keyboardParams!!.y += dy
-        try { 
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-            saveKeyboardPosition()
-            onSizeChanged?.invoke()
-        } catch (e: Exception) {}
-    }
-    
-    fun resizeWindow(dw: Int, dh: Int) {
-         if (!isVisible || keyboardParams == null) return
-         
-         // If current height is WRAP_CONTENT (-2), start from current measured height
-         var currentH = keyboardParams!!.height
-         if (currentH == WindowManager.LayoutParams.WRAP_CONTENT) {
-             currentH = keyboardContainer?.height ?: 260
-         }
-         
-         var currentW = keyboardParams!!.width
-         if (currentW == WindowManager.LayoutParams.WRAP_CONTENT) {
-             currentW = keyboardContainer?.width ?: 500
-         }
-
-         keyboardParams!!.width = max(280, currentW + dw)
-         keyboardParams!!.height = max(180, currentH + dh)
-         
-         keyboardWidth = keyboardParams!!.width
-         keyboardHeight = keyboardParams!!.height
-         
-         try { 
-             windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-             saveKeyboardSize()
-             onSizeChanged?.invoke()
-         } catch (e: Exception) {}
-    }
-
-    private fun createKeyboardWindow() {
-        keyboardContainer = FrameLayout(context)
-        val containerBg = GradientDrawable()
-        val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
-        containerBg.setColor(fillColor)
-        containerBg.cornerRadius = 16f
-        containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
-        keyboardContainer?.background = containerBg
-
-        // 1. The Keyboard Keys
-        // --- FIX Connect Shell for Spacebar Trackpad ---
-        // Pass the shell command capability to the view so it can inject mouse events
-
-
-        // Initialize Handler using 'targetDisplayId' (the class property), NOT 'inputTargetDisplayId'
-
-        keyboardView = KeyboardView(context)
-
-        // Bind KeyboardView events to our OverlayService callbacks
-        keyboardView?.cursorMoveAction = { dx, dy, isDragging ->
-            onCursorMove?.invoke(dx, dy, isDragging)
-        }
-
-        keyboardView?.cursorClickAction = { isRight ->
-            onCursorClick?.invoke(isRight)
-        }
-
-        // Touch Primitives
-        keyboardView?.touchDownAction = { onTouchDown?.invoke() }
-        keyboardView?.touchUpAction = { onTouchUp?.invoke() }
-        keyboardView?.touchTapAction = { onTouchTap?.invoke() }
-
-        // =================================================================================
-        // VIRTUAL MIRROR MODE - WIRE CALLBACK DIRECTLY TO KEYBOARDVIEW
-        // SUMMARY: The only way to intercept touches before KeyboardView processes them
-        //          is to have KeyboardView call us directly. Container listeners don't
-        //          work because child views receive touches first.
-        // =================================================================================
-        keyboardView?.mirrorTouchCallback = { x, y, action ->
-            val cb = onMirrorTouch
-            if (cb != null) {
-                cb.invoke(x, y, action)
-            } else {
-                false
-            }
-        }
-        // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE - WIRE CALLBACK
-        // =================================================================================
-
-
-        
-
-        // ------------------------------------------------
-        keyboardView?.setKeyboardListener(this)
-        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
-        val scale = prefs.getInt("keyboard_key_scale", 100) / 100f; keyboardView?.setScale(scale)
-        keyboardView?.alpha = currentAlpha / 255f
-
-        val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        kbParams.setMargins(6, 28, 6, 6)
-        keyboardContainer?.addView(keyboardView, kbParams)
-
-        
-
-        // 2. The Swipe Trail Overlay (Must match keyboard params to align coordinates)
-        val trailView = SwipeTrailView(context)
-        val trailParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        trailParams.setMargins(6, 28, 6, 6) // Exact same margins as keyboard
-        keyboardContainer?.addView(trailView, trailParams)
-
-        // Link them
-        keyboardView?.attachTrailView(trailView)
-
-        // =================================================================================
-        // ORIENTATION TRAIL VIEW (for virtual mirror mode)
-        // SUMMARY: A separate trail view for orange orientation trails. Layered on top
-        //          of the normal blue swipe trail so both can be visible simultaneously
-        //          if needed. Normally invisible; only shows during orientation mode.
-        // =================================================================================
-        orientationTrailView = SwipeTrailView(context)
-        orientationTrailView?.setTrailColor(0xFFFF9900.toInt()) // Orange color
-        val orientTrailParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        orientTrailParams.setMargins(6, 28, 6, 6)
-        keyboardContainer?.addView(orientationTrailView, orientTrailParams)
-        // =================================================================================
-        // END BLOCK: ORIENTATION TRAIL VIEW
-        // =================================================================================
-
-        addDragHandle(); addResizeHandle(); addCloseButton(); addTargetLabel()
-
-        val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
-        val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - 350 - 10)
-
-        keyboardParams = WindowManager.LayoutParams(
-            keyboardWidth,
-            keyboardHeight,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        )
-        keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT
-        keyboardParams?.x = savedX
-        keyboardParams?.y = savedY
-
-        windowManager.addView(keyboardContainer, keyboardParams)
-        updateAlpha(currentAlpha)
-    }
-
-    private fun addDragHandle() {
-        val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 28); handleParams.gravity = Gravity.TOP
-        val indicator = View(context); val indicatorBg = GradientDrawable(); indicatorBg.setColor(Color.parseColor("#555555")); indicatorBg.cornerRadius = 3f; indicator.background = indicatorBg
-        val indicatorParams = FrameLayout.LayoutParams(50, 5); indicatorParams.gravity = Gravity.CENTER; indicatorParams.topMargin = 8
-        handle.addView(indicator, indicatorParams); handle.setOnTouchListener { _, event -> handleDrag(event); true }
-        keyboardContainer?.addView(handle, handleParams)
-    }
-
-    private fun addResizeHandle() {
-        val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(36, 36); handleParams.gravity = Gravity.BOTTOM or Gravity.RIGHT
-        val indicator = View(context); val indicatorBg = GradientDrawable(); indicatorBg.setColor(Color.parseColor("#3DDC84")); indicatorBg.cornerRadius = 4f; indicator.background = indicatorBg; indicator.alpha = 0.7f
-        val indicatorParams = FrameLayout.LayoutParams(14, 14); indicatorParams.gravity = Gravity.BOTTOM or Gravity.RIGHT; indicatorParams.setMargins(0, 0, 6, 6)
-        handle.addView(indicator, indicatorParams); handle.setOnTouchListener { _, event -> handleResize(event); true }
-        keyboardContainer?.addView(handle, handleParams)
-    }
-
-    private fun addCloseButton() {
-        val button = FrameLayout(context); val buttonParams = FrameLayout.LayoutParams(28, 28); buttonParams.gravity = Gravity.TOP or Gravity.RIGHT; buttonParams.setMargins(0, 2, 4, 0)
-        val closeText = TextView(context); closeText.text = "X"; closeText.setTextColor(Color.parseColor("#FF5555")); closeText.textSize = 12f; closeText.gravity = Gravity.CENTER
-        // CHANGED: Call onCloseAction to notify Service (handles IME toggle & automation)
-        button.addView(closeText, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)); button.setOnClickListener { onCloseAction() }
-        keyboardContainer?.addView(button, buttonParams)
-    }
-
-    private fun addTargetLabel() {
-        val label = TextView(context); label.text = "Display $targetDisplayId"; label.setTextColor(Color.parseColor("#888888")); label.textSize = 9f
-        val labelParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT); labelParams.gravity = Gravity.TOP or Gravity.LEFT; labelParams.setMargins(8, 6, 0, 0)
-        keyboardContainer?.addView(label, labelParams)
-    }
-
-    private fun handleDrag(event: MotionEvent): Boolean {
-        if (isAnchored) return true
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> { 
-                isMoving = true
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                initialWindowX = keyboardParams?.x ?: 0
-                initialWindowY = keyboardParams?.y ?: 0 
-            }
-            MotionEvent.ACTION_MOVE -> { 
-                if (isMoving) { 
-                    keyboardParams?.x = initialWindowX + (event.rawX - initialTouchX).toInt()
-                    keyboardParams?.y = initialWindowY + (event.rawY - initialTouchY).toInt()
-                    try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} 
-                } 
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
-                isMoving = false
-                saveKeyboardPosition() 
-            }
-        }
-        return true
-    }
-
-    // [START RESIZE FIX]
-    private fun handleResize(event: MotionEvent): Boolean {
-        if (isAnchored) return true
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                isResizing = true
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                // Capture the current WINDOW dimensions (Visual)
-                initialWidth = keyboardParams?.width ?: keyboardWidth
-                initialHeight = keyboardParams?.height ?: keyboardHeight
-                
-                // Handle WRAP_CONTENT case for initial values
-                if (initialWidth < 0) initialWidth = keyboardContainer?.width ?: 300
-                if (initialHeight < 0) initialHeight = keyboardContainer?.height ?: 200
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (isResizing) {
-                    val dX = (event.rawX - initialTouchX).toInt()
-                    val dY = (event.rawY - initialTouchY).toInt()
-                    
-                    // 1. Calculate New VISUAL Dimensions (Window Size)
-                    val newVisualW = max(280, initialWidth + dX)
-                    val newVisualH = max(180, initialHeight + dY)
-                    
-                    // 2. Update Window Params
-                    keyboardParams?.width = newVisualW
-                    keyboardParams?.height = newVisualH
-                    
-                    // 3. Update LOGICAL Dimensions (Keyboard State)
-                    // If rotated, dragging "Width" actually changes the Keyboard's "Height" (Rows)
-                    if (currentRotation == 90 || currentRotation == 270) {
-                        keyboardHeight = newVisualW
-                        keyboardWidth = newVisualH
-                    } else {
-                        keyboardWidth = newVisualW
-                        keyboardHeight = newVisualH
-                    }
-                    
-                    // 4. Update Inner View Layout to match Logical Dimensions
-                    if (keyboardView != null) {
-                        val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
-                        lp.width = keyboardWidth
-                        lp.height = keyboardHeight
-                        keyboardView!!.layoutParams = lp
-                        
-                        // Re-center view if rotation is active
-                        alignRotatedView()
-                    }
-
-                    try {
-                        windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-                    } catch (e: Exception) {}
-                }
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                isResizing = false
-                saveKeyboardSize()
-            }
-        }
-        return true
-    }
-    // [END RESIZE FIX]
-
-    private fun saveKeyboardSize() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_width_d$currentDisplayId", keyboardWidth).putInt("keyboard_height_d$currentDisplayId", keyboardHeight).apply() }
-    private fun saveKeyboardPosition() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_x_d$currentDisplayId", keyboardParams?.x ?: 0).putInt("keyboard_y_d$currentDisplayId", keyboardParams?.y ?: 0).apply() }
-    private fun loadKeyboardSizeForDisplay(displayId: Int) { val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE); keyboardWidth = prefs.getInt("keyboard_width_d$displayId", keyboardWidth); keyboardHeight = prefs.getInt("keyboard_height_d$displayId", keyboardHeight) }
-
-
-    // =================================================================================
-    // FUNCTION: onKeyPress
-    // SUMMARY: Handles key press events from the keyboard. Manages composing word state,
-    //          sentence start detection, and auto-learning. Special handling for
-    //          punctuation after swiped words to remove the trailing space.
-    // =================================================================================
-    override fun onKeyPress(keyCode: Int, char: Char?, metaState: Int) {
-        android.util.Log.d("DroidOS_Key", "Press: $keyCode ('$char')")
-
-        // --- PUNCTUATION AFTER SWIPE: Remove trailing space ---
-        // If the last action was a swipe (which adds "word "), and user types punctuation,
-        // we need to delete the trailing space first so we get "word." not "word ."
-        val isPunctuation = char != null && (char == '.' || char == ',' || char == '!' ||
-                                              char == '?' || char == ';' || char == ':' ||
-                                              char == '\'' || char == '"')
-
-        if (isPunctuation && lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.endsWith(" ")) {
-            // Delete the trailing space from the swiped word
-            injectKey(KeyEvent.KEYCODE_DEL, 0)
-            android.util.Log.d("DroidOS_Swipe", "PUNCTUATION: Removed trailing space before '$char'")
-
-            // Update the swipe word to not include the space (in case they backspace)
-            lastCommittedSwipeWord = lastCommittedSwipeWord!!.trimEnd()
-        }
-
-        // 1. Inject the key event
-        injectKey(keyCode, metaState)
-
-        // 2. Clear Swipe History on manual typing (but NOT for punctuation or shift)
-        if (keyCode != KeyEvent.KEYCODE_SHIFT_LEFT &&
-            keyCode != KeyEvent.KEYCODE_SHIFT_RIGHT &&
-            !isPunctuation) {
-            lastCommittedSwipeWord = null
-        }
-
-        // 3. Handle Backspace (Fixes "deleted text persists" bug)
-        if (keyCode == KeyEvent.KEYCODE_DEL) {
-            if (currentComposingWord.isNotEmpty()) {
-                currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
-                updateSuggestions()
-            }
-            return
-        }
-
-        // 4. Track Sentence Start
-        if (keyCode == KeyEvent.KEYCODE_ENTER || char == '.' || char == '!' || char == '?') {
-            isSentenceStart = true
-            lastCommittedSwipeWord = null // Clear swipe state on sentence end
-
-            // Auto-learn on punctuation
-            if (currentComposingWord.isNotEmpty()) {
-                val word = currentComposingWord.toString()
-                if (word.length >= 2) {
-                    predictionEngine.learnWord(context, word)
-                }
-            }
-            currentComposingWord.clear()
-
-        } else if (char != null && !Character.isWhitespace(char) && !isPunctuation) {
-            isSentenceStart = false
-        }
-
-        // 5. Update Composing Word
-        if (char != null && Character.isLetterOrDigit(char)) {
-            currentComposingWord.append(char)
-            updateSuggestions()
-        } else if (char != null && Character.isWhitespace(char)) {
-            // Space finishes a word
-            if (currentComposingWord.isNotEmpty()) {
-                val word = currentComposingWord.toString()
-                if (word.length >= 2) {
-                    predictionEngine.learnWord(context, word)
-                }
-            }
-            currentComposingWord.clear()
-            lastCommittedSwipeWord = null // Clear swipe state on space
-            updateSuggestions()
-        } else {
-            // Other symbols clear composition
-            currentComposingWord.clear()
-            updateSuggestions()
-        }
-    }
-    // =================================================================================
-    // END BLOCK: onKeyPress with punctuation spacing fix
-    // =================================================================================
-
-    
-    override fun onTextInput(text: String) {
-        if (shellService == null) return
-        Thread { try { val cmd = "input -d $targetDisplayId text \"$text\""; shellService.runCommand(cmd) } catch (e: Exception) { Log.e(TAG, "Text injection failed", e) } }.start()
-    }
-
-    override fun onScreenToggle() { onScreenToggleAction() }
-    override fun onScreenModeChange() { onScreenModeChangeAction() }
-
-    override fun onSpecialKey(key: KeyboardView.SpecialKey, metaState: Int) {
-        if (key == KeyboardView.SpecialKey.VOICE_INPUT) {
-            triggerVoiceTyping()
-            return
-        }
-        if (key == KeyboardView.SpecialKey.HIDE_KEYBOARD) {
-            onCloseAction() // Calls the close/hide action passed from Service
-            return
-        }
-
-        // =================================================================================
-        // BACKSPACE HANDLING - SWIPE WORD DELETE
-        // SUMMARY: If the last action was a swipe word commit, backspace deletes the
-        //          entire word (plus trailing space). Otherwise, normal backspace behavior.
-        //          This allows quick correction of mis-swiped words.
-        // =================================================================================
-        if (key == KeyboardView.SpecialKey.BACKSPACE) {
-            // CHECK: Was the last input a swiped word?
-            if (lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.isNotEmpty()) {
-                // Delete the entire swiped word (including trailing space)
-                val deleteCount = lastCommittedSwipeWord!!.length
-                android.util.Log.d("DroidOS_Swipe", "BACKSPACE: Deleting swiped word '${lastCommittedSwipeWord}' ($deleteCount chars)")
-
-                for (i in 0 until deleteCount) {
-                    injectKey(KeyEvent.KEYCODE_DEL, 0)
-                }
-
-                // Clear the swipe history so next backspace is normal
-                lastCommittedSwipeWord = null
-
-                // Don't inject another backspace - we already deleted
-                return
-            }
-
-            // Normal backspace: delete from composing word
-            if (currentComposingWord.isNotEmpty()) {
-                currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
-                updateSuggestions()
-            }
-        } else if (key == KeyboardView.SpecialKey.SPACE) {
-            // Space clears swipe history (user is continuing to type)
-            lastCommittedSwipeWord = null
-            resetComposition()
-        } else {
-            // Enter, Tabs, Arrows all break the current word chain
-            lastCommittedSwipeWord = null
-            resetComposition()
-        }
-        // =================================================================================
-        // END BLOCK: BACKSPACE HANDLING - SWIPE WORD DELETE
-        // =================================================================================
-
-        val keyCode = when (key) {
-            KeyboardView.SpecialKey.BACKSPACE -> KeyEvent.KEYCODE_DEL
-            KeyboardView.SpecialKey.ENTER -> KeyEvent.KEYCODE_ENTER
-            KeyboardView.SpecialKey.SPACE -> KeyEvent.KEYCODE_SPACE
-            KeyboardView.SpecialKey.TAB -> KeyEvent.KEYCODE_TAB
-            KeyboardView.SpecialKey.ESCAPE -> KeyEvent.KEYCODE_ESCAPE
-            KeyboardView.SpecialKey.ARROW_UP -> KeyEvent.KEYCODE_DPAD_UP
-            KeyboardView.SpecialKey.ARROW_DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
-            KeyboardView.SpecialKey.ARROW_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
-            KeyboardView.SpecialKey.ARROW_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
-            KeyboardView.SpecialKey.HOME -> KeyEvent.KEYCODE_MOVE_HOME
-            KeyboardView.SpecialKey.END -> KeyEvent.KEYCODE_MOVE_END
-            KeyboardView.SpecialKey.DELETE -> KeyEvent.KEYCODE_FORWARD_DEL
-            KeyboardView.SpecialKey.MUTE -> KeyEvent.KEYCODE_VOLUME_MUTE
-            KeyboardView.SpecialKey.VOL_UP -> KeyEvent.KEYCODE_VOLUME_UP
-            KeyboardView.SpecialKey.VOL_DOWN -> KeyEvent.KEYCODE_VOLUME_DOWN
-            KeyboardView.SpecialKey.BACK_NAV -> KeyEvent.KEYCODE_BACK
-            KeyboardView.SpecialKey.FWD_NAV -> KeyEvent.KEYCODE_FORWARD
-            else -> return
-        }
-        injectKey(keyCode, metaState)
-    }
-
-    // =================================================================================
-    // FUNCTION: onSuggestionClick
-    // SUMMARY: Handles when user taps a word in the prediction bar. Two modes:
-    //          1. Swipe Correction: Replaces the last swiped word entirely
-    //          2. Manual Typing Completion: Replaces partially typed word
-    //          Uses small delays between deletes and text injection to ensure
-    //          proper sequencing on the input field.
-    // =================================================================================
-    override fun onSuggestionClick(text: String, isNew: Boolean) {
-        android.util.Log.d("DroidOS_Prediction", "Suggestion clicked: '$text' (isNew=$isNew, swipeWord='$lastCommittedSwipeWord', composing='$currentComposingWord')")
-
-        // 1. Learn word if it was flagged as New
-        if (isNew) {
-            predictionEngine.learnWord(context, text)
-            android.util.Log.d("DroidOS_Prediction", "Learned new word: $text")
-        }
-
-        // 2. Commit logic
-        // --- LOGIC: Swipe Correction ---
-        if (lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.isNotEmpty()) {
-            val deleteCount = lastCommittedSwipeWord!!.length
-            android.util.Log.d("DroidOS_Prediction", "SWIPE REPLACE: Deleting $deleteCount chars, inserting '$text'")
-
-            // Delete in a background thread with small delays for reliability
-            Thread {
-                try {
-                    // Delete character by character with small delay
-                    for (i in 0 until deleteCount) {
-                        injectKey(KeyEvent.KEYCODE_DEL, 0)
-                        Thread.sleep(5) // Small delay between deletes
-                    }
-
-                    // Small pause before injecting new text
-                    Thread.sleep(20)
-
-                    // Inject new word (Maintain capitalization of the replaced word)
-                    var newText = text
-                    val wasCap = Character.isUpperCase(lastCommittedSwipeWord!!.firstOrNull() ?: ' ')
-                    if (wasCap) {
-                        newText = newText.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                    }
-
-                    val finalText = "$newText "
-                    injectText(finalText)
-
-                    // Update history on UI thread
-                    handler.post {
-                        lastCommittedSwipeWord = finalText
-                        updateSuggestions()
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("DroidOS_Prediction", "Suggestion replace failed: ${e.message}")
-                }
-            }.start()
-
-        } else {
-            // --- LOGIC: Manual Typing Completion ---
-            val charsToDelete = currentComposingWord.length
-            android.util.Log.d("DroidOS_Prediction", "MANUAL REPLACE: Deleting $charsToDelete chars, inserting '$text'")
-
-            if (charsToDelete == 0) {
-                // Nothing to delete, just insert
-                injectText("$text ")
-                resetComposition()
-                return
-            }
-
-            // Delete and insert in background thread for reliability
-            Thread {
-                try {
-                    // Delete character by character with small delay
-                    for (i in 0 until charsToDelete) {
-                        injectKey(KeyEvent.KEYCODE_DEL, 0)
-                        Thread.sleep(5) // Small delay between deletes
-                    }
-
-                    // Small pause before injecting new text
-                    Thread.sleep(20)
-
-                    // Inject the full word + space
-                    injectText("$text ")
-
-                    // Reset on UI thread
-                    handler.post {
-                        resetComposition()
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("DroidOS_Prediction", "Suggestion insert failed: ${e.message}")
-                }
-            }.start()
-        }
-    }
-    // =================================================================================
-    // END BLOCK: onSuggestionClick with reliable replacement
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: onSuggestionDropped
-    // SUMMARY: Called when user drags a suggestion to backspace to delete/block it.
-    //          DEBUG: Logging to confirm this is being called.
-    // =================================================================================
-    override fun onSuggestionDropped(text: String) {
-        android.util.Log.d("DroidOS_Drag", ">>> onSuggestionDropped CALLED: '$text'")
-
-        // Block the word
-        predictionEngine.blockWord(context, text)
-
-        android.widget.Toast.makeText(context, "Removed: $text", android.widget.Toast.LENGTH_SHORT).show()
-
-        // Refresh suggestions to remove the blocked word
-        updateSuggestions()
-
-        android.util.Log.d("DroidOS_Drag", "<<< onSuggestionDropped COMPLETE: '$text' blocked")
-    }
-    // =================================================================================
-    // END BLOCK: onSuggestionDropped with debug logging
-    // =================================================================================
-
-    // Layer change notification for mirror keyboard sync
-    override fun onLayerChanged(state: KeyboardView.KeyboardState) {
-        onLayerChanged?.invoke(state)
-    }
-
-    // =================================================================================
-    // FUNCTION: onSwipeDetected
-    // SUMMARY: Handles swipe gesture completion. Runs decoding in background thread.
-    //          LOGGING: Logs at every decision point to diagnose silent failures.
-    // =================================================================================
-    override fun onSwipeDetected(path: List<android.graphics.PointF>) {
-        // LOG: Entry point - proves we got here from KeyboardView
-        android.util.Log.d("DroidOS_Swipe", ">>> onSwipeDetected ENTRY (${path.size} points)")
-
-        // CHECK: keyboardView exists
-        if (keyboardView == null) {
-            android.util.Log.e("DroidOS_Swipe", "ABORT: keyboardView is NULL")
-            return
-        }
-
-        // CHECK: keyMap exists and has keys
-        val keyMap = keyboardView?.getKeyCenters()
-        if (keyMap == null) {
-            android.util.Log.e("DroidOS_Swipe", "ABORT: getKeyCenters() returned NULL")
-            return
-        }
-        if (keyMap.isEmpty()) {
-            android.util.Log.e("DroidOS_Swipe", "ABORT: keyMap is EMPTY (0 keys)")
-            return
-        }
-
-        android.util.Log.d("DroidOS_Swipe", "keyMap OK: ${keyMap.size} keys loaded")
-
-        Thread {
-            try {
-                android.util.Log.d("DroidOS_Swipe", "--- Decoding Thread Started ---")
-
-                val suggestions = predictionEngine.decodeSwipe(path, keyMap)
-
-                android.util.Log.d("DroidOS_Swipe", "--- Decoding Complete: ${suggestions.size} suggestions ---")
-
-                if (suggestions.isNotEmpty()) {
-                    handler.post {
-                        var bestMatch = suggestions[0]
-                        if (isSentenceStart) {
-                            bestMatch = bestMatch.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                        }
-
-                        val isCap = Character.isUpperCase(bestMatch.firstOrNull() ?: ' ')
-                        val displaySuggestions = if (isCap) {
-                            suggestions.map { it.replaceFirstChar { c -> c.titlecase() } }
-                        } else {
-                            suggestions
-                        }.map { KeyboardView.Candidate(it, isNew = false) }
-
-                        updateSuggestionsWithSync(displaySuggestions)
-
-                        // =================================================================================
-                        // SWIPE TEXT COMMIT WITH SPACE HANDLING
-                        // SUMMARY: If user was typing letters before swiping, we need to add a space
-                        //          between the typed letters and the swiped word.
-                        //          Example: Type "a" then swipe "dog" = "a dog" not "adog"
-                        // =================================================================================
-                        var textToCommit = bestMatch
-
-                        // Check if there are uncommitted typed letters that need a space after them
-                        if (currentComposingWord.isNotEmpty()) {
-                            // User typed some letters, then started swiping
-                            // We need to "finish" the typed word with a space first
-                            android.util.Log.d("DroidOS_Swipe", "Composing word exists: '$currentComposingWord' - adding space before swipe")
-                            textToCommit = " $bestMatch"
-                            currentComposingWord.clear()
-                        }
-
-                        // Add trailing space
-                        textToCommit = "$textToCommit "
-
-                        injectText(textToCommit)
-                        lastCommittedSwipeWord = textToCommit
-                        isSentenceStart = false
-                        // =================================================================================
-                        // END BLOCK: SWIPE TEXT COMMIT WITH SPACE HANDLING
-                        // =================================================================================
-
-                        android.util.Log.d("DroidOS_Swipe", "SUCCESS: Committed '$bestMatch'")
-                    }
-                } else {
-                    android.util.Log.e("DroidOS_Swipe", "FAIL: decodeSwipe returned EMPTY list")
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("DroidOS_Swipe", "CRASH in Swipe Thread: ${e.message}", e)
-                e.printStackTrace()
-            }
-        }.start()
-    }
-    // =================================================================================
-    // END BLOCK: onSwipeDetected with comprehensive logging
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: updateSuggestions
-    // SUMMARY: Updates the suggestion bar based on current composing word.
-    //          Shows raw input + dictionary suggestions, filtering blocked words.
-    // =================================================================================
-    private fun updateSuggestions() {
-        val prefix = currentComposingWord.toString()
-        if (prefix.isEmpty()) {
-            updateSuggestionsWithSync(emptyList())
-            return
-        }
-
-        // 1. Get dictionary suggestions (already filtered for blocked words)
-        val suggestions = predictionEngine.getSuggestions(prefix, 3)
-
-        val candidates = ArrayList<KeyboardView.Candidate>()
-
-        // 2. Add Raw Input as first option (but NOT if it's blocked)
-        val lowerPrefix = prefix.lowercase()
-        val isBlocked = predictionEngine.isWordBlocked(lowerPrefix)
-
-        if (!isBlocked) {
-            val rawExists = predictionEngine.hasWord(prefix)
-            candidates.add(KeyboardView.Candidate(prefix, isNew = !rawExists))
-        }
-
-        // 3. Add dictionary suggestions (avoiding duplicates)
-        for (s in suggestions) {
-            // Don't show if it looks exactly like the raw input (ignore case)
-            if (!s.equals(prefix, ignoreCase = true)) {
-                candidates.add(KeyboardView.Candidate(s, isNew = false))
-            }
-        }
-
-        updateSuggestionsWithSync(candidates.take(3))
-    }
-    // =================================================================================
-    // END BLOCK: updateSuggestions
-    // =================================================================================
-
-    private fun resetComposition() {
-        currentComposingWord.clear()
-        updateSuggestionsWithSync(emptyList())
-    }
-
-    private fun injectKey(keyCode: Int, metaState: Int) {
-        (context as? OverlayService)?.injectKeyFromKeyboard(keyCode, metaState)
-    }
-
-    // --- Voice Logic & Mic Check Loop ---
-    
-    // Handler for the 1-second loop
-    private val micCheckHandler = Handler(Looper.getMainLooper())
-    
-    // Runnable that checks if the Microphone is currently recording
-    private val micCheckRunnable = object : Runnable {
-        override fun run() {
-            try {
-                val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
-                
-                // Use activeRecordingConfigurations (API 24+) to check if any app is recording
-                var isMicOn = false
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    if (audioManager.activeRecordingConfigurations.isNotEmpty()) {
-                        isMicOn = true
-                    }
-                }
-                
-                if (isMicOn) {
-                    // Still recording, check again in 1 second
-                    micCheckHandler.postDelayed(this, 1000)
-                } else {
-                    // Mic stopped (or not supported), turn off the green light
-                    keyboardView?.setVoiceActive(false)
-                }
-            } catch (e: Exception) {
-                // If check fails, fail safe to off
-                keyboardView?.setVoiceActive(false)
-            }
-        }
-    }
-
-    private fun triggerVoiceTyping() {
-        if (shellService == null) return
-
-        // 1. UI: Turn Button Green Immediately
-        keyboardView?.setVoiceActive(true)
-        
-        // 2. Start Monitoring Loop
-        // Delay 3 seconds to allow the Voice IME to open and start recording
-        micCheckHandler.removeCallbacks(micCheckRunnable)
-        micCheckHandler.postDelayed(micCheckRunnable, 3000)
-
-        // 3. Notify Service to stop blocking touches
-        val intent = android.content.Intent("VOICE_TYPE_TRIGGERED")
-        intent.setPackage(context.packageName)
-        context.sendBroadcast(intent)
-
-        // 4. Perform IME Switch via Shell
-        Thread {
-            try {
-                // Fetch IME list and find Google Voice Typing
-                val output = shellService?.runCommand("ime list -a -s") ?: ""
-                val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) } 
-                    ?: output.lines().find { it.contains("voice", true) }
-                
-                if (voiceIme != null) {
-                    shellService?.runCommand("ime set $voiceIme")
-                } else {
-                    android.util.Log.w(TAG, "Voice IME not found")
-                    // If IME missing, turn off light
-                    micCheckHandler.post { keyboardView?.setVoiceActive(false) }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e(TAG, "Voice Switch Failed", e)
-                micCheckHandler.post { keyboardView?.setVoiceActive(false) }
-            }
-        }.start()
-    }
-}
-```
-
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardView.kt
 ```kotlin
 package com.example.coverscreentester
@@ -28871,6 +17596,1423 @@ class KeyboardView @JvmOverloads constructor(
 }
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardOverlay.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.content.Context
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
+import android.media.AudioManager
+import android.media.AudioRecordingConfiguration
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.TextView
+import kotlin.math.max
+
+class KeyboardOverlay(
+    private val context: Context,
+    private val windowManager: WindowManager,
+    private val shellService: IShellService?,
+    private val targetDisplayId: Int,
+    private val onScreenToggleAction: () -> Unit,
+    private val onScreenModeChangeAction: () -> Unit,
+    private val onCloseAction: () -> Unit // New Parameter
+) : KeyboardView.KeyboardListener {
+
+    private var keyboardContainer: FrameLayout? = null
+    private var keyboardView: KeyboardView? = null
+    private var keyboardParams: WindowManager.LayoutParams? = null
+    private var isVisible = false
+    private val predictionEngine = PredictionEngine.instance
+    // State Variables
+    private var isMoving = false
+    private var isResizing = false
+    private var isAnchored = false
+    private var initialTouchX = 0f
+    private var initialTouchY = 0f
+    private var initialWindowX = 0
+    private var initialWindowY = 0
+    private var initialWidth = 0
+    private var initialHeight = 0
+
+    private val TAG = "KeyboardOverlay"
+
+    // =================================================================================
+    // VIRTUAL MIRROR ORIENTATION MODE VARIABLES
+    // SUMMARY: State for orientation mode when virtual mirror is active.
+    //          During orientation mode, an orange trail is shown and key input is blocked
+    //          until the finger stops moving for the configured delay.
+    // =================================================================================
+    private var isOrientationModeActive = false
+    private var orientationTrailView: SwipeTrailView? = null
+    // =================================================================================
+    // END BLOCK: VIRTUAL MIRROR ORIENTATION MODE VARIABLES
+    // =================================================================================
+
+    // --- PREDICTION STATE ---
+
+    private var currentComposingWord = StringBuilder()
+    private val handler = Handler(Looper.getMainLooper())
+
+    // NEW: Track sentence context and swipe history
+    private var lastCommittedSwipeWord: String? = null
+    private var isSentenceStart = true
+
+    // Helper to inject text via OverlayService
+    private fun injectText(text: String) {
+        (context as? OverlayService)?.injectText(text)
+    }
+
+    // FIX Default height to WRAP_CONTENT (-2) to avoid cutting off rows
+    private var keyboardWidth = 500
+    private var keyboardHeight = WindowManager.LayoutParams.WRAP_CONTENT 
+    
+    private var screenWidth = 720
+    private var screenHeight = 748
+    private var currentRotation = 0
+    private var currentAlpha = 200
+    private var currentDisplayId = 0
+
+
+    // Callbacks to talk back to OverlayService
+    var onCursorMove: ((Float, Float, Boolean) -> Unit)? = null // dx, dy, isDragging
+    var onCursorClick: ((Boolean) -> Unit)? = null
+    var onTouchDown: (() -> Unit)? = null
+    var onTouchUp: (() -> Unit)? = null
+    var onTouchTap: (() -> Unit)? = null
+
+    // =================================================================================
+    // VIRTUAL MIRROR CALLBACK
+    // SUMMARY: Callback to forward touch events to OverlayService for mirror sync.
+    //          Returns true if touch should be consumed (orientation mode active).
+    // =================================================================================
+    var onMirrorTouch: ((Float, Float, Int) -> Boolean)? = null // x, y, action -> consumed
+    // =================================================================================
+    // END BLOCK: VIRTUAL MIRROR CALLBACK
+    // =================================================================================
+
+    // Layer change callback for syncing mirror keyboard
+    var onLayerChanged: ((KeyboardView.KeyboardState) -> Unit)? = null
+
+    // =================================================================================
+    // CALLBACK: onSuggestionsChanged
+    // SUMMARY: Called whenever the suggestion bar is updated. Used to sync mirror keyboard.
+    // =================================================================================
+    var onSuggestionsChanged: ((List<KeyboardView.Candidate>) -> Unit)? = null
+    var onSizeChanged: (() -> Unit)? = null
+    // =================================================================================
+    // END BLOCK: onSuggestionsChanged
+    // =================================================================================
+
+
+
+    fun setScreenDimensions(width: Int, height: Int, displayId: Int) {
+        // We no longer update inputHandler here
+        
+        keyboardParams?.let {
+            it.width = width
+            it.height = height
+            try {
+                windowManager.updateViewLayout(keyboardContainer, it)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+
+
+    fun updateScale(scale: Float) {
+        if (keyboardView == null) return
+        keyboardView?.setScale(scale)
+        
+        // FIX: Removed forced reset of keyboardHeight to WRAP_CONTENT.
+        // We now respect the existing keyboardHeight (whether it's fixed pixels from a manual resize
+        // or WRAP_CONTENT from default).
+        
+        if (isVisible && keyboardParams != null) {
+            // If the window is set to WRAP_CONTENT, we might need to poke the WM to re-measure
+            // effectively, but we shouldn't change the param value itself if it's already -2.
+            // If it is fixed pixels, we leave it alone.
+            
+            // We only need to update layout if we want to ensure constraints are met,
+            // but simply invalidating the view is usually enough for internal changes.
+            // To be safe, we update the view layout with the *current* params.
+            try { 
+                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                // Do NOT call saveKeyboardSize() here. Scaling shouldn't change the 
+                // "Window Size Preference" (Container), only the content scale.
+            } catch (e: Exception) {}
+        }
+    }
+    
+    fun updateAlpha(alpha: Int) {
+        currentAlpha = alpha
+        if (isVisible && keyboardContainer != null) {
+            val bg = keyboardContainer?.background as? GradientDrawable
+            if (bg != null) {
+                val fillColor = (alpha shl 24) or (0x1A1A1A)
+                bg.setColor(fillColor)
+                bg.setStroke(2, Color.parseColor("#44FFFFFF"))
+            }
+            val normalizedAlpha = alpha / 255f
+            keyboardView?.alpha = normalizedAlpha
+            keyboardContainer?.invalidate()
+        }
+    }
+    
+    fun setWindowBounds(x: Int, y: Int, width: Int, height: Int) {
+        keyboardWidth = width
+        keyboardHeight = height
+        if (isVisible && keyboardParams != null) {
+            keyboardParams?.x = x
+            keyboardParams?.y = y
+            keyboardParams?.width = width
+            keyboardParams?.height = height
+            try { 
+                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                saveKeyboardPosition()
+                saveKeyboardSize()
+            } catch (e: Exception) {}
+        } else {
+            // Even if hidden, save the new bounds so they apply on next show
+            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putInt("keyboard_x_d$currentDisplayId", x)
+                .putInt("keyboard_y_d$currentDisplayId", y)
+                .putInt("keyboard_width_d$currentDisplayId", width)
+                .putInt("keyboard_height_d$currentDisplayId", height)
+                .apply()
+        }
+    }
+   
+    fun setAnchored(anchored: Boolean) {
+        isAnchored = anchored
+    }
+
+    // Helper for OverlayService Profile Load
+    fun updatePosition(x: Int, y: Int) {
+        if (keyboardContainer == null || keyboardParams == null) {
+            // Save to prefs if hidden
+            context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+                .putInt("keyboard_x_d$currentDisplayId", x)
+                .putInt("keyboard_y_d$currentDisplayId", y)
+                .apply()
+            return
+        }
+        keyboardParams?.x = x
+        keyboardParams?.y = y
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardPosition()
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+
+    // Helper for OverlayService Profile Load
+    fun updateSize(w: Int, h: Int) {
+        keyboardWidth = w
+        keyboardHeight = h
+        
+        if (keyboardContainer == null || keyboardParams == null) {
+            saveKeyboardSize()
+            return
+        }
+        keyboardParams?.width = w
+        keyboardParams?.height = h
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardSize()
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+    
+    // Robust Getters: Return live values if visible, otherwise return saved Prefs
+    fun getViewX(): Int {
+        if (keyboardParams != null) return keyboardParams!!.x
+        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            .getInt("keyboard_x_d$currentDisplayId", 0)
+    }
+    
+    fun getViewY(): Int {
+        if (keyboardParams != null) return keyboardParams!!.y
+        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            .getInt("keyboard_y_d$currentDisplayId", 0)
+    }
+    
+    fun getViewWidth(): Int = keyboardWidth
+    fun getViewHeight(): Int = keyboardHeight
+    fun getKeyboardView(): KeyboardView? = keyboardView
+
+    
+    // [START ROTATION FIX]
+    fun setRotation(angle: Int) {
+        currentRotation = angle
+        if (!isVisible || keyboardContainer == null || keyboardParams == null || keyboardView == null) return
+
+        val isPortrait = (angle == 90 || angle == 270)
+
+        // 1. Determine Logical Dimensions (Unrotated size)
+        // We rely on keyboardWidth/Height being the canonical "Landscape" size.
+        val baseW = keyboardWidth
+        val baseH = keyboardHeight 
+
+        // 2. Configure WINDOW Params (The touchable area on screen)
+        // If rotated, we swap the dimensions passed to WindowManager
+        if (isPortrait) {
+            keyboardParams?.width = if (baseH == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseH
+            keyboardParams?.height = if (baseW == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseW
+        } else {
+            keyboardParams?.width = if (baseW == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseW
+            keyboardParams?.height = if (baseH == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseH
+        }
+
+        // 3. Configure VIEW Params (The Internal Content)
+        // The View must ALWAYS be the logical size (e.g. Wide) to layout keys in rows correctly.
+        val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
+        lp.width = if (baseW == -2) FrameLayout.LayoutParams.WRAP_CONTENT else baseW
+        lp.height = if (baseH == -2) FrameLayout.LayoutParams.WRAP_CONTENT else baseH
+        keyboardView!!.layoutParams = lp
+
+        // 4. Apply Rotation to View (Not Container)
+        keyboardView!!.rotation = angle.toFloat()
+        keyboardContainer!!.rotation = 0f // Ensure container is NOT rotated
+
+        // 5. Update Layout
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+        } catch (e: Exception) {}
+
+        // 6. Post-Layout Alignment
+        // We must translate the view to re-center it because rotation happens around the pivot (center).
+        // Since we swapped the Window dimensions, the centers might not align by default without this.
+        keyboardView!!.post { alignRotatedView() }
+    }
+
+    private fun alignRotatedView() {
+        if (keyboardView == null) return
+        
+        val angle = currentRotation
+        val w = keyboardView!!.measuredWidth
+        val h = keyboardView!!.measuredHeight
+        
+        // When rotated 90/270, the "Visual" width matches the View's Height, and vice versa.
+        // We translate the view so its visual center matches the window's center.
+        
+        when (angle) {
+            90, 270 -> {
+                val tx = (h - w) / 2f
+                val ty = (w - h) / 2f
+                keyboardView!!.translationX = tx
+                keyboardView!!.translationY = ty
+            }
+            else -> {
+                keyboardView!!.translationX = 0f
+                keyboardView!!.translationY = 0f
+            }
+        }
+    }
+
+    fun cycleRotation() {
+        if (keyboardContainer == null) return
+        val nextRotation = (currentRotation + 90) % 360
+        setRotation(nextRotation)
+    }
+
+    fun resetPosition() {
+        if (keyboardParams == null) return
+        
+        // 1. Reset Rotation state
+        currentRotation = 0
+        keyboardContainer?.rotation = 0f
+        keyboardView?.rotation = 0f
+        keyboardView?.translationX = 0f
+        keyboardView?.translationY = 0f
+
+        // 2. Calculate Defaults
+        val defaultWidth = (screenWidth * 0.90f).toInt().coerceIn(300, 1200) // CHANGED: 90% width
+        val defaultHeight = WindowManager.LayoutParams.WRAP_CONTENT
+        val defaultX = (screenWidth - defaultWidth) / 2
+        val defaultY = (screenHeight / 2) // Place in middle
+
+        // 3. Update State & Params
+        keyboardWidth = defaultWidth
+        keyboardHeight = defaultHeight
+        
+        keyboardParams?.x = defaultX
+        keyboardParams?.y = defaultY
+        keyboardParams?.width = defaultWidth
+        keyboardParams?.height = defaultHeight
+
+        // 4. Update View Constraints
+        if (keyboardView != null) {
+            val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
+            lp.width = defaultWidth
+            lp.height = FrameLayout.LayoutParams.WRAP_CONTENT
+            keyboardView!!.layoutParams = lp
+        }
+
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+        } catch (e: Exception) {}
+        
+        saveKeyboardPosition()
+        saveKeyboardSize()
+    }
+    // [END ROTATION FIX]
+
+
+
+
+
+
+
+
+    fun show() { 
+        if (isVisible) return
+        try { 
+            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            currentAlpha = prefs.getInt("keyboard_alpha", 200)
+
+            createKeyboardWindow()
+
+            // --- FIX: Strict Aspect Ratio Sync ---
+            // We force the Window Height to be exactly 55% of the Width.
+            // This guarantees that the Physical Keyboard and Mirror Keyboard 
+            // have the exact same shape, ensuring the Touch Trail aligns perfectly.
+            keyboardContainer?.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+                val width = right - left
+                val height = bottom - top
+                
+                if (width > 0) {
+                    // Ratio 0.55 (Keys are slightly taller than square to fit text comfortably)
+                    // 10 keys wide, 5 rows tall. 0.5 would be square. 0.55 prevents cutoff.
+                    val targetHeight = (width * 0.55f).toInt()
+                    
+                    if (kotlin.math.abs(height - targetHeight) > 5) {
+                        keyboardParams?.height = targetHeight
+                        try { 
+                            windowManager.updateViewLayout(keyboardContainer, keyboardParams) 
+                        } catch (e: Exception) { }
+                    }
+                }
+            }
+
+            // Set initial params to match logic
+            if (keyboardParams?.width ?: 0 > 0) {
+                 keyboardParams?.height = ((keyboardParams?.width ?: 100) * 0.55f).toInt()
+            }
+
+            isVisible = true
+            if (currentRotation != 0) setRotation(currentRotation)
+        } catch (e: Exception) { android.util.Log.e("KeyboardOverlay", "Failed to show keyboard", e) } 
+    }
+
+
+
+
+
+
+
+
+
+    
+    fun hide() { 
+        if (!isVisible) return
+        try { 
+            windowManager.removeView(keyboardContainer)
+            keyboardContainer = null
+            keyboardView = null
+            isVisible = false 
+        } catch (e: Exception) { Log.e(TAG, "Failed to hide keyboard", e) } 
+    }
+    
+    fun toggle() { if (isVisible) hide() else show() }
+    fun isShowing(): Boolean = isVisible
+
+    fun setFocusable(focusable: Boolean) {
+        try {
+            if (keyboardContainer == null || keyboardParams == null) return
+
+            if (focusable) {
+                // Remove NOT_FOCUSABLE (Make it focusable)
+                keyboardParams?.flags = keyboardParams?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
+            } else {
+                // Add NOT_FOCUSABLE (Make it click-through for focus purposes)
+                keyboardParams?.flags = keyboardParams?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+            }
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // =================================================================================
+    // FUNCTION: setVoiceActive
+    // SUMMARY: Passes the voice state down to the keyboard view.
+    // =================================================================================
+    fun setVoiceActive(active: Boolean) {
+        keyboardView?.setVoiceActive(active)
+    }
+    // =================================================================================
+    // END BLOCK: setVoiceActive
+    // =================================================================================
+
+    // =================================================================================
+    // VIRTUAL MIRROR ORIENTATION MODE METHODS
+    // SUMMARY: Methods for managing orientation mode during virtual mirror operation.
+    //          These handle the orange trail that helps users locate their finger
+    //          position on the physical keyboard without looking at the screen.
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: setOrientationMode
+    // SUMMARY: Enables or disables orientation mode. When enabled, an orange trail
+    //          is shown and key input is blocked until the mode ends.
+    // @param active - true to enable orientation mode, false to disable
+    // =================================================================================
+    fun setOrientationMode(active: Boolean) {
+        isOrientationModeActive = active
+        keyboardView?.setOrientationModeActive(active)
+
+        if (!active) {
+            // Clear the orange trail when exiting orientation mode
+            orientationTrailView?.clear()
+        }
+    }
+    // =================================================================================
+    // END BLOCK: setOrientationMode
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: startOrientationTrail
+    // SUMMARY: Starts a new orange orientation trail at the specified position.
+    // @param x - Starting X coordinate
+    // @param y - Starting Y coordinate
+    // =================================================================================
+    fun startOrientationTrail(x: Float, y: Float) {
+        orientationTrailView?.clear()
+        orientationTrailView?.addPoint(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: startOrientationTrail
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: addOrientationTrailPoint
+    // SUMMARY: Adds a point to the orange orientation trail.
+    // @param x - X coordinate of new point
+    // @param y - Y coordinate of new point
+    // =================================================================================
+    fun addOrientationTrailPoint(x: Float, y: Float) {
+        orientationTrailView?.addPoint(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: addOrientationTrailPoint
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: clearOrientationTrail
+    // SUMMARY: Clears the orange orientation trail.
+    // =================================================================================
+    fun clearOrientationTrail() {
+        orientationTrailView?.clear()
+    }
+    // =================================================================================
+    // END BLOCK: clearOrientationTrail
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: setOrientationTrailColor
+    // SUMMARY: Sets the color of the orientation trail on the physical display.
+    // =================================================================================
+    fun setOrientationTrailColor(color: Int) {
+        orientationTrailView?.setTrailColor(color)
+    }
+    // =================================================================================
+    // END BLOCK: setOrientationTrailColor
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: startSwipeFromCurrentPosition
+    // SUMMARY: Called when switching from orange to blue trail mid-gesture.
+    //          Initializes swipe tracking so the path starts from the given position.
+    // =================================================================================
+    fun startSwipeFromCurrentPosition(x: Float, y: Float) {
+        keyboardView?.startSwipeFromPosition(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: startSwipeFromCurrentPosition
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: handleDeferredTap
+    // SUMMARY: Forwards deferred tap to KeyboardView for single key press in mirror mode.
+    // =================================================================================
+    fun handleDeferredTap(x: Float, y: Float) {
+        keyboardView?.handleDeferredTap(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: handleDeferredTap
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: getKeyboardState
+    // SUMMARY: Gets current keyboard state (layer) from KeyboardView.
+    // =================================================================================
+    fun getKeyboardState(): KeyboardView.KeyboardState? {
+        return keyboardView?.getKeyboardState()
+    }
+
+    // =================================================================================
+    // FUNCTION: setKeyboardState
+    // SUMMARY: Sets keyboard state (layer) in KeyboardView.
+    // =================================================================================
+    fun setKeyboardState(state: KeyboardView.KeyboardState) {
+        keyboardView?.setKeyboardState(state)
+    }
+
+    // =================================================================================
+    // FUNCTION: getCtrlAltState
+    // SUMMARY: Gets current Ctrl/Alt modifier states from KeyboardView.
+    // =================================================================================
+    fun getCtrlAltState(): Pair<Boolean, Boolean>? {
+        return keyboardView?.getCtrlAltState()
+    }
+
+    // =================================================================================
+    // FUNCTION: setCtrlAltState
+    // SUMMARY: Sets Ctrl/Alt modifier states in KeyboardView.
+    // =================================================================================
+    fun setCtrlAltState(ctrl: Boolean, alt: Boolean) {
+        keyboardView?.setCtrlAltState(ctrl, alt)
+    }
+    // =================================================================================
+    // END BLOCK: State accessor functions for mirror sync
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: updateSuggestionsWithSync
+    // SUMMARY: Sets suggestions on the keyboard view AND notifies callback for mirror sync.
+    // =================================================================================
+    private fun updateSuggestionsWithSync(candidates: List<KeyboardView.Candidate>) {
+        keyboardView?.setSuggestions(candidates)
+        onSuggestionsChanged?.invoke(candidates)
+    }
+    // =================================================================================
+    // END BLOCK: updateSuggestionsWithSync
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: isInOrientationMode
+    // SUMMARY: Returns whether orientation mode is currently active.
+    // @return true if orientation mode is active
+    // =================================================================================
+    fun isInOrientationMode(): Boolean {
+        return isOrientationModeActive
+    }
+    // =================================================================================
+    // END BLOCK: isInOrientationMode
+    // =================================================================================
+
+    // =================================================================================
+    // END BLOCK: VIRTUAL MIRROR ORIENTATION MODE METHODS
+    // =================================================================================
+
+    fun moveWindow(dx: Int, dy: Int) {
+        if (!isVisible || keyboardParams == null) return
+        keyboardParams!!.x += dx; keyboardParams!!.y += dy
+        try { 
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardPosition()
+            onSizeChanged?.invoke()
+        } catch (e: Exception) {}
+    }
+    
+    fun resizeWindow(dw: Int, dh: Int) {
+         if (!isVisible || keyboardParams == null) return
+         
+         // If current height is WRAP_CONTENT (-2), start from current measured height
+         var currentH = keyboardParams!!.height
+         if (currentH == WindowManager.LayoutParams.WRAP_CONTENT) {
+             currentH = keyboardContainer?.height ?: 260
+         }
+         
+         var currentW = keyboardParams!!.width
+         if (currentW == WindowManager.LayoutParams.WRAP_CONTENT) {
+             currentW = keyboardContainer?.width ?: 500
+         }
+
+         keyboardParams!!.width = max(280, currentW + dw)
+         keyboardParams!!.height = max(180, currentH + dh)
+         
+         keyboardWidth = keyboardParams!!.width
+         keyboardHeight = keyboardParams!!.height
+         
+         try { 
+             windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+             saveKeyboardSize()
+             onSizeChanged?.invoke()
+         } catch (e: Exception) {}
+    }
+
+    private fun createKeyboardWindow() {
+        keyboardContainer = FrameLayout(context)
+        val containerBg = GradientDrawable()
+        val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
+        containerBg.setColor(fillColor)
+        containerBg.cornerRadius = 16f
+        containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
+        keyboardContainer?.background = containerBg
+
+        // 1. The Keyboard Keys
+        // --- FIX Connect Shell for Spacebar Trackpad ---
+        // Pass the shell command capability to the view so it can inject mouse events
+
+
+        // Initialize Handler using 'targetDisplayId' (the class property), NOT 'inputTargetDisplayId'
+
+        keyboardView = KeyboardView(context)
+
+        // Bind KeyboardView events to our OverlayService callbacks
+        keyboardView?.cursorMoveAction = { dx, dy, isDragging ->
+            onCursorMove?.invoke(dx, dy, isDragging)
+        }
+
+        keyboardView?.cursorClickAction = { isRight ->
+            onCursorClick?.invoke(isRight)
+        }
+
+        // Touch Primitives
+        keyboardView?.touchDownAction = { onTouchDown?.invoke() }
+        keyboardView?.touchUpAction = { onTouchUp?.invoke() }
+        keyboardView?.touchTapAction = { onTouchTap?.invoke() }
+
+        // =================================================================================
+        // VIRTUAL MIRROR MODE - WIRE CALLBACK DIRECTLY TO KEYBOARDVIEW
+        // SUMMARY: The only way to intercept touches before KeyboardView processes them
+        //          is to have KeyboardView call us directly. Container listeners don't
+        //          work because child views receive touches first.
+        // =================================================================================
+        keyboardView?.mirrorTouchCallback = { x, y, action ->
+            val cb = onMirrorTouch
+            if (cb != null) {
+                cb.invoke(x, y, action)
+            } else {
+                false
+            }
+        }
+        // =================================================================================
+        // END BLOCK: VIRTUAL MIRROR MODE - WIRE CALLBACK
+        // =================================================================================
+
+
+        
+
+        // ------------------------------------------------
+        keyboardView?.setKeyboardListener(this)
+        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
+        val scale = prefs.getInt("keyboard_key_scale", 100) / 100f; keyboardView?.setScale(scale)
+        keyboardView?.alpha = currentAlpha / 255f
+
+        val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        kbParams.setMargins(6, 28, 6, 6)
+        keyboardContainer?.addView(keyboardView, kbParams)
+
+        
+
+        // 2. The Swipe Trail Overlay (Must match keyboard params to align coordinates)
+        val trailView = SwipeTrailView(context)
+        val trailParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        trailParams.setMargins(6, 28, 6, 6) // Exact same margins as keyboard
+        keyboardContainer?.addView(trailView, trailParams)
+
+        // Link them
+        keyboardView?.attachTrailView(trailView)
+
+        // =================================================================================
+        // ORIENTATION TRAIL VIEW (for virtual mirror mode)
+        // SUMMARY: A separate trail view for orange orientation trails. Layered on top
+        //          of the normal blue swipe trail so both can be visible simultaneously
+        //          if needed. Normally invisible; only shows during orientation mode.
+        // =================================================================================
+        orientationTrailView = SwipeTrailView(context)
+        orientationTrailView?.setTrailColor(0xFFFF9900.toInt()) // Orange color
+        val orientTrailParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        orientTrailParams.setMargins(6, 28, 6, 6)
+        keyboardContainer?.addView(orientationTrailView, orientTrailParams)
+        // =================================================================================
+        // END BLOCK: ORIENTATION TRAIL VIEW
+        // =================================================================================
+
+        addDragHandle(); addResizeHandle(); addCloseButton(); addTargetLabel()
+
+        val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
+        val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - 350 - 10)
+
+        keyboardParams = WindowManager.LayoutParams(
+            keyboardWidth,
+            keyboardHeight,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT
+        keyboardParams?.x = savedX
+        keyboardParams?.y = savedY
+
+        windowManager.addView(keyboardContainer, keyboardParams)
+        updateAlpha(currentAlpha)
+    }
+
+    private fun addDragHandle() {
+        val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 28); handleParams.gravity = Gravity.TOP
+        val indicator = View(context); val indicatorBg = GradientDrawable(); indicatorBg.setColor(Color.parseColor("#555555")); indicatorBg.cornerRadius = 3f; indicator.background = indicatorBg
+        val indicatorParams = FrameLayout.LayoutParams(50, 5); indicatorParams.gravity = Gravity.CENTER; indicatorParams.topMargin = 8
+        handle.addView(indicator, indicatorParams); handle.setOnTouchListener { _, event -> handleDrag(event); true }
+        keyboardContainer?.addView(handle, handleParams)
+    }
+
+    private fun addResizeHandle() {
+        val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(36, 36); handleParams.gravity = Gravity.BOTTOM or Gravity.RIGHT
+        val indicator = View(context); val indicatorBg = GradientDrawable(); indicatorBg.setColor(Color.parseColor("#3DDC84")); indicatorBg.cornerRadius = 4f; indicator.background = indicatorBg; indicator.alpha = 0.7f
+        val indicatorParams = FrameLayout.LayoutParams(14, 14); indicatorParams.gravity = Gravity.BOTTOM or Gravity.RIGHT; indicatorParams.setMargins(0, 0, 6, 6)
+        handle.addView(indicator, indicatorParams); handle.setOnTouchListener { _, event -> handleResize(event); true }
+        keyboardContainer?.addView(handle, handleParams)
+    }
+
+    private fun addCloseButton() {
+        val button = FrameLayout(context); val buttonParams = FrameLayout.LayoutParams(28, 28); buttonParams.gravity = Gravity.TOP or Gravity.RIGHT; buttonParams.setMargins(0, 2, 4, 0)
+        val closeText = TextView(context); closeText.text = "X"; closeText.setTextColor(Color.parseColor("#FF5555")); closeText.textSize = 12f; closeText.gravity = Gravity.CENTER
+        // CHANGED: Call onCloseAction to notify Service (handles IME toggle & automation)
+        button.addView(closeText, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)); button.setOnClickListener { onCloseAction() }
+        keyboardContainer?.addView(button, buttonParams)
+    }
+
+    private fun addTargetLabel() {
+        val label = TextView(context); label.text = "Display $targetDisplayId"; label.setTextColor(Color.parseColor("#888888")); label.textSize = 9f
+        val labelParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT); labelParams.gravity = Gravity.TOP or Gravity.LEFT; labelParams.setMargins(8, 6, 0, 0)
+        keyboardContainer?.addView(label, labelParams)
+    }
+
+    private fun handleDrag(event: MotionEvent): Boolean {
+        if (isAnchored) return true
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> { 
+                isMoving = true
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                initialWindowX = keyboardParams?.x ?: 0
+                initialWindowY = keyboardParams?.y ?: 0 
+            }
+            MotionEvent.ACTION_MOVE -> { 
+                if (isMoving) { 
+                    keyboardParams?.x = initialWindowX + (event.rawX - initialTouchX).toInt()
+                    keyboardParams?.y = initialWindowY + (event.rawY - initialTouchY).toInt()
+                    try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} 
+                } 
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
+                isMoving = false
+                saveKeyboardPosition() 
+            }
+        }
+        return true
+    }
+
+    // [START RESIZE FIX]
+    private fun handleResize(event: MotionEvent): Boolean {
+        if (isAnchored) return true
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                isResizing = true
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                // Capture the current WINDOW dimensions (Visual)
+                initialWidth = keyboardParams?.width ?: keyboardWidth
+                initialHeight = keyboardParams?.height ?: keyboardHeight
+                
+                // Handle WRAP_CONTENT case for initial values
+                if (initialWidth < 0) initialWidth = keyboardContainer?.width ?: 300
+                if (initialHeight < 0) initialHeight = keyboardContainer?.height ?: 200
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (isResizing) {
+                    val dX = (event.rawX - initialTouchX).toInt()
+                    val dY = (event.rawY - initialTouchY).toInt()
+                    
+                    // 1. Calculate New VISUAL Dimensions (Window Size)
+                    val newVisualW = max(280, initialWidth + dX)
+                    val newVisualH = max(180, initialHeight + dY)
+                    
+                    // 2. Update Window Params
+                    keyboardParams?.width = newVisualW
+                    keyboardParams?.height = newVisualH
+                    
+                    // 3. Update LOGICAL Dimensions (Keyboard State)
+                    // If rotated, dragging "Width" actually changes the Keyboard's "Height" (Rows)
+                    if (currentRotation == 90 || currentRotation == 270) {
+                        keyboardHeight = newVisualW
+                        keyboardWidth = newVisualH
+                    } else {
+                        keyboardWidth = newVisualW
+                        keyboardHeight = newVisualH
+                    }
+                    
+                    // 4. Update Inner View Layout to match Logical Dimensions
+                    if (keyboardView != null) {
+                        val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
+                        lp.width = keyboardWidth
+                        lp.height = keyboardHeight
+                        keyboardView!!.layoutParams = lp
+                        
+                        // Re-center view if rotation is active
+                        alignRotatedView()
+                    }
+
+                    try {
+                        windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                    } catch (e: Exception) {}
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isResizing = false
+                saveKeyboardSize()
+            }
+        }
+        return true
+    }
+    // [END RESIZE FIX]
+
+    private fun saveKeyboardSize() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_width_d$currentDisplayId", keyboardWidth).putInt("keyboard_height_d$currentDisplayId", keyboardHeight).apply() }
+    private fun saveKeyboardPosition() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_x_d$currentDisplayId", keyboardParams?.x ?: 0).putInt("keyboard_y_d$currentDisplayId", keyboardParams?.y ?: 0).apply() }
+    private fun loadKeyboardSizeForDisplay(displayId: Int) { val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE); keyboardWidth = prefs.getInt("keyboard_width_d$displayId", keyboardWidth); keyboardHeight = prefs.getInt("keyboard_height_d$displayId", keyboardHeight) }
+
+
+    // =================================================================================
+    // FUNCTION: onKeyPress
+    // SUMMARY: Handles key press events from the keyboard. Manages composing word state,
+    //          sentence start detection, and auto-learning. Special handling for
+    //          punctuation after swiped words to remove the trailing space.
+    // =================================================================================
+    override fun onKeyPress(keyCode: Int, char: Char?, metaState: Int) {
+        android.util.Log.d("DroidOS_Key", "Press: $keyCode ('$char')")
+
+        // --- PUNCTUATION AFTER SWIPE: Remove trailing space ---
+        // If the last action was a swipe (which adds "word "), and user types punctuation,
+        // we need to delete the trailing space first so we get "word." not "word ."
+        val isPunctuation = char != null && (char == '.' || char == ',' || char == '!' ||
+                                              char == '?' || char == ';' || char == ':' ||
+                                              char == '\'' || char == '"')
+
+        if (isPunctuation && lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.endsWith(" ")) {
+            // Delete the trailing space from the swiped word
+            injectKey(KeyEvent.KEYCODE_DEL, 0)
+            android.util.Log.d("DroidOS_Swipe", "PUNCTUATION: Removed trailing space before '$char'")
+
+            // Update the swipe word to not include the space (in case they backspace)
+            lastCommittedSwipeWord = lastCommittedSwipeWord!!.trimEnd()
+        }
+
+        // 1. Inject the key event
+        injectKey(keyCode, metaState)
+
+        // 2. Clear Swipe History on manual typing (but NOT for punctuation or shift)
+        if (keyCode != KeyEvent.KEYCODE_SHIFT_LEFT &&
+            keyCode != KeyEvent.KEYCODE_SHIFT_RIGHT &&
+            !isPunctuation) {
+            lastCommittedSwipeWord = null
+        }
+
+        // 3. Handle Backspace (Fixes "deleted text persists" bug)
+        if (keyCode == KeyEvent.KEYCODE_DEL) {
+            if (currentComposingWord.isNotEmpty()) {
+                currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
+                updateSuggestions()
+            }
+            return
+        }
+
+        // 4. Track Sentence Start
+        if (keyCode == KeyEvent.KEYCODE_ENTER || char == '.' || char == '!' || char == '?') {
+            isSentenceStart = true
+            lastCommittedSwipeWord = null // Clear swipe state on sentence end
+
+            // Auto-learn on punctuation
+            if (currentComposingWord.isNotEmpty()) {
+                val word = currentComposingWord.toString()
+                if (word.length >= 2) {
+                    predictionEngine.learnWord(context, word)
+                }
+            }
+            currentComposingWord.clear()
+
+        } else if (char != null && !Character.isWhitespace(char) && !isPunctuation) {
+            isSentenceStart = false
+        }
+
+        // 5. Update Composing Word
+        if (char != null && Character.isLetterOrDigit(char)) {
+            currentComposingWord.append(char)
+            updateSuggestions()
+        } else if (char != null && Character.isWhitespace(char)) {
+            // Space finishes a word
+            if (currentComposingWord.isNotEmpty()) {
+                val word = currentComposingWord.toString()
+                if (word.length >= 2) {
+                    predictionEngine.learnWord(context, word)
+                }
+            }
+            currentComposingWord.clear()
+            lastCommittedSwipeWord = null // Clear swipe state on space
+            updateSuggestions()
+        } else {
+            // Other symbols clear composition
+            currentComposingWord.clear()
+            updateSuggestions()
+        }
+    }
+    // =================================================================================
+    // END BLOCK: onKeyPress with punctuation spacing fix
+    // =================================================================================
+
+    
+    override fun onTextInput(text: String) {
+        if (shellService == null) return
+        Thread { try { val cmd = "input -d $targetDisplayId text \"$text\""; shellService.runCommand(cmd) } catch (e: Exception) { Log.e(TAG, "Text injection failed", e) } }.start()
+    }
+
+    override fun onScreenToggle() { onScreenToggleAction() }
+    override fun onScreenModeChange() { onScreenModeChangeAction() }
+
+    override fun onSpecialKey(key: KeyboardView.SpecialKey, metaState: Int) {
+        if (key == KeyboardView.SpecialKey.VOICE_INPUT) {
+            triggerVoiceTyping()
+            return
+        }
+        if (key == KeyboardView.SpecialKey.HIDE_KEYBOARD) {
+            onCloseAction() // Calls the close/hide action passed from Service
+            return
+        }
+
+        // =================================================================================
+        // BACKSPACE HANDLING - SWIPE WORD DELETE
+        // SUMMARY: If the last action was a swipe word commit, backspace deletes the
+        //          entire word (plus trailing space). Otherwise, normal backspace behavior.
+        //          This allows quick correction of mis-swiped words.
+        // =================================================================================
+        if (key == KeyboardView.SpecialKey.BACKSPACE) {
+            // CHECK: Was the last input a swiped word?
+            if (lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.isNotEmpty()) {
+                // Delete the entire swiped word (including trailing space)
+                val deleteCount = lastCommittedSwipeWord!!.length
+                android.util.Log.d("DroidOS_Swipe", "BACKSPACE: Deleting swiped word '${lastCommittedSwipeWord}' ($deleteCount chars)")
+
+                for (i in 0 until deleteCount) {
+                    injectKey(KeyEvent.KEYCODE_DEL, 0)
+                }
+
+                // Clear the swipe history so next backspace is normal
+                lastCommittedSwipeWord = null
+
+                // Don't inject another backspace - we already deleted
+                return
+            }
+
+            // Normal backspace: delete from composing word
+            if (currentComposingWord.isNotEmpty()) {
+                currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
+                updateSuggestions()
+            }
+        } else if (key == KeyboardView.SpecialKey.SPACE) {
+            // Space clears swipe history (user is continuing to type)
+            lastCommittedSwipeWord = null
+            resetComposition()
+        } else {
+            // Enter, Tabs, Arrows all break the current word chain
+            lastCommittedSwipeWord = null
+            resetComposition()
+        }
+        // =================================================================================
+        // END BLOCK: BACKSPACE HANDLING - SWIPE WORD DELETE
+        // =================================================================================
+
+        val keyCode = when (key) {
+            KeyboardView.SpecialKey.BACKSPACE -> KeyEvent.KEYCODE_DEL
+            KeyboardView.SpecialKey.ENTER -> KeyEvent.KEYCODE_ENTER
+            KeyboardView.SpecialKey.SPACE -> KeyEvent.KEYCODE_SPACE
+            KeyboardView.SpecialKey.TAB -> KeyEvent.KEYCODE_TAB
+            KeyboardView.SpecialKey.ESCAPE -> KeyEvent.KEYCODE_ESCAPE
+            KeyboardView.SpecialKey.ARROW_UP -> KeyEvent.KEYCODE_DPAD_UP
+            KeyboardView.SpecialKey.ARROW_DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
+            KeyboardView.SpecialKey.ARROW_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
+            KeyboardView.SpecialKey.ARROW_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
+            KeyboardView.SpecialKey.HOME -> KeyEvent.KEYCODE_MOVE_HOME
+            KeyboardView.SpecialKey.END -> KeyEvent.KEYCODE_MOVE_END
+            KeyboardView.SpecialKey.DELETE -> KeyEvent.KEYCODE_FORWARD_DEL
+            KeyboardView.SpecialKey.MUTE -> KeyEvent.KEYCODE_VOLUME_MUTE
+            KeyboardView.SpecialKey.VOL_UP -> KeyEvent.KEYCODE_VOLUME_UP
+            KeyboardView.SpecialKey.VOL_DOWN -> KeyEvent.KEYCODE_VOLUME_DOWN
+            KeyboardView.SpecialKey.BACK_NAV -> KeyEvent.KEYCODE_BACK
+            KeyboardView.SpecialKey.FWD_NAV -> KeyEvent.KEYCODE_FORWARD
+            else -> return
+        }
+        injectKey(keyCode, metaState)
+    }
+
+    // =================================================================================
+    // FUNCTION: onSuggestionClick
+    // SUMMARY: Handles when user taps a word in the prediction bar. Two modes:
+    //          1. Swipe Correction: Replaces the last swiped word entirely
+    //          2. Manual Typing Completion: Replaces partially typed word
+    //          Uses small delays between deletes and text injection to ensure
+    //          proper sequencing on the input field.
+    // =================================================================================
+    override fun onSuggestionClick(text: String, isNew: Boolean) {
+        android.util.Log.d("DroidOS_Prediction", "Suggestion clicked: '$text' (isNew=$isNew, swipeWord='$lastCommittedSwipeWord', composing='$currentComposingWord')")
+
+        // 1. Learn word if it was flagged as New
+        if (isNew) {
+            predictionEngine.learnWord(context, text)
+            android.util.Log.d("DroidOS_Prediction", "Learned new word: $text")
+        }
+
+        // 2. Commit logic
+        // --- LOGIC: Swipe Correction ---
+        if (lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.isNotEmpty()) {
+            val deleteCount = lastCommittedSwipeWord!!.length
+            android.util.Log.d("DroidOS_Prediction", "SWIPE REPLACE: Deleting $deleteCount chars, inserting '$text'")
+
+            // Delete in a background thread with small delays for reliability
+            Thread {
+                try {
+                    // Delete character by character with small delay
+                    for (i in 0 until deleteCount) {
+                        injectKey(KeyEvent.KEYCODE_DEL, 0)
+                        Thread.sleep(5) // Small delay between deletes
+                    }
+
+                    // Small pause before injecting new text
+                    Thread.sleep(20)
+
+                    // Inject new word (Maintain capitalization of the replaced word)
+                    var newText = text
+                    val wasCap = Character.isUpperCase(lastCommittedSwipeWord!!.firstOrNull() ?: ' ')
+                    if (wasCap) {
+                        newText = newText.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                    }
+
+                    val finalText = "$newText "
+                    injectText(finalText)
+
+                    // Update history on UI thread
+                    handler.post {
+                        lastCommittedSwipeWord = finalText
+                        updateSuggestions()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("DroidOS_Prediction", "Suggestion replace failed: ${e.message}")
+                }
+            }.start()
+
+        } else {
+            // --- LOGIC: Manual Typing Completion ---
+            val charsToDelete = currentComposingWord.length
+            android.util.Log.d("DroidOS_Prediction", "MANUAL REPLACE: Deleting $charsToDelete chars, inserting '$text'")
+
+            if (charsToDelete == 0) {
+                // Nothing to delete, just insert
+                injectText("$text ")
+                resetComposition()
+                return
+            }
+
+            // Delete and insert in background thread for reliability
+            Thread {
+                try {
+                    // Delete character by character with small delay
+                    for (i in 0 until charsToDelete) {
+                        injectKey(KeyEvent.KEYCODE_DEL, 0)
+                        Thread.sleep(5) // Small delay between deletes
+                    }
+
+                    // Small pause before injecting new text
+                    Thread.sleep(20)
+
+                    // Inject the full word + space
+                    injectText("$text ")
+
+                    // Reset on UI thread
+                    handler.post {
+                        resetComposition()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("DroidOS_Prediction", "Suggestion insert failed: ${e.message}")
+                }
+            }.start()
+        }
+    }
+    // =================================================================================
+    // END BLOCK: onSuggestionClick with reliable replacement
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: onSuggestionDropped
+    // SUMMARY: Called when user drags a suggestion to backspace to delete/block it.
+    //          DEBUG: Logging to confirm this is being called.
+    // =================================================================================
+    override fun onSuggestionDropped(text: String) {
+        android.util.Log.d("DroidOS_Drag", ">>> onSuggestionDropped CALLED: '$text'")
+
+        // Block the word
+        predictionEngine.blockWord(context, text)
+
+        android.widget.Toast.makeText(context, "Removed: $text", android.widget.Toast.LENGTH_SHORT).show()
+
+        // Refresh suggestions to remove the blocked word
+        updateSuggestions()
+
+        android.util.Log.d("DroidOS_Drag", "<<< onSuggestionDropped COMPLETE: '$text' blocked")
+    }
+    // =================================================================================
+    // END BLOCK: onSuggestionDropped with debug logging
+    // =================================================================================
+
+    // Layer change notification for mirror keyboard sync
+    override fun onLayerChanged(state: KeyboardView.KeyboardState) {
+        onLayerChanged?.invoke(state)
+    }
+
+    // =================================================================================
+    // FUNCTION: onSwipeDetected
+    // SUMMARY: Handles swipe gesture completion. Runs decoding in background thread.
+    //          LOGGING: Logs at every decision point to diagnose silent failures.
+    // =================================================================================
+    override fun onSwipeDetected(path: List<android.graphics.PointF>) {
+        // LOG: Entry point - proves we got here from KeyboardView
+        android.util.Log.d("DroidOS_Swipe", ">>> onSwipeDetected ENTRY (${path.size} points)")
+
+        // CHECK: keyboardView exists
+        if (keyboardView == null) {
+            android.util.Log.e("DroidOS_Swipe", "ABORT: keyboardView is NULL")
+            return
+        }
+
+        // CHECK: keyMap exists and has keys
+        val keyMap = keyboardView?.getKeyCenters()
+        if (keyMap == null) {
+            android.util.Log.e("DroidOS_Swipe", "ABORT: getKeyCenters() returned NULL")
+            return
+        }
+        if (keyMap.isEmpty()) {
+            android.util.Log.e("DroidOS_Swipe", "ABORT: keyMap is EMPTY (0 keys)")
+            return
+        }
+
+        android.util.Log.d("DroidOS_Swipe", "keyMap OK: ${keyMap.size} keys loaded")
+
+        Thread {
+            try {
+                android.util.Log.d("DroidOS_Swipe", "--- Decoding Thread Started ---")
+
+                val suggestions = predictionEngine.decodeSwipe(path, keyMap)
+
+                android.util.Log.d("DroidOS_Swipe", "--- Decoding Complete: ${suggestions.size} suggestions ---")
+
+                if (suggestions.isNotEmpty()) {
+                    handler.post {
+                        var bestMatch = suggestions[0]
+                        if (isSentenceStart) {
+                            bestMatch = bestMatch.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        }
+
+                        val isCap = Character.isUpperCase(bestMatch.firstOrNull() ?: ' ')
+                        val displaySuggestions = if (isCap) {
+                            suggestions.map { it.replaceFirstChar { c -> c.titlecase() } }
+                        } else {
+                            suggestions
+                        }.map { KeyboardView.Candidate(it, isNew = false) }
+
+                        updateSuggestionsWithSync(displaySuggestions)
+
+                        // =================================================================================
+                        // SWIPE TEXT COMMIT WITH SPACE HANDLING
+                        // SUMMARY: If user was typing letters before swiping, we need to add a space
+                        //          between the typed letters and the swiped word.
+                        //          Example: Type "a" then swipe "dog" = "a dog" not "adog"
+                        // =================================================================================
+                        var textToCommit = bestMatch
+
+                        // Check if there are uncommitted typed letters that need a space after them
+                        if (currentComposingWord.isNotEmpty()) {
+                            // User typed some letters, then started swiping
+                            // We need to "finish" the typed word with a space first
+                            android.util.Log.d("DroidOS_Swipe", "Composing word exists: '$currentComposingWord' - adding space before swipe")
+                            textToCommit = " $bestMatch"
+                            currentComposingWord.clear()
+                        }
+
+                        // Add trailing space
+                        textToCommit = "$textToCommit "
+
+                        injectText(textToCommit)
+                        lastCommittedSwipeWord = textToCommit
+                        isSentenceStart = false
+                        // =================================================================================
+                        // END BLOCK: SWIPE TEXT COMMIT WITH SPACE HANDLING
+                        // =================================================================================
+
+                        android.util.Log.d("DroidOS_Swipe", "SUCCESS: Committed '$bestMatch'")
+                    }
+                } else {
+                    android.util.Log.e("DroidOS_Swipe", "FAIL: decodeSwipe returned EMPTY list")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("DroidOS_Swipe", "CRASH in Swipe Thread: ${e.message}", e)
+                e.printStackTrace()
+            }
+        }.start()
+    }
+    // =================================================================================
+    // END BLOCK: onSwipeDetected with comprehensive logging
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: updateSuggestions
+    // SUMMARY: Updates the suggestion bar based on current composing word.
+    //          Shows raw input + dictionary suggestions, filtering blocked words.
+    // =================================================================================
+    private fun updateSuggestions() {
+        val prefix = currentComposingWord.toString()
+        if (prefix.isEmpty()) {
+            updateSuggestionsWithSync(emptyList())
+            return
+        }
+
+        // 1. Get dictionary suggestions (already filtered for blocked words)
+        val suggestions = predictionEngine.getSuggestions(prefix, 3)
+
+        val candidates = ArrayList<KeyboardView.Candidate>()
+
+        // 2. Add Raw Input as first option (but NOT if it's blocked)
+        val lowerPrefix = prefix.lowercase()
+        val isBlocked = predictionEngine.isWordBlocked(lowerPrefix)
+
+        if (!isBlocked) {
+            val rawExists = predictionEngine.hasWord(prefix)
+            candidates.add(KeyboardView.Candidate(prefix, isNew = !rawExists))
+        }
+
+        // 3. Add dictionary suggestions (avoiding duplicates)
+        for (s in suggestions) {
+            // Don't show if it looks exactly like the raw input (ignore case)
+            if (!s.equals(prefix, ignoreCase = true)) {
+                candidates.add(KeyboardView.Candidate(s, isNew = false))
+            }
+        }
+
+        updateSuggestionsWithSync(candidates.take(3))
+    }
+    // =================================================================================
+    // END BLOCK: updateSuggestions
+    // =================================================================================
+
+    private fun resetComposition() {
+        currentComposingWord.clear()
+        updateSuggestionsWithSync(emptyList())
+    }
+
+    private fun injectKey(keyCode: Int, metaState: Int) {
+        (context as? OverlayService)?.injectKeyFromKeyboard(keyCode, metaState)
+    }
+
+    // --- Voice Logic & Mic Check Loop ---
+    
+    // Handler for the 1-second loop
+    private val micCheckHandler = Handler(Looper.getMainLooper())
+    
+    // Runnable that checks if the Microphone is currently recording
+    private val micCheckRunnable = object : Runnable {
+        override fun run() {
+            try {
+                val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+                
+                // Use activeRecordingConfigurations (API 24+) to check if any app is recording
+                var isMicOn = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    if (audioManager.activeRecordingConfigurations.isNotEmpty()) {
+                        isMicOn = true
+                    }
+                }
+                
+                if (isMicOn) {
+                    // Still recording, check again in 1 second
+                    micCheckHandler.postDelayed(this, 1000)
+                } else {
+                    // Mic stopped (or not supported), turn off the green light
+                    keyboardView?.setVoiceActive(false)
+                }
+            } catch (e: Exception) {
+                // If check fails, fail safe to off
+                keyboardView?.setVoiceActive(false)
+            }
+        }
+    }
+
+    private fun triggerVoiceTyping() {
+        if (shellService == null) return
+
+        // 1. UI: Turn Button Green Immediately
+        keyboardView?.setVoiceActive(true)
+        
+        // 2. Start Monitoring Loop
+        // Delay 3 seconds to allow the Voice IME to open and start recording
+        micCheckHandler.removeCallbacks(micCheckRunnable)
+        micCheckHandler.postDelayed(micCheckRunnable, 3000)
+
+        // 3. Notify Service to stop blocking touches
+        val intent = android.content.Intent("VOICE_TYPE_TRIGGERED")
+        intent.setPackage(context.packageName)
+        context.sendBroadcast(intent)
+
+        // 4. Perform IME Switch via Shell
+        Thread {
+            try {
+                // Fetch IME list and find Google Voice Typing
+                val output = shellService?.runCommand("ime list -a -s") ?: ""
+                val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) } 
+                    ?: output.lines().find { it.contains("voice", true) }
+                
+                if (voiceIme != null) {
+                    shellService?.runCommand("ime set $voiceIme")
+                } else {
+                    android.util.Log.w(TAG, "Voice IME not found")
+                    // If IME missing, turn off light
+                    micCheckHandler.post { keyboardView?.setVoiceActive(false) }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Voice Switch Failed", e)
+                micCheckHandler.post { keyboardView?.setVoiceActive(false) }
+            }
+        }.start()
+    }
+}
+```
+
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
 ```kotlin
 package com.example.coverscreentester
@@ -29483,9 +19625,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val scaleY = if (physicalKbHeight > 0) mirrorKbHeight / physicalKbHeight else 1f
         mirrorTrailView?.addPoint(lastOrientX * scaleX, lastOrientY * scaleY)
 
-        // Keep mirror visible
+        // Keep mirror visible - only adjust alpha, no background color
         mirrorKeyboardView?.alpha = 0.7f
-        mirrorKeyboardContainer?.setBackgroundColor(0x60000000)
+        // FIX: Removed setBackgroundColor - container is transparent
     }
     // =================================================================================
     // END BLOCK: orientationModeTimeout
@@ -31261,6 +21403,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
 
     fun resetTrackpadPosition() { trackpadParams.x = 100; trackpadParams.y = 100; trackpadParams.width = 400; trackpadParams.height = 300; windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }    // =================================================================================
+// =================================================================================
     // FUNCTION: showMirrorTemporarily
     // SUMMARY: Makes mirror keyboard visible temporarily, like when touched.
     //          Used during D-pad adjustments so user can see changes.
@@ -31271,11 +21414,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // Cancel any pending fade
         mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
         
-        // Show mirror
+        // Show mirror - only adjust alpha, container is transparent
         val alpha = prefs.prefMirrorAlpha / 255f
         mirrorKeyboardContainer?.alpha = 1f
-        mirrorKeyboardView?.alpha = alpha.coerceAtLeast(0.7f)  // At least 70% visible during adjustment
-        mirrorKeyboardContainer?.setBackgroundColor(0x80000000.toInt())
+        mirrorKeyboardView?.alpha = alpha.coerceAtLeast(0.7f)
         
         // Schedule fade out after 2 seconds
         mirrorFadeHandler.postDelayed(mirrorFadeRunnable, 2000)
@@ -31283,24 +21425,25 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =================================================================================
     // END BLOCK: showMirrorTemporarily
     // =================================================================================
-
     // =================================================================================
+// =================================================================================
     // FUNCTION: adjustMirrorKeyboard
     // SUMMARY: Adjusts mirror keyboard position or size via D-pad controls.
     //          Shows mirror during adjustment and syncs coordinate scaling.
+    //          Resize mode triggers a layout pass which updates sync dimensions.
     // =================================================================================
     fun adjustMirrorKeyboard(isResize: Boolean, deltaX: Int, deltaY: Int) {
         if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
         
-        // Show mirror during adjustment (like touching keyboard)
+        // Show mirror during adjustment
         showMirrorTemporarily()
         
         if (isResize) {
-            // Resize mode - adjust width/height
+            // Resize mode - adjust width/height independently
             var currentWidth = mirrorKeyboardParams?.width ?: return
             var currentHeight = mirrorKeyboardParams?.height ?: return
             
-            // Handle WRAP_CONTENT
+            // Handle WRAP_CONTENT - get actual measured dimensions
             if (currentWidth == WindowManager.LayoutParams.WRAP_CONTENT) {
                 currentWidth = mirrorKeyboardContainer?.width ?: 600
             }
@@ -31309,24 +21452,24 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             }
             
             // Apply deltas with constraints
-            mirrorKeyboardParams?.width = (currentWidth + deltaX).coerceIn(200, 2000)
-            mirrorKeyboardParams?.height = (currentHeight + deltaY).coerceIn(150, 800)
+            val newWidth = (currentWidth + deltaX).coerceIn(200, 2000)
+            val newHeight = (currentHeight + deltaY).coerceIn(100, 1000)
+            
+            mirrorKeyboardParams?.width = newWidth
+            mirrorKeyboardParams?.height = newHeight
             
             // Save to prefs
             getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-                .putInt("mirror_width", mirrorKeyboardParams?.width ?: -1)
-                .putInt("mirror_height", mirrorKeyboardParams?.height ?: -1)
+                .putInt("mirror_width", newWidth)
+                .putInt("mirror_height", newHeight)
                 .apply()
             
-            // Update coordinate scaling for touch sync
-            mirrorKbWidth = (mirrorKeyboardParams?.width ?: 600).toFloat()
-            mirrorKbHeight = (mirrorKeyboardParams?.height ?: 400).toFloat()
+            Log.d(TAG, "Mirror keyboard resized to: ${newWidth}x${newHeight}")
             
         } else {
             // Move mode - adjust x/y position
-            // NOTE: For Gravity.BOTTOM, positive Y moves UP, so we invert deltaY
             mirrorKeyboardParams?.x = (mirrorKeyboardParams?.x ?: 0) + deltaX
-            mirrorKeyboardParams?.y = (mirrorKeyboardParams?.y ?: 0) - deltaY  // INVERTED
+            mirrorKeyboardParams?.y = (mirrorKeyboardParams?.y ?: 0) - deltaY  // INVERTED for Gravity.BOTTOM
             
             // Save to prefs
             getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
@@ -31337,17 +21480,26 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         try {
             mirrorWindowManager?.updateViewLayout(mirrorKeyboardContainer, mirrorKeyboardParams)
+            
+            // FIX: After layout update, post a delayed sync dimension update
+            // This ensures we capture the new measured dimensions after the layout pass
+            if (isResize) {
+                handler.postDelayed({
+                    updateMirrorSyncDimensions()
+                }, 100)  // Small delay to allow layout to complete
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update mirror keyboard layout", e)
         }
     }
     // =================================================================================
     // END BLOCK: adjustMirrorKeyboard
+    // =================================================================================    
     // =================================================================================
-    
-    // =================================================================================
+// =================================================================================
     // FUNCTION: resetMirrorKeyboardPosition
     // SUMMARY: Resets mirror keyboard to default centered position at bottom.
+    //          Uses WRAP_CONTENT height and triggers sync dimension update.
     // =================================================================================
     fun resetMirrorKeyboardPosition() {
         if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
@@ -31360,16 +21512,14 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         val metrics = android.util.DisplayMetrics()
         display.getRealMetrics(metrics)
         
+        val mirrorWidth = (metrics.widthPixels * 0.95f).toInt()
+        
         // Reset to defaults
         mirrorKeyboardParams?.x = 0
         mirrorKeyboardParams?.y = 0
         mirrorKeyboardParams?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-        mirrorKeyboardParams?.width = (metrics.widthPixels * 0.95f).toInt()
+        mirrorKeyboardParams?.width = mirrorWidth
         mirrorKeyboardParams?.height = WindowManager.LayoutParams.WRAP_CONTENT
-        
-        // Update scaling
-        mirrorKbWidth = (mirrorKeyboardParams?.width ?: 600).toFloat()
-        mirrorKbHeight = 400f  // Will be updated when view measures
         
         // Clear saved prefs
         getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
@@ -31381,14 +21531,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         try {
             mirrorWindowManager?.updateViewLayout(mirrorKeyboardContainer, mirrorKeyboardParams)
+            
+            // FIX: Update sync dimensions after layout
+            handler.postDelayed({
+                updateMirrorSyncDimensions()
+            }, 100)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to reset mirror keyboard layout", e)
         }
+        
+        Log.d(TAG, "Mirror keyboard reset to defaults")
     }
     // =================================================================================
     // END BLOCK: resetMirrorKeyboardPosition
     // =================================================================================
-
     fun cycleInputTarget() {
         if (displayManager == null) return; val displays = displayManager!!.displays; var nextId = -1
         for (d in displays) { if (d.displayId != currentDisplayId) { if (inputTargetDisplayId == currentDisplayId) { nextId = d.displayId; break } else if (inputTargetDisplayId == d.displayId) { continue } else { nextId = d.displayId } } }
@@ -31477,10 +21633,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 
-    // =================================================================================
+// =================================================================================
     // FUNCTION: createMirrorKeyboard
     // SUMMARY: Creates a transparent keyboard mirror on the remote display.
     //          Stores dimensions for coordinate scaling between physical and mirror.
+    //          FIX: Container has NO background - KeyboardView's own #1A1A1A background
+    //          ensures tight wrapping. Uses OnLayoutChangeListener to track actual
+    //          KeyboardView dimensions for accurate touch sync.
     // =================================================================================
     private fun createMirrorKeyboard(displayId: Int) {
         try {
@@ -31491,14 +21650,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
             mirrorWindowManager = mirrorContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             mirrorKeyboardContainer = FrameLayout(mirrorContext)
-            mirrorKeyboardContainer?.setBackgroundColor(0x40000000) // Semi-transparent bg
+            // FIX: NO background on container - let KeyboardView's own background show
+            mirrorKeyboardContainer?.setBackgroundColor(Color.TRANSPARENT)
             mirrorKeyboardContainer?.alpha = 0f // Start fully invisible
 
             // Create KeyboardView for the mirror
             mirrorKeyboardView = KeyboardView(mirrorContext, null, 0)
             mirrorKeyboardView?.alpha = 0f // Start fully invisible
 
-            // Apply same scale
+            // Apply same scale as physical keyboard
             val scale = prefs.prefKeyScale / 100f
             mirrorKeyboardView?.setScale(scale)
 
@@ -31506,7 +21666,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             mirrorTrailView = SwipeTrailView(mirrorContext)
             mirrorTrailView?.setTrailColor(0xFFFF9900.toInt())
 
-            // Layout params for views
+            // Layout params for views - KeyboardView uses WRAP_CONTENT to size naturally
             val kbParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
@@ -31523,20 +21683,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             val metrics = android.util.DisplayMetrics()
             display.getRealMetrics(metrics)
 
-            // Calculate mirror keyboard size
-            val mirrorWidth = (metrics.widthPixels * 0.95f).toInt()
+            // Calculate mirror keyboard size - use saved or default width
+            val savedWidth = prefs.prefMirrorWidth
+            val mirrorWidth = if (savedWidth != -1 && savedWidth > 0) savedWidth else (metrics.widthPixels * 0.95f).toInt()
 
-            // Store dimensions for coordinate scaling
+            // Initialize with placeholder dimensions (will be updated by OnLayoutChangeListener)
             mirrorKbWidth = mirrorWidth.toFloat()
-            mirrorKbHeight = 400f // Approximate, will be adjusted
+            mirrorKbHeight = 400f
 
             // Get physical keyboard dimensions
-            physicalKbWidth = keyboardOverlay?.getViewWidth()?.toFloat() ?: 600f
-            physicalKbHeight = keyboardOverlay?.getViewHeight()?.toFloat() ?: 400f
+            physicalKbWidth = keyboardOverlay?.getKeyboardView()?.width?.toFloat() ?: 600f
+            physicalKbHeight = keyboardOverlay?.getKeyboardView()?.height?.toFloat() ?: 400f
 
-            Log.d(TAG, "Mirror KB: ${mirrorKbWidth}x${mirrorKbHeight}, Physical KB: ${physicalKbWidth}x${physicalKbHeight}")
+            Log.d(TAG, "Mirror KB init: ${mirrorKbWidth}x${mirrorKbHeight}, Physical KB: ${physicalKbWidth}x${physicalKbHeight}")
 
-            // Window params
+            // Window params - use WRAP_CONTENT for height
             mirrorKeyboardParams = WindowManager.LayoutParams(
                 mirrorWidth,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -31552,17 +21713,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             // Apply saved position if available
             val savedX = prefs.prefMirrorX
             val savedY = prefs.prefMirrorY
-            val savedWidth = prefs.prefMirrorWidth
             
             if (savedX != -1) {
                 mirrorKeyboardParams?.x = savedX
-                mirrorKeyboardParams?.gravity = Gravity.TOP or Gravity.START  // Switch to absolute positioning
+                mirrorKeyboardParams?.gravity = Gravity.TOP or Gravity.START
             }
             if (savedY != -1) {
                 mirrorKeyboardParams?.y = savedY
-            }
-            if (savedWidth != -1 && savedWidth > 0) {
-                mirrorKeyboardParams?.width = savedWidth
             }
             
             // Apply saved alpha
@@ -31570,6 +21727,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             mirrorKeyboardContainer?.alpha = savedAlpha
 
             mirrorWindowManager?.addView(mirrorKeyboardContainer, mirrorKeyboardParams)
+
+            // FIX: Track actual KeyboardView dimensions for accurate touch sync
+            // This listener fires after layout, giving us the real measured dimensions
+            mirrorKeyboardView?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                updateMirrorSyncDimensions()
+            }
 
             Log.d(TAG, "Mirror keyboard created on display $displayId")
 
@@ -31604,6 +21767,35 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
         isInOrientationMode = false
     }
+
+    // =================================================================================
+    // FUNCTION: updateMirrorSyncDimensions
+    // SUMMARY: Updates the scaling dimensions used for touch coordinate sync.
+    //          Gets actual measured dimensions from both KeyboardViews to ensure
+    //          accurate mapping regardless of container sizes or aspect ratios.
+    //          Should be called after any layout change on either keyboard.
+    // =================================================================================
+    private fun updateMirrorSyncDimensions() {
+        // Get physical keyboard's actual KeyboardView dimensions
+        // Note: These are the dimensions where touch events are reported
+        val physicalView = keyboardOverlay?.getKeyboardView()
+        if (physicalView != null && physicalView.width > 0 && physicalView.height > 0) {
+            physicalKbWidth = physicalView.width.toFloat()
+            physicalKbHeight = physicalView.height.toFloat()
+        }
+        
+        // Get mirror keyboard's actual KeyboardView dimensions
+        val mirrorView = mirrorKeyboardView
+        if (mirrorView != null && mirrorView.width > 0 && mirrorView.height > 0) {
+            mirrorKbWidth = mirrorView.width.toFloat()
+            mirrorKbHeight = mirrorView.height.toFloat()
+        }
+        
+        Log.d(TAG, "Mirror sync updated: Physical=${physicalKbWidth}x${physicalKbHeight}, Mirror=${mirrorKbWidth}x${mirrorKbHeight}")
+    }
+    // =================================================================================
+    // END BLOCK: updateMirrorSyncDimensions
+    // =================================================================================
 
     // =================================================================================
     // FUNCTION: syncMirrorKeyboardLayer
@@ -31657,7 +21849,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 // Make mirror VISIBLE on touch
                 mirrorKeyboardView?.alpha = 0.9f
                 mirrorKeyboardContainer?.alpha = 1f
-                mirrorKeyboardContainer?.setBackgroundColor(0x80000000.toInt())
+                // FIX: No container background - KeyboardView has its own background
 
                 // Start orientation mode
                 isInOrientationMode = true
@@ -31741,7 +21933,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
                 // Fade mirror
                 mirrorKeyboardView?.alpha = 0.3f
-                mirrorKeyboardContainer?.setBackgroundColor(0x40000000)
+                // FIX: No container background to change
 
                 // Schedule fade out
                 mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
