@@ -30,10 +30,10 @@ import kotlin.math.abs
 class PredictionEngine {
 
 
-
-
-
-
+// =================================================================================
+    // BLOCK: TUNING PARAMETERS
+    // SUMMARY: Core algorithm weights and thresholds.
+    // =================================================================================
     companion object {
         val instance = PredictionEngine()
 
@@ -43,10 +43,14 @@ class PredictionEngine {
         private const val SEARCH_RADIUS = 70f
         
         // Weights: 
-        // Location 0.85: Increased to fix "Swipe" vs "Swiped" (Endpoint accuracy)
+        // Shape: Overall pattern similarity
+        // Location: Absolute position matching (endpoints critical)
+        // Direction: Flow/direction alignment
+        // Turn: NEW - Corner/turn pattern matching (for shortcut, android, circle)
         private const val SHAPE_WEIGHT = 0.25f
         private const val LOCATION_WEIGHT = 0.85f
-        private const val DIRECTION_WEIGHT = 0.8f 
+        private const val DIRECTION_WEIGHT = 0.6f   // Reduced to make room for turns
+        private const val TURN_WEIGHT = 0.5f        // NEW: Weight for turn matching
         
         // Files
         private const val USER_STATS_FILE = "user_stats.json"
@@ -54,6 +58,9 @@ class PredictionEngine {
         private const val USER_DICT_FILE = "user_words.txt"
         private const val MIN_WORD_LENGTH = 2
     }
+    // =================================================================================
+    // END BLOCK: TUNING PARAMETERS
+    // =================================================================================
 
 
 
@@ -666,13 +673,15 @@ class PredictionEngine {
      * 4. Location channel scoring (absolute positions)  
      * 5. Integration with frequency weighting
      */
+    // =================================================================================
+    // FUNCTION: decodeSwipe (Adaptive Length + Robust Neighbors)
+    // =================================================================================
 // =================================================================================
-    // FUNCTION: decodeSwipe (v5 - Balanced Scoring)
-    // SUMMARY: Balanced approach with:
-    //          - Less aggressive dwell detection (fixes as→ass, to→too)
-    //          - Path length ratio scoring (fixes three→the)
-    //          - Better candidate collection (fixes android, shortcut)
-    //          - Endpoint distance penalty (fixes swipe→swiped)
+    // FUNCTION: decodeSwipe (v6 - Turn-Aware Scoring)
+    // SUMMARY: Based on original working version with:
+    //          - NEW turn detection for shortcut, android, circle
+    //          - Conservative dwell for as/ass, to/too
+    //          - Original candidate collection and length filtering
     // =================================================================================
     fun decodeSwipe(swipePath: List<PointF>, keyMap: Map<String, PointF>): List<String> {
         if (swipePath.size < 3 || keyMap.isEmpty()) return emptyList()
@@ -691,12 +700,11 @@ class PredictionEngine {
         if (inputLength < 10f) return emptyList()
 
         // =======================================================================
-        // DWELL DETECTION (Less Aggressive)
-        // Only trigger on STRONG dwell to avoid as→ass, to→too false positives
+        // DWELL DETECTION (Conservative - for to/too, as/ass)
         // =======================================================================
         var dwellScore = 0f
-        if (swipePath.size > 12) {  // Need more points to detect dwell
-            val tailSize = maxOf(12, swipePath.size / 4)  // Larger tail window
+        if (swipePath.size > 12) {
+            val tailSize = maxOf(12, swipePath.size / 4)
             val tailStart = maxOf(0, swipePath.size - tailSize)
             val tail = swipePath.subList(tailStart, swipePath.size)
             
@@ -706,15 +714,14 @@ class PredictionEngine {
             }
             
             val avgMovementPerPoint = tailLength / tail.size
-            // More conservative thresholds
             dwellScore = when {
-                avgMovementPerPoint < 2f -> 1.0f   // Very strong dwell (almost no movement)
-                avgMovementPerPoint < 4f -> 0.6f   // Moderate dwell
-                avgMovementPerPoint < 7f -> 0.2f   // Weak dwell
+                avgMovementPerPoint < 2f -> 1.0f
+                avgMovementPerPoint < 4f -> 0.6f
+                avgMovementPerPoint < 7f -> 0.2f
                 else -> 0f
             }
         }
-        val isDwellingAtEnd = dwellScore >= 0.6f  // Higher threshold
+        val isDwellingAtEnd = dwellScore >= 0.6f
         // =======================================================================
         // END DWELL DETECTION
         // =======================================================================
@@ -722,19 +729,20 @@ class PredictionEngine {
         val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
         val normalizedInput = normalizePath(sampledInput)
         val inputDirections = calculateDirectionVectors(sampledInput)
+        
+        // NEW: Calculate turn points for input
+        val inputTurns = detectTurns(inputDirections)
 
         val startPoint = sampledInput.first()
         val endPoint = sampledInput.last()
         
+        // --- CANDIDATE COLLECTION (Original) ---
+        val candidates = HashSet<String>()
+        
         val startKey = findClosestKey(startPoint, keyMap)
         val endKey = findClosestKey(endPoint, keyMap)
         
-        // =======================================================================
-        // CANDIDATE COLLECTION (Expanded for android, shortcut)
-        // =======================================================================
-        val candidates = HashSet<String>()
-        
-        // 1. Neighbor Search with standard radius
+        // 1. Neighbor Search
         val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f)
         val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f)
         
@@ -744,35 +752,20 @@ class PredictionEngine {
             }
         }
         
-        // 2. PREFIX INJECTION - Add more candidates for longer swipes
+        // 2. PREFIX INJECTION
         if (startKey != null) {
-            val numToAdd = if (inputLength > 200f) 40 else 25
             wordsByFirstLetter[startKey.first()]?.let { words ->
-                candidates.addAll(words.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(numToAdd))
-            }
-        }
-        
-        // 3. EXPANDED NEIGHBOR INJECTION for long swipes (android, shortcut)
-        // When swipe is long, the end key detection might be off
-        if (inputLength > 250f) {
-            val widerEnd = findNearbyKeys(endPoint, keyMap, 120f)
-            for (s in nearbyStart) {
-                for (e in widerEnd) {
-                    wordsByFirstLastLetter["${s}${e}"]?.let { candidates.addAll(it) }
-                }
+                candidates.addAll(words.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(25))
             }
         }
 
-        // 4. User History
+        // 3. User History
         synchronized(userFrequencyMap) {
             candidates.addAll(userFrequencyMap.entries
                 .sortedByDescending { it.value }
                 .take(15)
                 .map { it.key })
         }
-        // =======================================================================
-        // END CANDIDATE COLLECTION
-        // =======================================================================
         
         // --- SCORING ---
         val scored = candidates
@@ -782,7 +775,7 @@ class PredictionEngine {
             .mapNotNull { word ->
                 val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
                 
-                // --- ADAPTIVE LENGTH FILTER ---
+                // --- ADAPTIVE LENGTH FILTER (Original) ---
                 val tLen = getPathLength(template.rawPoints)
                 val ratio = tLen / inputLength
                 
@@ -799,11 +792,16 @@ class PredictionEngine {
                 val locScore = calculateLocationScore(sampledInput, template.sampledPoints!!)
                 val dirScore = calculateDirectionScore(inputDirections, template.directionVectors!!)
                 
+                // NEW: Turn matching score
+                val templateTurns = detectTurns(template.directionVectors!!)
+                val turnScore = calculateTurnScore(inputTurns, templateTurns)
+                
                 val integrationScore = (shapeScore * SHAPE_WEIGHT) + 
                                        (locScore * LOCATION_WEIGHT) + 
-                                       (dirScore * DIRECTION_WEIGHT)
+                                       (dirScore * DIRECTION_WEIGHT) +
+                                       (turnScore * TURN_WEIGHT)
                 
-                // --- BOOSTS ---
+                // --- BOOSTS (Original) ---
                 val rank = template.rank
                 val freqBonus = 1.0f / (1.0f + 0.15f * ln((rank + 1).toFloat()))
                 
@@ -811,58 +809,17 @@ class PredictionEngine {
                     1.2f + (0.4f * ln(((userFrequencyMap[word] ?: 0) + 1).toFloat())) 
                 else 1.0f
                 
-                // =======================================================================
-                // DOUBLE LETTER BOOST (Conservative)
-                // Only boost when dwell is STRONG, and only for words 3+ letters
-                // =======================================================================
+                // DOUBLE LETTER BOOST (Conservative - only 3+ letter words)
                 val hasEndDouble = word.length >= 3 && 
                     word.last().lowercaseChar() == word[word.length - 2].lowercaseChar()
                 
                 if (hasEndDouble && isDwellingAtEnd) {
-                    userBoost *= (1.10f + dwellScore * 0.20f)  // 1.10x to 1.30x (reduced)
+                    userBoost *= (1.10f + dwellScore * 0.15f)
                 }
-                // =======================================================================
-                // END DOUBLE LETTER BOOST
-                // =======================================================================
                 
                 // EXACT KEY MATCH BONUS
                 if (startKey != null && word.startsWith(startKey, ignoreCase = true)) userBoost *= 1.15f
                 if (endKey != null && word.endsWith(endKey, ignoreCase = true)) userBoost *= 1.15f
-                
-                // =======================================================================
-                // LENGTH RATIO SCORING (fixes three→the)
-                // If user swiped much longer than the template, penalize short words
-                // =======================================================================
-                val lengthRatio = inputLength / tLen
-                if (lengthRatio > 1.8f && word.length <= 3) {
-                    // User swiped long but word is very short - penalty
-                    userBoost *= 0.80f
-                } else if (lengthRatio > 1.5f && word.length <= 4 && inputLength > 150f) {
-                    // Moderate penalty for short words on medium-long swipes
-                    userBoost *= 0.90f
-                }
-                // =======================================================================
-                // END LENGTH RATIO SCORING
-                // =======================================================================
-                
-                // =======================================================================
-                // ENDPOINT DISTANCE PENALTY (fixes swipe→swiped)
-                // If template endpoint is far from actual endpoint, penalize
-                // =======================================================================
-                val templateEndPoint = template.sampledPoints!!.last()
-                val endpointDist = hypot(endPoint.x - templateEndPoint.x, endPoint.y - templateEndPoint.y)
-                
-                // Typical key spacing is ~40-50px
-                if (endpointDist > 35f) {
-                    // Endpoint is more than ~75% of a key away
-                    userBoost *= 0.85f
-                } else if (endpointDist > 25f) {
-                    // Endpoint is ~50% of a key away
-                    userBoost *= 0.92f
-                }
-                // =======================================================================
-                // END ENDPOINT DISTANCE PENALTY
-                // =======================================================================
                 
                 // LONG WORD BONUS
                 if (word.length >= 6) userBoost *= 1.15f
@@ -873,9 +830,6 @@ class PredictionEngine {
         
         return scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
     }
-    // =================================================================================
-    // END BLOCK: decodeSwipe
-    // =================================================================================
     // =================================================================================
     // END BLOCK: decodeSwipe
     // =================================================================================
@@ -1175,7 +1129,95 @@ class PredictionEngine {
         return if (validPoints > 0) totalScore / validPoints else 0f
     }
 
+// =================================================================================
+    // FUNCTION: detectTurns
+    // SUMMARY: Detects significant direction changes (turns/corners) in a path.
+    //          Returns a list of (position, angle) pairs where position is 0.0-1.0
+    //          along the path and angle is the turn magnitude in radians.
+    //          A turn is detected when consecutive direction vectors differ significantly.
+    // =================================================================================
+    private fun detectTurns(directions: List<PointF>): List<Pair<Float, Float>> {
+        if (directions.size < 3) return emptyList()
+        
+        val turns = ArrayList<Pair<Float, Float>>()
+        val turnThreshold = 0.5f  // Dot product threshold (cos of ~60 degrees)
+        
+        for (i in 1 until directions.size - 1) {
+            val prev = directions[i - 1]
+            val curr = directions[i]
+            
+            // Skip stationary segments
+            if ((prev.x == 0f && prev.y == 0f) || (curr.x == 0f && curr.y == 0f)) continue
+            
+            // Calculate dot product between consecutive direction vectors
+            val dot = prev.x * curr.x + prev.y * curr.y
+            
+            // If dot product is low, there's a significant turn
+            if (dot < turnThreshold) {
+                val position = i.toFloat() / directions.size.toFloat()
+                val turnMagnitude = 1.0f - dot  // 0 = no turn, 2 = complete reversal
+                turns.add(Pair(position, turnMagnitude))
+            }
+        }
+        
+        return turns
+    }
+    // =================================================================================
+    // END BLOCK: detectTurns
+    // =================================================================================
 
+    // =================================================================================
+    // FUNCTION: calculateTurnScore
+    // SUMMARY: Compares turn patterns between input and template.
+    //          Rewards matching turn counts and positions, penalizes mismatches.
+    //          Lower score = better match.
+    // =================================================================================
+    private fun calculateTurnScore(inputTurns: List<Pair<Float, Float>>, templateTurns: List<Pair<Float, Float>>): Float {
+        // If both have no turns, perfect match
+        if (inputTurns.isEmpty() && templateTurns.isEmpty()) return 0f
+        
+        // Penalty for turn count mismatch
+        val countDiff = abs(inputTurns.size - templateTurns.size)
+        var score = countDiff * 0.3f  // Each missing/extra turn adds 0.3 penalty
+        
+        // If one has turns and other doesn't, big penalty
+        if ((inputTurns.isEmpty() && templateTurns.isNotEmpty()) ||
+            (inputTurns.isNotEmpty() && templateTurns.isEmpty())) {
+            return score + 0.5f
+        }
+        
+        // Match turns by position (greedy matching)
+        val usedTemplate = BooleanArray(templateTurns.size)
+        
+        for (inputTurn in inputTurns) {
+            var bestMatch = -1
+            var bestDist = Float.MAX_VALUE
+            
+            for (j in templateTurns.indices) {
+                if (usedTemplate[j]) continue
+                
+                val posDist = abs(inputTurn.first - templateTurns[j].first)
+                if (posDist < bestDist && posDist < 0.2f) {  // Must be within 20% of path
+                    bestDist = posDist
+                    bestMatch = j
+                }
+            }
+            
+            if (bestMatch >= 0) {
+                usedTemplate[bestMatch] = true
+                // Small penalty for position difference
+                score += bestDist * 0.5f
+            } else {
+                // No matching turn found - penalty
+                score += 0.2f
+            }
+        }
+        
+        return score
+    }
+    // =================================================================================
+    // END BLOCK: calculateTurnScore
+    // =================================================================================
 
 
 
