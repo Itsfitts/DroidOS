@@ -775,59 +775,155 @@ class PredictionEngine {
             }
         }
 
-        // 3. PATH KEY INJECTION - NEW
-        // If path shows specific intermediate keys, add words that contain those keys
-        // This is CRITICAL for "awake" - if path shows a→w→..., we need words with 'w'
-        if (pathKeys.size >= 2) {
-            val secondKey = pathKeys.getOrNull(1)?.firstOrNull()?.lowercaseChar()
-            if (secondKey != null && startKey != null) {
-                // Add words that start with startKey AND contain secondKey
-                wordsByFirstLetter[startKey.first()]?.let { words ->
-                    val matchingWords = words.filter { word ->
-                        word.length >= 2 && word.drop(1).contains(secondKey)
-                    }.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(30)
-                    candidates.addAll(matchingWords)
-                    
-                    // Debug: Log how many path-key words we added
-                    if (matchingWords.isNotEmpty()) {
-                        android.util.Log.d("DroidOS_PathKeys", "PathKey injection: Added ${matchingWords.size} words containing '$secondKey' (e.g., ${matchingWords.take(5).joinToString()})")
-                    }
-                }
-            }
-            
-            // Also check third key if present
-            val thirdKey = pathKeys.getOrNull(2)?.firstOrNull()?.lowercaseChar()
-            if (thirdKey != null && startKey != null && thirdKey != secondKey) {
-                wordsByFirstLetter[startKey.first()]?.let { words ->
-                    val matchingWords = words.filter { word ->
-                        word.length >= 3 && word.drop(1).contains(thirdKey)
-                    }.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(20)
-                    candidates.addAll(matchingWords)
-                }
-            }
-        }
+                // 3. PATH KEY INJECTION (Enhanced)
 
-        // 4. User History (original)
-        synchronized(userFrequencyMap) {
-            candidates.addAll(userFrequencyMap.entries
-                .sortedByDescending { it.value }
-                .take(15)
-                .map { it.key })
-        }
+                // If path shows specific intermediate keys, add words that contain those keys.
+
+                // We increased limits (30->150) to ensure "awake" isn't pushed out by common words.
+
+                if (pathKeys.size >= 2) {
+
+                    val secondKey = pathKeys.getOrNull(1)?.firstOrNull()?.lowercaseChar()
+
+                    if (secondKey != null && startKey != null) {
+
+                        wordsByFirstLetter[startKey.first()]?.let { words ->
+
+                            val matchingWords = words.filter { word ->
+
+                                word.length >= 2 && word.drop(1).contains(secondKey)
+
+                            }.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(150) // Increased from 30
+
+                            candidates.addAll(matchingWords)
+
+                        }
+
+                    }
+
         
-        // Debug: Log total candidates
-        android.util.Log.d("DroidOS_PathKeys", "Total candidates: ${candidates.size}")
-        // =======================================================================
-        // END CANDIDATE COLLECTION
-        // =======================================================================
+
+                    // Also check third key if present
+
+                    val thirdKey = pathKeys.getOrNull(2)?.firstOrNull()?.lowercaseChar()
+
+                    if (thirdKey != null && startKey != null && thirdKey != secondKey) {
+
+                        wordsByFirstLetter[startKey.first()]?.let { words ->
+
+                            val matchingWords = words.filter { word ->
+
+                                word.length >= 3 && word.drop(1).contains(thirdKey)
+
+                            }.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(150) // Increased from 20
+
+                            candidates.addAll(matchingWords)
+
+                        }
+
+                    }
+
+                    
+
+                    // 3.5 STRICT SEQUENCE MATCH (New)
+
+                    // If we have a complex path (e.g. a->w->a->e), specifically look for words
+
+                    // that contain ALL these keys in relative order.
+
+                    if (pathKeys.size >= 3 && startKey != null) {
+
+                        wordsByFirstLetter[startKey.first()]?.let { words ->
+
+                            // Get all intermediate keys (excluding start)
+
+                            val requiredKeys = pathKeys.drop(1).map { it.firstOrNull()?.lowercaseChar() }.filterNotNull()
+
+                            
+
+                            val strictMatches = words.filter { word ->
+
+                                var lastIdx = 0
+
+                                var matches = true
+
+                                for (rk in requiredKeys) {
+
+                                    val idx = word.indexOf(rk, lastIdx)
+
+                                    if (idx == -1) { 
+
+                                        matches = false; break 
+
+                                    }
+
+                                    lastIdx = idx + 1
+
+                                }
+
+                                matches
+
+                            }.take(50) // Force include these specific matches
+
+                            
+
+                            if (strictMatches.isNotEmpty()) {
+
+                                candidates.addAll(strictMatches)
+
+                                android.util.Log.d("DroidOS_PathKeys", "Strict Match found: ${strictMatches.take(5)}")
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
         
+
+                // 4. User History (original)
+
+                synchronized(userFrequencyMap) {
+
+                    candidates.addAll(userFrequencyMap.entries
+
+                        .sortedByDescending { it.value }
+
+                        .take(30) // Increased from 15
+
+                        .map { it.key })
+
+                }
+
         
-        // --- SCORING ---
-        val scored = candidates
-            .filter { !isWordBlocked(it) && it.length >= MIN_WORD_LENGTH }
-            .sortedWith(compareByDescending<String> { userFrequencyMap[it] ?: 0 }.thenBy { getWordRank(it) })
-            .take(150)
-            .mapNotNull { word ->
+
+                // Debug: Log total candidates
+
+                android.util.Log.d("DroidOS_PathKeys", "Total candidates: ${candidates.size}")
+
+        
+
+                // =======================================================================
+
+                // END CANDIDATE COLLECTION
+
+                // =======================================================================
+
+        
+
+                // --- SCORING ---
+
+                val scored = candidates
+
+                    .filter { !isWordBlocked(it) && it.length >= MIN_WORD_LENGTH }
+
+                    .sortedWith(compareByDescending<String> { userFrequencyMap[it] ?: 0 }.thenBy { getWordRank(it) })
+
+                    .take(400) // Increased from 150 to prevent dropping valid low-frequency words
+
+                    .mapNotNull { word ->
                 val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
                 
                 // --- ADAPTIVE LENGTH FILTER (Original) ---
@@ -1091,12 +1187,11 @@ class PredictionEngine {
             if (len1 > 15f && len2 > 15f) {
                 val dot = (v1x * v2x + v1y * v2y) / (len1 * len2)
 
-                // SHARP turn only: dot < 0.4 means angle > ~66 degrees
-                // This is stricter than before (was 0.75 = ~40 degrees)
-                if (dot < 0.4f) {
-                    // Minimum distance from last turn to avoid duplicates
-                    if (i - lastTurnIdx > windowSize * 2) {
-                        val key = findClosestKey(p2, keyMap)?.lowercase()
+                                    // SHARP turn only: dot < 0.6 means angle > ~53 degrees
+                                    // Relaxed from 0.4 to catch 'k' in 'awake' and 'x' in 'expect'
+                                    if (dot < 0.6f) {
+                                        // Minimum distance from last turn to avoid duplicates
+                                        if (i - lastTurnIdx > windowSize * 2) {                        val key = findClosestKey(p2, keyMap)?.lowercase()
                         if (key != null && (keys.isEmpty() || keys.last() != key)) {
                             keys.add(key)
                             lastTurnIdx = i
