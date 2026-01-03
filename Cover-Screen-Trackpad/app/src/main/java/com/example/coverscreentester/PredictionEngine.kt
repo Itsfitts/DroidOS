@@ -29,31 +29,24 @@ import kotlin.math.abs
  */
 class PredictionEngine {
 
-// =================================================================================
-// BLOCK: TUNING PARAMETERS
-// SUMMARY: Core algorithm weights and thresholds. 
-//          - SHAPE_WEIGHT: How much the normalized shape matters
-//          - LOCATION_WEIGHT: How much absolute position matters (critical for endpoints)
-//          - DIRECTION_WEIGHT: How much the swipe direction flow matters
-//          - ENDPOINT_BOOST: Extra weight for start/end key accuracy
-// =================================================================================
+
+
+
+
+
     companion object {
         val instance = PredictionEngine()
 
         // Tuning Parameters
         private const val SAMPLE_POINTS = 64
         private const val NORMALIZATION_SIZE = 100f
-        private const val SEARCH_RADIUS = 100f  // INCREASED from 70f for better candidate capture
+        private const val SEARCH_RADIUS = 70f
         
-        // Weights: Rebalanced for better accuracy
-        // Location increased to prioritize endpoint accuracy
-        // Direction increased to distinguish similar-length words
-        private const val SHAPE_WEIGHT = 0.20f      // Reduced from 0.25f
-        private const val LOCATION_WEIGHT = 0.90f   // Increased from 0.85f
-        private const val DIRECTION_WEIGHT = 0.85f  // Increased from 0.80f
-        
-        // NEW: Intermediate key matching weight
-        private const val INTERMEDIATE_KEY_WEIGHT = 0.40f
+        // Weights: 
+        // Location 0.85: Increased to fix "Swipe" vs "Swiped" (Endpoint accuracy)
+        private const val SHAPE_WEIGHT = 0.25f
+        private const val LOCATION_WEIGHT = 0.85f
+        private const val DIRECTION_WEIGHT = 0.8f 
         
         // Files
         private const val USER_STATS_FILE = "user_stats.json"
@@ -61,9 +54,6 @@ class PredictionEngine {
         private const val USER_DICT_FILE = "user_words.txt"
         private const val MIN_WORD_LENGTH = 2
     }
-// =================================================================================
-// END BLOCK: TUNING PARAMETERS
-// =================================================================================
 
 
 
@@ -677,12 +667,12 @@ class PredictionEngine {
      * 5. Integration with frequency weighting
      */
 // =================================================================================
-    // FUNCTION: decodeSwipe (v2 - Targeted Fixes)
-    // SUMMARY: Main swipe decoding with targeted fixes for:
-    //          1. Double letters (to/too, as/ass) - Better dwell detection
-    //          2. Similar endings (swipe/swiped) - Stricter endpoint matching
-    //          3. Length confusion (three/the) - Penalize length mismatch
-    //          4. Complex words (android) - Wider candidate net
+    // FUNCTION: decodeSwipe (v5 - Balanced Scoring)
+    // SUMMARY: Balanced approach with:
+    //          - Less aggressive dwell detection (fixes as→ass, to→too)
+    //          - Path length ratio scoring (fixes three→the)
+    //          - Better candidate collection (fixes android, shortcut)
+    //          - Endpoint distance penalty (fixes swipe→swiped)
     // =================================================================================
     fun decodeSwipe(swipePath: List<PointF>, keyMap: Map<String, PointF>): List<String> {
         if (swipePath.size < 3 || keyMap.isEmpty()) return emptyList()
@@ -701,38 +691,32 @@ class PredictionEngine {
         if (inputLength < 10f) return emptyList()
 
         // =======================================================================
-        // FIX #1: IMPROVED DWELL DETECTION
-        // Problem: "as" was triggering dwell because ANY pause at end counted.
-        // Solution: Require LONGER dwell time AND use path density, not just proximity.
-        // We measure how "compressed" the last portion of the path is.
+        // DWELL DETECTION (Less Aggressive)
+        // Only trigger on STRONG dwell to avoid as→ass, to→too false positives
         // =======================================================================
-        var dwellScore = 0f  // 0.0 = no dwell, 1.0 = strong dwell
-        if (swipePath.size > 10) {
-            // Check last 20% of path OR last 10 points, whichever is more
-            val tailSize = maxOf(10, swipePath.size / 5)
+        var dwellScore = 0f
+        if (swipePath.size > 12) {  // Need more points to detect dwell
+            val tailSize = maxOf(12, swipePath.size / 4)  // Larger tail window
             val tailStart = maxOf(0, swipePath.size - tailSize)
             val tail = swipePath.subList(tailStart, swipePath.size)
-
-            // Calculate the length of the tail portion
+            
             var tailLength = 0f
             for (i in 1 until tail.size) {
                 tailLength += hypot(tail[i].x - tail[i-1].x, tail[i].y - tail[i-1].y)
             }
-
-            // If tail is very short compared to points, user is dwelling
-            // A 10-point tail with <30px movement = strong dwell
+            
             val avgMovementPerPoint = tailLength / tail.size
-            if (avgMovementPerPoint < 3f) {
-                dwellScore = 1.0f  // Very strong dwell
-            } else if (avgMovementPerPoint < 6f) {
-                dwellScore = 0.7f  // Moderate dwell
-            } else if (avgMovementPerPoint < 10f) {
-                dwellScore = 0.3f  // Weak dwell
+            // More conservative thresholds
+            dwellScore = when {
+                avgMovementPerPoint < 2f -> 1.0f   // Very strong dwell (almost no movement)
+                avgMovementPerPoint < 4f -> 0.6f   // Moderate dwell
+                avgMovementPerPoint < 7f -> 0.2f   // Weak dwell
+                else -> 0f
             }
-            // else dwellScore stays 0
         }
+        val isDwellingAtEnd = dwellScore >= 0.6f  // Higher threshold
         // =======================================================================
-        // END FIX #1
+        // END DWELL DETECTION
         // =======================================================================
 
         val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
@@ -741,43 +725,55 @@ class PredictionEngine {
 
         val startPoint = sampledInput.first()
         val endPoint = sampledInput.last()
-
-        // --- CANDIDATE COLLECTION (ROBUST) ---
-        val candidates = HashSet<String>()
-
+        
         val startKey = findClosestKey(startPoint, keyMap)
         val endKey = findClosestKey(endPoint, keyMap)
-
-        // 1. Neighbor Search (Always ON for robust matching)
+        
+        // =======================================================================
+        // CANDIDATE COLLECTION (Expanded for android, shortcut)
+        // =======================================================================
+        val candidates = HashSet<String>()
+        
+        // 1. Neighbor Search with standard radius
         val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f)
         val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f)
-
+        
         for (s in nearbyStart) {
             for (e in nearbyEnd) {
                 wordsByFirstLastLetter["${s}${e}"]?.let { candidates.addAll(it) }
             }
         }
-
-        // 2. SHORTCUT / PREFIX INJECTION
-        // Blindly add top 25 freq words starting with the Start Key.
-        // Critical for "Android", "Shortcut" if end key is missed.
+        
+        // 2. PREFIX INJECTION - Add more candidates for longer swipes
         if (startKey != null) {
+            val numToAdd = if (inputLength > 200f) 40 else 25
             wordsByFirstLetter[startKey.first()]?.let { words ->
-                candidates.addAll(words.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(25))
+                candidates.addAll(words.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(numToAdd))
+            }
+        }
+        
+        // 3. EXPANDED NEIGHBOR INJECTION for long swipes (android, shortcut)
+        // When swipe is long, the end key detection might be off
+        if (inputLength > 250f) {
+            val widerEnd = findNearbyKeys(endPoint, keyMap, 120f)
+            for (s in nearbyStart) {
+                for (e in widerEnd) {
+                    wordsByFirstLastLetter["${s}${e}"]?.let { candidates.addAll(it) }
+                }
             }
         }
 
-        // 3. User History
+        // 4. User History
         synchronized(userFrequencyMap) {
             candidates.addAll(userFrequencyMap.entries
                 .sortedByDescending { it.value }
                 .take(15)
                 .map { it.key })
         }
-
-        // --- INTERMEDIATE KEY EXTRACTION ---
-        val intermediateKeys = extractIntermediateKeys(sampledInput, keyMap, 5)
-
+        // =======================================================================
+        // END CANDIDATE COLLECTION
+        // =======================================================================
+        
         // --- SCORING ---
         val scored = candidates
             .filter { !isWordBlocked(it) && it.length >= MIN_WORD_LENGTH }
@@ -785,16 +781,12 @@ class PredictionEngine {
             .take(150)
             .mapNotNull { word ->
                 val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
-
+                
                 // --- ADAPTIVE LENGTH FILTER ---
                 val tLen = getPathLength(template.rawPoints)
                 val ratio = tLen / inputLength
-
-                // LOGIC:
-                // Short swipes (like "As", < 150px) must be strict (1.5x limit).
-                // Long swipes (like "Android", > 300px) can be lazy (5.0x limit).
+                
                 val maxRatio = if (inputLength < 150f) 1.5f else 5.0f
-
                 if (ratio > maxRatio || ratio < 0.4f) return@mapNotNull null
 
                 if (template.sampledPoints == null) {
@@ -802,84 +794,88 @@ class PredictionEngine {
                     template.normalizedPoints = normalizePath(template.sampledPoints!!)
                     template.directionVectors = calculateDirectionVectors(template.sampledPoints!!)
                 }
-
+                
                 val shapeScore = calculateShapeScore(normalizedInput, template.normalizedPoints!!)
                 val locScore = calculateLocationScore(sampledInput, template.sampledPoints!!)
                 val dirScore = calculateDirectionScore(inputDirections, template.directionVectors!!)
-
-                val intermediateScore = calculateIntermediateKeyScore(word, intermediateKeys)
-
-                val integrationScore = (shapeScore * SHAPE_WEIGHT) +
-                                       (locScore * LOCATION_WEIGHT) +
-                                       (dirScore * DIRECTION_WEIGHT) +
-                                       (intermediateScore * INTERMEDIATE_KEY_WEIGHT)
-
+                
+                val integrationScore = (shapeScore * SHAPE_WEIGHT) + 
+                                       (locScore * LOCATION_WEIGHT) + 
+                                       (dirScore * DIRECTION_WEIGHT)
+                
                 // --- BOOSTS ---
                 val rank = template.rank
                 val freqBonus = 1.0f / (1.0f + 0.15f * ln((rank + 1).toFloat()))
-
-                var userBoost = if ((userFrequencyMap[word] ?: 0) > 0)
-                    1.2f + (0.4f * ln(((userFrequencyMap[word] ?: 0) + 1).toFloat()))
+                
+                var userBoost = if ((userFrequencyMap[word] ?: 0) > 0) 
+                    1.2f + (0.4f * ln(((userFrequencyMap[word] ?: 0) + 1).toFloat())) 
                 else 1.0f
-
+                
                 // =======================================================================
-                // FIX #2: IMPROVED DOUBLE LETTER HANDLING
-                // Problem: "as" and "ass" have same start/end, dwell was too sensitive.
-                // Solution: Only boost double-letter words when dwell is STRONG,
-                //           and add PENALTY for double-letter words when NO dwell.
+                // DOUBLE LETTER BOOST (Conservative)
+                // Only boost when dwell is STRONG, and only for words 3+ letters
                 // =======================================================================
-                val hasEndDouble = word.length >= 2 &&
+                val hasEndDouble = word.length >= 3 && 
                     word.last().lowercaseChar() == word[word.length - 2].lowercaseChar()
-
-                if (hasEndDouble) {
-                    if (dwellScore >= 0.7f) {
-                        // Strong dwell + double letter = BIG boost
-                        userBoost *= 1.4f
-                    } else if (dwellScore >= 0.3f) {
-                        // Moderate dwell = small boost
-                        userBoost *= 1.15f
-                    } else {
-                        // NO dwell but word has double letter = PENALTY
-                        // This prevents "ass" from beating "as" when there's no dwell
-                        userBoost *= 0.85f
-                    }
+                
+                if (hasEndDouble && isDwellingAtEnd) {
+                    userBoost *= (1.10f + dwellScore * 0.20f)  // 1.10x to 1.30x (reduced)
                 }
                 // =======================================================================
-                // END FIX #2
+                // END DOUBLE LETTER BOOST
                 // =======================================================================
-
+                
                 // EXACT KEY MATCH BONUS
                 if (startKey != null && word.startsWith(startKey, ignoreCase = true)) userBoost *= 1.15f
                 if (endKey != null && word.endsWith(endKey, ignoreCase = true)) userBoost *= 1.15f
-
+                
                 // =======================================================================
-                // FIX #3: LENGTH-BASED PENALTY FOR SHORT WORDS ON LONG SWIPES
-                // Problem: "the" beats "three" because "the" has higher frequency.
-                // Solution: If input path is significantly longer than template,
-                //           penalize the shorter word.
+                // LENGTH RATIO SCORING (fixes three→the)
+                // If user swiped much longer than the template, penalize short words
                 // =======================================================================
                 val lengthRatio = inputLength / tLen
                 if (lengthRatio > 1.8f && word.length <= 3) {
-                    // User swiped a long path but word is very short
-                    // This catches "three" vs "the" - user clearly swiped further
-                    userBoost *= 0.7f
-                } else if (lengthRatio > 1.5f && word.length <= 4) {
-                    // Moderate penalty for 4-letter words on long swipes
-                    userBoost *= 0.85f
+                    // User swiped long but word is very short - penalty
+                    userBoost *= 0.80f
+                } else if (lengthRatio > 1.5f && word.length <= 4 && inputLength > 150f) {
+                    // Moderate penalty for short words on medium-long swipes
+                    userBoost *= 0.90f
                 }
-
-                // LONG WORD BONUS (keep this, but reduce)
-                if (word.length >= 6) userBoost *= 1.10f
                 // =======================================================================
-                // END FIX #3
+                // END LENGTH RATIO SCORING
                 // =======================================================================
+                
+                // =======================================================================
+                // ENDPOINT DISTANCE PENALTY (fixes swipe→swiped)
+                // If template endpoint is far from actual endpoint, penalize
+                // =======================================================================
+                val templateEndPoint = template.sampledPoints!!.last()
+                val endpointDist = hypot(endPoint.x - templateEndPoint.x, endPoint.y - templateEndPoint.y)
+                
+                // Typical key spacing is ~40-50px
+                if (endpointDist > 35f) {
+                    // Endpoint is more than ~75% of a key away
+                    userBoost *= 0.85f
+                } else if (endpointDist > 25f) {
+                    // Endpoint is ~50% of a key away
+                    userBoost *= 0.92f
+                }
+                // =======================================================================
+                // END ENDPOINT DISTANCE PENALTY
+                // =======================================================================
+                
+                // LONG WORD BONUS
+                if (word.length >= 6) userBoost *= 1.15f
 
                 val finalScore = (integrationScore * (1.0f - 0.5f * freqBonus)) / userBoost
                 Pair(word, finalScore)
             }
-
+        
         return scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
     }
+    // =================================================================================
+    // END BLOCK: decodeSwipe
+    // =================================================================================
     // =================================================================================
     // END BLOCK: decodeSwipe
     // =================================================================================
@@ -924,94 +920,7 @@ class PredictionEngine {
     // =================================================================================
     // END BLOCK: findNearbyKeys
     // =================================================================================
-
-// =================================================================================
-    // FUNCTION: extractIntermediateKeys
-    // SUMMARY: Samples the swipe path at N evenly-spaced points and identifies which
-    //          keys the path passes through or near. This helps match complex words
-    //          like "android" where the intermediate keys (n, d, r, o, i) matter.
-    // =================================================================================
-    private fun extractIntermediateKeys(
-        sampledPath: List<PointF>, 
-        keyMap: Map<String, PointF>,
-        numSamples: Int
-    ): List<String> {
-        if (sampledPath.size < 3) return emptyList()
-        
-        val result = ArrayList<String>()
-        val step = sampledPath.size / (numSamples + 1)
-        
-        for (i in 1..numSamples) {
-            val idx = i * step
-            if (idx < sampledPath.size) {
-                val point = sampledPath[idx]
-                findClosestKey(point, keyMap)?.let { key ->
-                    if (result.isEmpty() || result.last() != key) {
-                        result.add(key.lowercase())
-                    }
-                }
-            }
-        }
-        
-        return result
-    }
-    // =================================================================================
-    // END BLOCK: extractIntermediateKeys
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: calculateIntermediateKeyScore
-    // SUMMARY: Calculates how well the word's intermediate letters match the detected
-    //          intermediate keys from the swipe path. Returns a penalty score where
-    //          lower = better match. Uses edit-distance-like matching for tolerance.
-    // =================================================================================
-    private fun calculateIntermediateKeyScore(word: String, detectedKeys: List<String>): Float {
-        if (detectedKeys.isEmpty() || word.length < 3) return 0f
-        
-        // Get the middle letters of the word (skip first and last)
-        val wordMiddle = word.substring(1, word.length - 1).lowercase()
-        
-        // Convert to unique sequential keys (remove adjacent duplicates)
-        val wordKeys = ArrayList<Char>()
-        for (c in wordMiddle) {
-            if (wordKeys.isEmpty() || wordKeys.last() != c) {
-                wordKeys.add(c)
-            }
-        }
-        
-        if (wordKeys.isEmpty()) return 0f
-        
-        // Simple matching: count how many detected keys appear in word's middle
-        var matches = 0
-        var wordIdx = 0
-        
-        for (detected in detectedKeys) {
-            val detectedChar = detected.firstOrNull() ?: continue
-            
-            // Look for this key in remaining word keys
-            while (wordIdx < wordKeys.size) {
-                if (wordKeys[wordIdx] == detectedChar) {
-                    matches++
-                    wordIdx++
-                    break
-                }
-                wordIdx++
-            }
-        }
-        
-        // Calculate penalty: more matches = lower penalty
-        val matchRatio = if (detectedKeys.isNotEmpty()) 
-            matches.toFloat() / detectedKeys.size.toFloat() 
-        else 0f
-        
-        // Return penalty (0 = perfect match, higher = worse)
-        return (1.0f - matchRatio) * 0.5f
-    }
-    // =================================================================================
-    // END BLOCK: calculateIntermediateKeyScore
-    // =================================================================================
-
-
+    
     // =================================================================================
     // FUNCTION: getOrCreateTemplate
     // SUMMARY: Gets or creates a word template with key positions. Returns null if any
@@ -1022,40 +931,25 @@ class PredictionEngine {
     // =================================================================================
     // FUNCTION: getOrCreateTemplate (With Micro-Loops for Double Letters)
     // =================================================================================
-// =================================================================================
-    // FUNCTION: getOrCreateTemplate (Enhanced Double Letter Handling)
-    // SUMMARY: Creates word templates from key positions. For double letters, creates
-    //          a small loop pattern to simulate the "wiggle" or "dwell" gesture.
-    //          Loop size increased for better detection of words like "too", "see".
-    // =================================================================================
     private fun getOrCreateTemplate(word: String, keyMap: Map<String, PointF>): WordTemplate? {
         templateCache[word]?.let { return it }
 
         val rawPoints = ArrayList<PointF>()
         var lastKeyPos: PointF? = null
-        var lastChar: Char? = null
         
         for (char in word) {
-            val keyPos = keyMap[char.toString().uppercase()] 
-                ?: keyMap[char.toString().lowercase()] 
-                ?: return null
+            val keyPos = keyMap[char.toString().uppercase()] ?: keyMap[char.toString().lowercase()] ?: return null
             
-            // DOUBLE LETTER LOGIC (Enhanced):
-            // When same key appears twice in a row, add a small "wiggle" pattern
-            // This creates a distinctive template for words with double letters
-            if (lastKeyPos != null && lastChar != null &&
-                char.lowercaseChar() == lastChar.lowercaseChar()) {
-                
-                // Create a small triangular loop to represent dwelling/wiggling
-                // Larger offset (20f) for better detection
-                val offset = 20f
-                rawPoints.add(PointF(keyPos.x + offset, keyPos.y))
-                rawPoints.add(PointF(keyPos.x, keyPos.y + offset))
+
+            // DOUBLE LETTER LOGIC:
+            if (lastKeyPos != null && keyPos.x == lastKeyPos.x && keyPos.y == lastKeyPos.y) {
+                // INCREASED: 10f -> 15f. 
+                // Makes the "circle" gesture easier to register.
+                rawPoints.add(PointF(keyPos.x + 15f, keyPos.y + 15f))
             }
             
             rawPoints.add(PointF(keyPos.x, keyPos.y))
             lastKeyPos = keyPos
-            lastChar = char
         }
 
         if (rawPoints.size < 2) return null
@@ -1064,9 +958,6 @@ class PredictionEngine {
         templateCache[word] = t
         return t
     }
-    // =================================================================================
-    // END BLOCK: getOrCreateTemplate
-    // =================================================================================
 
     // =================================================================================
     // END BLOCK: getOrCreateTemplate
@@ -1202,13 +1093,6 @@ class PredictionEngine {
      * Lower score = better match.
      */
 
-// =================================================================================
-    // FUNCTION: calculateLocationScore (Enhanced Endpoint Weighting)
-    // SUMMARY: Calculate location score between two paths (absolute positions).
-    //          Uses average point-to-point distance with STRONGER position weighting.
-    //          Start and end points are weighted much more heavily to distinguish
-    //          similar words like "swipe" vs "swiped", "tune" vs "tube".
-    // =================================================================================
     private fun calculateLocationScore(input: List<PointF>, template: List<PointF>): Float {
         var totalDist = 0f
         var totalWeight = 0f
@@ -1217,17 +1101,14 @@ class PredictionEngine {
         for (i in input.indices) {
             val dist = hypot(input[i].x - template[i].x, input[i].y - template[i].y)
             
-            // ENHANCED ENDPOINT WEIGHTING
-            // First 10%: 4.0x weight (critical for start key)
-            // Last 10%:  6.0x weight (MOST critical for end key distinction)
-            // Last 5%:   8.0x weight (extra emphasis on final position)
-            // Middle:    1.0x weight
-            val positionRatio = i.toFloat() / size.toFloat()
+            // --- ENDPOINT WEIGHTING (Strict) ---
+            // Start: 3.0x
+            // End:   5.0x (Crucial for "Swipe" vs "Swiped")
+            // Middle: 1.0x
             val w = when {
-                positionRatio < 0.10f -> 4.0f   // Start region
-                positionRatio > 0.95f -> 8.0f   // Very end (last few points)
-                positionRatio > 0.85f -> 6.0f   // End region
-                else -> 1.0f                     // Middle
+                i < size * 0.15 -> 3.0f
+                i > size * 0.85 -> 5.0f // Heavy penalty for missing the last key
+                else -> 1.0f
             }
             
             totalDist += dist * w
@@ -1235,9 +1116,6 @@ class PredictionEngine {
         }
         return totalDist / totalWeight
     }
-    // =================================================================================
-    // END BLOCK: calculateLocationScore
-    // =================================================================================
 
 
 
