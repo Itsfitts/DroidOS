@@ -981,109 +981,123 @@ class PredictionEngine {
     // END BLOCK: findNearbyKeys
     // =================================================================================
 
+
+
     // =================================================================================
-    // FUNCTION: extractPathKeys
-    // SUMMARY: Extracts the sequence of keys that a swipe path passes through.
-    //          Samples the path at regular intervals and finds the closest key at each.
-    //          This is CRITICAL for distinguishing words like "awake" vs "awesome"
-    //          where start/end are the same but the path goes through different keys.
+    // FUNCTION: extractPathKeys (Geometry-Based v2)
+    // SUMMARY: Extracts key characters from the swipe path based on SHARP TURNS.
+    //          Replaces linear sampling to ensure corners (like 'W' in A-W-A) are captured.
+    //          Crucial for differentiating "Awake" (A-W-K-E) from "Area" (A-R-E-A).
     // =================================================================================
-    private fun extractPathKeys(path: List<PointF>, keyMap: Map<String, PointF>, numSamples: Int = 8): List<String> {
+    private fun extractPathKeys(path: List<PointF>, keyMap: Map<String, PointF>, maxKeys: Int): List<String> {
         if (path.size < 3) return emptyList()
-
         val keys = ArrayList<String>()
-        val step = path.size / (numSamples + 1)
 
-        var lastKey: String? = null
+        // 1. Always add Start Key
+        val startKey = findClosestKey(path.first(), keyMap)
+        if (startKey != null) keys.add(startKey.lowercase())
 
-        // Sample at regular intervals including start and end
-        for (i in 0..numSamples) {
-            val idx = if (i == numSamples) path.size - 1 else i * step
-            if (idx < path.size) {
-                val point = path[idx]
-                val key = findClosestKey(point, keyMap)
+        // 2. Detect Turns (Corner Keys) using Vector Dot Product
+        var lastAddedIdx = 0
+        
+        // Scan path points (skip start/end buffers to avoid noise)
+        for (i in 2 until path.size - 2) {
+            val p1 = path[i - 2]
+            val p2 = path[i]
+            val p3 = path[i + 2]
 
-                // Only add if different from last key (avoid duplicates for same key region)
-                if (key != null && key != lastKey) {
-                    keys.add(key.lowercase())
-                    lastKey = key
+            // Calculate vectors: v1 (p1->p2), v2 (p2->p3)
+            val v1x = p2.x - p1.x
+            val v1y = p2.y - p1.y
+            val v2x = p3.x - p2.x
+            val v2y = p3.y - p2.y
+
+            val len1 = kotlin.math.hypot(v1x, v1y)
+            val len2 = kotlin.math.hypot(v2x, v2y)
+
+            // Ignore micro-movements (jitter)
+            if (len1 > 10f && len2 > 10f) {
+                // Dot Product: 1.0 = Straight, 0.0 = 90 deg turn, -1.0 = U-turn
+                val dot = (v1x * v2x + v1y * v2y) / (len1 * len2)
+                
+                // Threshold: dot < 0.75 implies angle change > ~40 degrees
+                // This captures corners like 'W' in A-W-A or 'K' in A-K-E
+                if (dot < 0.75) { 
+                    // Enforce minimum distance (indices) between captured keys
+                    if (i - lastAddedIdx > 4) {
+                        val key = findClosestKey(p2, keyMap)
+                        // Avoid duplicates (e.g. capturing 'A' twice in a row)
+                        if (key != null && (keys.isEmpty() || keys.last() != key.lowercase())) {
+                            keys.add(key.lowercase())
+                            lastAddedIdx = i
+                        }
+                    }
                 }
             }
         }
 
-        return keys
-    }
-    // =================================================================================
-    // END BLOCK: extractPathKeys
-    // =================================================================================
+        // 3. Always add End Key
+        val endKey = findClosestKey(path.last(), keyMap)
+        if (endKey != null && (keys.isEmpty() || keys.last() != endKey.lowercase())) {
+            keys.add(endKey.lowercase())
+        }
 
-// =================================================================================
-    // FUNCTION: calculatePathKeyScore (v2 - Strict Sequential Matching)
-    // SUMMARY: Compares path keys to word letters with STRICT sequential matching.
-    //          Each path key must match the corresponding position in the word.
-    //          This prevents "area" from matching path ['a','w','a'] since 'w' ≠ 'r'.
-    //          
-    //          Algorithm:
-    //          1. Expand word to key sequence (e.g., "awake" → ['a','w','a','k','e'])
-    //          2. Sample both sequences to same length
-    //          3. Compare position-by-position
-    //          
-    //          Lower score = better match.
+        return keys.take(maxKeys)
+    }
+
+    // =================================================================================
+    // FUNCTION: calculatePathKeyScore (v4 - Aggressive Penalty)
+    // SUMMARY: Penalizes words that do not contain the keys found at path corners.
+    //          Uses "Subsequence Matching": keys must appear in the word in correct order.
+    //          The penalty is boosted to 3.0f per miss to aggressively disqualify "Area".
     // =================================================================================
     private fun calculatePathKeyScore(pathKeys: List<String>, word: String): Float {
-        if (pathKeys.size < 2 || word.length < 2) return 0f
+        if (pathKeys.isEmpty()) return 0f
         
-        // Convert word to key sequence (just the letters)
-        val wordKeys = word.lowercase().map { it.toString() }
+        val wordChars = word.lowercase()
+        var pathIdx = 0
+        var wordIdx = 0
+        var matchedKeys = 0
         
-        // We need to compare sequences that may be different lengths
-        // Sample both to a common length for comparison
-        val compareLength = minOf(pathKeys.size, wordKeys.size)
-        if (compareLength < 2) return 0f
-        
-        var totalPenalty = 0f
-        var exactMatches = 0
-        var adjacentMatches = 0  // Keys that are keyboard-adjacent
-        
-        // Compare corresponding positions
-        for (i in 0 until compareLength) {
-            val pathIdx = (i * pathKeys.size) / compareLength
-            val wordIdx = (i * wordKeys.size) / compareLength
+        // Iterate through path keys and try to find them in the word (in order)
+        while (pathIdx < pathKeys.size && wordIdx < wordChars.length) {
+            val pKey = pathKeys[pathIdx]
+            val wChar = wordChars[wordIdx].toString()
             
-            if (pathIdx >= pathKeys.size || wordIdx >= wordKeys.size) continue
-            
-            val pathKey = pathKeys[pathIdx].firstOrNull()?.lowercaseChar() ?: continue
-            val wordKey = wordKeys[wordIdx].firstOrNull()?.lowercaseChar() ?: continue
-            
-            if (pathKey == wordKey) {
-                // Exact match - good!
-                exactMatches++
-            } else if (areKeysAdjacent(pathKey, wordKey)) {
-                // Adjacent keys - small penalty (typo tolerance)
-                adjacentMatches++
-                totalPenalty += 0.1f
+            if (pKey == wChar) {
+                // Match found! Advance both.
+                matchedKeys++
+                pathIdx++
+                wordIdx++ 
             } else {
-                // Non-adjacent mismatch - significant penalty!
-                // This catches 'w' vs 's' (not adjacent), 'w' vs 'r' (not adjacent)
-                totalPenalty += 0.4f
+                // No match at current char. 
+                // Advance word index to search later in the word.
+                // (e.g. searching for 'K' in "Awake" -> skip 'w', 'a'...)
+                wordIdx++
             }
         }
         
-        // Penalty for length mismatch (path much shorter/longer than word)
-        val lengthRatio = pathKeys.size.toFloat() / wordKeys.size.toFloat()
-        if (lengthRatio < 0.5f || lengthRatio > 2.0f) {
-            totalPenalty += 0.3f
+        // Calculate Unmatched Keys (Keys we swiped but didn't find in order)
+        // e.g. Swiping 'W' in "Area". 'W' is not in "Area". Unmatched = 1.
+        val unmatchedKeys = pathKeys.size - matchedKeys
+        
+        // PENALTY CALCULATION:
+        // Base penalty: 3.0f per missing key.
+        // This is massive. Standard weights are 0.8f, so 3.0 * 0.8 = 2.4 total score impact.
+        // Good matches usually have a total score < 0.5. This ensures "Area" is rejected.
+        var penalty = unmatchedKeys * 3.0f 
+        
+        // Length Penalty:
+        // If word is MUCH longer than the path (e.g. path 'a' vs 'android')
+        // We add a small penalty to prefer shorter matches for short swipes.
+        // "Awake" (5) vs Path "A-W-K-E" (4) -> Ratio 1.25 (OK)
+        // "Awesome" (7) vs Path "A-W-E" (3) -> Ratio 2.3 (Penalty)
+        if (word.length > pathKeys.size * 2.5) {
+             penalty += 0.5f
         }
-        
-        // Bonus for high exact match ratio
-        val matchRatio = exactMatches.toFloat() / compareLength
-        totalPenalty -= matchRatio * 0.3f
-        
-        return maxOf(0f, totalPenalty)
+
+        return penalty
     }
-    // =================================================================================
-    // END BLOCK: calculatePathKeyScore
-    // =================================================================================
 
     // =================================================================================
     // FUNCTION: areKeysAdjacent
