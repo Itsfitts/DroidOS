@@ -1,3 +1,0 @@
--keep class com.example.quadrantlauncher.ShellUserService { *; }
--keep class com.example.quadrantlauncher.IShellService { *; }
--keep interface com.example.quadrantlauncher.IShellService { *; }
