@@ -1,0 +1,88 @@
+name: Build debug APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      app-name:
+        description: 'App name to use for the uploaded artifact'
+        required: false
+        default: 'App'
+      branch:
+        description: 'Branch or ref to build (e.g., main or feature/my-branch). If empty, the run ref will be used.'
+        required: false
+        default: ''
+
+  workflow_call:
+    inputs:
+      app-name:
+        required: false
+        type: string
+        default: 'App'
+      branch:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  build:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+
+    env:
+      APP_NAME: ${{ inputs['app-name'] || github.event.inputs['app-name'] || 'App' }}
+      TARGET_REF: ${{ inputs.branch || github.event.inputs.branch || github.ref }}
+
+    steps:
+      - name: Check the code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_REF }}
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install CMake 3.31.0
+        run: sdkmanager "cmake;3.31.0"
+
+      - name: Set ANDROID_SDK_ROOT
+        run: echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+
+      - name: Accept Android SDK Licenses
+        run: yes | sdkmanager --licenses
+  
+# Then continue with your normal build steps
+      #- name: Install CMake 3.31.0
+      #  run: |
+      #    sudo apt-get update
+      #    sudo apt-get install -y cmake
+        # Or use a direct download if packaging is not available for 3.31.0
+
+   #   - name: Set up ANDROID_SDK_ROOT (if not already set)
+   #     run: echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Save current date as env variable
+        run: echo "current_date=$(date +'%I%M_%Y%m%d')" >> $GITHUB_ENV
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-debug-${{ env.current_date }}
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
