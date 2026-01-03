@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Configuration"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="20dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--- Input Speed ---"
+            android:textColor="#AAAAAA"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"/>
+
+        <TextView
+            android:id="@+id/tvCursorSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cursor Speed: 2.5"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarCursorSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="25"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvScrollSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scroll Distance (Swipe Length)"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarScrollSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="30"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--- Behavior ---"
+            android:textColor="#AAAAAA"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"/>
+
+        <Switch
+            android:id="@+id/switchTapScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tap-to-Scroll Buttons"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"
+            android:checked="true"/>
+
+        <Switch
+            android:id="@+id/switchVibrate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Haptic Feedback"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"/>
+
+        <Switch
+            android:id="@+id/switchReverseScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Reverse Buttons (Natural)"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"/>
+
+        <Switch
+            android:id="@+id/switchVPosLeft"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Vertical Scroll on Left"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"/>
+
+        <Switch
+            android:id="@+id/switchHPosTop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Horizontal Scroll on Top"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:minHeight="48dp"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--- Visuals ---"
+            android:textColor="#AAAAAA"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"/>
+            
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Keyboard Key Size (%)"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarKeyScale"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="200"
+            android:progress="100"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cursor Size"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarCursorSize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="150"
+            android:progress="50"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Border Visibility (Alpha)"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarAlpha"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="255"
+            android:progress="200"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Handle Icon Size"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarHandleSize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="60"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scroll Bar Thickness (Visual)"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarScrollVisual"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="20"
+            android:progress="4"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--- Touch Areas ---"
+            android:textColor="#AAAAAA"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Corner Handle Touch Area"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarHandleTouch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="150"
+            android:progress="60"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scroll Bar Touch Width"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarScrollTouch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="150"
+            android:progress="60"
+            android:layout_marginBottom="24dp"/>
+
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Save &amp; Apply"
+            android:backgroundTint="#3DDC84"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/btnBack"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Back to Main Menu"
+            android:backgroundTint="#444444"
+            android:textColor="#FFFFFF"/>
+
+    </LinearLayout>
+</ScrollView>
