@@ -1206,6 +1206,58 @@ class KeyboardOverlay(
     // =================================================================================
 
     // =================================================================================
+    // FUNCTION: onSwipeProgress (LIVE SWIPE PREVIEW)
+    // SUMMARY: Called during swipe to show real-time predictions as user swipes.
+    //          Uses a lightweight prediction that doesn't commit text.
+    //          This helps users see what word will be typed and helps debug.
+    // =================================================================================
+// =================================================================================
+    // FUNCTION: onSwipeProgress (LIVE SWIPE PREVIEW - Single Prediction)
+    // SUMMARY: Called during swipe to show real-time prediction as user swipes.
+    //          Shows ONLY the top prediction (like GBoard) for cleaner UX.
+    //          Full suggestions shown on swipe completion in onSwipeDetected.
+    // =================================================================================
+    override fun onSwipeProgress(path: List<android.graphics.PointF>) {
+        if (keyboardView == null || path.size < 5) return
+        
+        val keyMap = keyboardView?.getKeyCenters()
+        if (keyMap.isNullOrEmpty()) return
+
+        // Run prediction in background to avoid UI lag
+        Thread {
+            try {
+                val suggestions = predictionEngine.decodeSwipePreview(path, keyMap)
+
+                if (suggestions.isNotEmpty()) {
+                    handler.post {
+                        // Get only the TOP prediction
+                        var topPrediction = suggestions[0]
+                        
+                        // Apply capitalization if at sentence start
+                        if (isSentenceStart) {
+                            topPrediction = topPrediction.replaceFirstChar { 
+                                if (it.isLowerCase()) it.titlecase() else it.toString() 
+                            }
+                        }
+
+                        // Show ONLY the top prediction (single item list)
+                        val singleSuggestion = listOf(KeyboardView.Candidate(topPrediction, isNew = false))
+                        updateSuggestionsWithSync(singleSuggestion)
+                    }
+                }
+            } catch (e: Exception) {
+                // Silently ignore errors during preview
+            }
+        }.start()
+    }
+    // =================================================================================
+    // END BLOCK: onSwipeProgress
+    // =================================================================================
+    // =================================================================================
+    // END BLOCK: onSwipeProgress
+    // =================================================================================
+
+    // =================================================================================
     // FUNCTION: updateSuggestions
     // SUMMARY: Updates the suggestion bar based on current composing word.
     //          Shows raw input + dictionary suggestions, filtering blocked words.

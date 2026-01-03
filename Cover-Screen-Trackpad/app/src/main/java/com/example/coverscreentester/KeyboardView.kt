@@ -33,6 +33,11 @@ class KeyboardView @JvmOverloads constructor(
 
     data class Candidate(val text: String, val isNew: Boolean = false)
 
+    // =================================================================================
+    // INTERFACE: KeyboardListener
+    // SUMMARY: Callbacks for keyboard events including key presses, swipe gestures,
+    //          and the NEW live swipe preview for real-time predictions.
+    // =================================================================================
     interface KeyboardListener {
         fun onKeyPress(keyCode: Int, char: Char?, metaState: Int)
         fun onTextInput(text: String)
@@ -43,7 +48,14 @@ class KeyboardView @JvmOverloads constructor(
         fun onSwipeDetected(path: List<android.graphics.PointF>)
         fun onSuggestionDropped(text: String) // New: Drag to Delete
         fun onLayerChanged(state: KeyboardState) // Sync to mirror keyboard
+
+        // NEW: Live swipe preview - called during swipe to show predictions in real-time
+        // This enables GBoard-style "predict as you swipe" functionality
+        fun onSwipeProgress(path: List<android.graphics.PointF>) {}  // Default empty impl for backwards compat
     }
+    // =================================================================================
+    // END BLOCK: KeyboardListener interface
+    // =================================================================================
 
     enum class SpecialKey {
         BACKSPACE, ENTER, SPACE, SHIFT, CAPS_LOCK, SYMBOLS, ABC,
@@ -59,13 +71,23 @@ class KeyboardView @JvmOverloads constructor(
     private var listener: KeyboardListener? = null
     private var currentState = KeyboardState.LOWERCASE
     private var vibrationEnabled = true
-    
+
     private var isCtrlActive = false
     private var isAltActive = false
-    
+
     private var isVoiceActive = false
 
-    private val predictionEngine = PredictionEngine.instance
+    // =================================================================================
+    // LIVE SWIPE PREVIEW THROTTLING
+    // SUMMARY: Variables to control how often we send live swipe previews.
+    //          Too frequent = laggy, too slow = not responsive.
+    // =================================================================================
+    private var lastSwipePreviewTime = 0L
+    private val SWIPE_PREVIEW_INTERVAL_MS = 150L  // Update predictions every 150ms
+    private val SWIPE_PREVIEW_MIN_POINTS = 5      // Need at least 5 points before previewing
+    // =================================================================================
+    // END BLOCK: LIVE SWIPE PREVIEW THROTTLING
+    // =================================================================================
 
     // =================================================================================
     // VIRTUAL MIRROR ORIENTATION MODE STATE
@@ -912,17 +934,20 @@ class KeyboardView @JvmOverloads constructor(
                     }
                     currentPath.add(android.graphics.PointF(currentX, currentY))
 
-                    // Predict every ~5 points (approx 80ms)
-                    if (currentPath.size % 5 == 0 && currentPath.size > 5) {
-                        // This is now SAFE. It uses the Executor inside PredictionEngine.
-                        predictionEngine.predictAsync(currentPath, getKeyCenters()) { candidates ->
-                            // This callback comes from a background thread.
-                            // We MUST post to the Main Thread to update UI.
-                            handler.post {
-                                updateSuggestionsForPartialSwipe(candidates) 
-                            }
-                        }
+                    // =======================================================================
+                    // LIVE SWIPE PREVIEW
+                    // SUMMARY: Send current path to listener for real-time predictions.
+                    //          Throttled to avoid performance issues.
+                    // =======================================================================
+                    val now = System.currentTimeMillis()
+                    if (currentPath.size >= SWIPE_PREVIEW_MIN_POINTS &&
+                        now - lastSwipePreviewTime > SWIPE_PREVIEW_INTERVAL_MS) {
+                        lastSwipePreviewTime = now
+                        listener?.onSwipeProgress(ArrayList(currentPath))
                     }
+                    // =======================================================================
+                    // END BLOCK: LIVE SWIPE PREVIEW
+                    // =======================================================================
                 }
             }
 
@@ -1698,17 +1723,6 @@ class KeyboardView @JvmOverloads constructor(
                 view.setOnTouchListener(null)
             }
         }
-    }
-
-    // =================================================================================
-    // FUNCTION: updateSuggestionsForPartialSwipe
-    // SUMMARY: Takes candidates from decodePartialSwipe and displays them.
-    //          These are always considered "not new" as they are suggestions, not completions.
-    // =================================================================================
-    private fun updateSuggestionsForPartialSwipe(candidates: List<String>) {
-        // Convert to Candidate objects, always marking as isNew=false
-        val candidateObjects = candidates.map { Candidate(it, isNew = false) }
-        setSuggestions(candidateObjects)
     }
 
     // =================================================================================
