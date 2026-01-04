@@ -167,7 +167,16 @@ class KeyboardView @JvmOverloads constructor(
     // =================================================================================
     // END BLOCK: GESTURE TYPING STATE
     // =================================================================================
-
+// =================================================================================
+    // PREDICTION BAR DRAG TRACKING
+    // SUMMARY: Track when a gesture starts on the prediction bar so we can bypass
+    //          mirror mode for the entire drag gesture (not just the initial touch).
+    //          This allows drag-to-delete to work in mirror mode.
+    // =================================================================================
+    private var gestureStartedOnPredictionBar = false
+    // =================================================================================
+    // END BLOCK: PREDICTION BAR DRAG TRACKING
+    // =================================================================================
 
     // --- SPACEBAR TRACKPAD VARIABLES ---
 
@@ -390,24 +399,61 @@ class KeyboardView @JvmOverloads constructor(
     //          Called when switching from orange (orientation) to blue (typing) trail.
     //          Sets up all the swipe state so subsequent MOVE events are tracked.
     // =================================================================================
-    fun startSwipeFromPosition(x: Float, y: Float) {
-        Log.d("KeyboardView", "Starting swipe from position ($x, $y)")
 
-        // Initialize swipe tracking as if this was the ACTION_DOWN point
+
+    // =================================================================================
+    // FUNCTION: startSwipeFromPosition
+    // SUMMARY: Triggered by system. UPDATED to use geometric zone detection for 
+    //          robust candidate hover detection.
+    // =================================================================================
+    fun startSwipeFromPosition(x: Float, y: Float) {
+        // 1. Zone Check: Are we in the prediction strip area?
+        // The strip is the top-most element. Check if Y is within its height.
+        val stripHeight = suggestionStrip?.height ?: 0
+        
+        if (stripHeight > 0 && y >= 0 && y <= stripHeight) {
+            // We are in the strip. Calculate which column (0, 1, or 2).
+            val width = this.width
+            val col = (x / width * 3).toInt().coerceIn(0, 2)
+            
+            val candidates = listOf(cand1, cand2, cand3)
+            val text = candidates.getOrNull(col)?.text?.toString()
+            
+            if (!text.isNullOrEmpty()) {
+                Log.d("DroidOS_Drag", "Hover detected on Col $col: $text. Starting drag.")
+                
+                activeDragCandidate = text
+                isCandidateDragging = true // Start immediately (skip threshold)
+                dragStartX = x
+                dragStartY = y
+                
+                // Visual feedback
+                getCandidateView(text)?.alpha = 0.5f
+                
+                // Ensure swipe trail is killed
+                swipeTrail?.clear()
+                swipeTrail?.visibility = View.INVISIBLE
+                currentPath.clear()
+                
+                return
+            }
+        }
+
+        // 2. Normal Swipe Logic
         startTouchX = x
         startTouchY = y
-        isSwiping = true  // Already swiping
-        swipePointerId = 0  // Assume primary pointer
+        isSwiping = true  
+        swipePointerId = 0 
 
-        // Clear and start the blue trail
         swipeTrail?.clear()
         swipeTrail?.visibility = View.VISIBLE
         swipeTrail?.addPoint(x, y)
 
-        // Start the path collection
         currentPath.clear()
         currentPath.add(android.graphics.PointF(x, y))
     }
+
+
     // =================================================================================
     // END BLOCK: startSwipeFromPosition
     // =================================================================================
@@ -816,80 +862,80 @@ class KeyboardView @JvmOverloads constructor(
     //          3. Only tracks swipe for single-finger gestures
     //          4. Validates swipe has enough points and distance
     // =================================================================================
+
+    // =================================================================================
+    // DISPATCH TOUCH EVENT (UPDATED)
+    // SUMMARY: Handles gesture bypass logic for Mirror Mode.
+    // =================================================================================
     override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
-        // =================================================================================
-        // VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING
-        // SUMMARY: When orientation mode is active, we must block swipe typing here
-        //          because dispatchTouchEvent runs BEFORE onTouchEvent. If we don't
-        //          block here, swipe paths get collected and committed even though
-        //          onTouchEvent blocks individual key presses.
-        // =================================================================================
+        // Track gesture start - ONLY set flag on ACTION_DOWN
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val isPredictionBarTouch = suggestionStrip != null && event.y < (suggestionStrip?.bottom ?: 0)
+            gestureStartedOnPredictionBar = isPredictionBarTouch
+        }
+        
+        // Reset on gesture end
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            // gestureStartedOnPredictionBar reset is handled after super check below
+        }
+        
+        // BYPASS 1: Gesture started on Prediction Bar
+        if (gestureStartedOnPredictionBar) {
+            val result = super.dispatchTouchEvent(event)
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                gestureStartedOnPredictionBar = false
+            }
+            return result
+        }
+
+        // BYPASS 2: Active Drag Operation (Crucial for Mirror Mode Drag-Delete)
+        // If we are currently dragging a word (even if touch started elsewhere), bypass blockers
+        if (activeDragCandidate != null) {
+            // Cancel swipe if it was active
+            if (isSwiping) {
+                isSwiping = false
+                swipeTrail?.clear()
+                swipeTrail?.visibility = View.INVISIBLE
+                currentPath.clear()
+                swipePointerId = -1
+            }
+            
+            // Allow event to fall through to onTouchEvent where we handle the synthetic drag
+            return super.dispatchTouchEvent(event)
+        }
+        
         val callback = mirrorTouchCallback
         if (callback != null) {
             val shouldBlock = callback.invoke(event.x, event.y, event.actionMasked)
             if (shouldBlock) {
-                // Orientation mode - block ALL input including swipe
                 isOrientationModeActive = true
-
-                // Cancel any in-progress swipe
-                if (isSwiping) {
-                    isSwiping = false
-                    swipeTrail?.clear()
-                    swipeTrail?.visibility = View.INVISIBLE
-                }
-                currentPath.clear()
-                swipePointerId = -1
-
-                // Still call super so child views can process, but return true to consume
+                if (isSwiping) { isSwiping = false; swipeTrail?.clear(); swipeTrail?.visibility = View.INVISIBLE }
+                currentPath.clear(); swipePointerId = -1
                 super.dispatchTouchEvent(event)
                 return true
             }
         }
 
-        // Also check the flag directly (for when callback isn't active)
         if (isOrientationModeActive) {
-            // Cancel any in-progress swipe
-            if (isSwiping) {
-                isSwiping = false
-                swipeTrail?.clear()
-                swipeTrail?.visibility = View.INVISIBLE
-            }
-            currentPath.clear()
-            swipePointerId = -1
-
+            if (isSwiping) { isSwiping = false; swipeTrail?.clear(); swipeTrail?.visibility = View.INVISIBLE }
+            currentPath.clear(); swipePointerId = -1
             super.dispatchTouchEvent(event)
             return true
         }
-        // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING
-        // =================================================================================
 
         // --- 1. PREVENT SWIPE TRAIL ON SPACEBAR ---
-        // If the touch starts on the SPACE key, we skip the swipe detection logic entirely.
         if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
             val touchedView = findKeyView(event.x, event.y)
-            if (touchedView?.tag == "SPACE") {
-                return super.dispatchTouchEvent(event)
-            }
+            if (touchedView?.tag == "SPACE") return super.dispatchTouchEvent(event)
         }
 
-        // --- 2. CALL SUPER FIRST ---
-        // This delivers touch events to child views (including suggestion candidates)
-        // handleCandidateTouch will set activeDragCandidate/isCandidateDragging
+        // --- 2. CALL SUPER ---
         val superResult = super.dispatchTouchEvent(event)
 
         // --- 3. CHECK IF CANDIDATE IS BEING DRAGGED ---
-        // If user is dragging a suggestion candidate, cancel any swipe tracking
-        // and skip the swipe detection logic below
         if (activeDragCandidate != null) {
-            // Cancel any active swipe tracking
-            if (isSwiping) {
-                isSwiping = false
-                swipeTrail?.clear()
-                swipeTrail?.visibility = View.INVISIBLE
-            }
-            currentPath.clear()
-            swipePointerId = -1
+            if (isSwiping) { isSwiping = false; swipeTrail?.clear(); swipeTrail?.visibility = View.INVISIBLE }
+            currentPath.clear(); swipePointerId = -1
             return superResult
         }
 
@@ -900,141 +946,55 @@ class KeyboardView @JvmOverloads constructor(
 
         when (action) {
             android.view.MotionEvent.ACTION_DOWN -> {
-                // First finger down - initialize potential swipe tracking
-                isSwiping = false
-                swipePointerId = pointerId
-                startTouchX = event.x
-                startTouchY = event.y
-                swipeTrail?.clear()
-                swipeTrail?.addPoint(event.x, event.y)
-                currentPath.clear()
-                currentPath.add(android.graphics.PointF(event.x, event.y))
+                isSwiping = false; swipePointerId = pointerId; startTouchX = event.x; startTouchY = event.y
+                swipeTrail?.clear(); swipeTrail?.addPoint(event.x, event.y)
+                currentPath.clear(); currentPath.add(android.graphics.PointF(event.x, event.y))
             }
-
             android.view.MotionEvent.ACTION_POINTER_DOWN -> {
-                // Second finger touched - CANCEL swipe detection (user is typing with two thumbs)
-                if (isSwiping) {
-                    isSwiping = false
-                    swipeTrail?.clear()
-                    swipeTrail?.visibility = View.INVISIBLE
-                    currentPath.clear()
-                }
-                swipePointerId = -1 // Disable swipe tracking for this gesture
+                if (isSwiping) { isSwiping = false; swipeTrail?.clear(); swipeTrail?.visibility = View.INVISIBLE; currentPath.clear() }
+                swipePointerId = -1
             }
-
             android.view.MotionEvent.ACTION_MOVE -> {
-                // Only track movement for the original swipe pointer
                 if (swipePointerId == -1) return superResult
-
-                // Find the index of our tracked pointer
                 val trackedIndex = event.findPointerIndex(swipePointerId)
                 if (trackedIndex == -1) return superResult
-
-                val currentX = event.getX(trackedIndex)
-                val currentY = event.getY(trackedIndex)
+                val currentX = event.getX(trackedIndex); val currentY = event.getY(trackedIndex)
 
                 if (!isSwiping) {
-                    val dx = Math.abs(currentX - startTouchX)
-                    val dy = Math.abs(currentY - startTouchY)
-                    // Require movement in BOTH axes or significant movement in one
-                    val totalMovement = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
-                    if (totalMovement > SWIPE_THRESHOLD) {
-                        isSwiping = true
-                        currentRepeatKey = null
-                        repeatHandler.removeCallbacks(repeatRunnable)
-                        swipeTrail?.visibility = View.VISIBLE
+                    val dx = Math.abs(currentX - startTouchX); val dy = Math.abs(currentY - startTouchY)
+                    if (Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat() > SWIPE_THRESHOLD) {
+                        isSwiping = true; currentRepeatKey = null; repeatHandler.removeCallbacks(repeatRunnable); swipeTrail?.visibility = View.VISIBLE
                     }
                 }
-
                 if (isSwiping) {
                     swipeTrail?.addPoint(currentX, currentY)
-                    // Sample historical points for smoother path
                     if (event.historySize > 0) {
-                        for (h in 0 until event.historySize) {
-                            val hx = event.getHistoricalX(trackedIndex, h)
-                            val hy = event.getHistoricalY(trackedIndex, h)
-                            currentPath.add(android.graphics.PointF(hx, hy))
-                        }
+                        for (h in 0 until event.historySize) currentPath.add(android.graphics.PointF(event.getHistoricalX(trackedIndex, h), event.getHistoricalY(trackedIndex, h)))
                     }
                     currentPath.add(android.graphics.PointF(currentX, currentY))
-
-                    // =======================================================================
-                    // LIVE SWIPE PREVIEW
-                    // SUMMARY: Send current path to listener for real-time predictions.
-                    //          Throttled to avoid performance issues.
-                    // =======================================================================
                     val now = System.currentTimeMillis()
-                    if (currentPath.size >= SWIPE_PREVIEW_MIN_POINTS &&
-                        now - lastSwipePreviewTime > SWIPE_PREVIEW_INTERVAL_MS) {
-                        lastSwipePreviewTime = now
-                        listener?.onSwipeProgress(ArrayList(currentPath))
+                    if (currentPath.size >= SWIPE_PREVIEW_MIN_POINTS && now - lastSwipePreviewTime > SWIPE_PREVIEW_INTERVAL_MS) {
+                        lastSwipePreviewTime = now; listener?.onSwipeProgress(ArrayList(currentPath))
                     }
-                    // =======================================================================
-                    // END BLOCK: LIVE SWIPE PREVIEW
-                    // =======================================================================
                 }
             }
-
             android.view.MotionEvent.ACTION_UP -> {
                 if (isSwiping && pointerId == swipePointerId) {
-                    swipeTrail?.clear()
-                    swipeTrail?.visibility = View.INVISIBLE
-
-                    // FIX: Clear any key highlight that may have been set during swipe
-                    currentActiveKey?.let { key ->
-                        val tag = key.tag as? String
-                        if (tag != null) setKeyVisual(key, false, tag)
-                    }
+                    swipeTrail?.clear(); swipeTrail?.visibility = View.INVISIBLE
+                    currentActiveKey?.let { key -> if (key.tag != null) setKeyVisual(key, false, key.tag as String) }
                     currentActiveKey = null
-
-                    // Validate swipe before triggering decoder
-                    val isValidSwipe = validateSwipe()
-
-                    if (isValidSwipe) {
-                        // LOG: Swipe passed validation, sending to decoder
-                        android.util.Log.d("DroidOS_Swipe", "DISPATCH: Sending ${currentPath.size} points to onSwipeDetected")
-
-                        // Check if listener exists
-                        if (listener == null) {
-                            android.util.Log.e("DroidOS_Swipe", "DISPATCH FAIL: listener is NULL!")
-                        } else {
-                            listener?.onSwipeDetected(ArrayList(currentPath))
-                        }
-                    } else {
-                        android.util.Log.d("DroidOS_Swipe", "DISPATCH SKIP: validateSwipe returned false")
-                    }
-
-                    isSwiping = false
-                    swipePointerId = -1
-                    currentPath.clear()
+                    if (validateSwipe()) listener?.onSwipeDetected(ArrayList(currentPath))
+                    isSwiping = false; swipePointerId = -1; currentPath.clear()
                     return true
                 }
-                // Clean up even if this wasn't our tracked pointer
-                swipeTrail?.clear()
-                swipePointerId = -1
+                swipeTrail?.clear(); swipePointerId = -1
             }
-
-            android.view.MotionEvent.ACTION_POINTER_UP -> {
-                // One finger lifted but another still down - just clean up if it was our pointer
-                if (pointerId == swipePointerId) {
-                    isSwiping = false
-                    swipePointerId = -1
-                    swipeTrail?.clear()
-                    swipeTrail?.visibility = View.INVISIBLE
-                    currentPath.clear()
-                }
-            }
-
-            android.view.MotionEvent.ACTION_CANCEL -> {
-                isSwiping = false
-                swipePointerId = -1
-                swipeTrail?.clear()
-                swipeTrail?.visibility = View.INVISIBLE
-                currentPath.clear()
-            }
+            android.view.MotionEvent.ACTION_POINTER_UP -> { if (pointerId == swipePointerId) { isSwiping = false; swipePointerId = -1; swipeTrail?.clear(); swipeTrail?.visibility = View.INVISIBLE; currentPath.clear() } }
+            android.view.MotionEvent.ACTION_CANCEL -> { isSwiping = false; swipePointerId = -1; swipeTrail?.clear(); swipeTrail?.visibility = View.INVISIBLE; currentPath.clear() }
         }
         return superResult
     }
+
     // =================================================================================
     // END BLOCK: dispatchTouchEvent
     // =================================================================================
@@ -1082,6 +1042,7 @@ class KeyboardView @JvmOverloads constructor(
 
 
 
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val action = event.actionMasked
@@ -1090,162 +1051,86 @@ class KeyboardView @JvmOverloads constructor(
         val x = event.getX(pointerIndex)
         val y = event.getY(pointerIndex)
 
-        // =================================================================================
-        // BLOCK: VIRTUAL MIRROR MODE - INTERCEPT TOUCHES (EXCEPT PREDICTIONS)
-        // SUMMARY: All key touches go through orientation mode, but prediction bar
-        //          touches should work immediately so users can tap suggestions.
-        // =================================================================================
 
-        // Check if touch is in the prediction bar area (top portion of keyboard)
-        val isPredictionBarTouch = suggestionStrip != null && y < (suggestionStrip?.bottom ?: 0)
+        // --- MANUALLY PROCESS DRAG ---
+        // Crucial for Mirror Mode: The touch started elsewhere, so child views 
+        // didn't get ACTION_DOWN. We must drive the drag logic manually.
+        if (activeDragCandidate != null) {
+            // Pass LOCAL coordinates (x, y) to match startSwipeFromPosition
+            processCandidateDrag(x, y, action)
+            return true
+        }
 
+
+        val bypassMirrorMode = gestureStartedOnPredictionBar
         val touchedView = findKeyView(x, y)
         val keyTag = touchedView?.tag as? String
 
         val callback = mirrorTouchCallback
-        if (callback != null && !isPredictionBarTouch) {
-            val shouldBlock = callback.invoke(x, y, action)
-            if (shouldBlock) {
-                // Orientation mode is active - set flag and block ALL input
+        if (callback != null && !bypassMirrorMode) {
+            if (callback.invoke(x, y, action)) {
                 isOrientationModeActive = true
-
-                // Clear any active key highlight
-                currentActiveKey?.let { key ->
-                    val tag = key.tag as? String
-                    if (tag != null) setKeyVisual(key, false, tag)
-                }
+                currentActiveKey?.let { if (it.tag != null) setKeyVisual(it, false, it.tag as String) }
                 currentActiveKey = null
-
-                // CRITICAL: Return immediately - do not process as key input
                 return true
             }
         }
-        // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE - INTERCEPT TOUCHES
-        // =================================================================================
 
-        // =================================================================================
-        // ORIENTATION MODE CHECK (fallback, but skip for prediction bar)
-        // =================================================================================
-        if (isOrientationModeActive && !isPredictionBarTouch) {
-            currentActiveKey?.let {
-                val tag = it.tag as? String
-                if (tag != null) setKeyVisual(it, false, tag)
-            }
+        if (isOrientationModeActive && !bypassMirrorMode) {
+            currentActiveKey?.let { if (it.tag != null) setKeyVisual(it, false, it.tag as String) }
             currentActiveKey = null
             return true
         }
-        // =================================================================================
-        // END BLOCK: ORIENTATION MODE CHECK
-        // =================================================================================
 
-        // Note: touchedView and keyTag already computed above
-
-        // --- SPACEBAR TRACKPAD HANDLING ---
+        // Spacebar Trackpad
         if ((keyTag == "SPACE" && action == MotionEvent.ACTION_DOWN) || spacebarPointerId == pointerId) {
             when (action) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                     if (keyTag == "SPACE") {
-                        spacebarPointerId = pointerId
-                        lastSpaceX = x
-                        lastSpaceY = y
-
-                        isSpaceTrackpadActive = false
-                        isDragging = false
-                        hasMovedWhileDown = false
-
-                        // If in Touch Mode, start the "Hold to Drag" timer
-                        if (isTrackpadTouchMode) {
-                            handler.postDelayed(holdToDragRunnable, 300) // Wait 300ms to detect Hold
-                            android.util.Log.d("SpaceTrackpad", "Touch Mode: Started hold-to-drag timer")
-                        }
-
-                        // Visual feedback only
+                        spacebarPointerId = pointerId; lastSpaceX = x; lastSpaceY = y; isSpaceTrackpadActive = false; isDragging = false; hasMovedWhileDown = false
+                        if (isTrackpadTouchMode) handler.postDelayed(holdToDragRunnable, 300)
                         if (touchedView != null) setKeyVisual(touchedView, true, "SPACE")
                         return true
                     }
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (pointerId == spacebarPointerId) {
-                        val dx = x - lastSpaceX
-                        val dy = y - lastSpaceY
-
-                        // Check if user moved significantly
+                        val dx = x - lastSpaceX; val dy = y - lastSpaceY
                         if (kotlin.math.hypot(dx, dy) > touchSlop) {
                             hasMovedWhileDown = true
-
-                            // If we moved BEFORE the hold timer fired, cancel the hold
-                            // (Unless we are already dragging, in which case we continue dragging)
-                            if (!isDragging) {
-                                handler.removeCallbacks(holdToDragRunnable)
-                            }
-
+                            if (!isDragging) handler.removeCallbacks(holdToDragRunnable)
                             isSpaceTrackpadActive = true
                         }
-
-                        // Move Cursor
-                        if (isSpaceTrackpadActive) {
-                            moveMouse(dx, dy)
-                            lastSpaceX = x
-                            lastSpaceY = y
-                        }
+                        if (isSpaceTrackpadActive) { moveMouse(dx, dy); lastSpaceX = x; lastSpaceY = y }
                         return true
                     }
                 }
-
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                     if (pointerId == spacebarPointerId) {
                         handler.removeCallbacks(holdToDragRunnable)
-
-                        // VISUAL LOGIC:
-                        // Only reset to Grey if we are NOT staying in Touch Mode.
-                        // If we are in Touch Mode, startTrackpadTimer() will ensure it stays Green.
                         val stayingInMode = isTrackpadTouchMode || isSpaceTrackpadActive
-                        
                         val spaceView = if (touchedView?.tag == "SPACE") touchedView else findViewWithTag("SPACE")
-                        if (spaceView != null && !stayingInMode) {
-                            setKeyVisual(spaceView, false, "SPACE")
-                        }
-
+                        if (spaceView != null && !stayingInMode) setKeyVisual(spaceView, false, "SPACE")
+                        
                         if (isTrackpadTouchMode) {
-                            if (isDragging) {
-                                touchUpAction?.invoke()
-                                isDragging = false
-                            } else if (!hasMovedWhileDown) {
-                                touchTapAction?.invoke()
-                            }
+                            if (isDragging) { touchUpAction?.invoke(); isDragging = false } 
+                            else if (!hasMovedWhileDown) { touchTapAction?.invoke() }
                             startTrackpadTimer()
                         } else {
                             if (!isSpaceTrackpadActive) {
-                                // Normal Space Tap (Turns Grey immediately above)
-                                if (isPredictiveBarEmpty) {
-                                    listener?.onSpecialKey(SpecialKey.SPACE, 0)
-                                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                } else {
-                                    listener?.onSpecialKey(SpecialKey.SPACE, 0)
-                                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                }
-                            } else {
-                                // Drag Finished -> Enter Touch Mode (Stays Green)
-                                startTrackpadTimer()
-                            }
+                                listener?.onSpecialKey(SpecialKey.SPACE, 0)
+                                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            } else { startTrackpadTimer() }
                         }
-                        
-                        spacebarPointerId = -1
-                        isSpaceTrackpadActive = false
+                        spacebarPointerId = -1; isSpaceTrackpadActive = false
                         return true
                     }
                 }
-
-
                 MotionEvent.ACTION_CANCEL -> {
                     if (pointerId == spacebarPointerId) {
                         handler.removeCallbacks(holdToDragRunnable)
                         if (isDragging) { touchUpAction?.invoke(); isDragging = false }
-                        spacebarPointerId = -1
-                        isSpaceTrackpadActive = false
-                        
-                        // Only turn off visual if timer isn't running
+                        spacebarPointerId = -1; isSpaceTrackpadActive = false
                         if (!isTrackpadTouchMode) {
                             val spaceView = findViewWithTag<View>("SPACE")
                             if (spaceView != null) setKeyVisual(spaceView, false, "SPACE")
@@ -1253,65 +1138,41 @@ class KeyboardView @JvmOverloads constructor(
                         return true
                     }
                 }
-
             }
         }
 
-        // --- STANDARD KEYBOARD HANDLING (Fixes Stuck Highlights) ---
-        // We track the active key and update it as the finger slides.
-        
+        // Standard Keyboard Handling
         when (action) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 if (touchedView != null && keyTag != null && keyTag != "SPACE") {
-                    currentActiveKey = touchedView
-                    onKeyDown(keyTag, touchedView)
+                    currentActiveKey = touchedView; onKeyDown(keyTag, touchedView)
                 }
             }
             MotionEvent.ACTION_MOVE -> {
-                // If we slid to a new key
                 if (touchedView != currentActiveKey) {
-                    // Deactivate old key
-                    currentActiveKey?.let {
-                        val oldTag = it.tag as? String
-                        if (oldTag != null) {
-                            setKeyVisual(it, false, oldTag)
-                            // CRITICAL: Stop any repeat when sliding off a key
-                            if (oldTag == currentRepeatKey) {
-                                stopRepeat()
-                            }
+                    currentActiveKey?.let { 
+                        if (it.tag != null) {
+                            setKeyVisual(it, false, it.tag as String)
+                            if (it.tag == currentRepeatKey) stopRepeat()
                         }
                     }
-
-                    // Activate new
                     if (touchedView != null && keyTag != null && keyTag != "SPACE") {
-                        currentActiveKey = touchedView
-                        onKeyDown(keyTag, touchedView) // Visual on + Haptic
-                    } else {
-                        currentActiveKey = null
-                    }
+                        currentActiveKey = touchedView; onKeyDown(keyTag, touchedView)
+                    } else { currentActiveKey = null }
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                currentActiveKey?.let {
-                    val tag = it.tag as? String
-                    if (tag != null) {
-                        // Commit the input
-                        onKeyUp(tag, it)
-                    }
-                }
+                currentActiveKey?.let { if (it.tag != null) onKeyUp(it.tag as String, it) }
                 currentActiveKey = null
             }
             MotionEvent.ACTION_CANCEL -> {
-                currentActiveKey?.let {
-                    val tag = it.tag as? String
-                    if (tag != null) setKeyVisual(it, false, tag)
-                }
+                currentActiveKey?.let { if (it.tag != null) setKeyVisual(it, false, it.tag as String) }
                 currentActiveKey = null
             }
         }
-        
         return true
     }
+
 
 
 
@@ -1701,46 +1562,41 @@ class KeyboardView @JvmOverloads constructor(
     private var isCandidateDragging = false
     private var activeDragCandidate: String? = null
 
+
+
+
     @SuppressLint("ClickableViewAccessibility")
     fun setSuggestions(candidates: List<Candidate>) {
         if (suggestionStrip == null) return
-
-        // Update empty state flag
         isPredictiveBarEmpty = candidates.isEmpty() || candidates.all { it.text.isEmpty() }
-
         if (isPredictiveBarEmpty) {
-            cand1?.visibility = View.GONE
-            cand2?.visibility = View.GONE
-            cand3?.visibility = View.GONE
-            div1?.visibility = View.GONE
-            div2?.visibility = View.GONE
+            cand1?.visibility = View.GONE; cand2?.visibility = View.GONE; cand3?.visibility = View.GONE
+            div1?.visibility = View.GONE; div2?.visibility = View.GONE
             return
         }
-
-        div1?.visibility = View.VISIBLE
-        div2?.visibility = View.VISIBLE
-
+        div1?.visibility = View.VISIBLE; div2?.visibility = View.VISIBLE
         val views = listOf(cand1, cand2, cand3)
-
         for (i in 0 until 3) {
             val view = views[i] ?: continue
             if (i < candidates.size) {
                 val item = candidates[i]
                 view.text = item.text
                 view.visibility = View.VISIBLE
-
-                // HIGHLIGHT NEW WORDS
-                if (item.isNew) {
-                    view.setTextColor(Color.CYAN)
-                    view.typeface = android.graphics.Typeface.DEFAULT_BOLD
-                } else {
-                    view.setTextColor(Color.WHITE)
-                    view.typeface = android.graphics.Typeface.DEFAULT
-                }
-
-                // TOUCH LISTENER: Handle Click vs Drag
-                view.setOnTouchListener { v, event ->
-                    handleCandidateTouch(v, event, item)
+                if (item.isNew) { view.setTextColor(Color.CYAN); view.typeface = android.graphics.Typeface.DEFAULT_BOLD }
+                else { view.setTextColor(Color.WHITE); view.typeface = android.graphics.Typeface.DEFAULT }
+                
+                view.setOnTouchListener { v, event -> 
+                    // Convert child coordinates to KeyboardView Local coordinates
+                    // v.x is relative to suggestionStrip. suggestionStrip is relative to KeyboardView.
+                    val stripX = suggestionStrip?.x ?: 0f
+                    val stripY = suggestionStrip?.y ?: 0f
+                    val localX = stripX + v.x + event.x
+                    val localY = stripY + v.y + event.y 
+                    
+                    if (event.action == MotionEvent.ACTION_DOWN) {
+                        activeDragCandidate = item.text
+                    }
+                    processCandidateDrag(localX, localY, event.action)
                 }
             } else {
                 view.visibility = View.INVISIBLE
@@ -1748,100 +1604,88 @@ class KeyboardView @JvmOverloads constructor(
             }
         }
     }
+    
+    private fun getCandidateView(text: String?): TextView? {
+        if (text == null) return null
+        if (cand1?.text == text) return cand1
+        if (cand2?.text == text) return cand2
+        if (cand3?.text == text) return cand3
+        return null
+    }
 
     // =================================================================================
-    // FUNCTION: handleCandidateTouch
-    // SUMMARY: Handles touch events on suggestion candidates. Detects click vs drag.
-    //          Dragging to backspace triggers word deletion (block from dictionary).
-    //          DEBUG: Comprehensive logging to trace touch flow.
+    // CENTRALIZED DRAG LOGIC (LOCAL COORDINATES)
     // =================================================================================
-    private fun handleCandidateTouch(view: View, event: MotionEvent, item: Candidate): Boolean {
-        when (event.action) {
+    private fun processCandidateDrag(x: Float, y: Float, action: Int): Boolean {
+        var itemText = activeDragCandidate
+        
+        when (action) {
             MotionEvent.ACTION_DOWN -> {
-                android.util.Log.d("DroidOS_Drag", "CANDIDATE DOWN: '${item.text}' at (${event.rawX.toInt()}, ${event.rawY.toInt()})")
-                dragStartX = event.rawX
-                dragStartY = event.rawY
+                dragStartX = x
+                dragStartY = y
                 isCandidateDragging = false
-                activeDragCandidate = item.text
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                val dx = event.rawX - dragStartX
-                val dy = event.rawY - dragStartY
-                val dist = kotlin.math.hypot(dx.toDouble(), dy.toDouble())
-
-                // Threshold to start dragging (20px)
-                if (!isCandidateDragging && dist > 20) {
-                    isCandidateDragging = true
-                    android.util.Log.d("DroidOS_Drag", "CANDIDATE DRAG START: '${item.text}' (moved ${dist.toInt()}px)")
-                    // Visual feedback: Dim the candidate
-                    view.alpha = 0.5f
+                if (itemText == null) return false
+                val dx = x - dragStartX; val dy = y - dragStartY
+                
+                if (!isCandidateDragging) {
+                     // Lower threshold for responsiveness
+                     if (kotlin.math.hypot(dx, dy) > 10) {
+                         isCandidateDragging = true
+                         Log.d("DroidOS_Drag", "Drag Started: $itemText")
+                         getCandidateView(itemText)?.alpha = 0.5f
+                     }
                 }
 
                 if (isCandidateDragging) {
-                    // Check if hovering over BACKSPACE
                     val bkspKey = findViewWithTag<View>("BKSP")
                     if (bkspKey != null) {
-                        val loc = IntArray(2)
-                        bkspKey.getLocationOnScreen(loc)
-                        val kx = loc[0]
-                        val ky = loc[1]
-                        val kw = bkspKey.width
-                        val kh = bkspKey.height
-
-                        // Check intersection
-                        val isOverBksp = event.rawX >= kx && event.rawX <= kx + kw &&
-                                         event.rawY >= ky && event.rawY <= ky + kh
-
-                        if (isOverBksp) {
-                            // HOVERING: Turn Red
-                            setKeyVisual(bkspKey, false, "BKSP", overrideColor = Color.RED)
-                        } else {
-                            // NORMAL
-                            setKeyVisual(bkspKey, false, "BKSP")
-                        }
+                        // Calculate BKSP key bounds in Local Coordinates
+                        val loc = IntArray(2); bkspKey.getLocationInWindow(loc)
+                        val myLoc = IntArray(2); this.getLocationInWindow(myLoc)
+                        val kX = (loc[0] - myLoc[0]).toFloat()
+                        val kY = (loc[1] - myLoc[1]).toFloat()
+                        
+                        val isOverBksp = x >= kX && x <= kX + bkspKey.width && y >= kY && y <= kY + bkspKey.height
+                        setKeyVisual(bkspKey, false, "BKSP", overrideColor = if (isOverBksp) Color.RED else null)
                     }
                 }
                 return true
             }
             MotionEvent.ACTION_UP -> {
-                android.util.Log.d("DroidOS_Drag", "CANDIDATE UP: '${item.text}' isCandidateDragging=$isCandidateDragging")
-                view.alpha = 1.0f
+                if (itemText == null) return false
+                getCandidateView(itemText)?.alpha = 1.0f
                 val bkspKey = findViewWithTag<View>("BKSP")
-                if (bkspKey != null) setKeyVisual(bkspKey, false, "BKSP") // Reset color
+                if (bkspKey != null) setKeyVisual(bkspKey, false, "BKSP")
 
                 if (isCandidateDragging) {
-                    // Check Drop Target
-                    if (bkspKey != null) {
-                        val loc = IntArray(2)
-                        bkspKey.getLocationOnScreen(loc)
-                        val isOverBksp = event.rawX >= loc[0] && event.rawX <= loc[0] + bkspKey.width &&
-                                         event.rawY >= loc[1] && event.rawY <= loc[1] + bkspKey.height
-
-                        android.util.Log.d("DroidOS_Drag", "DROP CHECK: rawX=${event.rawX.toInt()}, rawY=${event.rawY.toInt()}, bksp=(${loc[0]},${loc[1]},${bkspKey.width},${bkspKey.height}), isOver=$isOverBksp")
-
-                        if (isOverBksp) {
-                            // DROPPED ON BACKSPACE -> DELETE
-                            android.util.Log.d("DroidOS_Drag", "DROP ON BKSP: Calling onSuggestionDropped('${item.text}')")
-                            listener?.onSuggestionDropped(item.text)
+                     if (bkspKey != null) {
+                        val loc = IntArray(2); bkspKey.getLocationInWindow(loc)
+                        val myLoc = IntArray(2); this.getLocationInWindow(myLoc)
+                        val kX = (loc[0] - myLoc[0]).toFloat()
+                        val kY = (loc[1] - myLoc[1]).toFloat()
+                        
+                        if (x >= kX && x <= kX + bkspKey.width && y >= kY && y <= kY + bkspKey.height) {
+                            Log.d("DroidOS_Drag", "Drop Delete: $itemText")
+                            listener?.onSuggestionDropped(itemText)
                             performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                         }
-                    } else {
-                        android.util.Log.e("DroidOS_Drag", "ERROR: bkspKey is NULL!")
                     }
                 } else {
-                    // CLICK -> SELECT
-                    android.util.Log.d("DroidOS_Drag", "CANDIDATE CLICK: '${item.text}'")
-                    listener?.onSuggestionClick(item.text, item.isNew)
-                    view.performClick()
+                    // Click (Only if we didn't drag)
+                    val isNew = getCandidateView(itemText)?.currentTextColor == Color.CYAN
+                    listener?.onSuggestionClick(itemText, isNew)
+                    getCandidateView(itemText)?.performClick()
                 }
                 isCandidateDragging = false
                 activeDragCandidate = null
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
-                android.util.Log.d("DroidOS_Drag", "CANDIDATE CANCEL: '${item.text}'")
-                view.alpha = 1.0f
+                if (itemText == null) return false
+                getCandidateView(itemText)?.alpha = 1.0f
                 isCandidateDragging = false
                 activeDragCandidate = null
                 val bkspKey = findViewWithTag<View>("BKSP")
@@ -1851,8 +1695,6 @@ class KeyboardView @JvmOverloads constructor(
         }
         return false
     }
-    // =================================================================================
-    // END BLOCK: handleCandidateTouch with debug logging
-    // =================================================================================
+
 
 }
