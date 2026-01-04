@@ -557,12 +557,13 @@ class KeyboardOverlay(
     // FUNCTION: handleDeferredTap
     // SUMMARY: Forwards deferred tap to KeyboardView for single key press in mirror mode.
     // =================================================================================
+
     fun handleDeferredTap(x: Float, y: Float) {
+        // CRITICAL: If a tap is detected, immediately stop any pending repeat logic.
+        // This prevents the "stuck" state where the system thinks you are still holding the key.
+        stopMirrorRepeat()
         keyboardView?.handleDeferredTap(x, y)
     }
-    // =================================================================================
-    // END BLOCK: handleDeferredTap
-    // =================================================================================
 // =================================================================================
     // FUNCTION: getKeyAtPosition
     // SUMMARY: Returns the key tag at the given position, or null if no key found.
@@ -576,17 +577,78 @@ class KeyboardOverlay(
     // =================================================================================
 
     // =================================================================================
-    // FUNCTION: triggerKeyPress
-    // SUMMARY: Triggers a key press by key tag. Used by mirror mode key repeat to
-    //          fire repeated backspace/arrow presses without going through touch events.
+
     // =================================================================================
-    fun triggerKeyPress(keyTag: String) {
-        keyboardView?.triggerKeyPress(keyTag)
+    // FUNCTION: triggerKeyPress (Updated with Tap-Reset Fix)
+    // SUMMARY: Triggers a key press by key tag for Mirror Mode.
+    //          Includes 400ms initial delay + Watchdog timeout.
+    //          Now robustly resets if the sequence is broken.
+    // =================================================================================
+    private var activeRepeatKey: String? = null
+    private var lastMirrorKeyTime = 0L
+    private val mirrorRepeatHandler = Handler(Looper.getMainLooper())
+    private val REPEAT_START_DELAY = 400L
+    private val REPEAT_INTERVAL = 50L 
+    
+    // Watchdog: If no input received for 150ms, assume key was released
+    // Increased to 150ms to be more tolerant of input jitters
+    private val MIRROR_INPUT_TIMEOUT = 150L 
+
+    private val mirrorRepeatRunnable = object : Runnable {
+        override fun run() {
+            val key = activeRepeatKey ?: return
+            val now = System.currentTimeMillis()
+            
+            // Watchdog Check
+            if (now - lastMirrorKeyTime > MIRROR_INPUT_TIMEOUT) {
+                stopMirrorRepeat()
+                return
+            }
+
+            // Fire event
+            keyboardView?.triggerKeyPress(key)
+            mirrorRepeatHandler.postDelayed(this, REPEAT_INTERVAL)
+        }
     }
-    // =================================================================================
-    // END BLOCK: triggerKeyPress
-    // =================================================================================   // =================================================================================
-    // FUNCTION: getKeyboardState
+
+    // Changed from private to private-but-accessible-internally (or keep private if handleDeferredTap is in same class)
+    private fun stopMirrorRepeat() {
+        activeRepeatKey = null
+        mirrorRepeatHandler.removeCallbacks(mirrorRepeatRunnable)
+    }
+
+    fun triggerKeyPress(keyTag: String) {
+        val isRepeatable = keyTag in setOf("BKSP", "DEL", "◄", "▲", "▼", "►", "←", "↑", "↓", "→", "VOL+", "VOL-", "VOL_UP", "VOL_DOWN")
+
+        if (!isRepeatable) {
+            stopMirrorRepeat()
+            keyboardView?.triggerKeyPress(keyTag)
+            return
+        }
+
+        val now = System.currentTimeMillis()
+
+        if (keyTag == activeRepeatKey) {
+            // Update watchdog time
+            lastMirrorKeyTime = now
+            
+            // ROBUSTNESS FIX: If for some reason the handler isn't running (race condition),
+            // restart it to ensure we don't get stuck in a silent state.
+            if (!mirrorRepeatHandler.hasCallbacks(mirrorRepeatRunnable)) {
+                mirrorRepeatHandler.postDelayed(mirrorRepeatRunnable, REPEAT_START_DELAY)
+            }
+        } else {
+            // New Key Sequence
+            stopMirrorRepeat()
+            
+            activeRepeatKey = keyTag
+            lastMirrorKeyTime = now
+            
+            // Start Delay (Wait 400ms before first fire)
+            mirrorRepeatHandler.postDelayed(mirrorRepeatRunnable, REPEAT_START_DELAY)
+        }
+    }
+   // FUNCTION: getKeyboardState
     // SUMMARY: Gets current keyboard state (layer) from KeyboardView.
     // =================================================================================
     fun getKeyboardState(): KeyboardView.KeyboardState? {
