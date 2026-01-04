@@ -472,15 +472,32 @@ class KeyboardView @JvmOverloads constructor(
     }
     // =================================================================================
     // END BLOCK: triggerKeyPress
-    // =================================================================================   // =================================================================================
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: isPredictionBarArea
+    // SUMMARY: Returns true if the given Y coordinate is within the prediction bar area.
+    //          Used by mirror mode to ensure prediction bar taps always work.
+    // =================================================================================
+    fun isPredictionBarArea(x: Float, y: Float): Boolean {
+        val strip = suggestionStrip ?: return false
+        return y < strip.bottom
+    }
+    // =================================================================================
+    // END BLOCK: isPredictionBarArea
+    // =================================================================================
+
+    // =================================================================================
     // FUNCTION: findCandidateAt
     // SUMMARY: Checks if the given coordinates are within one of the prediction
     //          candidates (cand1, cand2, cand3). Returns the text and isNew flag
     //          if found, null otherwise.
     // =================================================================================
-    private fun findCandidateAt(x: Float, y: Float): Pair<String, Boolean>? {
+    internal fun findCandidateAt(x: Float, y: Float): Pair<String, Boolean>? {
         val candidates = listOf(cand1, cand2, cand3)
 
+        // Debug logging
+        Log.d("KeyboardView", "findCandidateAt($x, $y) - checking ${candidates.count { it?.visibility == View.VISIBLE }} visible candidates")
         for (candView in candidates) {
             if (candView == null || candView.visibility != View.VISIBLE) continue
 
@@ -798,32 +815,41 @@ class KeyboardView @JvmOverloads constructor(
 
     // --- MULTITOUCH HANDLING ---
 
-// =================================================================================
-    // FUNCTION: dispatchTouchEvent
-    // SUMMARY: Intercepts touch events to detect swipe/gesture typing. Key safeguards:
-    //          1. Only tracks swipe for single-finger gestures (pointer index 0)
-    //          2. Multitouch (second finger down) cancels any active swipe detection
-    //          3. Requires minimum movement threshold AND minimum path distance
-    //          4. Validates swipe has enough points and traveled enough distance
-    //          This prevents false swipe triggers during fast two-thumb typing.
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: dispatchTouchEvent
-    // SUMMARY: Intercepts touch events to detect swipe/gesture typing. Key safeguards:
-    //          1. Skips swipe detection if touch starts on SPACE (trackpad mode)
-    //          2. Skips swipe detection if a candidate is being dragged to delete
-    //          3. Only tracks swipe for single-finger gestures
-    //          4. Validates swipe has enough points and distance
-    // =================================================================================
-    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
         // =================================================================================
-        // VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING
+        // VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING (EXCEPT PREDICTION BAR)
         // SUMMARY: When orientation mode is active, we must block swipe typing here
         //          because dispatchTouchEvent runs BEFORE onTouchEvent. If we don't
         //          block here, swipe paths get collected and committed even though
         //          onTouchEvent blocks individual key presses.
+        //          EXCEPTION: Prediction bar touches are COMPLETELY EXEMPT from mirror
+        //          mode - we don't even call the callback for them. This ensures
+        //          prediction taps work instantly without any mirror mode interference.
         // =================================================================================
+        
+        // Check if touch is on prediction bar using multiple methods for robustness
+        val touchY = event.y
+        val stripBottom = suggestionStrip?.bottom ?: 0
+        val stripHeight = suggestionStrip?.height ?: 0
+        
+        // Method 1: Check Y coordinate against suggestion strip bounds
+        val isPredictionBarByY = suggestionStrip != null && stripHeight > 0 && touchY < stripBottom
+        
+        // Method 2: Check if we can find a candidate at this position (more reliable)
+        val candidateAtPosition = findCandidateAt(event.x, touchY)
+        val isPredictionBarByCandidate = candidateAtPosition != null
+        
+        // Use either method - if touch is in prediction area, bypass mirror mode entirely
+        val isPredictionBarTouch = isPredictionBarByY || isPredictionBarByCandidate
+        
+        if (isPredictionBarTouch) {
+            // Log for debugging
+            Log.d("KeyboardView", "Prediction bar touch detected at (${event.x}, $touchY) - bypassing mirror mode")
+            // Let the touch pass through normally to child views (candidates)
+            // Don't call mirror callback, don't set orientation mode
+            return super.dispatchTouchEvent(event)
+        }
+        
         val callback = mirrorTouchCallback
         if (callback != null) {
             val shouldBlock = callback.invoke(event.x, event.y, event.actionMasked)
@@ -861,9 +887,8 @@ class KeyboardView @JvmOverloads constructor(
             return true
         }
         // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING
-        // =================================================================================
-
+        // END BLOCK: VIRTUAL MIRROR MODE - BLOCK SWIPE TYPING (EXCEPT PREDICTION BAR)
+        // =================================================================================       // =================================================================================       // =================================================================================
         // --- 1. PREVENT SWIPE TRAIL ON SPACEBAR ---
         // If the touch starts on the SPACE key, we skip the swipe detection logic entirely.
         if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {

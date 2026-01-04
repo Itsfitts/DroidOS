@@ -600,7 +600,22 @@ class KeyboardOverlay(
     }
     // =================================================================================
     // END BLOCK: triggerKeyPress
-    // =================================================================================   // =================================================================================
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: isPredictionBarArea
+    // SUMMARY: Returns true if the given coordinates are in the prediction bar area.
+    //          Used by mirror mode to ensure prediction bar taps always work,
+    //          even when key repeat was active.
+    // =================================================================================
+    fun isPredictionBarArea(x: Float, y: Float): Boolean {
+        return keyboardView?.isPredictionBarArea(x, y) ?: false
+    }
+    // =================================================================================
+    // END BLOCK: isPredictionBarArea
+    // =================================================================================
+
+    // =================================================================================
     // FUNCTION: getKeyboardState
     // SUMMARY: Gets current keyboard state (layer) from KeyboardView.
     // =================================================================================

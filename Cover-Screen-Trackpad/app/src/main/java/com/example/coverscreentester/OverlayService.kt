@@ -3152,11 +3152,21 @@ private var isInOrientationMode = false
                     // MIRROR DEFERRED TAP WITH REPEAT CHECK
                     // SUMMARY: If key was repeating, don't trigger another key press on lift.
                     //          If key was NOT repeating (quick tap), trigger normal deferred tap.
+                    //          EXCEPTION: Prediction bar taps should ALWAYS work, even if a key
+                    //          was repeating (user might have swiped from backspace to prediction).
                     // =================================================================================
-                    if (!wasRepeating) {
+                    val isPredictionBarTap = keyboardOverlay?.isPredictionBarArea(x, y) ?: false
+
+                    if (isPredictionBarTap) {
+                        // Prediction bar taps ALWAYS work
+                        Log.d(TAG, "Prediction bar tap - triggering deferred tap")
+                        keyboardOverlay?.handleDeferredTap(x, y)
+                    } else if (!wasRepeating) {
+                        // Normal key tap (not repeating)
                         Log.d(TAG, "Quick tap detected - triggering deferred key press")
                         keyboardOverlay?.handleDeferredTap(x, y)
                     } else {
+                        // Key was repeating - skip to avoid extra keypress on lift
                         Log.d(TAG, "Skipping deferred tap - key was repeating ($repeatKey)")
                     }
                     // =================================================================================
