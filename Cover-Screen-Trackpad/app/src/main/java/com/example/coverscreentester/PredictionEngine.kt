@@ -957,13 +957,14 @@ class PredictionEngine {
                                        (turnScore * TURN_WEIGHT) +
                                        (pathKeyScore * 0.8f)  // NEW: Path key matching weight
                 
+
                 // --- BOOSTS (Original) ---
                 val rank = template.rank
                 val freqBonus = 1.0f / (1.0f + 0.15f * ln((rank + 1).toFloat()))
                 
-                var userBoost = if ((userFrequencyMap[word] ?: 0) > 0) 
-                    1.2f + (0.4f * ln(((userFrequencyMap[word] ?: 0) + 1).toFloat())) 
-                else 1.0f
+                // CHANGED: Reset user history boost to neutral (1.0f). 
+                // This stops user-added words (like "texting") from overriding better geometric matches (like "testing").
+                var userBoost = 1.0f
                 
                 // DOUBLE LETTER BOOST (Conservative - only 3+ letter words)
                 val hasEndDouble = word.length >= 3 && 
@@ -980,6 +981,7 @@ class PredictionEngine {
                 // LONG WORD BONUS
                 if (word.length >= 6) userBoost *= 1.15f
 
+
                 val finalScore = (integrationScore * (1.0f - 0.5f * freqBonus)) / userBoost
                 Pair(word, finalScore)
             }
@@ -987,7 +989,7 @@ class PredictionEngine {
         return scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
     }
     // =================================================================================
-    // END BLOCK: decodeSwipe
+    // END BLOCK: Boost Calculation (and decodeSwipe)
     // =================================================================================
 
     // =================================================================================
