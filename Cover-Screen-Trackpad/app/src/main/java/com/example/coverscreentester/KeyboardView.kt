@@ -139,6 +139,8 @@ class KeyboardView @JvmOverloads constructor(
 
     // UI Elements for Suggestions
     private var suggestionStrip: LinearLayout? = null
+    // Track current suggestions for blocking logic
+    private var currentCandidates: MutableList<Candidate> = ArrayList()
     private var cand1: TextView? = null
     private var cand2: TextView? = null
     private var cand3: TextView? = null
@@ -250,6 +252,29 @@ class KeyboardView @JvmOverloads constructor(
         handler.removeCallbacks(trackpadResetRunnable)
         handler.postDelayed(trackpadResetRunnable, 1000)
     }
+
+
+
+    fun blockPredictionAtIndex(index: Int) {
+        if (index < 0 || index >= currentCandidates.size) return
+
+        val candidate = currentCandidates[index]
+        val wordToBlock = candidate.text
+        
+        Log.d("KeyboardView", "Blocking prediction: $wordToBlock")
+
+        // 1. Block in Engine (Prevent it from appearing again)
+        // FIX: Use 'PredictionEngine.instance' instead of 'predictionEngine'
+        PredictionEngine.instance.blockWord(context, wordToBlock) 
+
+        // 2. Remove from UI immediately
+        currentCandidates.removeAt(index)
+        
+        // 3. Refresh the Suggestion Bar with the updated list
+        setSuggestions(ArrayList(currentCandidates))
+    }
+
+
 
 
     private fun handleSpacebarClick(xRelativeToKey: Float, keyWidth: Int) {
@@ -1703,7 +1728,13 @@ class KeyboardView @JvmOverloads constructor(
 
     @SuppressLint("ClickableViewAccessibility")
     fun setSuggestions(candidates: List<Candidate>) {
+        // [NEW] Sync local list
+        currentCandidates.clear()
+        currentCandidates.addAll(candidates)
+
         if (suggestionStrip == null) return
+        // ... existing logic ...
+
 
         // Update empty state flag
         isPredictiveBarEmpty = candidates.isEmpty() || candidates.all { it.text.isEmpty() }

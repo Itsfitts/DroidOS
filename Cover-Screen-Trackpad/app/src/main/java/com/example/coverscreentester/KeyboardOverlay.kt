@@ -617,6 +617,15 @@ class KeyboardOverlay(
         mirrorRepeatHandler.removeCallbacks(mirrorRepeatRunnable)
     }
 
+    fun blockPrediction(index: Int) {
+        // Log the action
+        Log.d(TAG, "Requesting to block prediction at index: $index")
+        
+
+        // Pass the command to the KeyboardView (which owns the PredictionEngine reference)
+        keyboardView?.blockPredictionAtIndex(index)
+    }
+
     fun triggerKeyPress(keyTag: String) {
         val isRepeatable = keyTag in setOf("BKSP", "DEL", "◄", "▲", "▼", "►", "←", "↑", "↓", "→", "VOL+", "VOL-", "VOL_UP", "VOL_DOWN")
 

@@ -29,12 +29,6 @@ import kotlin.math.abs
  */
 class PredictionEngine {
 
-
-// =================================================================================
-    // BLOCK: TUNING PARAMETERS
-    // SUMMARY: Core algorithm weights and thresholds.
-    // =================================================================================
-
     companion object {
         val instance = PredictionEngine()
 
@@ -136,6 +130,8 @@ class PredictionEngine {
     init {
         loadDefaults()
     }
+
+
 
     private fun loadDefaults() {
         val commonWords = listOf(
@@ -455,55 +451,6 @@ class PredictionEngine {
      */
 
 // =================================================================================
-    // FUNCTION: blockWord (Complete Cleanup)
-    // =================================================================================
-    fun blockWord(context: Context, word: String) {
-        val cleanWord = word.trim().lowercase(Locale.ROOT)
-        if (cleanWord.isEmpty()) return
-
-        Thread {
-            try {
-                synchronized(this) {
-                    // 1. Add to Block List
-                    blockedWords.add(cleanWord)
-                    
-                    // 2. Remove from ALL active lists
-                    customWords.remove(cleanWord)
-                    wordList.remove(cleanWord)
-                    
-                    // 3. Remove from Indices (Crucial for immediate disappearance)
-                    if (cleanWord.isNotEmpty()) {
-                        wordsByFirstLetter[cleanWord.first()]?.remove(cleanWord)
-                        if (cleanWord.length >= 2) {
-                            val key = "${cleanWord.first()}${cleanWord.last()}"
-                            wordsByFirstLastLetter[key]?.remove(cleanWord)
-                        }
-                    }
-                    
-                    // 4. Remove from User Stats (CRITICAL FIX: Stops "Zombie Words")
-                    // If we don't remove it here, the "User Rescue" in decodeSwipe will bring it back.
-                    synchronized(userFrequencyMap) {
-                        userFrequencyMap.remove(cleanWord)
-                    }
-                    
-                    templateCache.remove(cleanWord)
-                }
-
-                // 5. Persist Changes
-                saveSetToFile(context, BLOCKED_DICT_FILE, blockedWords)
-                saveSetToFile(context, USER_DICT_FILE, customWords)
-                saveUserStats(context) // Save the removal from stats so it doesn't come back on reboot
-
-                android.util.Log.d("DroidOS_Prediction", "BLOCKED: '$cleanWord' removed from all lists and stats.")
-            } catch (e: Exception) {
-                android.util.Log.e("DroidOS_Prediction", "Block failed", e)
-            }
-        }.start()
-    }
-
-    // =================================================================================
-    // END BLOCK: blockWord
-    // =================================================================================
 
     // =================================================================================
     // FUNCTION: saveSetToFile
@@ -597,9 +544,11 @@ class PredictionEngine {
 // =================================================================================
     // FUNCTION: getSuggestions (Updated for Priority Sort)
     // =================================================================================
+
+
     fun getSuggestions(prefix: String, maxResults: Int = 3): List<String> {
         if (prefix.isEmpty()) return emptyList()
-        val cleanPrefix = prefix.lowercase(Locale.ROOT)
+        val cleanPrefix = prefix.lowercase(java.util.Locale.ROOT)
 
         var current = root
         for (char in cleanPrefix) {
@@ -609,10 +558,6 @@ class PredictionEngine {
         val candidates = ArrayList<Pair<String, Int>>()
         collectCandidates(current, candidates)
         
-        // SORTING LOGIC:
-        // 1. User Frequency (Highest First)
-        // 2. Dictionary Rank (Lowest First)
-        // 3. Length (Shortest First)
         val sortedCandidates = candidates.sortedWith(Comparator { a, b ->
             val wordA = a.first
             val wordB = b.first
@@ -620,25 +565,21 @@ class PredictionEngine {
             val countA = userFrequencyMap[wordA] ?: 0
             val countB = userFrequencyMap[wordB] ?: 0
             
-            if (countA != countB) {
-                return@Comparator countB - countA // Higher user count wins
-            }
-            
+            if (countA != countB) return@Comparator countB - countA
             val rankA = a.second
             val rankB = b.second
-            if (rankA != rankB) {
-                return@Comparator rankA - rankB // Lower dictionary rank wins
-            }
-            
+            if (rankA != rankB) return@Comparator rankA - rankB
             wordA.length - wordB.length
         })
 
         return sortedCandidates
-            .filter { !blockedWords.contains(it.first) }
+            .filter { !blockedWords.contains(it.first.lowercase(java.util.Locale.ROOT)) }
             .distinctBy { it.first }
             .take(maxResults)
             .map { it.first }
     }
+
+
 
     // =================================================================================
     // FUNCTION: collectCandidates
@@ -1810,4 +1751,50 @@ class PredictionEngine {
     // =================================================================================
     // END BLOCK: SHARK2-INSPIRED SWIPE DECODER LOGIC
     // =================================================================================
+
+
+    /**
+     * Blocks a word permanently:
+     * 1. Adds to memory.
+     * 2. Removes from active lists.
+     * 3. Removes from user stats. 
+     * 4. Saves to file.
+     */
+
+    fun blockWord(context: Context, word: String) {
+        val cleanWord = word.trim().lowercase(java.util.Locale.ROOT)
+        if (cleanWord.isEmpty()) return
+
+        Thread {
+            try {
+                synchronized(this) {
+                    blockedWords.add(cleanWord)
+                    customWords.remove(cleanWord)
+                    wordList.remove(cleanWord)
+                    
+                    if (cleanWord.isNotEmpty()) {
+                        wordsByFirstLetter[cleanWord.first()]?.remove(cleanWord)
+                        if (cleanWord.length >= 2) {
+                            wordsByFirstLastLetter["${cleanWord.first()}${cleanWord.last()}"]?.remove(cleanWord)
+                        }
+                    }
+                    
+                    synchronized(userFrequencyMap) {
+                        userFrequencyMap.remove(cleanWord)
+                    }
+                    templateCache.remove(cleanWord)
+                }
+
+                saveSetToFile(context, BLOCKED_DICT_FILE, blockedWords)
+                saveSetToFile(context, USER_DICT_FILE, customWords)
+                saveUserStats(context)
+
+                android.util.Log.d("DroidOS_Prediction", "BLOCKED: '$cleanWord'")
+            } catch (e: Exception) {
+                android.util.Log.e("DroidOS_Prediction", "Block failed", e)
+            }
+        }.start()
+    }
+
+
 }
