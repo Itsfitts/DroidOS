@@ -783,148 +783,6 @@ class IconPickerActivity : ComponentActivity() {
 }
 ```
 
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.accessibilityservice.AccessibilityServiceInfo
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import android.provider.Settings
-import android.util.Log
-import android.view.accessibility.AccessibilityManager
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import rikka.shizuku.Shizuku
-
-class MainActivity : AppCompatActivity() {
-
-    companion object {
-        const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
-    }
-
-    // === APP INFO DATA CLASS - START ===
-    // Represents an installed app with package name, activity class, and state info
-    // getIdentifier() returns a unique string for app identification including className when needed
-    data class AppInfo(
-        val label: String,
-        val packageName: String,
-        val className: String? = null,
-        var isFavorite: Boolean = false,
-        var isMinimized: Boolean = false
-    ) {
-        // Returns unique identifier for the app
-        fun getIdentifier(): String {
-            return if (!className.isNullOrEmpty() && packageName == "com.google.android.googlequicksearchbox") {
-                if (className.lowercase().contains("assistant") || className.lowercase().contains("gemini")) {
-                    "$packageName:gemini"
-                } else {
-                    packageName
-                }
-            } else {
-                packageName
-            }
-        }
-        
-        // === GET BASE PACKAGE - START ===
-        // Returns the base package name without any suffix
-        // Use this for shell commands that need the actual Android package name
-        fun getBasePackage(): String {
-            return if (packageName.contains(":")) {
-                packageName.substringBefore(":")
-            } else {
-                packageName
-            }
-        }
-        // === GET BASE PACKAGE - END ===
-
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (other !is AppInfo) return false
-            return packageName == other.packageName && className == other.className && label == other.label
-        }
-
-        override fun hashCode(): Int {
-            var result = packageName.hashCode()
-            result = 31 * result + (className?.hashCode() ?: 0)
-            result = 31 * result + label.hashCode()
-            return result
-        }
-    }
-    // === APP INFO DATA CLASS - END ===
-
-    /* * FUNCTION: onCreate
-     * SUMMARY: Detects the display ID where the app icon was clicked and
-     * passes it to the service to ensure the bubble follows the user.
-     */
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // Redirect to PermissionActivity if essential permissions are missing
-        if (!hasAllPermissions()) {
-            val intent = Intent(this, PermissionActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
-            finish()
-            return
-        }
-
-        // Determine which display this activity is running on
-        val displayId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            this.display?.displayId ?: 0
-        } else {
-            @Suppress("DEPRECATION")
-            windowManager.defaultDisplay.displayId
-        }
-
-        Log.d("DroidOS_Main", "Launched on Display $displayId")
-
-        // Start service and pass the current display ID to recall the bubble
-        val serviceIntent = Intent(this, FloatingLauncherService::class.java)
-        serviceIntent.putExtra("DISPLAY_ID", displayId)
-        startService(serviceIntent)
-
-        // Finish immediately so the launcher remains a service-only overlay
-        finish()
-    }
-
-    private fun hasAllPermissions(): Boolean {
-        // 1. Overlay
-        if (!Settings.canDrawOverlays(this)) return false
-
-        // 2. Shizuku
-        val shizukuGranted = try {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: Exception) {
-            false
-        }
-        if (!shizukuGranted) return false
-
-        // 3. Accessibility
-        if (!isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)) return false
-
-        // 4. Notifications removed (Not strictly required for service to run)
-
-        return true
-    }
-
-    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        for (enabledService in enabledServices) {
-            val serviceInfo = enabledService.resolveInfo.serviceInfo
-            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
-                return true
-            }
-        }
-        return false
-    }
-}
-```
-
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MenuActivity.kt
 ```kotlin
 package com.example.quadrantlauncher
@@ -8003,6 +7861,148 @@ You are free to use, modify, and distribute this software, but all modifications
 ---
 ```
 
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/MainActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.util.Log
+import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import rikka.shizuku.Shizuku
+
+class MainActivity : AppCompatActivity() {
+
+    companion object {
+        const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
+    }
+
+    // === APP INFO DATA CLASS - START ===
+    // Represents an installed app with package name, activity class, and state info
+    // getIdentifier() returns a unique string for app identification including className when needed
+    data class AppInfo(
+        val label: String,
+        val packageName: String,
+        val className: String? = null,
+        var isFavorite: Boolean = false,
+        var isMinimized: Boolean = false
+    ) {
+        // Returns unique identifier for the app
+        fun getIdentifier(): String {
+            return if (!className.isNullOrEmpty() && packageName == "com.google.android.googlequicksearchbox") {
+                if (className.lowercase().contains("assistant") || className.lowercase().contains("gemini")) {
+                    "$packageName:gemini"
+                } else {
+                    packageName
+                }
+            } else {
+                packageName
+            }
+        }
+        
+        // === GET BASE PACKAGE - START ===
+        // Returns the base package name without any suffix
+        // Use this for shell commands that need the actual Android package name
+        fun getBasePackage(): String {
+            return if (packageName.contains(":")) {
+                packageName.substringBefore(":")
+            } else {
+                packageName
+            }
+        }
+        // === GET BASE PACKAGE - END ===
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is AppInfo) return false
+            return packageName == other.packageName && className == other.className && label == other.label
+        }
+
+        override fun hashCode(): Int {
+            var result = packageName.hashCode()
+            result = 31 * result + (className?.hashCode() ?: 0)
+            result = 31 * result + label.hashCode()
+            return result
+        }
+    }
+    // === APP INFO DATA CLASS - END ===
+
+    /* * FUNCTION: onCreate
+     * SUMMARY: Detects the display ID where the app icon was clicked and
+     * passes it to the service to ensure the bubble follows the user.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Redirect to PermissionActivity if essential permissions are missing
+        if (!hasAllPermissions()) {
+            val intent = Intent(this, PermissionActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        // Determine which display this activity is running on
+        val displayId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            this.display?.displayId ?: 0
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.displayId
+        }
+
+        Log.d("DroidOS_Main", "Launched on Display $displayId")
+
+        // Start service and pass the current display ID to recall the bubble
+        val serviceIntent = Intent(this, FloatingLauncherService::class.java)
+        serviceIntent.putExtra("DISPLAY_ID", displayId)
+        startService(serviceIntent)
+
+        // Finish immediately so the launcher remains a service-only overlay
+        finish()
+    }
+
+    private fun hasAllPermissions(): Boolean {
+        // 1. Overlay
+        if (!Settings.canDrawOverlays(this)) return false
+
+        // 2. Shizuku
+        val shizukuGranted = try {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
+        if (!shizukuGranted) return false
+
+        // 3. Accessibility
+        if (!isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)) return false
+
+        // 4. Notifications removed (Not strictly required for service to run)
+
+        return true
+    }
+
+    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (enabledService in enabledServices) {
+            val serviceInfo = enabledService.resolveInfo.serviceInfo
+            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
+                return true
+            }
+        }
+        return false
+    }
+}
+```
+
 ## File: Cover-Screen-Trackpad/app/src/main/assets/clean_dictionary.py
 ```python
 import os
@@ -11524,6 +11524,1609 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
 // =================================================================================
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuManager.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.content.Context
+import android.graphics.PixelFormat
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.WindowManager
+import android.widget.ImageView
+import android.widget.TextView
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import android.graphics.Color
+import android.view.ViewGroup
+import android.view.MotionEvent
+import java.util.ArrayList
+
+class TrackpadMenuManager(
+    private val context: Context,
+    private val windowManager: WindowManager,
+    private val service: OverlayService
+) {
+    private var drawerView: View? = null
+    private var recyclerView: RecyclerView? = null
+    private var drawerParams: WindowManager.LayoutParams? = null
+    private var isVisible = false
+    
+    // Manual Adjust State
+    private var isResizeMode = false // Default to Move Mode
+
+    // Tab Constants - Order must match layout_trackpad_drawer.xml tab order
+    private val TAB_MAIN = 0
+    private val TAB_PRESETS = 1
+    private val TAB_MOVE = 2
+    private val TAB_KB_MOVE = 3
+    private val TAB_MIRROR = 4      // NEW: Mirror keyboard config
+    private val TAB_CONFIG = 5
+    private val TAB_TUNE = 6
+    private val TAB_HARDKEYS = 7
+    private val TAB_BUBBLE = 8
+    private val TAB_PROFILES = 9
+    private val TAB_HELP = 10
+    
+    private var currentTab = TAB_MAIN
+
+    fun show() {
+        if (isVisible) return
+        if (drawerView == null) setupDrawer()
+        try {
+            windowManager.addView(drawerView, drawerParams)
+            isVisible = true
+            loadTab(currentTab)
+            
+            // CRITICAL FIX: Force Cursor and Bubble to top of stack
+            // Since Menu was just added, it is currently on top. 
+            // We must re-add the others to cover it.
+            service.enforceZOrder()
+            
+        } catch (e: SecurityException) {
+            android.widget.Toast.makeText(context, "Missing Overlay Permission! Open App to Fix.", android.widget.Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        } catch (e: Exception) { 
+            e.printStackTrace() 
+        }
+    }
+
+    fun hide() {
+        if (!isVisible) return
+        try {
+            windowManager.removeView(drawerView)
+            isVisible = false
+        } catch (e: Exception) { }
+    }
+
+    fun toggle() {
+        if (isVisible) hide() else show()
+    }
+
+    fun bringToFront() {
+        if (!isVisible || drawerView == null) return
+        try {
+            // Detach and Re-attach to move to top of Z-Order stack
+            windowManager.removeView(drawerView)
+            windowManager.addView(drawerView, drawerParams)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun setupDrawer() {
+        // Use ContextWrapper to ensure correct theme (Matches Launcher)
+        val themedContext = android.view.ContextThemeWrapper(context, R.style.Theme_CoverScreenTester)
+        val inflater = LayoutInflater.from(themedContext)
+        drawerView = inflater.inflate(R.layout.layout_trackpad_drawer, null)
+
+        // Close button logic
+        drawerView?.findViewById<View>(R.id.btn_close_menu)?.setOnClickListener { hide() }
+        
+        recyclerView = drawerView?.findViewById(R.id.menu_recycler)
+        recyclerView?.layoutManager = LinearLayoutManager(context)
+
+        // Tab click listeners
+        val tabs = listOf(
+            R.id.tab_main to TAB_MAIN,
+            R.id.tab_presets to TAB_PRESETS,
+            R.id.tab_move to TAB_MOVE,
+            R.id.tab_kb_move to TAB_KB_MOVE,
+            R.id.tab_mirror to TAB_MIRROR,      // NEW
+            R.id.tab_config to TAB_CONFIG,
+            R.id.tab_tune to TAB_TUNE,
+            R.id.tab_hardkeys to TAB_HARDKEYS,
+            R.id.tab_bubble to TAB_BUBBLE,
+            R.id.tab_profiles to TAB_PROFILES,
+            R.id.tab_help to TAB_HELP
+        )
+
+        for ((id, index) in tabs) {
+            drawerView?.findViewById<ImageView>(id)?.setOnClickListener { 
+                loadTab(index) 
+            }
+        }
+
+        // =========================
+        // WINDOW CONFIG (MATCHING DROIDOS LAUNCHER)
+        // =========================
+        drawerParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT, 
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, 
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, 
+            PixelFormat.TRANSLUCENT
+        )
+        // Explicitly set Gravity to TOP|START for absolute positioning
+        drawerParams?.gravity = Gravity.TOP or Gravity.START
+        
+        // Initial Center Calculation
+        val metrics = context.resources.displayMetrics
+        val screenWidth = metrics.widthPixels
+        val screenHeight = metrics.heightPixels
+        
+        // Approx Menu Size (320dp width + margins, ~400dp height)
+        val density = metrics.density
+        val menuW = (360 * density).toInt() 
+        val menuH = (400 * density).toInt()
+        
+        drawerParams?.x = (screenWidth - menuW) / 2
+        drawerParams?.y = (screenHeight - menuH) / 2
+        
+        // =========================
+        // INTERACTION LOGIC
+        // =========================
+        // 1. Background Click -> Removed (Handled by FLAG_NOT_TOUCH_MODAL)
+        
+        // 2. Menu Card Click -> Block (Consume)
+        drawerView?.findViewById<View>(R.id.menu_container)?.setOnClickListener { 
+            // Do nothing
+        }
+        
+        // 3. DRAG HANDLE LOGIC
+        val dragHandle = drawerView?.findViewById<View>(R.id.menu_drag_handle)
+        var initialX = 0
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+
+        dragHandle?.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = drawerParams!!.x
+                    initialY = drawerParams!!.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    drawerParams!!.x = initialX + (event.rawX - initialTouchX).toInt()
+                    drawerParams!!.y = initialY + (event.rawY - initialTouchY).toInt()
+                    
+                    try {
+                        windowManager.updateViewLayout(drawerView, drawerParams)
+                    } catch (e: Exception) {}
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun loadTab(index: Int) {
+        currentTab = index
+        updateTabIcons(index)
+        
+        val items = when(index) {
+            TAB_MAIN -> getMainItems()
+            TAB_PRESETS -> getPresetItems()
+            TAB_MOVE -> getMoveItems(false)
+            TAB_KB_MOVE -> getMoveItems(true)
+            TAB_MIRROR -> getMirrorItems()      // NEW
+            TAB_CONFIG -> getConfigItems()
+            TAB_TUNE -> getTuneItems()
+            TAB_HARDKEYS -> getHardkeyItems()   // Hardkey bindings configuration
+            TAB_BUBBLE -> getBubbleItems()
+            TAB_PROFILES -> getProfileItems()
+            TAB_HELP -> getHelpItems()
+            else -> emptyList()
+        }
+        
+        recyclerView?.adapter = TrackpadMenuAdapter(items)
+    }
+
+    private fun updateTabIcons(activeIdx: Int) {
+        val tabIds = listOf(R.id.tab_main, R.id.tab_presets, R.id.tab_move, R.id.tab_kb_move, R.id.tab_mirror, R.id.tab_config, R.id.tab_tune, R.id.tab_hardkeys, R.id.tab_bubble, R.id.tab_profiles, R.id.tab_help)
+        for ((i, id) in tabIds.withIndex()) {
+            val view = drawerView?.findViewById<ImageView>(id)
+            if (i == activeIdx) view?.setColorFilter(Color.parseColor("#3DDC84")) 
+            else view?.setColorFilter(Color.GRAY)
+        }
+    }
+
+    // =========================
+    // GET MAIN ITEMS - Generates main menu items list
+    // =========================
+    private fun getMainItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("MAIN CONTROLS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // --- COMMENTED OUT PER REQUEST ---
+        /*
+        list.add(TrackpadMenuAdapter.MenuItem("Switch Screen (0 <-> 1)", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { 
+            service.switchDisplay() 
+            hide()
+        })
+        */
+        // ---------------------------------
+
+        list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_myplaces, TrackpadMenuAdapter.Type.ACTION) { 
+            service.resetBubblePosition()
+            hide()
+        })
+        
+        // --- COMMENTED OUT PER REQUEST ---
+        /*
+        list.add(TrackpadMenuAdapter.MenuItem("Move Trackpad Here", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { service.forceMoveToCurrentDisplay(); hide() })
+        */
+        
+        // Renamed: "Target: ..." -> "Toggle Remote Display"
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Remote Display", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) { service.cycleInputTarget(); loadTab(TAB_MAIN) })
+
+        // =================================================================================
+        // VIRTUAL MIRROR MODE TOGGLE
+        // SUMMARY: Enhanced toggle for AR glasses/remote displays.
+        //          When enabled:
+        //          - Auto-switches cursor to virtual display
+        //          - Shows keyboard and trackpad
+        //          - Loads mirror-mode specific profile
+        //          When disabled:
+        //          - Returns to local display
+        //          - Restores previous visibility state
+        //          - Saves/loads separate profile
+        // =================================================================================
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Virtual Mirror Mode",
+            if(p.prefVirtualMirrorMode) R.drawable.ic_lock_closed else R.drawable.ic_lock_open,
+            TrackpadMenuAdapter.Type.TOGGLE,
+            if(p.prefVirtualMirrorMode) 1 else 0
+        ) { _ ->
+            service.toggleVirtualMirrorMode()
+            hide()  // Close menu since display context may change
+        })
+        // =================================================================================
+        // END BLOCK: VIRTUAL MIRROR MODE TOGGLE
+        // =================================================================================
+
+        // --- ANCHOR TOGGLE: Locks trackpad and keyboard position/size ---
+        list.add(TrackpadMenuAdapter.MenuItem("Anchor (Lock Position)", 
+            if(p.prefAnchored) R.drawable.ic_lock_closed else R.drawable.ic_lock_open, 
+            TrackpadMenuAdapter.Type.TOGGLE, 
+            if(p.prefAnchored) 1 else 0) { v ->
+            service.updatePref("anchored", v)
+            loadTab(TAB_MAIN)  // Refresh to update icon
+        })
+        // --- END ANCHOR TOGGLE ---
+        
+        // Toggle Trackpad (Using correct icon
+        // Toggle Trackpad
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Trackpad", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) {
+            service.toggleTrackpad()
+            hide()
+        })
+
+
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
+            if (service.isCustomKeyboardVisible) service.performSmartHide()
+            else service.toggleCustomKeyboard()
+        })
+        list.add(TrackpadMenuAdapter.MenuItem("Reset Cursor", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { service.resetCursorCenter() })
+        
+        // Renamed: "Hide App" -> "Hide All"
+        list.add(TrackpadMenuAdapter.MenuItem("Hide All", android.R.drawable.ic_menu_close_clear_cancel, TrackpadMenuAdapter.Type.ACTION) { service.hideApp() })
+        
+        // Renamed: "Force Kill Service" -> "Close/Restart App"
+        list.add(TrackpadMenuAdapter.MenuItem("Close/Restart App", android.R.drawable.ic_delete, TrackpadMenuAdapter.Type.ACTION) { service.forceExit() })
+        return list
+    }
+    // =========================
+    // END GET MAIN ITEMS
+    // =========================
+
+
+    
+// =========================
+    // GET PRESET ITEMS - Layout presets for split screen modes
+    // Freeform (type 0) loads saved profile, NOT a split preset
+    // =========================
+    private fun getPresetItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        list.add(TrackpadMenuAdapter.MenuItem("SPLIT SCREEN PRESETS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // Freeform FIRST - this loads the saved profile (not a split preset)
+        list.add(TrackpadMenuAdapter.MenuItem("Freeform (Use Profile)", android.R.drawable.ic_menu_edit, TrackpadMenuAdapter.Type.ACTION) { 
+            service.applyLayoutPreset(0)
+            hide()
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("KB Top / TP Bottom", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
+            service.applyLayoutPreset(1)
+            hide()
+        })
+        list.add(TrackpadMenuAdapter.MenuItem("TP Top / KB Bottom", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { 
+            service.applyLayoutPreset(2)
+            hide()
+        })
+        return list
+    }
+    // =========================
+    // END GET PRESET ITEMS
+    // =========================
+    private fun getMoveItems(isKeyboard: Boolean): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val target = if (isKeyboard) "Keyboard" else "Trackpad"
+        
+        list.add(TrackpadMenuAdapter.MenuItem(if (isKeyboard) "KEYBOARD POSITION" else "TRACKPAD POSITION", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // 1. Mode Switcher (Toggle Item)
+        val modeText = if (isResizeMode) "Resize (Size)" else "Position (Move)"
+        val modeIcon = if (isResizeMode) android.R.drawable.ic_menu_crop else android.R.drawable.ic_menu_mylocation
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Mode: $modeText", modeIcon, TrackpadMenuAdapter.Type.ACTION) {
+            isResizeMode = !isResizeMode
+            loadTab(currentTab) // Refresh UI to update text
+        })
+        
+        // 2. The D-Pad
+        val actionText = if (isResizeMode) "Resize" else "Move"
+        list.add(TrackpadMenuAdapter.MenuItem("$target $actionText", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.DPAD) { cmd ->
+            val step = 20
+            val command = cmd as String
+            
+            // isResizeMode determines whether we move X/Y or change W/H
+            when(command) {
+                "UP" -> service.manualAdjust(isKeyboard, isResizeMode, 0, -step)
+                "DOWN" -> service.manualAdjust(isKeyboard, isResizeMode, 0, step)
+                "LEFT" -> service.manualAdjust(isKeyboard, isResizeMode, -step, 0)
+                "RIGHT" -> service.manualAdjust(isKeyboard, isResizeMode, step, 0)
+                "CENTER" -> {
+                    if (isKeyboard) service.resetKeyboardPosition() else service.resetTrackpadPosition()
+                }
+            }
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Rotate 90°", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) {
+            if (isKeyboard) service.rotateKeyboard() else service.performRotation()
+        })
+            
+        if (isKeyboard) {
+            val p = service.prefs
+            list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha) { v ->
+                service.updatePref("keyboard_alpha", v)
+            })
+        }
+            
+        return list
+    }
+
+    // =========================
+    // GET MIRROR ITEMS - Mirror keyboard configuration
+    // =========================
+    private var isMirrorResizeMode = false
+    
+    private fun getMirrorItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("MIRROR KEYBOARD", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // Virtual Mirror Mode Toggle
+        list.add(TrackpadMenuAdapter.MenuItem("Virtual Mirror Mode", android.R.drawable.ic_menu_view, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVirtualMirrorMode) 1 else 0) { v ->
+            service.updatePref("virtual_mirror_mode", v as Boolean)
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("POSITION & SIZE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Mode Switcher (Position vs Resize)
+        val modeText = if (isMirrorResizeMode) "Resize (Size)" else "Position (Move)"
+        val modeIcon = if (isMirrorResizeMode) android.R.drawable.ic_menu_crop else android.R.drawable.ic_menu_mylocation
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Mode: $modeText", modeIcon, TrackpadMenuAdapter.Type.ACTION) {
+            isMirrorResizeMode = !isMirrorResizeMode
+            loadTab(currentTab) // Refresh UI
+        })
+        
+        // D-Pad for position/size
+        val actionText = if (isMirrorResizeMode) "Resize" else "Move"
+        list.add(TrackpadMenuAdapter.MenuItem("Mirror $actionText", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.DPAD) { cmd ->
+            val step = 20
+            val command = cmd as String
+            
+            when(command) {
+                "UP" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, -step)
+                "DOWN" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, step)
+                "LEFT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, -step, 0)
+                "RIGHT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, step, 0)
+                "CENTER" -> service.resetMirrorKeyboardPosition()
+            }
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Mirror Keyboard Opacity Slider
+        list.add(TrackpadMenuAdapter.MenuItem("Mirror Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefMirrorAlpha, 255) { v ->
+            service.updatePref("mirror_alpha", v)
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Orange Trail Delay Slider (100ms - 3000ms, show as 0.1s - 3.0s)
+        val currentDelayMs = p.prefMirrorOrientDelayMs
+        list.add(TrackpadMenuAdapter.MenuItem("Orient Delay: ${currentDelayMs}ms", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, (currentDelayMs / 100).toInt(), 30) { v ->
+            val newDelayMs = (v as Int) * 100L
+            service.updatePref("mirror_orient_delay", newDelayMs)
+            loadTab(currentTab) // Refresh to show new value
+        })
+        
+        return list
+    }
+    // =========================
+    // END GET MIRROR ITEMS
+    // =========================
+
+    // =========================
+    // GET CONFIG ITEMS - Trackpad configuration settings
+    // FIXED: Tap to Scroll Boolean Logic
+    // ========================= 
+    private fun getConfigItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("TRACKPAD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem("SENSITIVITY", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        list.add(TrackpadMenuAdapter.MenuItem("Cursor Speed", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.SLIDER, (p.cursorSpeed * 10).toInt()) { v -> service.updatePref("cursor_speed", (v as Int) / 10f) })
+        list.add(TrackpadMenuAdapter.MenuItem("Scroll Speed", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.SLIDER, (p.scrollSpeed * 10).toInt(), 50) { v -> service.updatePref("scroll_speed", (v as Int) / 10f) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        list.add(TrackpadMenuAdapter.MenuItem("Border Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefAlpha, 255) { v -> service.updatePref("alpha", v) })
+        list.add(TrackpadMenuAdapter.MenuItem("Background Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBgAlpha, 255) { v -> service.updatePref("bg_alpha", v) })
+        list.add(TrackpadMenuAdapter.MenuItem("Handle Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefHandleSize / 2) { v -> service.updatePref("handle_size", v) })        
+        list.add(TrackpadMenuAdapter.MenuItem("Scroll Bar Width", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefScrollTouchSize, 200) { v -> service.updatePref("scroll_size", v) })
+        list.add(TrackpadMenuAdapter.MenuItem("Cursor Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefCursorSize) { v -> service.updatePref("cursor_size", v) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("BEHAVIOR", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Reverse Scroll", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefReverseScroll) 1 else 0) { v -> service.updatePref("reverse_scroll", v) })
+        
+        // MODIFIED: Correct Boolean Check for Toast
+        list.add(TrackpadMenuAdapter.MenuItem("Tap to Scroll", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefTapScroll) 1 else 0) { v -> 
+            service.updatePref("tap_scroll", v)
+            // Fix: Cast strictly to Boolean or check against false directly
+            if (v == false) {
+                android.widget.Toast.makeText(context, "Beta mouse scrolling is activated - warning - scroll slowly for optimal results", android.widget.Toast.LENGTH_LONG).show()
+            }
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Haptic Feedback", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVibrate) 1 else 0) { v -> service.updatePref("vibrate", v) })
+        return list
+    }
+    // =========================
+    // END GET CONFIG ITEMS
+    // =========================
+
+    // =========================
+    // GET TUNE ITEMS - Keyboard configuration settings
+    // =========================
+    private fun getTuneItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("KEYBOARD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // NEW: Launch Proxy Activity for Picker
+        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Picker (Null KB to block default)", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
+            service.forceSystemKeyboardVisible()
+            hide() // Close menu
+            
+            try {
+                val intent = android.content.Intent(context, KeyboardPickerActivity::class.java)
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch(e: Exception) {
+                android.widget.Toast.makeText(context, "Error launching picker", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha, 255) { v -> service.updatePref("keyboard_alpha", v) })
+        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Scale", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyScale, 200) { v -> service.updatePref("keyboard_key_scale", v) })
+                list.add(TrackpadMenuAdapter.MenuItem("Auto Display Off", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefAutomationEnabled) 1 else 0) {
+                    v -> service.updatePref("automation_enabled", v as Boolean)
+                })
+
+        // MOVED & RENAMED: Cover Screen KB Blocker
+        list.add(TrackpadMenuAdapter.MenuItem("Cover Screen KB blocker (restart app after reverting)", android.R.drawable.ic_lock_lock, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefBlockSoftKeyboard) 1 else 0) {
+            v -> service.updatePref("block_soft_kb", v as Boolean)
+        })
+
+        return list
+    }
+    // =========================
+    // END GET TUNE ITEMS
+    // =========================
+
+    // =========================
+    // HARDKEY ACTIONS LIST
+    // =========================
+    private val hardkeyActions = listOf(
+        "none" to "None (System Default)",
+        "left_click" to "Left Click (Hold to Drag)",
+        "right_click" to "Right Click (Hold to Drag)",
+        "scroll_up" to "Scroll Up",
+        "scroll_down" to "Scroll Down",
+        "display_toggle_alt" to "Display (Alt Mode)",
+        "display_toggle_std" to "Display (Std Mode)",
+        "display_wake" to "Display Wake",
+        "alt_position" to "Alt KB Position",
+        "toggle_keyboard" to "Toggle Keyboard",
+        "toggle_trackpad" to "Toggle Trackpad",
+        "open_menu" to "Open Menu",
+        "reset_cursor" to "Reset Cursor",
+        "toggle_bubble" to "Launcher Bubble", // <--- NEW ITEM
+        "action_back" to "Back",
+        "action_home" to "Home",
+        "action_forward" to "Forward (Browser)",
+        "action_vol_up" to "Volume Up",
+        "action_vol_down" to "Volume Down"
+    )
+    
+    private fun getActionDisplayName(actionId: String): String {
+        return hardkeyActions.find { it.first == actionId }?.second ?: actionId
+    }
+    // =========================
+    // END HARDKEY ACTIONS LIST
+    // =========================
+
+    // =========================
+    // SHOW ACTION PICKER - In-Menu Replacement for Dialog
+    // Replaces the current menu list with selection options to avoid Service/Dialog crashes
+    // =========================
+    private fun showActionPicker(prefKey: String, currentValue: String) {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        
+        // 1. Header
+        list.add(TrackpadMenuAdapter.MenuItem("Select Action", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // 2. Cancel / Back Option
+        list.add(TrackpadMenuAdapter.MenuItem("<< Go Back", android.R.drawable.ic_menu_revert, TrackpadMenuAdapter.Type.ACTION) {
+            // Reload the previous tab to "go back"
+            loadTab(TAB_HARDKEYS)
+        })
+
+        // 3. Action Options
+        for ((id, name) in hardkeyActions) {
+            // Show a "Check" icon if this is the currently selected value
+            // Otherwise show 0 (no icon) or a generic dot
+            val iconRes = if (id == currentValue) android.R.drawable.checkbox_on_background else 0
+            
+            list.add(TrackpadMenuAdapter.MenuItem(name, iconRes, TrackpadMenuAdapter.Type.ACTION) {
+                // On Click: Update Pref and Go Back
+                service.updatePref(prefKey, id)
+                loadTab(TAB_HARDKEYS)
+            })
+        }
+        
+        // 4. Update the View
+        recyclerView?.adapter = TrackpadMenuAdapter(list)
+    }
+    // =========================
+    // END SHOW ACTION PICKER
+    // =========================
+
+    // =========================
+    // GET HARDKEY ITEMS - Hardkey bindings configuration menu
+    // Allows users to customize Vol Up/Down and Power button actions
+    // =========================
+    private fun getHardkeyItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        // NEW MAIN HEADER
+        list.add(TrackpadMenuAdapter.MenuItem("KEYBINDS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // Subheader
+        list.add(TrackpadMenuAdapter.MenuItem("VOLUME UP", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Tap: ${getActionDisplayName(p.hardkeyVolUpTap)}",
+            android.R.drawable.ic_media_play,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_up_tap", p.hardkeyVolUpTap) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap: ${getActionDisplayName(p.hardkeyVolUpDouble)}",
+            android.R.drawable.ic_media_ff,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_up_double", p.hardkeyVolUpDouble) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Hold: ${getActionDisplayName(p.hardkeyVolUpHold)}",
+            android.R.drawable.ic_menu_crop,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_up_hold", p.hardkeyVolUpHold) })
+        
+        // Subheader
+        list.add(TrackpadMenuAdapter.MenuItem("VOLUME DOWN", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Tap: ${getActionDisplayName(p.hardkeyVolDownTap)}",
+            android.R.drawable.ic_media_play,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_down_tap", p.hardkeyVolDownTap) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap: ${getActionDisplayName(p.hardkeyVolDownDouble)}",
+            android.R.drawable.ic_media_ff,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_down_double", p.hardkeyVolDownDouble) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Hold: ${getActionDisplayName(p.hardkeyVolDownHold)}",
+            android.R.drawable.ic_menu_crop,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_down_hold", p.hardkeyVolDownHold) })
+        
+        // Subheader
+        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Max 500ms
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap Speed (ms)",
+            android.R.drawable.ic_menu_recent_history,
+            TrackpadMenuAdapter.Type.SLIDER,
+            p.doubleTapMs,
+            500 
+        ) { v ->
+            service.updatePref("double_tap_ms", v)
+        })
+        
+        // Max 800ms
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Hold Duration (ms)",
+            android.R.drawable.ic_menu_recent_history,
+            TrackpadMenuAdapter.Type.SLIDER,
+            p.holdDurationMs,
+            800 
+        ) { v ->
+            service.updatePref("hold_duration_ms", v)
+        })
+        
+        return list
+    }
+    // =========================
+    // END GET HARDKEY ITEMS
+    // =========================
+
+
+    // =========================
+    // GET BUBBLE ITEMS - Bubble launcher customization
+    // Size slider, Icon cycle, Opacity slider
+    // =========================
+    private fun getBubbleItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("BUBBLE CUSTOMIZATION", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // Size slider: 50-200 (50=half, 100=standard, 200=double)
+        list.add(TrackpadMenuAdapter.MenuItem("Bubble Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBubbleSize, 200) { v ->
+            service.updatePref("bubble_size", v)
+        })
+        
+        // Icon cycle action
+        val iconNames = arrayOf("Trackpad", "Cursor", "Main", "Keyboard", "Compass", "Location")
+        val currentIconName = iconNames.getOrElse(p.prefBubbleIconIndex) { "Default" }
+        list.add(TrackpadMenuAdapter.MenuItem("Icon: $currentIconName", android.R.drawable.ic_menu_gallery, TrackpadMenuAdapter.Type.ACTION) { 
+            service.updatePref("bubble_icon", true)
+            loadTab(TAB_BUBBLE) // Refresh to show new icon name
+        })
+        
+        // Opacity slider: 50-255
+        list.add(TrackpadMenuAdapter.MenuItem("Bubble Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBubbleAlpha, 255) { v ->
+            service.updatePref("bubble_alpha", v)
+        })
+        
+        // Reset button
+        list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_revert, TrackpadMenuAdapter.Type.ACTION) { 
+            service.resetBubblePosition()
+        })
+        
+        // --- PERSISTENCE TOGGLE ---
+        list.add(TrackpadMenuAdapter.MenuItem("SERVICE BEHAVIOR", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        val persistHelp = if (p.prefPersistentService) "Bubble stays when app closes" else "Bubble closes with app"
+        list.add(TrackpadMenuAdapter.MenuItem("Keep Alive (Background)", 
+            android.R.drawable.ic_menu_manage, 
+            TrackpadMenuAdapter.Type.TOGGLE, 
+            if(p.prefPersistentService) 1 else 0) { v ->
+            service.updatePref("persistent_service", v)
+            loadTab(TAB_BUBBLE) // Refresh description
+        })
+        list.add(TrackpadMenuAdapter.MenuItem(persistHelp, 0, TrackpadMenuAdapter.Type.INFO))
+        
+        return list
+    }
+    // =========================
+    // END GET BUBBLE ITEMS
+    // =========================
+
+    private fun getProfileItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val currentRes = "${service.currentDisplayId}: ${service.getProfileKey().replace("P_", "").replace("_", " x ")}"
+        
+        list.add(TrackpadMenuAdapter.MenuItem("LAYOUT PROFILES", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Current: $currentRes", R.drawable.ic_tab_profiles, TrackpadMenuAdapter.Type.INFO))
+        
+        // CHANGED TITLE
+        list.add(TrackpadMenuAdapter.MenuItem("Save Layout and Presets", android.R.drawable.ic_menu_save, TrackpadMenuAdapter.Type.ACTION) { 
+            service.saveLayout()
+            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
+        })
+
+        // NEW: Reload Profile
+        list.add(TrackpadMenuAdapter.MenuItem("Reload Profile", android.R.drawable.ic_popup_sync, TrackpadMenuAdapter.Type.ACTION) { 
+            service.loadLayout() // Reloads based on current resolution/display
+            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Delete Profile", android.R.drawable.ic_menu_delete, TrackpadMenuAdapter.Type.ACTION) { 
+            service.deleteCurrentProfile()
+            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
+        })
+        
+        // --- SAVED LAYOUTS LIST ---
+        list.add(TrackpadMenuAdapter.MenuItem("SAVED LAYOUTS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        val saved = service.getSavedProfileList()
+        if (saved.isEmpty()) {
+            list.add(TrackpadMenuAdapter.MenuItem("No saved layouts found.", 0, TrackpadMenuAdapter.Type.INFO))
+        } else {
+            for (res in saved) {
+                list.add(TrackpadMenuAdapter.MenuItem("• $res", 0, TrackpadMenuAdapter.Type.INFO))
+            }
+        }
+        
+        return list
+    }
+
+    private fun getHelpItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        
+        list.add(TrackpadMenuAdapter.MenuItem("INSTRUCTIONS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        val text = 
+            "TRACKPAD CONTROLS\n" +
+            "• Tap: Left Click\n" +
+            "• 2-Finger Tap: Right Click\n" +
+            "• Hold + Slide: Drag & Drop\n" +
+            "• Edge (Top/Bottom): V-Scroll\n" +
+            "• Edge (Left/Right): H-Scroll\n\n" +
+            "KEYBOARD OVERLAY\n" +
+            "• Drag Top Bar: Move Window\n" +
+            "• Drag Bottom-Right: Resize\n" +
+            "• Hold Corner: Toggle Key/Mouse\n\n" +
+            "HARDWARE KEYS\n" +
+            "• Use the 'Hardkeys' tab to map\n" +
+            "  Volume Up/Down to clicks,\n" +
+            "  scrolling, or screen controls."
+            
+        list.add(TrackpadMenuAdapter.MenuItem(text, 0, TrackpadMenuAdapter.Type.INFO))
+        
+        list.add(TrackpadMenuAdapter.MenuItem("LAUNCHER & APP", 0, TrackpadMenuAdapter.Type.HEADER))
+        val text2 = 
+            "• Floating Bubble: Tap to open this menu. Drag to move.\n" +
+            "• Setup App: Open 'DroidOS Trackpad' from your Android App Drawer to adjust permissions or restart the service."
+        list.add(TrackpadMenuAdapter.MenuItem(text2, 0, TrackpadMenuAdapter.Type.INFO))
+        
+        return list
+    }
+}
+```
+
+## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.content.ContentResolver
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Binder
+import android.os.IBinder
+import android.provider.Settings
+import android.util.Log
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.util.ArrayList
+import java.util.regex.Pattern
+import android.os.Build
+
+class ShellUserService : IShellService.Stub() {
+
+    private val TAG = "ShellUserService"
+
+    companion object {
+        const val POWER_MODE_OFF = 0
+        const val POWER_MODE_NORMAL = 2
+
+        @Volatile private var displayControlClass: Class<*>? = null
+        @Volatile private var displayControlClassLoaded = false
+    }
+
+    // === GEMINI TASK CACHE - START ===
+    // Cache for Gemini task ID since it trampolines and becomes invisible
+    // The BardEntryPointActivity creates a task, then immediately redirects to Google QSB
+    // After trampoline, the original task disappears from am stack list
+    // We cache the exact task ID when found and reuse it for subsequent repositions
+    private var cachedGeminiTaskId: Int = -1
+    private var cachedGeminiTaskTime: Long = 0
+    private val GEMINI_CACHE_VALIDITY_MS = 30000L  // Cache valid for 30 seconds
+    // === GEMINI TASK CACHE - END ===
+
+    private val surfaceControlClass: Class<*> by lazy {
+        Class.forName("android.view.SurfaceControl")
+    }
+
+    private fun getDisplayControlClass(): Class<*>? {
+        if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
+        
+        return try {
+            val classLoaderFactoryClass = Class.forName("com.android.internal.os.ClassLoaderFactory")
+            val createClassLoaderMethod = classLoaderFactoryClass.getDeclaredMethod(
+                "createClassLoader",
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                ClassLoader::class.java,
+                Int::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                String::class.java
+            )
+            val classLoader = createClassLoaderMethod.invoke(
+                null, "/system/framework/services.jar", null, null,
+                ClassLoader.getSystemClassLoader(), 0, true, null
+            ) as ClassLoader
+
+            val loadedClass = classLoader.loadClass("com.android.server.display.DisplayControl").also {
+                val loadMethod = Runtime::class.java.getDeclaredMethod(
+                    "loadLibrary0",
+                    Class::class.java,
+                    String::class.java
+                )
+                loadMethod.isAccessible = true
+                loadMethod.invoke(Runtime.getRuntime(), it, "android_servers")
+            }
+            
+            displayControlClass = loadedClass
+            displayControlClassLoaded = true
+            loadedClass
+        } catch (e: Exception) {
+            Log.w(TAG, "DisplayControl not available", e)
+            null
+        }
+    }
+
+    private fun getAllPhysicalDisplayTokens(): List<IBinder> {
+        val tokens = ArrayList<IBinder>()
+        try {
+            val physicalIds: LongArray = if (Build.VERSION.SDK_INT >= 34) {
+                val controlClass = getDisplayControlClass()
+                if (controlClass != null) {
+                    controlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                } else {
+                     try {
+                        surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                     } catch (e: Exception) { LongArray(0) }
+                }
+            } else {
+                surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+            }
+
+            if (physicalIds.isEmpty()) {
+                getSurfaceControlInternalToken()?.let { tokens.add(it) }
+                return tokens
+            }
+
+            for (id in physicalIds) {
+                try {
+                    val token: IBinder? = if (Build.VERSION.SDK_INT >= 34) {
+                        val controlClass = getDisplayControlClass()
+                        if (controlClass != null) {
+                             controlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        } else {
+                            surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        }
+                    } else {
+                        surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                            .invoke(null, id) as? IBinder
+                    }
+                    
+                    if (token != null) tokens.add(token)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to get token for physical ID $id", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Critical failure getting display tokens", e)
+        }
+        return tokens
+    }
+
+    private fun getSurfaceControlInternalToken(): IBinder? {
+        return try {
+            if (Build.VERSION.SDK_INT < 29) {
+                surfaceControlClass.getMethod("getBuiltInDisplay", Int::class.java).invoke(null, 0) as IBinder
+            } else {
+                surfaceControlClass.getMethod("getInternalDisplayToken").invoke(null) as IBinder
+            }
+        } catch (e: Exception) { null }
+    }
+
+    private fun setPowerModeOnToken(token: IBinder, mode: Int) {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayPowerMode",
+                IBinder::class.java,
+                Int::class.javaPrimitiveType
+            )
+            method.invoke(null, token, mode)
+        } catch (e: Exception) {
+            Log.e(TAG, "setDisplayPowerMode failed for token $token", e)
+        }
+    }
+
+    private fun setDisplayBrightnessOnToken(token: IBinder, brightness: Float): Boolean {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayBrightness",
+                IBinder::class.java,
+                Float::class.javaPrimitiveType
+            )
+            method.invoke(null, token, brightness)
+            return true
+        } catch (e: Exception) {
+             try {
+                val method = surfaceControlClass.getMethod(
+                    "setDisplayBrightness",
+                    IBinder::class.java,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType
+                )
+                method.invoke(null, token, brightness, brightness, brightness, brightness)
+                return true
+            } catch (e2: Exception) {
+                return false
+            }
+        }
+    }
+
+    private fun setDisplayBrightnessInternal(displayId: Int, brightness: Float): Boolean {
+        // Legacy shim for single-target calls
+        val tokens = getAllPhysicalDisplayTokens()
+        if (tokens.isNotEmpty()) return setDisplayBrightnessOnToken(tokens[0], brightness)
+        return false
+    }
+
+    private val shLock = Object()
+    private var _shProcess: Process? = null
+    private val shProcess: Process
+        get() = synchronized(shLock) {
+            if (_shProcess?.isAlive == true) _shProcess!!
+            else Runtime.getRuntime().exec(arrayOf("sh")).also { _shProcess = it }
+        }
+
+    private fun execShellCommand(command: String) {
+        synchronized(shLock) {
+            try {
+                val output = shProcess.outputStream
+                output.write("$command\n".toByteArray())
+                output.flush()
+            } catch (e: Exception) {
+                Log.e(TAG, "Shell command failed", e)
+            }
+        }
+    }
+
+    // ============================================================
+    // AIDL Interface Implementations
+    // ============================================================
+
+    
+override fun setBrightness(displayId: Int, brightness: Int) {
+        Log.d(TAG, "setBrightness(Global Broadcast, Value: $brightness)")
+        val token = Binder.clearCallingIdentity()
+        try {
+            if (brightness < 0) {
+                // === SCREEN OFF ===
+                execShellCommand("settings put system screen_brightness_mode 0")
+                
+                // Get ALL tokens, but ONLY apply to the first 2 (Main + Cover)
+                // This prevents killing the Glasses (which would be index 2+)
+                val tokens = getAllPhysicalDisplayTokens()
+                val safeTokens = tokens.take(2)
+                
+                for (t in safeTokens) {
+                    setDisplayBrightnessOnToken(t, -1.0f)
+                }
+                
+                execShellCommand("settings put system screen_brightness_float -1.0")
+                execShellCommand("settings put system screen_brightness -1")
+            } else {
+                // === SCREEN ON ===
+                val floatVal = brightness.toFloat() / 255.0f
+                
+                // Restore ALL tokens (safety, in case user replugged glasses)
+                val tokens = getAllPhysicalDisplayTokens()
+                for (t in tokens) {
+                    setDisplayBrightnessOnToken(t, floatVal)
+                }
+                
+                execShellCommand("settings put system screen_brightness_float $floatVal")
+                execShellCommand("settings put system screen_brightness $brightness")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setBrightness failed", e)
+        } finally {
+             Binder.restoreCallingIdentity(token)
+        }
+    }
+
+    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
+        Log.d(TAG, "setScreenOff(Global Broadcast, TurnOff: $turnOff)")
+        val token = Binder.clearCallingIdentity()
+        try {
+            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
+            
+            // Same safety limit: Only affect first 2 physical screens
+            val tokens = getAllPhysicalDisplayTokens()
+            val safeTokens = tokens.take(2)
+            
+            for (t in safeTokens) {
+                setPowerModeOnToken(t, mode)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setScreenOff failed", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    // --- V1.0 LOGIC: Window Management (Retained for Tiling/Minimizing) ---
+    
+    override fun forceStop(packageName: String) {
+        val token = Binder.clearCallingIdentity()
+        try { 
+            val realPkg = if (packageName.endsWith(":gemini")) packageName.substringBefore(":") else packageName
+            Runtime.getRuntime().exec("am force-stop $realPkg").waitFor() 
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+    }
+
+    override fun runCommand(command: String) {
+        val token = Binder.clearCallingIdentity()
+        try { Runtime.getRuntime().exec(command).waitFor() } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+    }
+
+
+
+    // === REPOSITION TASK - START ===
+    // Repositions a task window to specified bounds using am task commands
+    override fun repositionTask(packageName: String, className: String?, left: Int, top: Int, right: Int, bottom: Int) {
+        Log.d(TAG, "repositionTask: pkg=$packageName cls=$className bounds=[$left,$top,$right,$bottom]")
+
+        val tid = getTaskId(packageName, className)
+        Log.d(TAG, "repositionTask: getTaskId returned $tid")
+
+        if (tid == -1) {
+            Log.w(TAG, "repositionTask: No task found for $packageName / $className")
+            return
+        }
+
+        val token = Binder.clearCallingIdentity()
+        try {
+            // Set freeform windowing mode (mode 5)
+            val modeCmd = "am task set-windowing-mode $tid 5"
+            Log.d(TAG, "repositionTask: $modeCmd")
+            val modeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd))
+            modeProc.waitFor()
+            Thread.sleep(100)
+
+            // Apply resize
+            val resizeCmd = "am task resize $tid $left $top $right $bottom"
+            Log.d(TAG, "repositionTask: $resizeCmd")
+            val resizeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd))
+            val exitCode = resizeProc.waitFor()
+
+            Log.d(TAG, "repositionTask: resize exitCode=$exitCode for task $tid")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "repositionTask: FAILED", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    // === REPOSITION TASK - END ===
+
+
+
+    // === GET VISIBLE PACKAGES - START ===
+    // Returns list of packages that are actually visible on the specified display
+    // Checks both mViewVisibility AND window frame bounds
+    // Windows moved off-screen (left >= 10000) are considered not visible
+    override fun getVisiblePackages(displayId: Int): List<String> {
+        val list = ArrayList<String>()
+        val token = Binder.clearCallingIdentity()
+        try {
+            Log.d(TAG, "getVisiblePackages: Checking display $displayId")
+            val p = Runtime.getRuntime().exec("dumpsys window windows")
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            var currentPkg: String? = null
+            var isVisible = false
+            var onCorrectDisplay = false
+            var isOffScreen = false
+            val windowPattern = Pattern.compile("Window\\{[0-9a-f]+ u\\d+ ([^\\}/ ]+)")
+            // Pattern to match frame bounds like "frame=[50000,50000][50100,50100]" or "mFrame=[0,0][960,1080]"
+            val framePattern = Pattern.compile("(?:frame|mFrame)=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
+
+            while (r.readLine().also { line = it } != null) {
+                val l = line!!.trim()
+
+                // New window entry - reset state
+                if (l.startsWith("Window #")) {
+                    currentPkg = null
+                    isVisible = false
+                    onCorrectDisplay = false
+                    isOffScreen = false
+                    val matcher = windowPattern.matcher(l)
+                    if (matcher.find()) currentPkg = matcher.group(1)
+                }
+
+                // Check display
+                if (l.contains("displayId=$displayId") || l.contains("mDisplayId=$displayId")) {
+                    onCorrectDisplay = true
+                }
+
+                // Check visibility flag
+                if (l.contains("mViewVisibility=0x0")) {
+                    isVisible = true
+                }
+
+                // Check frame bounds - if left >= 10000, window is off-screen (minimized)
+                val frameMatcher = framePattern.matcher(l)
+                if (frameMatcher.find()) {
+                    try {
+                        val left = frameMatcher.group(1)?.toIntOrNull() ?: 0
+                        if (left >= 10000) {
+                            isOffScreen = true
+                            Log.d(TAG, "getVisiblePackages: $currentPkg is off-screen (left=$left)")
+                        }
+                    } catch (e: Exception) {}
+                }
+
+                // Add to list if truly visible (on correct display, view visible, NOT off-screen)
+                if (currentPkg != null && isVisible && onCorrectDisplay && !isOffScreen) {
+                    if (isUserApp(currentPkg!!) && !list.contains(currentPkg!!)) {
+                        list.add(currentPkg!!)
+                        Log.d(TAG, "getVisiblePackages: Found visible (window): $currentPkg")
+                    }
+                    currentPkg = null
+                }
+            }
+            r.close()
+            p.waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "getVisiblePackages: Error", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+        Log.d(TAG, "getVisiblePackages: display=$displayId result=${list.joinToString()}")
+        return list
+    }
+    // === GET VISIBLE PACKAGES - END ===
+
+    override fun getAllRunningPackages(): List<String> {
+        val list = ArrayList<String>()
+        val token = Binder.clearCallingIdentity()
+        try {
+            val p = Runtime.getRuntime().exec("dumpsys activity activities")
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            val recordPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
+            while (r.readLine().also { line = it } != null) {
+                if (line!!.contains("ActivityRecord{")) {
+                    val m = recordPattern.matcher(line!!)
+                    if (m.find()) { val pkg = m.group(1); if (pkg != null && !list.contains(pkg) && isUserApp(pkg)) list.add(pkg) }
+                }
+            }
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+        return list
+    }
+
+override fun getWindowLayouts(displayId: Int): List<String> {
+    val results = ArrayList<String>()
+    val token = Binder.clearCallingIdentity()
+    try {
+        val p = Runtime.getRuntime().exec("dumpsys activity activities")
+        val r = BufferedReader(InputStreamReader(p.inputStream))
+        var line: String?
+        
+        var currentDisplayId = -1
+        var currentTaskBounds: String? = null
+        var foundPackages = mutableSetOf<String>()
+        
+        val displayPattern = Pattern.compile("Display #(\\d+)")
+        val boundsPattern = Pattern.compile("bounds=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
+        val rectPattern = Pattern.compile("mBounds=Rect\\((\\d+), (\\d+) - (\\d+), (\\d+)\\)")
+        val activityPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
+
+        while (r.readLine().also { line = it } != null) {
+            val l = line!!
+            
+            val displayMatcher = displayPattern.matcher(l)
+            if (displayMatcher.find()) {
+                currentDisplayId = displayMatcher.group(1)?.toIntOrNull() ?: -1
+            }
+            
+            if (currentDisplayId != displayId) continue
+            
+            val boundsMatcher = boundsPattern.matcher(l)
+            if (boundsMatcher.find()) {
+                val left = boundsMatcher.group(1)
+                val top = boundsMatcher.group(2)
+                val right = boundsMatcher.group(3)
+                val bottom = boundsMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            val rectMatcher = rectPattern.matcher(l)
+            if (rectMatcher.find()) {
+                val left = rectMatcher.group(1)
+                val top = rectMatcher.group(2)
+                val right = rectMatcher.group(3)
+                val bottom = rectMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            if (l.contains("ActivityRecord{") && currentTaskBounds != null) {
+                val activityMatcher = activityPattern.matcher(l)
+                if (activityMatcher.find()) {
+                    val pkg = activityMatcher.group(1)
+                    if (pkg != null && isUserApp(pkg) && !foundPackages.contains(pkg)) {
+                        results.add("$pkg|$currentTaskBounds")
+                        foundPackages.add(pkg)
+                    }
+                }
+            }
+        }
+        
+        r.close()
+        p.waitFor()
+    } catch (e: Exception) {
+        Log.e(TAG, "getWindowLayouts failed", e)
+    } finally {
+        Binder.restoreCallingIdentity(token)
+    }
+    return results
+}
+
+
+    // === GET TASK ID - START ===
+    // Uses 'am stack list' to find task ID
+    // PRIORITY: Full component match (pkg/cls) > package match > short activity match
+    // Handles trampolining apps like Gemini which redirect to different packages
+    // For Gemini: caches the exact task ID when found since it becomes invisible after trampoline
+
+    // === GEMINI TASK CACHE - START ===
+    // Cache for Gemini task ID since it trampolines and becomes invisible
+    // The BardEntryPointActivity creates a task, then immediately redirects to Google QSB
+    // After trampoline, the original task disappears from am stack list
+    // We cache the exact task ID when found and reuse it for subsequent repositions
+    // === GEMINI TASK CACHE - END ===
+
+    // === GET TASK ID - START ===
+    // Uses 'am stack list' to find task ID
+    // PRIORITY: Full component match (pkg/cls) > package match > short activity match
+    // Handles trampolining apps like Gemini which redirect to different packages
+    // For Gemini: caches the exact task ID when found since it becomes invisible after trampoline
+
+    override fun getTaskId(packageName: String, className: String?): Int {
+        var exactTaskId = -1      // Best: full component match
+        var packageTaskId = -1    // Good: package name match
+        var fallbackTaskId = -1   // Last resort: short activity name match
+        
+        val token = Binder.clearCallingIdentity()
+        try {
+            Log.d(TAG, "getTaskId: Looking for pkg=$packageName cls=$className")
+            
+            // === GEMINI DETECTION ===
+            val isGemini = packageName == "com.google.android.apps.bard" || 
+                          (className?.contains("Bard") == true) ||
+                          (className?.contains("bard") == true)
+            
+            // === GEMINI CACHE CHECK - START ===
+            // For Gemini, we use a very short cache validity because the original task
+            // gets destroyed quickly. After ~500ms, we should always search fresh
+            // to find the trampoline target instead of the dead original task.
+            if (isGemini && cachedGeminiTaskId > 0) {
+                val cacheAge = System.currentTimeMillis() - cachedGeminiTaskTime
+                // Use very short validity - 500ms max, not 30 seconds
+                // After trampoline completes, the cached ID is useless
+                val shortValidity = 500L
+                if (cacheAge < shortValidity) {
+                    Log.d(TAG, "getTaskId: Gemini using CACHED taskId=$cachedGeminiTaskId (age=${cacheAge}ms)")
+                    return cachedGeminiTaskId
+                } else {
+                    Log.d(TAG, "getTaskId: Gemini cache too old (age=${cacheAge}ms > ${shortValidity}ms), searching fresh")
+                    cachedGeminiTaskId = -1
+                }
+            }
+            // === GEMINI CACHE CHECK - END ===
+            
+            if (isGemini) {
+                Log.d(TAG, "getTaskId: Gemini detected, will check trampoline targets")
+            }
+            
+            val cmd = arrayOf("sh", "-c", "am stack list")
+            val p = Runtime.getRuntime().exec(cmd)
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            
+            // Build component string for exact matching
+            val fullComponent = if (!className.isNullOrEmpty() && className != "null" && className != "default") {
+                "$packageName/$className"
+            } else {
+                null
+            }
+            
+            // Short activity name (fallback only)
+            val shortActivity = className?.substringAfterLast(".")
+            
+            Log.d(TAG, "getTaskId: fullComponent=$fullComponent shortActivity=$shortActivity")
+            
+            while (r.readLine().also { line = it } != null) {
+                val l = line!!.trim()
+                
+                if (!l.contains("taskId=") || !l.contains(":")) continue
+                
+                // Extract task ID from line
+                val match = Regex("taskId=(\\d+):").find(l)
+                if (match == null) continue
+                
+                val foundId = match.groupValues[1].toIntOrNull() ?: continue
+                if (foundId <= 0) continue
+                
+                // PRIORITY 1: Exact full component match (highest priority)
+                if (fullComponent != null && l.contains(fullComponent)) {
+                    Log.d(TAG, "getTaskId: EXACT MATCH taskId=$foundId component=$fullComponent")
+                    exactTaskId = foundId
+                    // Keep searching - want most recent exact match
+                }
+                // PRIORITY 2: Package name match
+                else if (l.contains("$packageName/")) {
+                    Log.d(TAG, "getTaskId: PACKAGE MATCH taskId=$foundId pkg=$packageName")
+                    packageTaskId = foundId
+                }
+                // PRIORITY 3: Gemini trampoline - check for Google Quick Search Box with Assistant activity
+                // The actual Gemini UI runs in Google QSB with an assistant/robin activity
+                // Avoid matching Android Auto ghost activities
+                else if (isGemini && l.contains("com.google.android.googlequicksearchbox")) {
+                    // Check if this is the actual assistant activity (not Auto ghost)
+                    val isAssistantActivity = l.contains("assistant") || l.contains("robin") || l.contains("MainActivity")
+                    val isAutoGhost = l.contains("auto") || l.contains("ghost")
+                    
+                    if (isAssistantActivity && !isAutoGhost) {
+                        if (foundId > packageTaskId) {
+                            Log.d(TAG, "getTaskId: GEMINI TRAMPOLINE MATCH taskId=$foundId (assistant activity)")
+                            packageTaskId = foundId
+                        }
+                    } else {
+                        Log.d(TAG, "getTaskId: GEMINI TRAMPOLINE SKIP taskId=$foundId (not assistant activity)")
+                    }
+                }
+
+                // PRIORITY 4: Short activity name (ONLY if no better match exists)
+                // Skip generic names that cause false positives
+                else if (shortActivity != null && 
+                         shortActivity != "MainActivity" &&  // Too generic
+                         shortActivity != "default" &&       // Too generic
+                         l.contains(shortActivity)) {
+                    Log.d(TAG, "getTaskId: FALLBACK MATCH taskId=$foundId activity=$shortActivity")
+                    fallbackTaskId = foundId
+                }
+            }
+            r.close()
+            p.waitFor()
+            
+            // Return best match in priority order
+            val result = when {
+                exactTaskId > 0 -> exactTaskId
+                packageTaskId > 0 -> packageTaskId
+                fallbackTaskId > 0 -> fallbackTaskId
+                else -> -1
+            }
+            
+            // === GEMINI TASK HANDLING - START ===
+            // Gemini (com.google.android.apps.bard) is a trampolining app:
+            // - BardEntryPointActivity creates a task, then DESTROYS it within ~40ms
+            // - User is redirected to Google Quick Search Box
+            // - The original task ID is useless because the task no longer exists
+            // 
+            // Strategy: Don't cache the destroyed task. Instead:
+            // - If we have an exact match AND the task has activities, cache it
+            // - If task has trampolined (no exact match), use the trampoline target
+            // - For repositioning, the trampoline target (Google QSB) is what's actually running
+            
+            if (isGemini) {
+                if (exactTaskId > 0) {
+                    // We found an exact match - but is the task still alive?
+                    // Check if this task actually has activities (not destroyed)
+                    // For now, we'll cache it but with a very short validity
+                    cachedGeminiTaskId = exactTaskId
+                    cachedGeminiTaskTime = System.currentTimeMillis()
+                    Log.d(TAG, "getTaskId: Gemini exact match found, CACHED taskId=$exactTaskId (may be short-lived)")
+                } else if (packageTaskId > 0) {
+                    // No exact match means trampoline completed
+                    // The packageTaskId is the Google QSB task that Gemini is running in
+                    // This is actually what we should reposition!
+                    Log.d(TAG, "getTaskId: Gemini trampolined, using trampoline target taskId=$packageTaskId")
+                    
+                    // DON'T use cached ID - it's destroyed. Use the live trampoline target.
+                    // Clear any stale cache
+                    if (cachedGeminiTaskId > 0) {
+                        Log.d(TAG, "getTaskId: Clearing stale Gemini cache (old=$cachedGeminiTaskId)")
+                        cachedGeminiTaskId = -1
+                    }
+                    
+                    return packageTaskId
+                }
+            }
+            // === GEMINI TASK HANDLING - END ===
+            
+            Log.d(TAG, "getTaskId: Final result=$result (exact=$exactTaskId pkg=$packageTaskId fallback=$fallbackTaskId)")
+            return result
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "getTaskId: FAILED", e)
+            return -1
+        } finally { 
+            Binder.restoreCallingIdentity(token) 
+        }
+    }
+    // === GET TASK ID - END ===
+
+    // === GET TASK ID - END ===
+
+    // === GET TASK ID - END ===
+
+    // === DEBUG DUMP TASKS - START ===
+    // Dumps raw task info for debugging
+    fun debugDumpTasks(): String {
+        val token = Binder.clearCallingIdentity()
+        val result = StringBuilder()
+        try {
+            val cmd = arrayOf("sh", "-c", "dumpsys activity activities | head -100")
+            val p = Runtime.getRuntime().exec(cmd)
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            while (r.readLine().also { line = it } != null) {
+                result.appendLine(line)
+            }
+            r.close()
+            p.waitFor()
+        } catch (e: Exception) {
+            result.appendLine("ERROR: ${e.message}")
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+        return result.toString()
+    }
+    // === DEBUG DUMP TASKS - END ===
+
+    // === MOVE TASK TO BACK / MINIMIZE TASK - START ===
+    // Minimizes a task using Samsung's IMultiTaskingBinder from ActivityTaskManager
+    // This is what Android's freeform minimize button uses on Samsung devices
+    override fun moveTaskToBack(taskId: Int) {
+        val token = Binder.clearCallingIdentity()
+        try {
+            Log.d(TAG, "moveTaskToBack: Minimizing taskId=$taskId via ATM.getMultiTaskingBinder()")
+
+            var success = false
+
+            try {
+                // Get ActivityTaskManager service
+                val atmClass = Class.forName("android.app.ActivityTaskManager")
+                val getServiceMethod = atmClass.getMethod("getService")
+                val atm = getServiceMethod.invoke(null)
+
+                Log.d(TAG, "moveTaskToBack: Got ATM service")
+
+                // Call getMultiTaskingBinder()
+                val getMultiTaskingBinder = atm.javaClass.getMethod("getMultiTaskingBinder")
+                val multiTaskingBinder = getMultiTaskingBinder.invoke(atm)
+
+                if (multiTaskingBinder != null) {
+                    Log.d(TAG, "moveTaskToBack: Got MultiTaskingBinder: ${multiTaskingBinder.javaClass.name}")
+
+                    // Call minimizeTaskById(taskId)
+                    val minimizeMethod = multiTaskingBinder.javaClass.getMethod(
+                        "minimizeTaskById",
+                        Int::class.javaPrimitiveType
+                    )
+                    minimizeMethod.invoke(multiTaskingBinder, taskId)
+
+                    Log.d(TAG, "moveTaskToBack: minimizeTaskById($taskId) SUCCEEDED!")
+                    success = true
+                } else {
+                    Log.w(TAG, "moveTaskToBack: getMultiTaskingBinder() returned null")
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "moveTaskToBack: Samsung MultiTaskingBinder failed", e)
+                e.printStackTrace()
+            }
+
+            // FALLBACK: Off-screen positioning (only if Samsung API failed)
+            if (!success) {
+                Log.w(TAG, "moveTaskToBack: Using off-screen fallback")
+                val modeCmd = "am task set-windowing-mode $taskId 5"
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd)).waitFor()
+                Thread.sleep(100)
+                val resizeCmd = "am task resize $taskId 99999 99999 100000 100000"
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd)).waitFor()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "moveTaskToBack: FAILED", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    // === MOVE TASK TO BACK / MINIMIZE TASK - END ===
+
+    private fun isUserApp(pkg: String): Boolean {
+        if (pkg == "com.android.systemui") return false
+        if (pkg == "com.android.launcher3") return false 
+        if (pkg == "com.sec.android.app.launcher") return false 
+        if (pkg == "com.katsuyamaki.DroidOSLauncher") return false
+        if (pkg == "com.example.coverscreentester") return false
+        if (pkg == "com.katsuyamaki.trackpad") return false
+        if (pkg.contains("inputmethod")) return false
+        if (pkg.contains("navigationbar")) return false
+        if (pkg == "ScreenDecorOverlayCover") return false
+        if (pkg == "RecentsTransitionOverlay") return false
+        if (pkg == "FreeformContainer") return false
+        if (pkg == "StatusBar") return false
+        if (pkg == "NotificationShade") return false
+        return true
+    }
+
+    // Interface compliance stubs
+    override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
+    override fun getSystemBrightness(): Int = 128
+    override fun getSystemBrightnessFloat(): Float = 0.5f
+    override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
+    override fun isAutoBrightness(): Boolean = true
+    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
+}
+```
+
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/FloatingLauncherService.kt
 ```kotlin
 package com.example.quadrantlauncher
@@ -13483,1609 +15086,6 @@ class FloatingLauncherService : AccessibilityService() {
 }
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuManager.kt
-```kotlin
-package com.example.coverscreentester
-
-import android.content.Context
-import android.graphics.PixelFormat
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.view.View
-import android.view.WindowManager
-import android.widget.ImageView
-import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import android.graphics.Color
-import android.view.ViewGroup
-import android.view.MotionEvent
-import java.util.ArrayList
-
-class TrackpadMenuManager(
-    private val context: Context,
-    private val windowManager: WindowManager,
-    private val service: OverlayService
-) {
-    private var drawerView: View? = null
-    private var recyclerView: RecyclerView? = null
-    private var drawerParams: WindowManager.LayoutParams? = null
-    private var isVisible = false
-    
-    // Manual Adjust State
-    private var isResizeMode = false // Default to Move Mode
-
-    // Tab Constants - Order must match layout_trackpad_drawer.xml tab order
-    private val TAB_MAIN = 0
-    private val TAB_PRESETS = 1
-    private val TAB_MOVE = 2
-    private val TAB_KB_MOVE = 3
-    private val TAB_MIRROR = 4      // NEW: Mirror keyboard config
-    private val TAB_CONFIG = 5
-    private val TAB_TUNE = 6
-    private val TAB_HARDKEYS = 7
-    private val TAB_BUBBLE = 8
-    private val TAB_PROFILES = 9
-    private val TAB_HELP = 10
-    
-    private var currentTab = TAB_MAIN
-
-    fun show() {
-        if (isVisible) return
-        if (drawerView == null) setupDrawer()
-        try {
-            windowManager.addView(drawerView, drawerParams)
-            isVisible = true
-            loadTab(currentTab)
-            
-            // CRITICAL FIX: Force Cursor and Bubble to top of stack
-            // Since Menu was just added, it is currently on top. 
-            // We must re-add the others to cover it.
-            service.enforceZOrder()
-            
-        } catch (e: SecurityException) {
-            android.widget.Toast.makeText(context, "Missing Overlay Permission! Open App to Fix.", android.widget.Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-        } catch (e: Exception) { 
-            e.printStackTrace() 
-        }
-    }
-
-    fun hide() {
-        if (!isVisible) return
-        try {
-            windowManager.removeView(drawerView)
-            isVisible = false
-        } catch (e: Exception) { }
-    }
-
-    fun toggle() {
-        if (isVisible) hide() else show()
-    }
-
-    fun bringToFront() {
-        if (!isVisible || drawerView == null) return
-        try {
-            // Detach and Re-attach to move to top of Z-Order stack
-            windowManager.removeView(drawerView)
-            windowManager.addView(drawerView, drawerParams)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun setupDrawer() {
-        // Use ContextWrapper to ensure correct theme (Matches Launcher)
-        val themedContext = android.view.ContextThemeWrapper(context, R.style.Theme_CoverScreenTester)
-        val inflater = LayoutInflater.from(themedContext)
-        drawerView = inflater.inflate(R.layout.layout_trackpad_drawer, null)
-
-        // Close button logic
-        drawerView?.findViewById<View>(R.id.btn_close_menu)?.setOnClickListener { hide() }
-        
-        recyclerView = drawerView?.findViewById(R.id.menu_recycler)
-        recyclerView?.layoutManager = LinearLayoutManager(context)
-
-        // Tab click listeners
-        val tabs = listOf(
-            R.id.tab_main to TAB_MAIN,
-            R.id.tab_presets to TAB_PRESETS,
-            R.id.tab_move to TAB_MOVE,
-            R.id.tab_kb_move to TAB_KB_MOVE,
-            R.id.tab_mirror to TAB_MIRROR,      // NEW
-            R.id.tab_config to TAB_CONFIG,
-            R.id.tab_tune to TAB_TUNE,
-            R.id.tab_hardkeys to TAB_HARDKEYS,
-            R.id.tab_bubble to TAB_BUBBLE,
-            R.id.tab_profiles to TAB_PROFILES,
-            R.id.tab_help to TAB_HELP
-        )
-
-        for ((id, index) in tabs) {
-            drawerView?.findViewById<ImageView>(id)?.setOnClickListener { 
-                loadTab(index) 
-            }
-        }
-
-        // =========================
-        // WINDOW CONFIG (MATCHING DROIDOS LAUNCHER)
-        // =========================
-        drawerParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT, 
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, 
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, 
-            PixelFormat.TRANSLUCENT
-        )
-        // Explicitly set Gravity to TOP|START for absolute positioning
-        drawerParams?.gravity = Gravity.TOP or Gravity.START
-        
-        // Initial Center Calculation
-        val metrics = context.resources.displayMetrics
-        val screenWidth = metrics.widthPixels
-        val screenHeight = metrics.heightPixels
-        
-        // Approx Menu Size (320dp width + margins, ~400dp height)
-        val density = metrics.density
-        val menuW = (360 * density).toInt() 
-        val menuH = (400 * density).toInt()
-        
-        drawerParams?.x = (screenWidth - menuW) / 2
-        drawerParams?.y = (screenHeight - menuH) / 2
-        
-        // =========================
-        // INTERACTION LOGIC
-        // =========================
-        // 1. Background Click -> Removed (Handled by FLAG_NOT_TOUCH_MODAL)
-        
-        // 2. Menu Card Click -> Block (Consume)
-        drawerView?.findViewById<View>(R.id.menu_container)?.setOnClickListener { 
-            // Do nothing
-        }
-        
-        // 3. DRAG HANDLE LOGIC
-        val dragHandle = drawerView?.findViewById<View>(R.id.menu_drag_handle)
-        var initialX = 0
-        var initialY = 0
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-
-        dragHandle?.setOnTouchListener { v, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = drawerParams!!.x
-                    initialY = drawerParams!!.y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    drawerParams!!.x = initialX + (event.rawX - initialTouchX).toInt()
-                    drawerParams!!.y = initialY + (event.rawY - initialTouchY).toInt()
-                    
-                    try {
-                        windowManager.updateViewLayout(drawerView, drawerParams)
-                    } catch (e: Exception) {}
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    private fun loadTab(index: Int) {
-        currentTab = index
-        updateTabIcons(index)
-        
-        val items = when(index) {
-            TAB_MAIN -> getMainItems()
-            TAB_PRESETS -> getPresetItems()
-            TAB_MOVE -> getMoveItems(false)
-            TAB_KB_MOVE -> getMoveItems(true)
-            TAB_MIRROR -> getMirrorItems()      // NEW
-            TAB_CONFIG -> getConfigItems()
-            TAB_TUNE -> getTuneItems()
-            TAB_HARDKEYS -> getHardkeyItems()   // Hardkey bindings configuration
-            TAB_BUBBLE -> getBubbleItems()
-            TAB_PROFILES -> getProfileItems()
-            TAB_HELP -> getHelpItems()
-            else -> emptyList()
-        }
-        
-        recyclerView?.adapter = TrackpadMenuAdapter(items)
-    }
-
-    private fun updateTabIcons(activeIdx: Int) {
-        val tabIds = listOf(R.id.tab_main, R.id.tab_presets, R.id.tab_move, R.id.tab_kb_move, R.id.tab_mirror, R.id.tab_config, R.id.tab_tune, R.id.tab_hardkeys, R.id.tab_bubble, R.id.tab_profiles, R.id.tab_help)
-        for ((i, id) in tabIds.withIndex()) {
-            val view = drawerView?.findViewById<ImageView>(id)
-            if (i == activeIdx) view?.setColorFilter(Color.parseColor("#3DDC84")) 
-            else view?.setColorFilter(Color.GRAY)
-        }
-    }
-
-    // =========================
-    // GET MAIN ITEMS - Generates main menu items list
-    // =========================
-    private fun getMainItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("MAIN CONTROLS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // --- COMMENTED OUT PER REQUEST ---
-        /*
-        list.add(TrackpadMenuAdapter.MenuItem("Switch Screen (0 <-> 1)", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { 
-            service.switchDisplay() 
-            hide()
-        })
-        */
-        // ---------------------------------
-
-        list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_myplaces, TrackpadMenuAdapter.Type.ACTION) { 
-            service.resetBubblePosition()
-            hide()
-        })
-        
-        // --- COMMENTED OUT PER REQUEST ---
-        /*
-        list.add(TrackpadMenuAdapter.MenuItem("Move Trackpad Here", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { service.forceMoveToCurrentDisplay(); hide() })
-        */
-        
-        // Renamed: "Target: ..." -> "Toggle Remote Display"
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Remote Display", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) { service.cycleInputTarget(); loadTab(TAB_MAIN) })
-
-        // =================================================================================
-        // VIRTUAL MIRROR MODE TOGGLE
-        // SUMMARY: Enhanced toggle for AR glasses/remote displays.
-        //          When enabled:
-        //          - Auto-switches cursor to virtual display
-        //          - Shows keyboard and trackpad
-        //          - Loads mirror-mode specific profile
-        //          When disabled:
-        //          - Returns to local display
-        //          - Restores previous visibility state
-        //          - Saves/loads separate profile
-        // =================================================================================
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Virtual Mirror Mode",
-            if(p.prefVirtualMirrorMode) R.drawable.ic_lock_closed else R.drawable.ic_lock_open,
-            TrackpadMenuAdapter.Type.TOGGLE,
-            if(p.prefVirtualMirrorMode) 1 else 0
-        ) { _ ->
-            service.toggleVirtualMirrorMode()
-            hide()  // Close menu since display context may change
-        })
-        // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE TOGGLE
-        // =================================================================================
-
-        // --- ANCHOR TOGGLE: Locks trackpad and keyboard position/size ---
-        list.add(TrackpadMenuAdapter.MenuItem("Anchor (Lock Position)", 
-            if(p.prefAnchored) R.drawable.ic_lock_closed else R.drawable.ic_lock_open, 
-            TrackpadMenuAdapter.Type.TOGGLE, 
-            if(p.prefAnchored) 1 else 0) { v ->
-            service.updatePref("anchored", v)
-            loadTab(TAB_MAIN)  // Refresh to update icon
-        })
-        // --- END ANCHOR TOGGLE ---
-        
-        // Toggle Trackpad (Using correct icon
-        // Toggle Trackpad
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Trackpad", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) {
-            service.toggleTrackpad()
-            hide()
-        })
-
-
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
-            if (service.isCustomKeyboardVisible) service.performSmartHide()
-            else service.toggleCustomKeyboard()
-        })
-        list.add(TrackpadMenuAdapter.MenuItem("Reset Cursor", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { service.resetCursorCenter() })
-        
-        // Renamed: "Hide App" -> "Hide All"
-        list.add(TrackpadMenuAdapter.MenuItem("Hide All", android.R.drawable.ic_menu_close_clear_cancel, TrackpadMenuAdapter.Type.ACTION) { service.hideApp() })
-        
-        // Renamed: "Force Kill Service" -> "Close/Restart App"
-        list.add(TrackpadMenuAdapter.MenuItem("Close/Restart App", android.R.drawable.ic_delete, TrackpadMenuAdapter.Type.ACTION) { service.forceExit() })
-        return list
-    }
-    // =========================
-    // END GET MAIN ITEMS
-    // =========================
-
-
-    
-// =========================
-    // GET PRESET ITEMS - Layout presets for split screen modes
-    // Freeform (type 0) loads saved profile, NOT a split preset
-    // =========================
-    private fun getPresetItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        list.add(TrackpadMenuAdapter.MenuItem("SPLIT SCREEN PRESETS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // Freeform FIRST - this loads the saved profile (not a split preset)
-        list.add(TrackpadMenuAdapter.MenuItem("Freeform (Use Profile)", android.R.drawable.ic_menu_edit, TrackpadMenuAdapter.Type.ACTION) { 
-            service.applyLayoutPreset(0)
-            hide()
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("KB Top / TP Bottom", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
-            service.applyLayoutPreset(1)
-            hide()
-        })
-        list.add(TrackpadMenuAdapter.MenuItem("TP Top / KB Bottom", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { 
-            service.applyLayoutPreset(2)
-            hide()
-        })
-        return list
-    }
-    // =========================
-    // END GET PRESET ITEMS
-    // =========================
-    private fun getMoveItems(isKeyboard: Boolean): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val target = if (isKeyboard) "Keyboard" else "Trackpad"
-        
-        list.add(TrackpadMenuAdapter.MenuItem(if (isKeyboard) "KEYBOARD POSITION" else "TRACKPAD POSITION", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // 1. Mode Switcher (Toggle Item)
-        val modeText = if (isResizeMode) "Resize (Size)" else "Position (Move)"
-        val modeIcon = if (isResizeMode) android.R.drawable.ic_menu_crop else android.R.drawable.ic_menu_mylocation
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Mode: $modeText", modeIcon, TrackpadMenuAdapter.Type.ACTION) {
-            isResizeMode = !isResizeMode
-            loadTab(currentTab) // Refresh UI to update text
-        })
-        
-        // 2. The D-Pad
-        val actionText = if (isResizeMode) "Resize" else "Move"
-        list.add(TrackpadMenuAdapter.MenuItem("$target $actionText", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.DPAD) { cmd ->
-            val step = 20
-            val command = cmd as String
-            
-            // isResizeMode determines whether we move X/Y or change W/H
-            when(command) {
-                "UP" -> service.manualAdjust(isKeyboard, isResizeMode, 0, -step)
-                "DOWN" -> service.manualAdjust(isKeyboard, isResizeMode, 0, step)
-                "LEFT" -> service.manualAdjust(isKeyboard, isResizeMode, -step, 0)
-                "RIGHT" -> service.manualAdjust(isKeyboard, isResizeMode, step, 0)
-                "CENTER" -> {
-                    if (isKeyboard) service.resetKeyboardPosition() else service.resetTrackpadPosition()
-                }
-            }
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Rotate 90°", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) {
-            if (isKeyboard) service.rotateKeyboard() else service.performRotation()
-        })
-            
-        if (isKeyboard) {
-            val p = service.prefs
-            list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha) { v ->
-                service.updatePref("keyboard_alpha", v)
-            })
-        }
-            
-        return list
-    }
-
-    // =========================
-    // GET MIRROR ITEMS - Mirror keyboard configuration
-    // =========================
-    private var isMirrorResizeMode = false
-    
-    private fun getMirrorItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("MIRROR KEYBOARD", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // Virtual Mirror Mode Toggle
-        list.add(TrackpadMenuAdapter.MenuItem("Virtual Mirror Mode", android.R.drawable.ic_menu_view, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVirtualMirrorMode) 1 else 0) { v ->
-            service.updatePref("virtual_mirror_mode", v as Boolean)
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("POSITION & SIZE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        // Mode Switcher (Position vs Resize)
-        val modeText = if (isMirrorResizeMode) "Resize (Size)" else "Position (Move)"
-        val modeIcon = if (isMirrorResizeMode) android.R.drawable.ic_menu_crop else android.R.drawable.ic_menu_mylocation
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Mode: $modeText", modeIcon, TrackpadMenuAdapter.Type.ACTION) {
-            isMirrorResizeMode = !isMirrorResizeMode
-            loadTab(currentTab) // Refresh UI
-        })
-        
-        // D-Pad for position/size
-        val actionText = if (isMirrorResizeMode) "Resize" else "Move"
-        list.add(TrackpadMenuAdapter.MenuItem("Mirror $actionText", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.DPAD) { cmd ->
-            val step = 20
-            val command = cmd as String
-            
-            when(command) {
-                "UP" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, -step)
-                "DOWN" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, step)
-                "LEFT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, -step, 0)
-                "RIGHT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, step, 0)
-                "CENTER" -> service.resetMirrorKeyboardPosition()
-            }
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        // Mirror Keyboard Opacity Slider
-        list.add(TrackpadMenuAdapter.MenuItem("Mirror Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefMirrorAlpha, 255) { v ->
-            service.updatePref("mirror_alpha", v)
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        // Orange Trail Delay Slider (100ms - 3000ms, show as 0.1s - 3.0s)
-        val currentDelayMs = p.prefMirrorOrientDelayMs
-        list.add(TrackpadMenuAdapter.MenuItem("Orient Delay: ${currentDelayMs}ms", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, (currentDelayMs / 100).toInt(), 30) { v ->
-            val newDelayMs = (v as Int) * 100L
-            service.updatePref("mirror_orient_delay", newDelayMs)
-            loadTab(currentTab) // Refresh to show new value
-        })
-        
-        return list
-    }
-    // =========================
-    // END GET MIRROR ITEMS
-    // =========================
-
-    // =========================
-    // GET CONFIG ITEMS - Trackpad configuration settings
-    // FIXED: Tap to Scroll Boolean Logic
-    // ========================= 
-    private fun getConfigItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("TRACKPAD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem("SENSITIVITY", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        list.add(TrackpadMenuAdapter.MenuItem("Cursor Speed", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.SLIDER, (p.cursorSpeed * 10).toInt()) { v -> service.updatePref("cursor_speed", (v as Int) / 10f) })
-        list.add(TrackpadMenuAdapter.MenuItem("Scroll Speed", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.SLIDER, (p.scrollSpeed * 10).toInt(), 50) { v -> service.updatePref("scroll_speed", (v as Int) / 10f) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        list.add(TrackpadMenuAdapter.MenuItem("Border Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefAlpha, 255) { v -> service.updatePref("alpha", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Background Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBgAlpha, 255) { v -> service.updatePref("bg_alpha", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Handle Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefHandleSize / 2) { v -> service.updatePref("handle_size", v) })        
-        list.add(TrackpadMenuAdapter.MenuItem("Scroll Bar Width", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefScrollTouchSize, 200) { v -> service.updatePref("scroll_size", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Cursor Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefCursorSize) { v -> service.updatePref("cursor_size", v) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("BEHAVIOR", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Reverse Scroll", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefReverseScroll) 1 else 0) { v -> service.updatePref("reverse_scroll", v) })
-        
-        // MODIFIED: Correct Boolean Check for Toast
-        list.add(TrackpadMenuAdapter.MenuItem("Tap to Scroll", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefTapScroll) 1 else 0) { v -> 
-            service.updatePref("tap_scroll", v)
-            // Fix: Cast strictly to Boolean or check against false directly
-            if (v == false) {
-                android.widget.Toast.makeText(context, "Beta mouse scrolling is activated - warning - scroll slowly for optimal results", android.widget.Toast.LENGTH_LONG).show()
-            }
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Haptic Feedback", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVibrate) 1 else 0) { v -> service.updatePref("vibrate", v) })
-        return list
-    }
-    // =========================
-    // END GET CONFIG ITEMS
-    // =========================
-
-    // =========================
-    // GET TUNE ITEMS - Keyboard configuration settings
-    // =========================
-    private fun getTuneItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("KEYBOARD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // NEW: Launch Proxy Activity for Picker
-        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Picker (Null KB to block default)", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
-            service.forceSystemKeyboardVisible()
-            hide() // Close menu
-            
-            try {
-                val intent = android.content.Intent(context, KeyboardPickerActivity::class.java)
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            } catch(e: Exception) {
-                android.widget.Toast.makeText(context, "Error launching picker", android.widget.Toast.LENGTH_SHORT).show()
-            }
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha, 255) { v -> service.updatePref("keyboard_alpha", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Scale", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyScale, 200) { v -> service.updatePref("keyboard_key_scale", v) })
-                list.add(TrackpadMenuAdapter.MenuItem("Auto Display Off", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefAutomationEnabled) 1 else 0) {
-                    v -> service.updatePref("automation_enabled", v as Boolean)
-                })
-
-        // MOVED & RENAMED: Cover Screen KB Blocker
-        list.add(TrackpadMenuAdapter.MenuItem("Cover Screen KB blocker (restart app after reverting)", android.R.drawable.ic_lock_lock, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefBlockSoftKeyboard) 1 else 0) {
-            v -> service.updatePref("block_soft_kb", v as Boolean)
-        })
-
-        return list
-    }
-    // =========================
-    // END GET TUNE ITEMS
-    // =========================
-
-    // =========================
-    // HARDKEY ACTIONS LIST
-    // =========================
-    private val hardkeyActions = listOf(
-        "none" to "None (System Default)",
-        "left_click" to "Left Click (Hold to Drag)",
-        "right_click" to "Right Click (Hold to Drag)",
-        "scroll_up" to "Scroll Up",
-        "scroll_down" to "Scroll Down",
-        "display_toggle_alt" to "Display (Alt Mode)",
-        "display_toggle_std" to "Display (Std Mode)",
-        "display_wake" to "Display Wake",
-        "alt_position" to "Alt KB Position",
-        "toggle_keyboard" to "Toggle Keyboard",
-        "toggle_trackpad" to "Toggle Trackpad",
-        "open_menu" to "Open Menu",
-        "reset_cursor" to "Reset Cursor",
-        "toggle_bubble" to "Launcher Bubble", // <--- NEW ITEM
-        "action_back" to "Back",
-        "action_home" to "Home",
-        "action_forward" to "Forward (Browser)",
-        "action_vol_up" to "Volume Up",
-        "action_vol_down" to "Volume Down"
-    )
-    
-    private fun getActionDisplayName(actionId: String): String {
-        return hardkeyActions.find { it.first == actionId }?.second ?: actionId
-    }
-    // =========================
-    // END HARDKEY ACTIONS LIST
-    // =========================
-
-    // =========================
-    // SHOW ACTION PICKER - In-Menu Replacement for Dialog
-    // Replaces the current menu list with selection options to avoid Service/Dialog crashes
-    // =========================
-    private fun showActionPicker(prefKey: String, currentValue: String) {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        
-        // 1. Header
-        list.add(TrackpadMenuAdapter.MenuItem("Select Action", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // 2. Cancel / Back Option
-        list.add(TrackpadMenuAdapter.MenuItem("<< Go Back", android.R.drawable.ic_menu_revert, TrackpadMenuAdapter.Type.ACTION) {
-            // Reload the previous tab to "go back"
-            loadTab(TAB_HARDKEYS)
-        })
-
-        // 3. Action Options
-        for ((id, name) in hardkeyActions) {
-            // Show a "Check" icon if this is the currently selected value
-            // Otherwise show 0 (no icon) or a generic dot
-            val iconRes = if (id == currentValue) android.R.drawable.checkbox_on_background else 0
-            
-            list.add(TrackpadMenuAdapter.MenuItem(name, iconRes, TrackpadMenuAdapter.Type.ACTION) {
-                // On Click: Update Pref and Go Back
-                service.updatePref(prefKey, id)
-                loadTab(TAB_HARDKEYS)
-            })
-        }
-        
-        // 4. Update the View
-        recyclerView?.adapter = TrackpadMenuAdapter(list)
-    }
-    // =========================
-    // END SHOW ACTION PICKER
-    // =========================
-
-    // =========================
-    // GET HARDKEY ITEMS - Hardkey bindings configuration menu
-    // Allows users to customize Vol Up/Down and Power button actions
-    // =========================
-    private fun getHardkeyItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        // NEW MAIN HEADER
-        list.add(TrackpadMenuAdapter.MenuItem("KEYBINDS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // Subheader
-        list.add(TrackpadMenuAdapter.MenuItem("VOLUME UP", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Tap: ${getActionDisplayName(p.hardkeyVolUpTap)}",
-            android.R.drawable.ic_media_play,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_up_tap", p.hardkeyVolUpTap) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Double-Tap: ${getActionDisplayName(p.hardkeyVolUpDouble)}",
-            android.R.drawable.ic_media_ff,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_up_double", p.hardkeyVolUpDouble) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Hold: ${getActionDisplayName(p.hardkeyVolUpHold)}",
-            android.R.drawable.ic_menu_crop,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_up_hold", p.hardkeyVolUpHold) })
-        
-        // Subheader
-        list.add(TrackpadMenuAdapter.MenuItem("VOLUME DOWN", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Tap: ${getActionDisplayName(p.hardkeyVolDownTap)}",
-            android.R.drawable.ic_media_play,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_down_tap", p.hardkeyVolDownTap) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Double-Tap: ${getActionDisplayName(p.hardkeyVolDownDouble)}",
-            android.R.drawable.ic_media_ff,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_down_double", p.hardkeyVolDownDouble) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Hold: ${getActionDisplayName(p.hardkeyVolDownHold)}",
-            android.R.drawable.ic_menu_crop,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_down_hold", p.hardkeyVolDownHold) })
-        
-        // Subheader
-        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        // Max 500ms
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Double-Tap Speed (ms)",
-            android.R.drawable.ic_menu_recent_history,
-            TrackpadMenuAdapter.Type.SLIDER,
-            p.doubleTapMs,
-            500 
-        ) { v ->
-            service.updatePref("double_tap_ms", v)
-        })
-        
-        // Max 800ms
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Hold Duration (ms)",
-            android.R.drawable.ic_menu_recent_history,
-            TrackpadMenuAdapter.Type.SLIDER,
-            p.holdDurationMs,
-            800 
-        ) { v ->
-            service.updatePref("hold_duration_ms", v)
-        })
-        
-        return list
-    }
-    // =========================
-    // END GET HARDKEY ITEMS
-    // =========================
-
-
-    // =========================
-    // GET BUBBLE ITEMS - Bubble launcher customization
-    // Size slider, Icon cycle, Opacity slider
-    // =========================
-    private fun getBubbleItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("BUBBLE CUSTOMIZATION", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // Size slider: 50-200 (50=half, 100=standard, 200=double)
-        list.add(TrackpadMenuAdapter.MenuItem("Bubble Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBubbleSize, 200) { v ->
-            service.updatePref("bubble_size", v)
-        })
-        
-        // Icon cycle action
-        val iconNames = arrayOf("Trackpad", "Cursor", "Main", "Keyboard", "Compass", "Location")
-        val currentIconName = iconNames.getOrElse(p.prefBubbleIconIndex) { "Default" }
-        list.add(TrackpadMenuAdapter.MenuItem("Icon: $currentIconName", android.R.drawable.ic_menu_gallery, TrackpadMenuAdapter.Type.ACTION) { 
-            service.updatePref("bubble_icon", true)
-            loadTab(TAB_BUBBLE) // Refresh to show new icon name
-        })
-        
-        // Opacity slider: 50-255
-        list.add(TrackpadMenuAdapter.MenuItem("Bubble Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBubbleAlpha, 255) { v ->
-            service.updatePref("bubble_alpha", v)
-        })
-        
-        // Reset button
-        list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_revert, TrackpadMenuAdapter.Type.ACTION) { 
-            service.resetBubblePosition()
-        })
-        
-        // --- PERSISTENCE TOGGLE ---
-        list.add(TrackpadMenuAdapter.MenuItem("SERVICE BEHAVIOR", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        val persistHelp = if (p.prefPersistentService) "Bubble stays when app closes" else "Bubble closes with app"
-        list.add(TrackpadMenuAdapter.MenuItem("Keep Alive (Background)", 
-            android.R.drawable.ic_menu_manage, 
-            TrackpadMenuAdapter.Type.TOGGLE, 
-            if(p.prefPersistentService) 1 else 0) { v ->
-            service.updatePref("persistent_service", v)
-            loadTab(TAB_BUBBLE) // Refresh description
-        })
-        list.add(TrackpadMenuAdapter.MenuItem(persistHelp, 0, TrackpadMenuAdapter.Type.INFO))
-        
-        return list
-    }
-    // =========================
-    // END GET BUBBLE ITEMS
-    // =========================
-
-    private fun getProfileItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val currentRes = "${service.currentDisplayId}: ${service.getProfileKey().replace("P_", "").replace("_", " x ")}"
-        
-        list.add(TrackpadMenuAdapter.MenuItem("LAYOUT PROFILES", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Current: $currentRes", R.drawable.ic_tab_profiles, TrackpadMenuAdapter.Type.INFO))
-        
-        // CHANGED TITLE
-        list.add(TrackpadMenuAdapter.MenuItem("Save Layout and Presets", android.R.drawable.ic_menu_save, TrackpadMenuAdapter.Type.ACTION) { 
-            service.saveLayout()
-            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
-        })
-
-        // NEW: Reload Profile
-        list.add(TrackpadMenuAdapter.MenuItem("Reload Profile", android.R.drawable.ic_popup_sync, TrackpadMenuAdapter.Type.ACTION) { 
-            service.loadLayout() // Reloads based on current resolution/display
-            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Delete Profile", android.R.drawable.ic_menu_delete, TrackpadMenuAdapter.Type.ACTION) { 
-            service.deleteCurrentProfile()
-            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
-        })
-        
-        // --- SAVED LAYOUTS LIST ---
-        list.add(TrackpadMenuAdapter.MenuItem("SAVED LAYOUTS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        val saved = service.getSavedProfileList()
-        if (saved.isEmpty()) {
-            list.add(TrackpadMenuAdapter.MenuItem("No saved layouts found.", 0, TrackpadMenuAdapter.Type.INFO))
-        } else {
-            for (res in saved) {
-                list.add(TrackpadMenuAdapter.MenuItem("• $res", 0, TrackpadMenuAdapter.Type.INFO))
-            }
-        }
-        
-        return list
-    }
-
-    private fun getHelpItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        
-        list.add(TrackpadMenuAdapter.MenuItem("INSTRUCTIONS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        val text = 
-            "TRACKPAD CONTROLS\n" +
-            "• Tap: Left Click\n" +
-            "• 2-Finger Tap: Right Click\n" +
-            "• Hold + Slide: Drag & Drop\n" +
-            "• Edge (Top/Bottom): V-Scroll\n" +
-            "• Edge (Left/Right): H-Scroll\n\n" +
-            "KEYBOARD OVERLAY\n" +
-            "• Drag Top Bar: Move Window\n" +
-            "• Drag Bottom-Right: Resize\n" +
-            "• Hold Corner: Toggle Key/Mouse\n\n" +
-            "HARDWARE KEYS\n" +
-            "• Use the 'Hardkeys' tab to map\n" +
-            "  Volume Up/Down to clicks,\n" +
-            "  scrolling, or screen controls."
-            
-        list.add(TrackpadMenuAdapter.MenuItem(text, 0, TrackpadMenuAdapter.Type.INFO))
-        
-        list.add(TrackpadMenuAdapter.MenuItem("LAUNCHER & APP", 0, TrackpadMenuAdapter.Type.HEADER))
-        val text2 = 
-            "• Floating Bubble: Tap to open this menu. Drag to move.\n" +
-            "• Setup App: Open 'DroidOS Trackpad' from your Android App Drawer to adjust permissions or restart the service."
-        list.add(TrackpadMenuAdapter.MenuItem(text2, 0, TrackpadMenuAdapter.Type.INFO))
-        
-        return list
-    }
-}
-```
-
-## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt
-```kotlin
-package com.example.quadrantlauncher
-
-import android.content.ContentResolver
-import android.content.Context
-import android.content.ContextWrapper
-import android.os.Binder
-import android.os.IBinder
-import android.provider.Settings
-import android.util.Log
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.util.ArrayList
-import java.util.regex.Pattern
-import android.os.Build
-
-class ShellUserService : IShellService.Stub() {
-
-    private val TAG = "ShellUserService"
-
-    companion object {
-        const val POWER_MODE_OFF = 0
-        const val POWER_MODE_NORMAL = 2
-
-        @Volatile private var displayControlClass: Class<*>? = null
-        @Volatile private var displayControlClassLoaded = false
-    }
-
-    // === GEMINI TASK CACHE - START ===
-    // Cache for Gemini task ID since it trampolines and becomes invisible
-    // The BardEntryPointActivity creates a task, then immediately redirects to Google QSB
-    // After trampoline, the original task disappears from am stack list
-    // We cache the exact task ID when found and reuse it for subsequent repositions
-    private var cachedGeminiTaskId: Int = -1
-    private var cachedGeminiTaskTime: Long = 0
-    private val GEMINI_CACHE_VALIDITY_MS = 30000L  // Cache valid for 30 seconds
-    // === GEMINI TASK CACHE - END ===
-
-    private val surfaceControlClass: Class<*> by lazy {
-        Class.forName("android.view.SurfaceControl")
-    }
-
-    private fun getDisplayControlClass(): Class<*>? {
-        if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
-        
-        return try {
-            val classLoaderFactoryClass = Class.forName("com.android.internal.os.ClassLoaderFactory")
-            val createClassLoaderMethod = classLoaderFactoryClass.getDeclaredMethod(
-                "createClassLoader",
-                String::class.java,
-                String::class.java,
-                String::class.java,
-                ClassLoader::class.java,
-                Int::class.javaPrimitiveType,
-                Boolean::class.javaPrimitiveType,
-                String::class.java
-            )
-            val classLoader = createClassLoaderMethod.invoke(
-                null, "/system/framework/services.jar", null, null,
-                ClassLoader.getSystemClassLoader(), 0, true, null
-            ) as ClassLoader
-
-            val loadedClass = classLoader.loadClass("com.android.server.display.DisplayControl").also {
-                val loadMethod = Runtime::class.java.getDeclaredMethod(
-                    "loadLibrary0",
-                    Class::class.java,
-                    String::class.java
-                )
-                loadMethod.isAccessible = true
-                loadMethod.invoke(Runtime.getRuntime(), it, "android_servers")
-            }
-            
-            displayControlClass = loadedClass
-            displayControlClassLoaded = true
-            loadedClass
-        } catch (e: Exception) {
-            Log.w(TAG, "DisplayControl not available", e)
-            null
-        }
-    }
-
-    private fun getAllPhysicalDisplayTokens(): List<IBinder> {
-        val tokens = ArrayList<IBinder>()
-        try {
-            val physicalIds: LongArray = if (Build.VERSION.SDK_INT >= 34) {
-                val controlClass = getDisplayControlClass()
-                if (controlClass != null) {
-                    controlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-                } else {
-                     try {
-                        surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-                     } catch (e: Exception) { LongArray(0) }
-                }
-            } else {
-                surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
-            }
-
-            if (physicalIds.isEmpty()) {
-                getSurfaceControlInternalToken()?.let { tokens.add(it) }
-                return tokens
-            }
-
-            for (id in physicalIds) {
-                try {
-                    val token: IBinder? = if (Build.VERSION.SDK_INT >= 34) {
-                        val controlClass = getDisplayControlClass()
-                        if (controlClass != null) {
-                             controlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                                .invoke(null, id) as? IBinder
-                        } else {
-                            surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                                .invoke(null, id) as? IBinder
-                        }
-                    } else {
-                        surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
-                            .invoke(null, id) as? IBinder
-                    }
-                    
-                    if (token != null) tokens.add(token)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to get token for physical ID $id", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Critical failure getting display tokens", e)
-        }
-        return tokens
-    }
-
-    private fun getSurfaceControlInternalToken(): IBinder? {
-        return try {
-            if (Build.VERSION.SDK_INT < 29) {
-                surfaceControlClass.getMethod("getBuiltInDisplay", Int::class.java).invoke(null, 0) as IBinder
-            } else {
-                surfaceControlClass.getMethod("getInternalDisplayToken").invoke(null) as IBinder
-            }
-        } catch (e: Exception) { null }
-    }
-
-    private fun setPowerModeOnToken(token: IBinder, mode: Int) {
-        try {
-            val method = surfaceControlClass.getMethod(
-                "setDisplayPowerMode",
-                IBinder::class.java,
-                Int::class.javaPrimitiveType
-            )
-            method.invoke(null, token, mode)
-        } catch (e: Exception) {
-            Log.e(TAG, "setDisplayPowerMode failed for token $token", e)
-        }
-    }
-
-    private fun setDisplayBrightnessOnToken(token: IBinder, brightness: Float): Boolean {
-        try {
-            val method = surfaceControlClass.getMethod(
-                "setDisplayBrightness",
-                IBinder::class.java,
-                Float::class.javaPrimitiveType
-            )
-            method.invoke(null, token, brightness)
-            return true
-        } catch (e: Exception) {
-             try {
-                val method = surfaceControlClass.getMethod(
-                    "setDisplayBrightness",
-                    IBinder::class.java,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType
-                )
-                method.invoke(null, token, brightness, brightness, brightness, brightness)
-                return true
-            } catch (e2: Exception) {
-                return false
-            }
-        }
-    }
-
-    private fun setDisplayBrightnessInternal(displayId: Int, brightness: Float): Boolean {
-        // Legacy shim for single-target calls
-        val tokens = getAllPhysicalDisplayTokens()
-        if (tokens.isNotEmpty()) return setDisplayBrightnessOnToken(tokens[0], brightness)
-        return false
-    }
-
-    private val shLock = Object()
-    private var _shProcess: Process? = null
-    private val shProcess: Process
-        get() = synchronized(shLock) {
-            if (_shProcess?.isAlive == true) _shProcess!!
-            else Runtime.getRuntime().exec(arrayOf("sh")).also { _shProcess = it }
-        }
-
-    private fun execShellCommand(command: String) {
-        synchronized(shLock) {
-            try {
-                val output = shProcess.outputStream
-                output.write("$command\n".toByteArray())
-                output.flush()
-            } catch (e: Exception) {
-                Log.e(TAG, "Shell command failed", e)
-            }
-        }
-    }
-
-    // ============================================================
-    // AIDL Interface Implementations
-    // ============================================================
-
-    
-override fun setBrightness(displayId: Int, brightness: Int) {
-        Log.d(TAG, "setBrightness(Global Broadcast, Value: $brightness)")
-        val token = Binder.clearCallingIdentity()
-        try {
-            if (brightness < 0) {
-                // === SCREEN OFF ===
-                execShellCommand("settings put system screen_brightness_mode 0")
-                
-                // Get ALL tokens, but ONLY apply to the first 2 (Main + Cover)
-                // This prevents killing the Glasses (which would be index 2+)
-                val tokens = getAllPhysicalDisplayTokens()
-                val safeTokens = tokens.take(2)
-                
-                for (t in safeTokens) {
-                    setDisplayBrightnessOnToken(t, -1.0f)
-                }
-                
-                execShellCommand("settings put system screen_brightness_float -1.0")
-                execShellCommand("settings put system screen_brightness -1")
-            } else {
-                // === SCREEN ON ===
-                val floatVal = brightness.toFloat() / 255.0f
-                
-                // Restore ALL tokens (safety, in case user replugged glasses)
-                val tokens = getAllPhysicalDisplayTokens()
-                for (t in tokens) {
-                    setDisplayBrightnessOnToken(t, floatVal)
-                }
-                
-                execShellCommand("settings put system screen_brightness_float $floatVal")
-                execShellCommand("settings put system screen_brightness $brightness")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "setBrightness failed", e)
-        } finally {
-             Binder.restoreCallingIdentity(token)
-        }
-    }
-
-    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
-        Log.d(TAG, "setScreenOff(Global Broadcast, TurnOff: $turnOff)")
-        val token = Binder.clearCallingIdentity()
-        try {
-            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
-            
-            // Same safety limit: Only affect first 2 physical screens
-            val tokens = getAllPhysicalDisplayTokens()
-            val safeTokens = tokens.take(2)
-            
-            for (t in safeTokens) {
-                setPowerModeOnToken(t, mode)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "setScreenOff failed", e)
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-    }
-    // --- V1.0 LOGIC: Window Management (Retained for Tiling/Minimizing) ---
-    
-    override fun forceStop(packageName: String) {
-        val token = Binder.clearCallingIdentity()
-        try { 
-            val realPkg = if (packageName.endsWith(":gemini")) packageName.substringBefore(":") else packageName
-            Runtime.getRuntime().exec("am force-stop $realPkg").waitFor() 
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-    }
-
-    override fun runCommand(command: String) {
-        val token = Binder.clearCallingIdentity()
-        try { Runtime.getRuntime().exec(command).waitFor() } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-    }
-
-
-
-    // === REPOSITION TASK - START ===
-    // Repositions a task window to specified bounds using am task commands
-    override fun repositionTask(packageName: String, className: String?, left: Int, top: Int, right: Int, bottom: Int) {
-        Log.d(TAG, "repositionTask: pkg=$packageName cls=$className bounds=[$left,$top,$right,$bottom]")
-
-        val tid = getTaskId(packageName, className)
-        Log.d(TAG, "repositionTask: getTaskId returned $tid")
-
-        if (tid == -1) {
-            Log.w(TAG, "repositionTask: No task found for $packageName / $className")
-            return
-        }
-
-        val token = Binder.clearCallingIdentity()
-        try {
-            // Set freeform windowing mode (mode 5)
-            val modeCmd = "am task set-windowing-mode $tid 5"
-            Log.d(TAG, "repositionTask: $modeCmd")
-            val modeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd))
-            modeProc.waitFor()
-            Thread.sleep(100)
-
-            // Apply resize
-            val resizeCmd = "am task resize $tid $left $top $right $bottom"
-            Log.d(TAG, "repositionTask: $resizeCmd")
-            val resizeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd))
-            val exitCode = resizeProc.waitFor()
-
-            Log.d(TAG, "repositionTask: resize exitCode=$exitCode for task $tid")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "repositionTask: FAILED", e)
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-    }
-    // === REPOSITION TASK - END ===
-
-
-
-    // === GET VISIBLE PACKAGES - START ===
-    // Returns list of packages that are actually visible on the specified display
-    // Checks both mViewVisibility AND window frame bounds
-    // Windows moved off-screen (left >= 10000) are considered not visible
-    override fun getVisiblePackages(displayId: Int): List<String> {
-        val list = ArrayList<String>()
-        val token = Binder.clearCallingIdentity()
-        try {
-            Log.d(TAG, "getVisiblePackages: Checking display $displayId")
-            val p = Runtime.getRuntime().exec("dumpsys window windows")
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            var currentPkg: String? = null
-            var isVisible = false
-            var onCorrectDisplay = false
-            var isOffScreen = false
-            val windowPattern = Pattern.compile("Window\\{[0-9a-f]+ u\\d+ ([^\\}/ ]+)")
-            // Pattern to match frame bounds like "frame=[50000,50000][50100,50100]" or "mFrame=[0,0][960,1080]"
-            val framePattern = Pattern.compile("(?:frame|mFrame)=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
-
-            while (r.readLine().also { line = it } != null) {
-                val l = line!!.trim()
-
-                // New window entry - reset state
-                if (l.startsWith("Window #")) {
-                    currentPkg = null
-                    isVisible = false
-                    onCorrectDisplay = false
-                    isOffScreen = false
-                    val matcher = windowPattern.matcher(l)
-                    if (matcher.find()) currentPkg = matcher.group(1)
-                }
-
-                // Check display
-                if (l.contains("displayId=$displayId") || l.contains("mDisplayId=$displayId")) {
-                    onCorrectDisplay = true
-                }
-
-                // Check visibility flag
-                if (l.contains("mViewVisibility=0x0")) {
-                    isVisible = true
-                }
-
-                // Check frame bounds - if left >= 10000, window is off-screen (minimized)
-                val frameMatcher = framePattern.matcher(l)
-                if (frameMatcher.find()) {
-                    try {
-                        val left = frameMatcher.group(1)?.toIntOrNull() ?: 0
-                        if (left >= 10000) {
-                            isOffScreen = true
-                            Log.d(TAG, "getVisiblePackages: $currentPkg is off-screen (left=$left)")
-                        }
-                    } catch (e: Exception) {}
-                }
-
-                // Add to list if truly visible (on correct display, view visible, NOT off-screen)
-                if (currentPkg != null && isVisible && onCorrectDisplay && !isOffScreen) {
-                    if (isUserApp(currentPkg!!) && !list.contains(currentPkg!!)) {
-                        list.add(currentPkg!!)
-                        Log.d(TAG, "getVisiblePackages: Found visible (window): $currentPkg")
-                    }
-                    currentPkg = null
-                }
-            }
-            r.close()
-            p.waitFor()
-        } catch (e: Exception) {
-            Log.e(TAG, "getVisiblePackages: Error", e)
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-        Log.d(TAG, "getVisiblePackages: display=$displayId result=${list.joinToString()}")
-        return list
-    }
-    // === GET VISIBLE PACKAGES - END ===
-
-    override fun getAllRunningPackages(): List<String> {
-        val list = ArrayList<String>()
-        val token = Binder.clearCallingIdentity()
-        try {
-            val p = Runtime.getRuntime().exec("dumpsys activity activities")
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            val recordPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
-            while (r.readLine().also { line = it } != null) {
-                if (line!!.contains("ActivityRecord{")) {
-                    val m = recordPattern.matcher(line!!)
-                    if (m.find()) { val pkg = m.group(1); if (pkg != null && !list.contains(pkg) && isUserApp(pkg)) list.add(pkg) }
-                }
-            }
-        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
-        return list
-    }
-
-override fun getWindowLayouts(displayId: Int): List<String> {
-    val results = ArrayList<String>()
-    val token = Binder.clearCallingIdentity()
-    try {
-        val p = Runtime.getRuntime().exec("dumpsys activity activities")
-        val r = BufferedReader(InputStreamReader(p.inputStream))
-        var line: String?
-        
-        var currentDisplayId = -1
-        var currentTaskBounds: String? = null
-        var foundPackages = mutableSetOf<String>()
-        
-        val displayPattern = Pattern.compile("Display #(\\d+)")
-        val boundsPattern = Pattern.compile("bounds=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
-        val rectPattern = Pattern.compile("mBounds=Rect\\((\\d+), (\\d+) - (\\d+), (\\d+)\\)")
-        val activityPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
-
-        while (r.readLine().also { line = it } != null) {
-            val l = line!!
-            
-            val displayMatcher = displayPattern.matcher(l)
-            if (displayMatcher.find()) {
-                currentDisplayId = displayMatcher.group(1)?.toIntOrNull() ?: -1
-            }
-            
-            if (currentDisplayId != displayId) continue
-            
-            val boundsMatcher = boundsPattern.matcher(l)
-            if (boundsMatcher.find()) {
-                val left = boundsMatcher.group(1)
-                val top = boundsMatcher.group(2)
-                val right = boundsMatcher.group(3)
-                val bottom = boundsMatcher.group(4)
-                currentTaskBounds = "$left,$top,$right,$bottom"
-            }
-            
-            val rectMatcher = rectPattern.matcher(l)
-            if (rectMatcher.find()) {
-                val left = rectMatcher.group(1)
-                val top = rectMatcher.group(2)
-                val right = rectMatcher.group(3)
-                val bottom = rectMatcher.group(4)
-                currentTaskBounds = "$left,$top,$right,$bottom"
-            }
-            
-            if (l.contains("ActivityRecord{") && currentTaskBounds != null) {
-                val activityMatcher = activityPattern.matcher(l)
-                if (activityMatcher.find()) {
-                    val pkg = activityMatcher.group(1)
-                    if (pkg != null && isUserApp(pkg) && !foundPackages.contains(pkg)) {
-                        results.add("$pkg|$currentTaskBounds")
-                        foundPackages.add(pkg)
-                    }
-                }
-            }
-        }
-        
-        r.close()
-        p.waitFor()
-    } catch (e: Exception) {
-        Log.e(TAG, "getWindowLayouts failed", e)
-    } finally {
-        Binder.restoreCallingIdentity(token)
-    }
-    return results
-}
-
-
-    // === GET TASK ID - START ===
-    // Uses 'am stack list' to find task ID
-    // PRIORITY: Full component match (pkg/cls) > package match > short activity match
-    // Handles trampolining apps like Gemini which redirect to different packages
-    // For Gemini: caches the exact task ID when found since it becomes invisible after trampoline
-
-    // === GEMINI TASK CACHE - START ===
-    // Cache for Gemini task ID since it trampolines and becomes invisible
-    // The BardEntryPointActivity creates a task, then immediately redirects to Google QSB
-    // After trampoline, the original task disappears from am stack list
-    // We cache the exact task ID when found and reuse it for subsequent repositions
-    // === GEMINI TASK CACHE - END ===
-
-    // === GET TASK ID - START ===
-    // Uses 'am stack list' to find task ID
-    // PRIORITY: Full component match (pkg/cls) > package match > short activity match
-    // Handles trampolining apps like Gemini which redirect to different packages
-    // For Gemini: caches the exact task ID when found since it becomes invisible after trampoline
-
-    override fun getTaskId(packageName: String, className: String?): Int {
-        var exactTaskId = -1      // Best: full component match
-        var packageTaskId = -1    // Good: package name match
-        var fallbackTaskId = -1   // Last resort: short activity name match
-        
-        val token = Binder.clearCallingIdentity()
-        try {
-            Log.d(TAG, "getTaskId: Looking for pkg=$packageName cls=$className")
-            
-            // === GEMINI DETECTION ===
-            val isGemini = packageName == "com.google.android.apps.bard" || 
-                          (className?.contains("Bard") == true) ||
-                          (className?.contains("bard") == true)
-            
-            // === GEMINI CACHE CHECK - START ===
-            // For Gemini, we use a very short cache validity because the original task
-            // gets destroyed quickly. After ~500ms, we should always search fresh
-            // to find the trampoline target instead of the dead original task.
-            if (isGemini && cachedGeminiTaskId > 0) {
-                val cacheAge = System.currentTimeMillis() - cachedGeminiTaskTime
-                // Use very short validity - 500ms max, not 30 seconds
-                // After trampoline completes, the cached ID is useless
-                val shortValidity = 500L
-                if (cacheAge < shortValidity) {
-                    Log.d(TAG, "getTaskId: Gemini using CACHED taskId=$cachedGeminiTaskId (age=${cacheAge}ms)")
-                    return cachedGeminiTaskId
-                } else {
-                    Log.d(TAG, "getTaskId: Gemini cache too old (age=${cacheAge}ms > ${shortValidity}ms), searching fresh")
-                    cachedGeminiTaskId = -1
-                }
-            }
-            // === GEMINI CACHE CHECK - END ===
-            
-            if (isGemini) {
-                Log.d(TAG, "getTaskId: Gemini detected, will check trampoline targets")
-            }
-            
-            val cmd = arrayOf("sh", "-c", "am stack list")
-            val p = Runtime.getRuntime().exec(cmd)
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            
-            // Build component string for exact matching
-            val fullComponent = if (!className.isNullOrEmpty() && className != "null" && className != "default") {
-                "$packageName/$className"
-            } else {
-                null
-            }
-            
-            // Short activity name (fallback only)
-            val shortActivity = className?.substringAfterLast(".")
-            
-            Log.d(TAG, "getTaskId: fullComponent=$fullComponent shortActivity=$shortActivity")
-            
-            while (r.readLine().also { line = it } != null) {
-                val l = line!!.trim()
-                
-                if (!l.contains("taskId=") || !l.contains(":")) continue
-                
-                // Extract task ID from line
-                val match = Regex("taskId=(\\d+):").find(l)
-                if (match == null) continue
-                
-                val foundId = match.groupValues[1].toIntOrNull() ?: continue
-                if (foundId <= 0) continue
-                
-                // PRIORITY 1: Exact full component match (highest priority)
-                if (fullComponent != null && l.contains(fullComponent)) {
-                    Log.d(TAG, "getTaskId: EXACT MATCH taskId=$foundId component=$fullComponent")
-                    exactTaskId = foundId
-                    // Keep searching - want most recent exact match
-                }
-                // PRIORITY 2: Package name match
-                else if (l.contains("$packageName/")) {
-                    Log.d(TAG, "getTaskId: PACKAGE MATCH taskId=$foundId pkg=$packageName")
-                    packageTaskId = foundId
-                }
-                // PRIORITY 3: Gemini trampoline - check for Google Quick Search Box with Assistant activity
-                // The actual Gemini UI runs in Google QSB with an assistant/robin activity
-                // Avoid matching Android Auto ghost activities
-                else if (isGemini && l.contains("com.google.android.googlequicksearchbox")) {
-                    // Check if this is the actual assistant activity (not Auto ghost)
-                    val isAssistantActivity = l.contains("assistant") || l.contains("robin") || l.contains("MainActivity")
-                    val isAutoGhost = l.contains("auto") || l.contains("ghost")
-                    
-                    if (isAssistantActivity && !isAutoGhost) {
-                        if (foundId > packageTaskId) {
-                            Log.d(TAG, "getTaskId: GEMINI TRAMPOLINE MATCH taskId=$foundId (assistant activity)")
-                            packageTaskId = foundId
-                        }
-                    } else {
-                        Log.d(TAG, "getTaskId: GEMINI TRAMPOLINE SKIP taskId=$foundId (not assistant activity)")
-                    }
-                }
-
-                // PRIORITY 4: Short activity name (ONLY if no better match exists)
-                // Skip generic names that cause false positives
-                else if (shortActivity != null && 
-                         shortActivity != "MainActivity" &&  // Too generic
-                         shortActivity != "default" &&       // Too generic
-                         l.contains(shortActivity)) {
-                    Log.d(TAG, "getTaskId: FALLBACK MATCH taskId=$foundId activity=$shortActivity")
-                    fallbackTaskId = foundId
-                }
-            }
-            r.close()
-            p.waitFor()
-            
-            // Return best match in priority order
-            val result = when {
-                exactTaskId > 0 -> exactTaskId
-                packageTaskId > 0 -> packageTaskId
-                fallbackTaskId > 0 -> fallbackTaskId
-                else -> -1
-            }
-            
-            // === GEMINI TASK HANDLING - START ===
-            // Gemini (com.google.android.apps.bard) is a trampolining app:
-            // - BardEntryPointActivity creates a task, then DESTROYS it within ~40ms
-            // - User is redirected to Google Quick Search Box
-            // - The original task ID is useless because the task no longer exists
-            // 
-            // Strategy: Don't cache the destroyed task. Instead:
-            // - If we have an exact match AND the task has activities, cache it
-            // - If task has trampolined (no exact match), use the trampoline target
-            // - For repositioning, the trampoline target (Google QSB) is what's actually running
-            
-            if (isGemini) {
-                if (exactTaskId > 0) {
-                    // We found an exact match - but is the task still alive?
-                    // Check if this task actually has activities (not destroyed)
-                    // For now, we'll cache it but with a very short validity
-                    cachedGeminiTaskId = exactTaskId
-                    cachedGeminiTaskTime = System.currentTimeMillis()
-                    Log.d(TAG, "getTaskId: Gemini exact match found, CACHED taskId=$exactTaskId (may be short-lived)")
-                } else if (packageTaskId > 0) {
-                    // No exact match means trampoline completed
-                    // The packageTaskId is the Google QSB task that Gemini is running in
-                    // This is actually what we should reposition!
-                    Log.d(TAG, "getTaskId: Gemini trampolined, using trampoline target taskId=$packageTaskId")
-                    
-                    // DON'T use cached ID - it's destroyed. Use the live trampoline target.
-                    // Clear any stale cache
-                    if (cachedGeminiTaskId > 0) {
-                        Log.d(TAG, "getTaskId: Clearing stale Gemini cache (old=$cachedGeminiTaskId)")
-                        cachedGeminiTaskId = -1
-                    }
-                    
-                    return packageTaskId
-                }
-            }
-            // === GEMINI TASK HANDLING - END ===
-            
-            Log.d(TAG, "getTaskId: Final result=$result (exact=$exactTaskId pkg=$packageTaskId fallback=$fallbackTaskId)")
-            return result
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "getTaskId: FAILED", e)
-            return -1
-        } finally { 
-            Binder.restoreCallingIdentity(token) 
-        }
-    }
-    // === GET TASK ID - END ===
-
-    // === GET TASK ID - END ===
-
-    // === GET TASK ID - END ===
-
-    // === DEBUG DUMP TASKS - START ===
-    // Dumps raw task info for debugging
-    fun debugDumpTasks(): String {
-        val token = Binder.clearCallingIdentity()
-        val result = StringBuilder()
-        try {
-            val cmd = arrayOf("sh", "-c", "dumpsys activity activities | head -100")
-            val p = Runtime.getRuntime().exec(cmd)
-            val r = BufferedReader(InputStreamReader(p.inputStream))
-            var line: String?
-            while (r.readLine().also { line = it } != null) {
-                result.appendLine(line)
-            }
-            r.close()
-            p.waitFor()
-        } catch (e: Exception) {
-            result.appendLine("ERROR: ${e.message}")
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-        return result.toString()
-    }
-    // === DEBUG DUMP TASKS - END ===
-
-    // === MOVE TASK TO BACK / MINIMIZE TASK - START ===
-    // Minimizes a task using Samsung's IMultiTaskingBinder from ActivityTaskManager
-    // This is what Android's freeform minimize button uses on Samsung devices
-    override fun moveTaskToBack(taskId: Int) {
-        val token = Binder.clearCallingIdentity()
-        try {
-            Log.d(TAG, "moveTaskToBack: Minimizing taskId=$taskId via ATM.getMultiTaskingBinder()")
-
-            var success = false
-
-            try {
-                // Get ActivityTaskManager service
-                val atmClass = Class.forName("android.app.ActivityTaskManager")
-                val getServiceMethod = atmClass.getMethod("getService")
-                val atm = getServiceMethod.invoke(null)
-
-                Log.d(TAG, "moveTaskToBack: Got ATM service")
-
-                // Call getMultiTaskingBinder()
-                val getMultiTaskingBinder = atm.javaClass.getMethod("getMultiTaskingBinder")
-                val multiTaskingBinder = getMultiTaskingBinder.invoke(atm)
-
-                if (multiTaskingBinder != null) {
-                    Log.d(TAG, "moveTaskToBack: Got MultiTaskingBinder: ${multiTaskingBinder.javaClass.name}")
-
-                    // Call minimizeTaskById(taskId)
-                    val minimizeMethod = multiTaskingBinder.javaClass.getMethod(
-                        "minimizeTaskById",
-                        Int::class.javaPrimitiveType
-                    )
-                    minimizeMethod.invoke(multiTaskingBinder, taskId)
-
-                    Log.d(TAG, "moveTaskToBack: minimizeTaskById($taskId) SUCCEEDED!")
-                    success = true
-                } else {
-                    Log.w(TAG, "moveTaskToBack: getMultiTaskingBinder() returned null")
-                }
-
-            } catch (e: Exception) {
-                Log.e(TAG, "moveTaskToBack: Samsung MultiTaskingBinder failed", e)
-                e.printStackTrace()
-            }
-
-            // FALLBACK: Off-screen positioning (only if Samsung API failed)
-            if (!success) {
-                Log.w(TAG, "moveTaskToBack: Using off-screen fallback")
-                val modeCmd = "am task set-windowing-mode $taskId 5"
-                Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd)).waitFor()
-                Thread.sleep(100)
-                val resizeCmd = "am task resize $taskId 99999 99999 100000 100000"
-                Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd)).waitFor()
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "moveTaskToBack: FAILED", e)
-        } finally {
-            Binder.restoreCallingIdentity(token)
-        }
-    }
-    // === MOVE TASK TO BACK / MINIMIZE TASK - END ===
-
-    private fun isUserApp(pkg: String): Boolean {
-        if (pkg == "com.android.systemui") return false
-        if (pkg == "com.android.launcher3") return false 
-        if (pkg == "com.sec.android.app.launcher") return false 
-        if (pkg == "com.katsuyamaki.DroidOSLauncher") return false
-        if (pkg == "com.example.coverscreentester") return false
-        if (pkg == "com.katsuyamaki.trackpad") return false
-        if (pkg.contains("inputmethod")) return false
-        if (pkg.contains("navigationbar")) return false
-        if (pkg == "ScreenDecorOverlayCover") return false
-        if (pkg == "RecentsTransitionOverlay") return false
-        if (pkg == "FreeformContainer") return false
-        if (pkg == "StatusBar") return false
-        if (pkg == "NotificationShade") return false
-        return true
-    }
-
-    // Interface compliance stubs
-    override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
-    override fun getSystemBrightness(): Int = 128
-    override fun getSystemBrightnessFloat(): Float = 0.5f
-    override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
-    override fun isAutoBrightness(): Boolean = true
-    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
-}
-```
-
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardView.kt
 ```kotlin
 package com.example.coverscreentester
@@ -15568,7 +15568,7 @@ class KeyboardView @JvmOverloads constructor(
     //          candidates (cand1, cand2, cand3). Returns the text and isNew flag
     //          if found, null otherwise.
     // =================================================================================
-    internal fun findCandidateAt(x: Float, y: Float): Pair<String, Boolean>? {
+    private fun findCandidateAt(x: Float, y: Float): Pair<String, Boolean>? {
         val candidates = listOf(cand1, cand2, cand3)
 
         for (candView in candidates) {
@@ -15602,45 +15602,7 @@ class KeyboardView @JvmOverloads constructor(
     // =================================================================================
     // END BLOCK: findCandidateAt
     // =================================================================================
-// =================================================================================
-    // FUNCTION: isOverBackspace
-    // SUMMARY: Returns true if the given coordinates are over the backspace key.
-    //          Used by mirror mode to detect drag-to-delete gestures.
-    // =================================================================================
-    fun isOverBackspace(x: Float, y: Float): Boolean {
-        val bkspKey = findViewWithTag<View>("BKSP") ?: return false
-        
-        val loc = IntArray(2)
-        bkspKey.getLocationInWindow(loc)
-        
-        val myLoc = IntArray(2)
-        this.getLocationInWindow(myLoc)
-        
-        // Calculate relative position
-        val relX = loc[0] - myLoc[0]
-        val relY = loc[1] - myLoc[1]
-        
-        return x >= relX && x < relX + bkspKey.width &&
-               y >= relY && y < relY + bkspKey.height
-    }
-    // =================================================================================
-    // END BLOCK: isOverBackspace
-    // =================================================================================
-    
-    // =================================================================================
-    // FUNCTION: cancelCurrentSwipe
-    // SUMMARY: Cancels any in-progress swipe gesture. Clears the path and trail.
-    // =================================================================================
-    fun cancelCurrentSwipe() {
-        isSwiping = false
-        swipeTrail?.clear()
-        swipeTrail?.visibility = View.INVISIBLE
-        currentPath.clear()
-        swipePointerId = -1
-    }
-    // =================================================================================
-    // END BLOCK: cancelCurrentSwipe
-    // =================================================================================
+
     // =================================================================================
     // FUNCTION: getKeyboardState / setKeyboardState
     // SUMMARY: Gets/sets the current keyboard layer state for syncing to mirror.
@@ -17547,63 +17509,14 @@ class KeyboardOverlay(
     // FUNCTION: handleDeferredTap
     // SUMMARY: Forwards deferred tap to KeyboardView for single key press in mirror mode.
     // =================================================================================
-
     fun handleDeferredTap(x: Float, y: Float) {
-        // CRITICAL: If a tap is detected, immediately stop any pending repeat logic.
-        // This prevents the "stuck" state where the system thinks you are still holding the key.
-        stopMirrorRepeat()
         keyboardView?.handleDeferredTap(x, y)
     }
-// =================================================================================
-// =================================================================================
-    // FUNCTION: findCandidateAt
-    // SUMMARY: Returns the candidate text at given position, or null if not on a candidate.
-    //          Used by mirror mode to detect drag-to-delete gestures.
     // =================================================================================
-    fun findCandidateAt(x: Float, y: Float): String? {
-        return keyboardView?.findCandidateAt(x, y)?.first
-    }
-    // =================================================================================
-    // END BLOCK: findCandidateAt
-    // =================================================================================
-    
-    // =================================================================================
-    // FUNCTION: isOverBackspace
-    // SUMMARY: Returns true if the given position is over the backspace key.
-    //          Used by mirror mode to detect drag-to-delete gestures.
-    // =================================================================================
-    fun isOverBackspace(x: Float, y: Float): Boolean {
-        return keyboardView?.isOverBackspace(x, y) ?: false
-    }
-    // =================================================================================
-    // END BLOCK: isOverBackspace
-    // =================================================================================
-    
+    // END BLOCK: handleDeferredTap
     // =================================================================================
 // =================================================================================
-    // FUNCTION: triggerSuggestionDropped
-    // SUMMARY: Triggers the onSuggestionDropped callback for drag-to-delete in mirror mode.
-    //          Calls our own onSuggestionDropped since KeyboardOverlay implements KeyboardListener.
-    // =================================================================================
-    fun triggerSuggestionDropped(text: String) {
-        onSuggestionDropped(text)
-    }
-    // =================================================================================
-    // END BLOCK: triggerSuggestionDropped
-    // =================================================================================    
-    // =================================================================================
-    // FUNCTION: cancelCurrentSwipe
-    // SUMMARY: Cancels any in-progress swipe gesture. Used when drag-to-delete is detected
-    //          to prevent the drag from being interpreted as a swipe word.
-    // =================================================================================
-    fun cancelCurrentSwipe() {
-        keyboardView?.cancelCurrentSwipe()
-    }
-    // =================================================================================
-    // END BLOCK: cancelCurrentSwipe
-    // =================================================================================
-
-// FUNCTION: getKeyAtPosition
+    // FUNCTION: getKeyAtPosition
     // SUMMARY: Returns the key tag at the given position, or null if no key found.
     //          Used by mirror mode to check if finger is on a repeatable key.
     // =================================================================================
@@ -17615,78 +17528,17 @@ class KeyboardOverlay(
     // =================================================================================
 
     // =================================================================================
-
+    // FUNCTION: triggerKeyPress
+    // SUMMARY: Triggers a key press by key tag. Used by mirror mode key repeat to
+    //          fire repeated backspace/arrow presses without going through touch events.
     // =================================================================================
-    // FUNCTION: triggerKeyPress (Updated with Tap-Reset Fix)
-    // SUMMARY: Triggers a key press by key tag for Mirror Mode.
-    //          Includes 400ms initial delay + Watchdog timeout.
-    //          Now robustly resets if the sequence is broken.
-    // =================================================================================
-    private var activeRepeatKey: String? = null
-    private var lastMirrorKeyTime = 0L
-    private val mirrorRepeatHandler = Handler(Looper.getMainLooper())
-    private val REPEAT_START_DELAY = 400L
-    private val REPEAT_INTERVAL = 50L 
-    
-    // Watchdog: If no input received for 150ms, assume key was released
-    // Increased to 150ms to be more tolerant of input jitters
-    private val MIRROR_INPUT_TIMEOUT = 150L 
-
-    private val mirrorRepeatRunnable = object : Runnable {
-        override fun run() {
-            val key = activeRepeatKey ?: return
-            val now = System.currentTimeMillis()
-            
-            // Watchdog Check
-            if (now - lastMirrorKeyTime > MIRROR_INPUT_TIMEOUT) {
-                stopMirrorRepeat()
-                return
-            }
-
-            // Fire event
-            keyboardView?.triggerKeyPress(key)
-            mirrorRepeatHandler.postDelayed(this, REPEAT_INTERVAL)
-        }
-    }
-
-    // Changed from private to private-but-accessible-internally (or keep private if handleDeferredTap is in same class)
-    private fun stopMirrorRepeat() {
-        activeRepeatKey = null
-        mirrorRepeatHandler.removeCallbacks(mirrorRepeatRunnable)
-    }
-
     fun triggerKeyPress(keyTag: String) {
-        val isRepeatable = keyTag in setOf("BKSP", "DEL", "◄", "▲", "▼", "►", "←", "↑", "↓", "→", "VOL+", "VOL-", "VOL_UP", "VOL_DOWN")
-
-        if (!isRepeatable) {
-            stopMirrorRepeat()
-            keyboardView?.triggerKeyPress(keyTag)
-            return
-        }
-
-        val now = System.currentTimeMillis()
-
-        if (keyTag == activeRepeatKey) {
-            // Update watchdog time
-            lastMirrorKeyTime = now
-            
-            // ROBUSTNESS FIX: If for some reason the handler isn't running (race condition),
-            // restart it to ensure we don't get stuck in a silent state.
-            if (!mirrorRepeatHandler.hasCallbacks(mirrorRepeatRunnable)) {
-                mirrorRepeatHandler.postDelayed(mirrorRepeatRunnable, REPEAT_START_DELAY)
-            }
-        } else {
-            // New Key Sequence
-            stopMirrorRepeat()
-            
-            activeRepeatKey = keyTag
-            lastMirrorKeyTime = now
-            
-            // Start Delay (Wait 400ms before first fire)
-            mirrorRepeatHandler.postDelayed(mirrorRepeatRunnable, REPEAT_START_DELAY)
-        }
+        keyboardView?.triggerKeyPress(keyTag)
     }
-   // FUNCTION: getKeyboardState
+    // =================================================================================
+    // END BLOCK: triggerKeyPress
+    // =================================================================================   // =================================================================================
+    // FUNCTION: getKeyboardState
     // SUMMARY: Gets current keyboard state (layer) from KeyboardView.
     // =================================================================================
     fun getKeyboardState(): KeyboardView.KeyboardState? {
@@ -20519,14 +20371,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =================================================================================
     // END BLOCK: VIRTUAL MIRROR MODE STATE
     // =================================================================================
-    // MIRROR MODE DRAG-TO-DELETE TRACKING (BLUE PHASE)
-    // SUMMARY: Track when blue phase starts on a prediction candidate so we can detect
-    //          drag-to-delete gestures. The drag happens in BLUE phase after orienting.
-    // =================================================================================
-    private var bluePhaseDragCandidate: String? = null
-    // =================================================================================
-    // END BLOCK: MIRROR MODE DRAG-TO-DELETE TRACKING
-    // =================================================================================
+
     private var isVoiceActive = false
     
     
@@ -20940,7 +20785,7 @@ private var isInOrientationMode = false
     //          Switches from orange trail to blue trail.
     //          Initializes swipe tracking so path collection starts NOW.
     // =================================================================================
-private val orientationModeTimeout = Runnable {
+    private val orientationModeTimeout = Runnable {
         Log.d(TAG, ">>> TIMEOUT - switching to BLUE trail <<<")
 
         isInOrientationMode = false
@@ -20951,19 +20796,6 @@ private val orientationModeTimeout = Runnable {
 
         // Exit orientation mode
         keyboardOverlay?.setOrientationMode(false)
-
-        // =================================================================================
-        // BLUE PHASE DRAG-TO-DELETE: Check if finger is on prediction candidate
-        // SUMMARY: When switching to blue phase, check if finger is on a prediction word.
-        //          If so, store it for potential drag-to-delete gesture.
-        // =================================================================================
-        bluePhaseDragCandidate = keyboardOverlay?.findCandidateAt(lastOrientX, lastOrientY)
-        if (bluePhaseDragCandidate != null) {
-            Log.d(TAG, "Blue phase starting on candidate: '$bluePhaseDragCandidate'")
-        }
-        // =================================================================================
-        // END BLOCK: BLUE PHASE DRAG-TO-DELETE CHECK
-        // =================================================================================
 
         // Set BLUE trail color for typing phase
         mirrorTrailView?.setTrailColor(0xFF4488FF.toInt())  // Blue
@@ -20979,7 +20811,7 @@ private val orientationModeTimeout = Runnable {
         // Keep mirror visible - only adjust alpha, no background color
         mirrorKeyboardView?.alpha = 0.7f
         // FIX: Removed setBackgroundColor - container is transparent
-    }    
+    }
     // =================================================================================
     // END BLOCK: orientationModeTimeout
     // =================================================================================
@@ -22062,7 +21894,8 @@ private val orientationModeTimeout = Runnable {
             "scroll_size" -> { prefs.prefScrollTouchSize = value as Int; updateScrollSize() }
             "scroll_visual" -> { prefs.prefScrollVisualSize = value as Int; updateScrollSize() }
             "cursor_size" -> { prefs.prefCursorSize = value as Int; updateCursorSize() }
-"anchored" -> { prefs.prefAnchored = parseBoolean(value); keyboardOverlay?.setAnchored(prefs.prefAnchored) }            "automation_enabled" -> prefs.prefAutomationEnabled = parseBoolean(value)
+            "anchored" -> prefs.prefAnchored = parseBoolean(value)
+            "automation_enabled" -> prefs.prefAutomationEnabled = parseBoolean(value)
             "bubble_size" -> updateBubbleSize(value as Int)
             "bubble_icon" -> cycleBubbleIcon()
             "bubble_alpha" -> updateBubbleAlpha(value as Int)
@@ -23265,11 +23098,9 @@ private val orientationModeTimeout = Runnable {
         when (action) {
             MotionEvent.ACTION_DOWN -> {
                 Log.d(TAG, "Mirror touch DOWN - starting ORANGE trail")
-                
-                // Reset blue phase drag tracking for new gesture
-                bluePhaseDragCandidate = null
 
-                // Cancel any pending fade                mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
+                // Cancel any pending fade
+                mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
 
                 // Make mirror VISIBLE on touch
                 mirrorKeyboardView?.alpha = 0.9f
@@ -23462,27 +23293,6 @@ private val orientationModeTimeout = Runnable {
                 } else {
                     // Normal lift after blue phase - clear mirror trail
                     mirrorTrailView?.clear()
-                    
-                    // =================================================================================
-                    // BLUE PHASE DRAG-TO-DELETE CHECK
-                    // SUMMARY: If blue phase started on a candidate and ended on backspace,
-                    //          trigger the delete action instead of normal swipe commit.
-                    // =================================================================================
-                    val draggedCandidate = bluePhaseDragCandidate
-                    if (draggedCandidate != null) {
-                        if (keyboardOverlay?.isOverBackspace(x, y) == true) {
-                            Log.d(TAG, "Blue phase drag-to-delete: '$draggedCandidate' dropped on backspace")
-                            keyboardOverlay?.triggerSuggestionDropped(draggedCandidate)
-                            // Don't process as swipe - clear the path
-                            keyboardOverlay?.cancelCurrentSwipe()
-                        } else {
-                            Log.d(TAG, "Blue phase drag cancelled - not over backspace")
-                        }
-                    }
-                    bluePhaseDragCandidate = null // Reset for next gesture
-                    // =================================================================================
-                    // END BLOCK: BLUE PHASE DRAG-TO-DELETE CHECK
-                    // =================================================================================
                 }
 
                 // Fade mirror

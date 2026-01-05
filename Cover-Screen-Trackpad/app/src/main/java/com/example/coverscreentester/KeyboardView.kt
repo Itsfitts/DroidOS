@@ -478,7 +478,7 @@ class KeyboardView @JvmOverloads constructor(
     //          candidates (cand1, cand2, cand3). Returns the text and isNew flag
     //          if found, null otherwise.
     // =================================================================================
-    internal fun findCandidateAt(x: Float, y: Float): Pair<String, Boolean>? {
+    private fun findCandidateAt(x: Float, y: Float): Pair<String, Boolean>? {
         val candidates = listOf(cand1, cand2, cand3)
 
         for (candView in candidates) {
@@ -512,45 +512,7 @@ class KeyboardView @JvmOverloads constructor(
     // =================================================================================
     // END BLOCK: findCandidateAt
     // =================================================================================
-// =================================================================================
-    // FUNCTION: isOverBackspace
-    // SUMMARY: Returns true if the given coordinates are over the backspace key.
-    //          Used by mirror mode to detect drag-to-delete gestures.
-    // =================================================================================
-    fun isOverBackspace(x: Float, y: Float): Boolean {
-        val bkspKey = findViewWithTag<View>("BKSP") ?: return false
-        
-        val loc = IntArray(2)
-        bkspKey.getLocationInWindow(loc)
-        
-        val myLoc = IntArray(2)
-        this.getLocationInWindow(myLoc)
-        
-        // Calculate relative position
-        val relX = loc[0] - myLoc[0]
-        val relY = loc[1] - myLoc[1]
-        
-        return x >= relX && x < relX + bkspKey.width &&
-               y >= relY && y < relY + bkspKey.height
-    }
-    // =================================================================================
-    // END BLOCK: isOverBackspace
-    // =================================================================================
-    
-    // =================================================================================
-    // FUNCTION: cancelCurrentSwipe
-    // SUMMARY: Cancels any in-progress swipe gesture. Clears the path and trail.
-    // =================================================================================
-    fun cancelCurrentSwipe() {
-        isSwiping = false
-        swipeTrail?.clear()
-        swipeTrail?.visibility = View.INVISIBLE
-        currentPath.clear()
-        swipePointerId = -1
-    }
-    // =================================================================================
-    // END BLOCK: cancelCurrentSwipe
-    // =================================================================================
+
     // =================================================================================
     // FUNCTION: getKeyboardState / setKeyboardState
     // SUMMARY: Gets/sets the current keyboard layer state for syncing to mirror.
@@ -960,43 +922,13 @@ class KeyboardView @JvmOverloads constructor(
                 swipePointerId = -1 // Disable swipe tracking for this gesture
             }
 
-android.view.MotionEvent.ACTION_MOVE -> {
-                // =================================================================================
-                // MIRROR MODE BLUE PHASE FIX
-                // SUMMARY: If isSwiping is true (set by startSwipeFromPosition during blue phase)
-                //          but swipePointerId is wrong, update it to track the current pointer.
-                //          This handles the case where swipe tracking starts mid-gesture.
-                // =================================================================================
-                if (isSwiping && swipePointerId == 0 && event.getPointerId(0) != 0) {
-                    // Update to actual pointer ID
-                    swipePointerId = event.getPointerId(0)
-                }
-                // =================================================================================
-                // END BLOCK: MIRROR MODE BLUE PHASE FIX
-                // =================================================================================
-                
+            android.view.MotionEvent.ACTION_MOVE -> {
                 // Only track movement for the original swipe pointer
                 if (swipePointerId == -1) return superResult
 
                 // Find the index of our tracked pointer
                 val trackedIndex = event.findPointerIndex(swipePointerId)
-                if (trackedIndex == -1) {
-                    // =================================================================================
-                    // FALLBACK: If pointer not found but we're swiping, use pointer 0
-                    // This handles mid-gesture swipe initialization from mirror mode
-                    // =================================================================================
-                    if (isSwiping && event.pointerCount > 0) {
-                        val fallbackX = event.getX(0)
-                        val fallbackY = event.getY(0)
-                        swipeTrail?.addPoint(fallbackX, fallbackY)
-                        currentPath.add(android.graphics.PointF(fallbackX, fallbackY))
-                        return superResult
-                    }
-                    // =================================================================================
-                    // END BLOCK: FALLBACK
-                    // =================================================================================
-                    return superResult
-                }
+                if (trackedIndex == -1) return superResult
 
                 val currentX = event.getX(trackedIndex)
                 val currentY = event.getY(trackedIndex)

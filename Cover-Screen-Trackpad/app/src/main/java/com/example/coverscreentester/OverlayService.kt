@@ -199,14 +199,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =================================================================================
     // END BLOCK: VIRTUAL MIRROR MODE STATE
     // =================================================================================
-    // MIRROR MODE DRAG-TO-DELETE TRACKING (BLUE PHASE)
-    // SUMMARY: Track when blue phase starts on a prediction candidate so we can detect
-    //          drag-to-delete gestures. The drag happens in BLUE phase after orienting.
-    // =================================================================================
-    private var bluePhaseDragCandidate: String? = null
-    // =================================================================================
-    // END BLOCK: MIRROR MODE DRAG-TO-DELETE TRACKING
-    // =================================================================================
+
     private var isVoiceActive = false
     
     
@@ -620,7 +613,7 @@ private var isInOrientationMode = false
     //          Switches from orange trail to blue trail.
     //          Initializes swipe tracking so path collection starts NOW.
     // =================================================================================
-private val orientationModeTimeout = Runnable {
+    private val orientationModeTimeout = Runnable {
         Log.d(TAG, ">>> TIMEOUT - switching to BLUE trail <<<")
 
         isInOrientationMode = false
@@ -631,19 +624,6 @@ private val orientationModeTimeout = Runnable {
 
         // Exit orientation mode
         keyboardOverlay?.setOrientationMode(false)
-
-        // =================================================================================
-        // BLUE PHASE DRAG-TO-DELETE: Check if finger is on prediction candidate
-        // SUMMARY: When switching to blue phase, check if finger is on a prediction word.
-        //          If so, store it for potential drag-to-delete gesture.
-        // =================================================================================
-        bluePhaseDragCandidate = keyboardOverlay?.findCandidateAt(lastOrientX, lastOrientY)
-        if (bluePhaseDragCandidate != null) {
-            Log.d(TAG, "Blue phase starting on candidate: '$bluePhaseDragCandidate'")
-        }
-        // =================================================================================
-        // END BLOCK: BLUE PHASE DRAG-TO-DELETE CHECK
-        // =================================================================================
 
         // Set BLUE trail color for typing phase
         mirrorTrailView?.setTrailColor(0xFF4488FF.toInt())  // Blue
@@ -659,7 +639,7 @@ private val orientationModeTimeout = Runnable {
         // Keep mirror visible - only adjust alpha, no background color
         mirrorKeyboardView?.alpha = 0.7f
         // FIX: Removed setBackgroundColor - container is transparent
-    }    
+    }
     // =================================================================================
     // END BLOCK: orientationModeTimeout
     // =================================================================================
@@ -2945,11 +2925,9 @@ private val orientationModeTimeout = Runnable {
         when (action) {
             MotionEvent.ACTION_DOWN -> {
                 Log.d(TAG, "Mirror touch DOWN - starting ORANGE trail")
-                
-                // Reset blue phase drag tracking for new gesture
-                bluePhaseDragCandidate = null
 
-                // Cancel any pending fade                mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
+                // Cancel any pending fade
+                mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
 
                 // Make mirror VISIBLE on touch
                 mirrorKeyboardView?.alpha = 0.9f
@@ -3017,7 +2995,11 @@ private val orientationModeTimeout = Runnable {
                 return true  // Block input during orange
             }
 
+
             MotionEvent.ACTION_MOVE -> {
+                // [PROFILE] Start Timer
+                val startNs = System.nanoTime()
+
                 if (isInOrientationMode) {
                     // ORANGE phase
                     val dx = x - lastOrientX
@@ -3028,17 +3010,16 @@ private val orientationModeTimeout = Runnable {
                     keyboardOverlay?.addOrientationTrailPoint(x, y)
                     mirrorTrailView?.addPoint(mirrorX, mirrorY)
 
+                    // [PROFILE] Measure Logic Start
+                    val logicStart = System.nanoTime()
+
                     // Only process movement if significant
                     if (distance > MOVEMENT_THRESHOLD) {
                         lastOrientX = x
                         lastOrientY = y
 
                         // =================================================================================
-                        // MIRROR KEY REPEAT - CHECK ON MOVE
-                        // SUMMARY: On significant movement, check if we moved to a different key.
-                        //          - If was repeating and moved off key: stop repeat, start orientation timeout
-                        //          - If was repeating and still on same key: continue repeating
-                        //          - If wasn't repeating: reset orientation timeout as before
+                        // MIRROR KEY REPEAT - CHECK ON MOVE (Logic from Uploaded File)
                         // =================================================================================
                         val currentKey = keyboardOverlay?.getKeyAtPosition(x, y)
                         
@@ -3094,17 +3075,31 @@ private val orientationModeTimeout = Runnable {
                             }
                         }
                         // =================================================================================
-                        // END BLOCK: MIRROR KEY REPEAT - CHECK ON MOVE
+                        // END LOGIC
                         // =================================================================================
+                    }
+
+                    // [PROFILE] Log Orange Time
+                    val totalDur = (System.nanoTime() - startNs) / 1_000_000f
+                    val logicDur = (System.nanoTime() - logicStart) / 1_000_000f
+                    
+                    if (totalDur > 0.5) {
+                        Log.d("OverlayDebug", "MOVE [Orange]: Total=${totalDur}ms (Logic=${logicDur}ms)")
                     }
 
                     return true  // Block input
                 } else {
                     // BLUE phase - allow input, draw blue trail on mirror
                     mirrorTrailView?.addPoint(mirrorX, mirrorY)
+                    
+                    // [PROFILE] Log Blue Time
+                    val dur = (System.nanoTime() - startNs) / 1_000_000f
+                    if (dur > 1.0) Log.d("OverlayDebug", "MOVE [Blue]: ${dur}ms")
+                    
                     return false
                 }
             }
+
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 Log.d(TAG, "Mirror touch UP")
@@ -3142,27 +3137,6 @@ private val orientationModeTimeout = Runnable {
                 } else {
                     // Normal lift after blue phase - clear mirror trail
                     mirrorTrailView?.clear()
-                    
-                    // =================================================================================
-                    // BLUE PHASE DRAG-TO-DELETE CHECK
-                    // SUMMARY: If blue phase started on a candidate and ended on backspace,
-                    //          trigger the delete action instead of normal swipe commit.
-                    // =================================================================================
-                    val draggedCandidate = bluePhaseDragCandidate
-                    if (draggedCandidate != null) {
-                        if (keyboardOverlay?.isOverBackspace(x, y) == true) {
-                            Log.d(TAG, "Blue phase drag-to-delete: '$draggedCandidate' dropped on backspace")
-                            keyboardOverlay?.triggerSuggestionDropped(draggedCandidate)
-                            // Don't process as swipe - clear the path
-                            keyboardOverlay?.cancelCurrentSwipe()
-                        } else {
-                            Log.d(TAG, "Blue phase drag cancelled - not over backspace")
-                        }
-                    }
-                    bluePhaseDragCandidate = null // Reset for next gesture
-                    // =================================================================================
-                    // END BLOCK: BLUE PHASE DRAG-TO-DELETE CHECK
-                    // =================================================================================
                 }
 
                 // Fade mirror
