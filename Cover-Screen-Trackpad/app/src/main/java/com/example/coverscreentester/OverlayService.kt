@@ -2466,6 +2466,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // END BLOCK: applyMirrorKeyboardSettings
     // =================================================================================
 
+
     fun saveLayout() {
         // =================================================================================
         // MIRROR MODE CHECK: If in mirror mode, save to mirror profile instead
@@ -2474,61 +2475,133 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             saveMirrorModeLayout()
             return
         }
-        // =================================================================================
-        // END BLOCK: MIRROR MODE CHECK
-        // =================================================================================
 
-        // Cache the current values
+        // 1. FETCH LIVE VALUES FROM KEYBOARD OVERLAY
+        // We must do this because the user might have resized/scaled the keyboard
+        // without the Service's prefs variable being updated yet.
         val currentKbX = keyboardOverlay?.getViewX() ?: savedKbX
         val currentKbY = keyboardOverlay?.getViewY() ?: savedKbY
         val currentKbW = keyboardOverlay?.getViewWidth() ?: savedKbW
         val currentKbH = keyboardOverlay?.getViewHeight() ?: savedKbH
+        
+        // Fetch live scale and update prefs so it saves correctly
+        val liveScale = keyboardOverlay?.getScale() ?: (prefs.prefKeyScale / 100f)
+        prefs.prefKeyScale = (liveScale * 100).toInt()
 
-        // Update local memory
-        savedKbX = currentKbX; savedKbY = currentKbY; savedKbW = currentKbW; savedKbH = currentKbH
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit(); val key = getProfileKey()
-        p.putInt("X_$key", trackpadParams.x); p.putInt("Y_$key", trackpadParams.y); p.putInt("W_$key", trackpadParams.width); p.putInt("H_$key", trackpadParams.height)
-        val kbX = keyboardOverlay?.getViewX() ?: 0; val kbY = keyboardOverlay?.getViewY() ?: 0; val kbW = keyboardOverlay?.getViewWidth() ?: 0; val kbH = keyboardOverlay?.getViewHeight() ?: 0
-        p.putString("SETTINGS_$key", "${prefs.cursorSpeed};${prefs.scrollSpeed};${if(prefs.prefTapScroll) 1 else 0};${if(prefs.prefReverseScroll) 1 else 0};${prefs.prefAlpha};${prefs.prefBgAlpha};${prefs.prefKeyboardAlpha};${prefs.prefHandleSize};${prefs.prefHandleTouchSize};${prefs.prefScrollTouchSize};${prefs.prefScrollVisualSize};${prefs.prefCursorSize};${prefs.prefKeyScale};${if(prefs.prefAutomationEnabled) 1 else 0};${if(prefs.prefAnchored) 1 else 0};${prefs.prefBubbleSize};${prefs.prefBubbleAlpha};${prefs.prefBubbleIconIndex};${prefs.prefBubbleX};${prefs.prefBubbleY};${prefs.hardkeyVolUpTap};${prefs.hardkeyVolUpDouble};${prefs.hardkeyVolUpHold};${prefs.hardkeyVolDownTap};${prefs.hardkeyVolDownDouble};${prefs.hardkeyVolDownHold};${prefs.hardkeyPowerDouble};$kbX;$kbY;$kbW;$kbH")
-        p.apply(); showToast("Layout Saved") 
+        // Update local memory variables
+        savedKbX = currentKbX
+        savedKbY = currentKbY
+        savedKbW = currentKbW
+        savedKbH = currentKbH
+
+        // 2. SAVE TO SHARED PREFS
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+        val key = getProfileKey()
+        
+        // Save Trackpad Window
+        p.putInt("X_$key", trackpadParams.x)
+        p.putInt("Y_$key", trackpadParams.y)
+        p.putInt("W_$key", trackpadParams.width)
+        p.putInt("H_$key", trackpadParams.height)
+
+        // Save Settings String (Including updated Scale and Keyboard Bounds at the end)
+        // Format: ...;prefKeyScale;...;kbX;kbY;kbW;kbH
+        val settingsStr = StringBuilder()
+        settingsStr.append("${prefs.cursorSpeed};")
+        settingsStr.append("${prefs.scrollSpeed};")
+        settingsStr.append("${if(prefs.prefTapScroll) 1 else 0};")
+        settingsStr.append("${if(prefs.prefReverseScroll) 1 else 0};")
+        settingsStr.append("${prefs.prefAlpha};")
+        settingsStr.append("${prefs.prefBgAlpha};")
+        settingsStr.append("${prefs.prefKeyboardAlpha};")
+        settingsStr.append("${prefs.prefHandleSize};")
+        settingsStr.append("${prefs.prefHandleTouchSize};")
+        settingsStr.append("${prefs.prefScrollTouchSize};")
+        settingsStr.append("${prefs.prefScrollVisualSize};")
+        settingsStr.append("${prefs.prefCursorSize};")
+        settingsStr.append("${prefs.prefKeyScale};") // Index 12: Updated Scale
+        settingsStr.append("${if(prefs.prefAutomationEnabled) 1 else 0};")
+        settingsStr.append("${if(prefs.prefAnchored) 1 else 0};")
+        settingsStr.append("${prefs.prefBubbleSize};")
+        settingsStr.append("${prefs.prefBubbleAlpha};")
+        settingsStr.append("${prefs.prefBubbleIconIndex};")
+        settingsStr.append("${prefs.prefBubbleX};")
+        settingsStr.append("${prefs.prefBubbleY};")
+        settingsStr.append("${prefs.hardkeyVolUpTap};")
+        settingsStr.append("${prefs.hardkeyVolUpDouble};")
+        settingsStr.append("${prefs.hardkeyVolUpHold};")
+        settingsStr.append("${prefs.hardkeyVolDownTap};")
+        settingsStr.append("${prefs.hardkeyVolDownDouble};")
+        settingsStr.append("${prefs.hardkeyVolDownHold};")
+        settingsStr.append("${prefs.hardkeyPowerDouble};")
+        settingsStr.append("$currentKbX;$currentKbY;$currentKbW;$currentKbH") // Indices 27-30
+
+        p.putString("SETTINGS_$key", settingsStr.toString())
+        p.apply()
+        showToast("Layout Saved (Scale: ${prefs.prefKeyScale}%)")
     }
 
-    fun loadLayout() { 
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE); val key = getProfileKey()
-        trackpadParams.x = p.getInt("X_$key", 100); trackpadParams.y = p.getInt("Y_$key", 100); trackpadParams.width = p.getInt("W_$key", 400); trackpadParams.height = p.getInt("H_$key", 300)
-        try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception){} 
+
+
+    fun loadLayout() {
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        val key = getProfileKey()
+        
+        // 1. Load Trackpad Window
+        trackpadParams.x = p.getInt("X_$key", 100)
+        trackpadParams.y = p.getInt("Y_$key", 100)
+        trackpadParams.width = p.getInt("W_$key", 400)
+        trackpadParams.height = p.getInt("H_$key", 300)
+        try {
+            windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
+        } catch(e: Exception){}
+        
+        // 2. Load Settings String
         val settings = p.getString("SETTINGS_$key", null)
         if (settings != null) {
             val parts = settings.split(";")
-            if (parts.size >= 17) {
-                prefs.cursorSpeed = parts[0].toFloat(); prefs.scrollSpeed = parts[1].toFloat(); prefs.prefTapScroll = parseBoolean(parts[2]); prefs.prefReverseScroll = parseBoolean(parts[3])
-                prefs.prefAlpha = parts[4].toInt(); prefs.prefBgAlpha = parts[5].toInt(); prefs.prefKeyboardAlpha = parts[6].toInt(); prefs.prefHandleSize = parts[7].toInt()
-                prefs.prefHandleTouchSize = parts[8].toInt(); prefs.prefScrollTouchSize = parts[9].toInt(); prefs.prefScrollVisualSize = parts[10].toInt(); prefs.prefCursorSize = parts[11].toInt()
-                prefs.prefKeyScale = parts[12].toInt(); prefs.prefAutomationEnabled = parseBoolean(parts[13]); prefs.prefAnchored = parseBoolean(parts[14]); prefs.prefBubbleSize = parts[15].toInt(); prefs.prefBubbleAlpha = parts[16].toInt()
-                if (parts.size >= 27) { prefs.prefBubbleIconIndex = parts[17].toInt(); prefs.prefBubbleX = parts[18].toInt(); prefs.prefBubbleY = parts[19].toInt(); prefs.hardkeyVolUpTap = parts[20]; prefs.hardkeyVolUpDouble = parts[21]; prefs.hardkeyVolUpHold = parts[22]; prefs.hardkeyVolDownTap = parts[23]; prefs.hardkeyVolDownDouble = parts[24]; prefs.hardkeyVolDownHold = parts[25]; prefs.hardkeyPowerDouble = parts[26] }
-                else if (parts.size >= 29) { keyboardOverlay?.updatePosition(parts[27].toInt(), parts[28].toInt()) }
-                updateBorderColor(currentBorderColor); updateLayoutSizes(); updateScrollSize(); updateHandleSize(); updateCursorSize(); keyboardOverlay?.updateAlpha(prefs.prefKeyboardAlpha); keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f); keyboardOverlay?.setAnchored(prefs.prefAnchored)
-                if (bubbleView != null) { bubbleParams.x = prefs.prefBubbleX; bubbleParams.y = prefs.prefBubbleY; windowManager?.updateViewLayout(bubbleView, bubbleParams); applyBubbleAppearance() }
-                if (parts.size >= 31) { 
-                    savedKbX = parts[27].toInt()
-                    savedKbY = parts[28].toInt()
-                    savedKbW = parts[29].toInt()
-                    savedKbH = parts[30].toInt()
-                } else {
-                    // Default if no save exists yet
-                    savedKbW = uiScreenWidth
-                    savedKbH = (uiScreenHeight * 0.45f).toInt()
-                    savedKbX = 0
-                    savedKbY = uiScreenHeight - savedKbH
-                } 
-
-                // IMPORTANT: Save loaded values to disk so toggling components (Keyboard) recalls correct state
-                savePrefs()
+            if (parts.size >= 15) {
+                prefs.cursorSpeed = parts[0].toFloat()
+                prefs.scrollSpeed = parts[1].toFloat()
+                prefs.prefTapScroll = parts[2] == "1"
+                prefs.prefReverseScroll = parts[3] == "1"
+                prefs.prefAlpha = parts[4].toInt()
+                prefs.prefBgAlpha = parts[5].toInt()
+                prefs.prefKeyboardAlpha = parts[6].toInt()
+                prefs.prefHandleSize = parts[7].toInt()
+                prefs.prefHandleTouchSize = parts[8].toInt()
+                prefs.prefScrollTouchSize = parts[9].toInt()
+                prefs.prefScrollVisualSize = parts[10].toInt()
+                prefs.prefCursorSize = parts[11].toInt()
                 
-                showToast("Layout Loaded")
+                // KEY SCALE
+                prefs.prefKeyScale = parts[12].toInt()
+                keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f)
+
+                prefs.prefAutomationEnabled = parts[13] == "1"
+                prefs.prefAnchored = parts[14] == "1"
+                
+                // ... (Apply other visuals) ...
+                updateBorderColor(currentBorderColor)
+                updateScrollSize()
+                updateHandleSize()
+
+                // 3. Load Keyboard Bounds (Indices 27-30)
+                if (parts.size >= 31) {
+                     savedKbX = parts[27].toInt()
+                     savedKbY = parts[28].toInt()
+                     savedKbW = parts[29].toInt()
+                     savedKbH = parts[30].toInt()
+                     
+                     // Force apply to keyboard overlay
+                     keyboardOverlay?.setWindowBounds(savedKbX, savedKbY, savedKbW, savedKbH)
+                     Log.d(TAG, "Loaded Keyboard Layout: $savedKbX, $savedKbY, $savedKbW x $savedKbH, Scale: ${prefs.prefKeyScale}%")
+                }
             }
         }
+        showToast("Profile Loaded")
     }
+
     fun deleteCurrentProfile() { /* Stub */ }
     fun resetKeyboardPosition() {
         keyboardOverlay?.resetPosition()

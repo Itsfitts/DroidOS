@@ -142,7 +142,9 @@ class KeyboardOverlay(
 
 
 
+
     fun updateScale(scale: Float) {
+        internalScale = scale // [FIX] Track scale state
         if (keyboardView == null) return
         keyboardView?.setScale(scale)
         
@@ -252,6 +254,7 @@ class KeyboardOverlay(
             .getInt("keyboard_x_d$currentDisplayId", 0)
     }
     
+
     fun getViewY(): Int {
         if (keyboardParams != null) return keyboardParams!!.y
         return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
@@ -260,7 +263,9 @@ class KeyboardOverlay(
     
     fun getViewWidth(): Int = keyboardWidth
     fun getViewHeight(): Int = keyboardHeight
+    fun getScale(): Float = internalScale // [FIX] Added accessor
     fun getKeyboardView(): KeyboardView? = keyboardView
+
 
     
     // [START ROTATION FIX]
@@ -338,6 +343,9 @@ class KeyboardOverlay(
     }
 
 
+
+
+    // [Removed duplicate accessors to fix build error]
 
 
     fun resetPosition() {
