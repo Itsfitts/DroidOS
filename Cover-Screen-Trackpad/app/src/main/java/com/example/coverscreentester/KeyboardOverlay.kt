@@ -26,10 +26,14 @@ class KeyboardOverlay(
     private val targetDisplayId: Int,
     private val onScreenToggleAction: () -> Unit,
     private val onScreenModeChangeAction: () -> Unit,
+
+
     private val onCloseAction: () -> Unit // New Parameter
 ) : KeyboardView.KeyboardListener {
 
     private var keyboardContainer: FrameLayout? = null
+
+
     private var keyboardView: KeyboardView? = null
     private var keyboardParams: WindowManager.LayoutParams? = null
     private var isVisible = false
@@ -617,14 +621,11 @@ class KeyboardOverlay(
         mirrorRepeatHandler.removeCallbacks(mirrorRepeatRunnable)
     }
 
-    fun blockPrediction(index: Int) {
-        // Log the action
-        Log.d(TAG, "Requesting to block prediction at index: $index")
-        
 
-        // Pass the command to the KeyboardView (which owns the PredictionEngine reference)
+    fun blockPrediction(index: Int) {
         keyboardView?.blockPredictionAtIndex(index)
     }
+
 
     fun triggerKeyPress(keyTag: String) {
         val isRepeatable = keyTag in setOf("BKSP", "DEL", "◄", "▲", "▼", "►", "←", "↑", "↓", "→", "VOL+", "VOL-", "VOL_UP", "VOL_DOWN")
@@ -1044,13 +1045,16 @@ class KeyboardOverlay(
             isSentenceStart = true
             lastCommittedSwipeWord = null // Clear swipe state on sentence end
 
+
+
             // Auto-learn on punctuation
             if (currentComposingWord.isNotEmpty()) {
                 val word = currentComposingWord.toString()
-                if (word.length >= 2) {
-                    predictionEngine.learnWord(context, word)
-                }
+                // DISABLE AUTO-LEARN
+                // if (word.length >= 2) predictionEngine.learnWord(context, word)
             }
+
+
             currentComposingWord.clear()
 
         } else if (char != null && !Character.isWhitespace(char) && !isPunctuation) {
@@ -1062,13 +1066,14 @@ class KeyboardOverlay(
             currentComposingWord.append(char)
             updateSuggestions()
         } else if (char != null && Character.isWhitespace(char)) {
+
             // Space finishes a word
             if (currentComposingWord.isNotEmpty()) {
                 val word = currentComposingWord.toString()
-                if (word.length >= 2) {
-                    predictionEngine.learnWord(context, word)
-                }
+                // DISABLE AUTO-LEARN
+                // if (word.length >= 2) predictionEngine.learnWord(context, word)
             }
+
             currentComposingWord.clear()
             lastCommittedSwipeWord = null // Clear swipe state on space
             updateSuggestions()

@@ -574,7 +574,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     private var isInOrientationMode = false
     private var isMirrorDragActive = false
-    private var draggedPredictionIndex = -1
+    private var isHoveringBackspace = false // [FIX] Add this variable
+    private var draggedPredictionIndex = -1 // [FIX] Add this missing variable
     private var lastOrientX = 0f
     private var lastOrientY = 0f
     private val MOVEMENT_THRESHOLD = 15f  // Pixels - ignore movement smaller than this
@@ -621,20 +622,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =================================================================================
 
 
+
+
     private val orientationModeTimeout = Runnable {
         // DYNAMIC HEIGHT CALCULATION
         val currentHeight = if (physicalKbHeight > 0) physicalKbHeight else 400f
-        val stripHeight = currentHeight * 0.17f
+        
+        // ADJUSTMENT: Set to 19% (0.19f)
+        // 0.23f blocked the top row. 0.17f caused ghost words. 0.19f is the sweet spot.
+        val stripHeight = currentHeight * 0.12f
 
         // Check if finger is currently holding on the Prediction Bar
         if (lastOrientY < stripHeight) {
-             // CASE A: Holding on Prediction Bar -> START DRAG
-             val width = if (physicalKbWidth > 0) physicalKbWidth else 1080f
-             val slotWidth = width / 3f
-             draggedPredictionIndex = (lastOrientX / slotWidth).toInt().coerceIn(0, 2)
-             
-             Log.d(TAG, "Timeout on Prediction Bar -> Drag Index: $draggedPredictionIndex")
-             
+
+             // START DRAG MODE (Blue Trail)
              isInOrientationMode = false
              keyboardOverlay?.setOrientationMode(false)
              mirrorTrailView?.clear()
@@ -642,7 +643,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
              
              isMirrorDragActive = true
              
-             // Dispatch DOWN to Keyboard
+             // Calculate index
+             val width = if (physicalKbWidth > 0) physicalKbWidth else 1080f
+             val slotWidth = width / 3f
+             draggedPredictionIndex = (lastOrientX / slotWidth).toInt().coerceIn(0, 2)
+
+             // START BLUE TRAIL IMMEDIATELY
+             mirrorTrailView?.setTrailColor(0xFF4488FF.toInt())
+             mirrorTrailView?.addPoint(lastOrientX, lastOrientY)
+             
              val now = SystemClock.uptimeMillis()
              val scaleX = if (physicalKbWidth > 0) mirrorKbWidth / physicalKbWidth else 1f
              val scaleY = if (physicalKbHeight > 0) mirrorKbHeight / physicalKbHeight else 1f
@@ -657,41 +666,28 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
 
         // CASE B: Holding on Keys -> START BLUE TRAIL
-        Log.d(TAG, ">>> TIMEOUT - switching to BLUE trail <<<")
-
         isInOrientationMode = false
-
-        // Clear orange trails
         mirrorTrailView?.clear()
         keyboardOverlay?.clearOrientationTrail()
-
-        // Exit orientation mode
         keyboardOverlay?.setOrientationMode(false)
-
-        // Set BLUE trail color
-        mirrorTrailView?.setTrailColor(0xFF4488FF.toInt())  // Blue
-
-        // Start swipe tracking
+        mirrorTrailView?.setTrailColor(0xFF4488FF.toInt()) 
         keyboardOverlay?.startSwipeFromCurrentPosition(lastOrientX, lastOrientY)
 
         val scaleX = if (physicalKbWidth > 0) mirrorKbWidth / physicalKbWidth else 1f
         val scaleY = if (physicalKbHeight > 0) mirrorKbHeight / physicalKbHeight else 1f
         mirrorTrailView?.addPoint(lastOrientX * scaleX, lastOrientY * scaleY)
-
         mirrorKeyboardView?.alpha = 0.7f
 
-        // [NEW] CHECK FOR IMMEDIATE REPEAT
-        // If the Blue Trail begins ON a repeatable key, start repeating INSTANTLY.
-        // No waiting for 400ms.
+        // Immediate Repeat Check
         val currentKey = keyboardOverlay?.getKeyAtPosition(lastOrientX, lastOrientY)
         if (currentKey != null && mirrorRepeatableKeys.contains(currentKey)) {
-            Log.d(TAG, "Blue Trail started on Repeat Key ($currentKey) -> Immediate Trigger")
             mirrorRepeatKey = currentKey
             isMirrorRepeating = true
             keyboardOverlay?.triggerKeyPress(currentKey)
             mirrorRepeatHandler.postDelayed(mirrorRepeatRunnable, MIRROR_REPEAT_INTERVAL)
         }
     }
+
 
 
     // =================================================================================
@@ -2794,9 +2790,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             mirrorKeyboardContainer?.setBackgroundColor(Color.TRANSPARENT)
             mirrorKeyboardContainer?.alpha = 0f // Start fully invisible
 
+
             // Create KeyboardView for the mirror
             mirrorKeyboardView = KeyboardView(mirrorContext, null, 0)
+            mirrorKeyboardView?.setMirrorMode(true) // Disable internal logic
             mirrorKeyboardView?.alpha = 0f // Start fully invisible
+
 
             // Apply same scale as physical keyboard
             val scale = prefs.prefKeyScale / 100f
@@ -2987,6 +2986,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // UPDATED: Added 400ms delay to Blue Mode key repeats to prevent mis-swipes.
     // =================================================================================
 
+
     fun onMirrorKeyboardTouch(x: Float, y: Float, action: Int): Boolean {
         if (!isVirtualMirrorModeActive()) return false
 
@@ -2998,8 +2998,6 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         when (action) {
             MotionEvent.ACTION_DOWN -> {
                 // ALWAYS START ORANGE
-                Log.d(TAG, "Mirror touch DOWN - starting ORANGE trail")
-                
                 isMirrorDragActive = false
                 isInOrientationMode = true
                 lastOrientX = x; lastOrientY = y
@@ -3017,33 +3015,28 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 keyboardOverlay?.startOrientationTrail(x, y)
                 mirrorTrailView?.addPoint(mirrorX, mirrorY)
 
-                // Start Timeout
                 orientationModeHandler.removeCallbacks(orientationModeTimeout)
                 orientationModeHandler.postDelayed(orientationModeTimeout, prefs.prefMirrorOrientDelayMs)
 
                 stopMirrorKeyRepeat()
-                
                 return true
             }
 
-
             MotionEvent.ACTION_MOVE -> {
-                // 1. DRAG MODE
+                // 1. DRAG MODE (Blue Trail + Red Backspace)
                 if (isMirrorDragActive) {
-                     // Always draw the ORANGE trail so user can see where they are dragging
-                     mirrorTrailView?.setTrailColor(0xFFFF9900.toInt())
+                     mirrorTrailView?.setTrailColor(0xFF4488FF.toInt())
                      mirrorTrailView?.addPoint(mirrorX, mirrorY)
 
-                     // Check for Backspace Hover
                      val currentKey = keyboardOverlay?.getKeyAtPosition(x, y)
                      val isBackspace = (currentKey == "BKSP" || currentKey == "⌫" || currentKey == "BACKSPACE")
                      
+                     if (isBackspace) isHoveringBackspace = true // Latch
+
                      if (isBackspace) {
-                         // Highlight the BACKSPACE KEY itself (Red)
                          mirrorKeyboardView?.highlightKey("BKSP", true, Color.RED)
                      } else {
-                         // Clear highlight
-                         mirrorKeyboardView?.highlightKey("BKSP", false)
+                         mirrorKeyboardView?.highlightKey("BKSP", false, 0)
                      }
 
                      val now = SystemClock.uptimeMillis()
@@ -3053,13 +3046,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                      return true
                 }
 
-
-                // 2. ORANGE MODE (Orientation)
+                // 2. ORANGE MODE
                 if (isInOrientationMode) {
                     val dx = x - lastOrientX; val dy = y - lastOrientY
                     if (kotlin.math.sqrt(dx*dx + dy*dy) > MOVEMENT_THRESHOLD) {
                         lastOrientX = x; lastOrientY = y
-                        // Keep Orange alive
                         orientationModeHandler.removeCallbacks(orientationModeTimeout)
                         orientationModeHandler.postDelayed(orientationModeTimeout, prefs.prefMirrorOrientDelayMs)
                     }
@@ -3068,25 +3059,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     return true
                 } 
                 
-                // 3. BLUE MODE (Swipe + Key Repeat)
+                // 3. BLUE MODE
                 else {
                     mirrorTrailView?.addPoint(mirrorX, mirrorY)
-
-                    // === BLUE MODE KEY REPEAT LOGIC ===
                     val currentKey = keyboardOverlay?.getKeyAtPosition(x, y)
                     
                     if (currentKey != null && mirrorRepeatableKeys.contains(currentKey)) {
-                         // If we are already repeating this key, do nothing (keep repeating)
-                         if (mirrorRepeatKey == currentKey) {
-                             return false
-                         }
-
-                         // If moved to a NEW repeat key
+                         if (mirrorRepeatKey == currentKey) return false
                          stopMirrorKeyRepeat()
                          mirrorRepeatKey = currentKey
                          
-                         // SHORT DELAY (150ms): Quick enough to feel responsive, 
-                         // slow enough to ignore accidental swipes passing through.
                          mirrorRepeatHandler.postDelayed({
                              if (mirrorRepeatKey == currentKey && !isInOrientationMode) {
                                  isMirrorRepeating = true
@@ -3095,51 +3077,37 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                              }
                          }, 150) 
                     } else {
-                        // Moved off repeatable key -> Stop immediately
                         stopMirrorKeyRepeat()
                     }
-                    // ==================================
-
                     return false
                 }
             }
 
-
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                // 1. END DRAG (Check for Drop on Backspace)
+                // 1. END DRAG (Robust Delete)
                 if (isMirrorDragActive) {
-                     // Clear any key highlights
-                     mirrorKeyboardView?.highlightKey("BKSP", false)
+                     mirrorKeyboardView?.highlightKey("BKSP", false, 0)
 
                      val upKey = keyboardOverlay?.getKeyAtPosition(x, y)
-                     Log.d(TAG, "Drag Drop on Key: $upKey") // Debug log
+                     val isDroppedOnBksp = (upKey == "BKSP" || upKey == "⌫" || upKey == "BACKSPACE")
                      
-                     if (upKey != null && (upKey == "BKSP" || upKey == "⌫" || upKey == "BACKSPACE")) {
-                         Log.d(TAG, "Dropped on Backspace -> BLOCKING Word at $draggedPredictionIndex")
-                         
-                         // TRIGGER BLOCK
-                         // Ensure this method exists or use Toast to confirm detection
-                         try {
-                            keyboardOverlay?.blockPrediction(draggedPredictionIndex)
-                         } catch (e: Exception) {
-                            Log.e(TAG, "Failed to call blockPrediction", e)
-                         }
-                         showToast("Blocked Prediction Word")
+                     if (isHoveringBackspace || isDroppedOnBksp) {
+                         keyboardOverlay?.blockPrediction(draggedPredictionIndex)
+                         showToast("Blocked Prediction")
                      } else {
-                         // Normal Drop -> Insert
                          val now = SystemClock.uptimeMillis()
                          val event = MotionEvent.obtain(now, now, action, mirrorX, mirrorY, 0)
                          mirrorKeyboardView?.dispatchTouchEvent(event)
                          event.recycle()
                      }
                      
-                     // Reset visual state
                      mirrorTrailView?.clear()
                      isMirrorDragActive = false
+                     isHoveringBackspace = false
                      return true
                 }
 
-                // 2. END NORMAL TOUCH
+                // 2. END TOUCH
                 orientationModeHandler.removeCallbacks(orientationModeTimeout)
                 val wasRepeating = isMirrorRepeating
                 stopMirrorKeyRepeat()
@@ -3157,7 +3125,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     mirrorTrailView?.clear()
                 }
 
-                mirrorKeyboardView?.alpha = 0.3f
+                mirrorKeyboardView?.animate()?.alpha(0.3f)?.setDuration(200)?.start()
                 mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
                 mirrorFadeHandler.postDelayed(mirrorFadeRunnable, 2000)
 
@@ -3166,6 +3134,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
         return isInOrientationMode
     }
+
 
 
 

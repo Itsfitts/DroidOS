@@ -75,10 +75,24 @@ class KeyboardView @JvmOverloads constructor(
     private var isCtrlActive = false
     private var isAltActive = false
 
+
     private var isVoiceActive = false
+
+    // [NEW] Mirror Mode & Visual Helpers
+    private var isMirrorMode = false
+    fun setMirrorMode(active: Boolean) { isMirrorMode = active }
+
+    fun highlightKey(tag: String, active: Boolean, color: Int) {
+        val view = findViewWithTag<View>(tag) ?: return
+        val tv = (view as? ViewGroup)?.getChildAt(0) as? TextView ?: return
+        val bg = tv.background as? GradientDrawable ?: return
+        if (active) bg.setColor(color) else bg.setColor(getKeyColor(tag))
+    }
+
 
     // =================================================================================
     // LIVE SWIPE PREVIEW THROTTLING
+
     // SUMMARY: Variables to control how often we send live swipe previews.
     //          Too frequent = laggy, too slow = not responsive.
     // =================================================================================
@@ -1589,8 +1603,11 @@ class KeyboardView @JvmOverloads constructor(
         return meta
     }
 
+
     private fun handleKeyPress(key: String, fromRepeat: Boolean = false) {
+        if (isMirrorMode) return // STOP Ghost Typing
         var meta = getMetaState()
+
         if (fromRepeat && !isKeyRepeatable(key)) return
 
         when (key) {
@@ -1771,14 +1788,12 @@ class KeyboardView @JvmOverloads constructor(
                 view.text = item.text
                 view.visibility = View.VISIBLE
 
-                // HIGHLIGHT NEW WORDS
-                if (item.isNew) {
-                    view.setTextColor(Color.CYAN)
-                    view.typeface = android.graphics.Typeface.DEFAULT_BOLD
-                } else {
-                    view.setTextColor(Color.WHITE)
-                    view.typeface = android.graphics.Typeface.DEFAULT
-                }
+
+                // FORCE WHITE TEXT (Fixes Grey/Cyan issue)
+                view.setTextColor(Color.WHITE)
+                view.alpha = 1.0f
+                view.typeface = android.graphics.Typeface.DEFAULT_BOLD
+
 
                 // TOUCH LISTENER: Handle Click vs Drag
                 view.setOnTouchListener { v, event ->
@@ -1813,11 +1828,11 @@ class KeyboardView @JvmOverloads constructor(
                 val dist = kotlin.math.hypot(dx.toDouble(), dy.toDouble())
 
                 // Threshold to start dragging (20px)
-                if (!isCandidateDragging && dist > 20) {
+if (!isCandidateDragging && dist > 20) {
                     isCandidateDragging = true
                     android.util.Log.d("DroidOS_Drag", "CANDIDATE DRAG START: '${item.text}' (moved ${dist.toInt()}px)")
-                    // Visual feedback: Dim the candidate
-                    view.alpha = 0.5f
+                    // Visual feedback: Keep White (No Dimming)
+                    view.alpha = 1.0f
                 }
 
                 if (isCandidateDragging) {
