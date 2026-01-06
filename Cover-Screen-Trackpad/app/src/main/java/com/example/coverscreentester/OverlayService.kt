@@ -1678,14 +1678,41 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =================================================================================
 
     
+
     fun getSavedProfileList(): List<String> {
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         val allKeys = p.all.keys
         val profiles = java.util.HashSet<String>()
-        val regex = Regex("X_P_(\\d+)_(\\d+)")
-        for (key in allKeys) { val match = regex.find(key); if (match != null) profiles.add("${match.groupValues[1]} x ${match.groupValues[2]}") }
+        
+        // Regex matches: X_P_{width}_{height}_{suffix}
+        // Group 1: Width
+        // Group 2: Height
+        // Group 3: Optional Suffix (MIRROR or STD)
+        val regex = Regex("X_P_(\\d+)_(\\d+)(?:_([A-Z]+))?")
+        
+        for (key in allKeys) { 
+            // We only care about X position keys to identify a profile exists
+            if (!key.startsWith("X_P_")) continue
+
+            val match = regex.matchEntire(key)
+            if (match != null) {
+                val w = match.groupValues[1]
+                val h = match.groupValues[2]
+                val suffix = match.groupValues.getOrNull(3) // Can be null, STD, or MIRROR
+                
+                var displayLabel = "$w x $h"
+                
+                // If it is a Mirror Profile, append VM
+                if (suffix == "MIRROR") {
+                    displayLabel += " VM"
+                }
+                
+                profiles.add(displayLabel)
+            }
+        }
         return profiles.sorted()
     }
+
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
