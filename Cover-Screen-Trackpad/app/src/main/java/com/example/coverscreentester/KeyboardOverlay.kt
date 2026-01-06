@@ -338,43 +338,54 @@ class KeyboardOverlay(
     }
 
 
+
+
     fun resetPosition() {
         if (keyboardParams == null) return
         
-        // [FIX] Reset Scale first to prevent "excess space" issues
-        internalScale = 1.0f
-        keyboardView?.setScale(1.0f)
+        // [FIX] Set Scale to 0.69f (69%) to fit the 0.55 Aspect Ratio perfectly
+        val defaultScale = 0.69f
+        internalScale = defaultScale
+        keyboardView?.setScale(defaultScale)
+        
+        // Save as 69 (Int)
         context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-             .edit().putInt("keyboard_key_scale", 100).apply()
+             .edit().putInt("keyboard_key_scale", 69).apply()
 
-        // 1. Reset Rotation state
+        // 2. Reset Rotation state
         currentRotation = 0
         keyboardContainer?.rotation = 0f
         keyboardView?.rotation = 0f
         keyboardView?.translationX = 0f
         keyboardView?.translationY = 0f
 
-        // 2. Calculate Defaults
-
-        val defaultWidth = (screenWidth * 0.90f).toInt().coerceIn(300, 1200) // CHANGED: 90% width
-        val defaultHeight = WindowManager.LayoutParams.WRAP_CONTENT
+        // 3. Calculate Defaults with Fixed 0.55 Aspect Ratio
+        val defaultWidth = (screenWidth * 0.90f).toInt().coerceIn(300, 1200)
+        
+        // Fixed 0.55 ratio matches the 0.69 key scale
+        val defaultHeight = (defaultWidth * 0.55f).toInt()
+        
         val defaultX = (screenWidth - defaultWidth) / 2
-        val defaultY = (screenHeight / 2) // Place in middle
+        val defaultY = (screenHeight / 2)
 
-        // 3. Update State & Params
+        // 4. Update Params
         keyboardWidth = defaultWidth
         keyboardHeight = defaultHeight
+        
+        // [IMPORTANT] Reset Drag Start variables to match new defaults
+        dragStartHeight = defaultHeight
+        dragStartScale = defaultScale // Set to 0.69f
         
         keyboardParams?.x = defaultX
         keyboardParams?.y = defaultY
         keyboardParams?.width = defaultWidth
         keyboardParams?.height = defaultHeight
 
-        // 4. Update View Constraints
+        // 5. Force View to Fill Window
         if (keyboardView != null) {
             val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
-            lp.width = defaultWidth
-            lp.height = FrameLayout.LayoutParams.WRAP_CONTENT
+            lp.width = FrameLayout.LayoutParams.MATCH_PARENT
+            lp.height = FrameLayout.LayoutParams.MATCH_PARENT 
             keyboardView!!.layoutParams = lp
         }
 
@@ -384,7 +395,12 @@ class KeyboardOverlay(
         
         saveKeyboardPosition()
         saveKeyboardSize()
+        
+        // 6. Sync Mirror
+        syncMirrorRatio(defaultWidth, defaultHeight)
     }
+
+
     // [END ROTATION FIX]
 
 
