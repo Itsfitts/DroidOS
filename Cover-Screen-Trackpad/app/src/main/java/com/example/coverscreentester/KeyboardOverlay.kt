@@ -40,7 +40,13 @@ class KeyboardOverlay(
     private val predictionEngine = PredictionEngine.instance
     // State Variables
     private var isMoving = false
+
     private var isResizing = false
+    // [NEW] Track scale internally to avoid slow SharedPreferences reads during drag
+    private var internalScale = 1.0f 
+    private var dragStartScale = 1.0f
+    private var dragStartHeight = 0
+
     private var isAnchored = false
     private var initialTouchX = 0f
     private var initialTouchY = 0f
@@ -331,9 +337,16 @@ class KeyboardOverlay(
         setRotation(nextRotation)
     }
 
+
     fun resetPosition() {
         if (keyboardParams == null) return
         
+        // [FIX] Reset Scale first to prevent "excess space" issues
+        internalScale = 1.0f
+        keyboardView?.setScale(1.0f)
+        context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+             .edit().putInt("keyboard_key_scale", 100).apply()
+
         // 1. Reset Rotation state
         currentRotation = 0
         keyboardContainer?.rotation = 0f
@@ -342,6 +355,7 @@ class KeyboardOverlay(
         keyboardView?.translationY = 0f
 
         // 2. Calculate Defaults
+
         val defaultWidth = (screenWidth * 0.90f).toInt().coerceIn(300, 1200) // CHANGED: 90% width
         val defaultHeight = WindowManager.LayoutParams.WRAP_CONTENT
         val defaultX = (screenWidth - defaultWidth) / 2
@@ -374,58 +388,30 @@ class KeyboardOverlay(
     // [END ROTATION FIX]
 
 
-
-
-
-
-
-
     fun show() { 
         if (isVisible) return
         try { 
             val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
             currentAlpha = prefs.getInt("keyboard_alpha", 200)
 
+
             createKeyboardWindow()
 
-            // --- FIX: Strict Aspect Ratio Sync ---
-            // We force the Window Height to be exactly 55% of the Width.
-            // This guarantees that the Physical Keyboard and Mirror Keyboard 
-            // have the exact same shape, ensuring the Touch Trail aligns perfectly.
-            keyboardContainer?.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-                val width = right - left
-                val height = bottom - top
-                
-                if (width > 0) {
-                    // Ratio 0.55 (Keys are slightly taller than square to fit text comfortably)
-                    // 10 keys wide, 5 rows tall. 0.5 would be square. 0.55 prevents cutoff.
-                    val targetHeight = (width * 0.55f).toInt()
-                    
-                    if (kotlin.math.abs(height - targetHeight) > 5) {
-                        keyboardParams?.height = targetHeight
-                        try { 
-                            windowManager.updateViewLayout(keyboardContainer, keyboardParams) 
-                        } catch (e: Exception) { }
-                    }
-                }
-            }
+            // [NEW] Initialize internal scale from prefs once on show
+            val savedScale = prefs.getInt("keyboard_key_scale", 100) / 100f
+            internalScale = savedScale
+            dragStartScale = savedScale // Init for safety
 
-            // Set initial params to match logic
-            if (keyboardParams?.width ?: 0 > 0) {
-                 keyboardParams?.height = ((keyboardParams?.width ?: 100) * 0.55f).toInt()
-            }
+
+
+            // [MODIFIED] Removed forced 0.55 aspect ratio listener to allow independent resizing.
+            // Sync is now handled via explicit broadcast in resize functions.
+
 
             isVisible = true
             if (currentRotation != 0) setRotation(currentRotation)
         } catch (e: Exception) { android.util.Log.e("KeyboardOverlay", "Failed to show keyboard", e) } 
     }
-
-
-
-
-
-
-
 
 
     
@@ -730,31 +716,97 @@ class KeyboardOverlay(
         } catch (e: Exception) {}
     }
     
-    fun resizeWindow(dw: Int, dh: Int) {
-         if (!isVisible || keyboardParams == null) return
-         
-         // If current height is WRAP_CONTENT (-2), start from current measured height
-         var currentH = keyboardParams!!.height
-         if (currentH == WindowManager.LayoutParams.WRAP_CONTENT) {
-             currentH = keyboardContainer?.height ?: 260
-         }
-         
-         var currentW = keyboardParams!!.width
-         if (currentW == WindowManager.LayoutParams.WRAP_CONTENT) {
-             currentW = keyboardContainer?.width ?: 500
-         }
 
-         keyboardParams!!.width = max(280, currentW + dw)
-         keyboardParams!!.height = max(180, currentH + dh)
-         
-         keyboardWidth = keyboardParams!!.width
-         keyboardHeight = keyboardParams!!.height
-         
-         try { 
-             windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-             saveKeyboardSize()
-             onSizeChanged?.invoke()
-         } catch (e: Exception) {}
+    // [MODIFIED] Legacy support: Redirects to the new smart resize logic
+    fun resizeWindow(dw: Int, dh: Int) {
+        if (!isVisible || keyboardParams == null) return
+        
+        // Calculate target dimensions based on current params
+        // Handle WRAP_CONTENT cases if necessary
+        val currentW = if (keyboardParams!!.width > 0) keyboardParams!!.width else keyboardContainer?.width ?: 300
+        val currentH = if (keyboardParams!!.height > 0) keyboardParams!!.height else keyboardContainer?.height ?: 200
+
+        // Pass to the new centralized function that handles Scaling + Sync
+        applyWindowResize(currentW + dw, currentH + dh)
+    }
+
+
+    // =================================================================================
+    // NEW: Centralized Resize Logic with Auto-Scale and Mirror Sync
+    // =================================================================================
+
+    // [MODIFIED] Deterministic Resizing Logic (Fixes Lag & Mismatch)
+    private fun applyWindowResize(width: Int, height: Int) {
+        if (keyboardParams == null) return
+
+        val newWidth = max(300, width)
+        val newHeight = max(150, height)
+        
+        // 1. Calculate New Scale Deterministically
+        // Formula: NewScale = StartScale * (NewHeight / StartHeight)
+        // This ensures the keys grow exactly proportional to the window drag.
+        if (dragStartHeight > 0 && newHeight != dragStartHeight) {
+             val heightRatio = newHeight.toFloat() / dragStartHeight.toFloat()
+             val targetScale = dragStartScale * heightRatio
+             
+             // Update Internal State
+             internalScale = targetScale
+             keyboardView?.setScale(internalScale)
+        }
+
+        // 2. Update Window Params
+        keyboardParams!!.width = newWidth
+        keyboardParams!!.height = newHeight
+        keyboardWidth = newWidth
+        keyboardHeight = newHeight
+
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            onSizeChanged?.invoke()
+        } catch (e: Exception) {}
+
+        // 3. Sync Mirror Aspect Ratio
+        syncMirrorRatio(newWidth, newHeight)
+    }
+
+
+    fun handleResizeDpad(keyCode: Int): Boolean {
+        if (!isVisible || keyboardParams == null) return false
+        
+        val STEP = 20
+        var w = keyboardParams!!.width
+        var h = keyboardParams!!.height
+        var changed = false
+
+        when (keyCode) {
+            // Horizontal Only
+            KeyEvent.KEYCODE_DPAD_LEFT -> { w -= STEP; changed = true }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> { w += STEP; changed = true }
+            
+            // Vertical Only
+            KeyEvent.KEYCODE_DPAD_UP -> { h -= STEP; changed = true }   // Shrink Height
+            KeyEvent.KEYCODE_DPAD_DOWN -> { h += STEP; changed = true } // Grow Height
+        }
+
+        if (changed) {
+            applyWindowResize(w, h)
+            return true
+        }
+        return false
+    }
+
+    private fun syncMirrorRatio(width: Int, height: Int) {
+        try {
+            val ratio = width.toFloat() / height.toFloat()
+            val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.SYNC_KEYBOARD_RATIO")
+            intent.putExtra("ratio", ratio)
+            intent.putExtra("width", width)
+            intent.putExtra("height", height)
+            intent.setPackage("com.katsuyamaki.DroidOSLauncher")
+            context.sendBroadcast(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("KeyboardOverlay", "Failed to sync mirror ratio", e)
+        }
     }
 
     private fun createKeyboardWindow() {
@@ -765,7 +817,20 @@ class KeyboardOverlay(
         containerBg.cornerRadius = 16f
         containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
         keyboardContainer?.background = containerBg
-
+        
+        // [NEW] Handle D-pad keys for resizing when window is focused
+        keyboardContainer?.isFocusable = true
+        keyboardContainer?.isFocusableInTouchMode = true
+        keyboardContainer?.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                // Check if we are in "Resize Mode" or just allow D-pad to always resize if intended
+                // Using the handleResizeDpad function we added earlier
+                if (handleResizeDpad(keyCode)) {
+                    return@setOnKeyListener true
+                }
+            }
+            false
+        }
         // 1. The Keyboard Keys
         // --- FIX Connect Shell for Spacebar Trackpad ---
         // Pass the shell command capability to the view so it can inject mouse events
@@ -931,57 +996,40 @@ class KeyboardOverlay(
     private fun handleResize(event: MotionEvent): Boolean {
         if (isAnchored) return true
         when (event.action) {
+
             MotionEvent.ACTION_DOWN -> {
                 isResizing = true
                 initialTouchX = event.rawX
                 initialTouchY = event.rawY
-                // Capture the current WINDOW dimensions (Visual)
+                
                 initialWidth = keyboardParams?.width ?: keyboardWidth
                 initialHeight = keyboardParams?.height ?: keyboardHeight
                 
-                // Handle WRAP_CONTENT case for initial values
+                // Resolve WRAP_CONTENT to actual pixels
                 if (initialWidth < 0) initialWidth = keyboardContainer?.width ?: 300
                 if (initialHeight < 0) initialHeight = keyboardContainer?.height ?: 200
+                
+                // [FIX] Capture stable start values for deterministic scaling
+                dragStartHeight = initialHeight
+                dragStartScale = internalScale
             }
+
+
             MotionEvent.ACTION_MOVE -> {
                 if (isResizing) {
                     val dX = (event.rawX - initialTouchX).toInt()
                     val dY = (event.rawY - initialTouchY).toInt()
                     
-                    // 1. Calculate New VISUAL Dimensions (Window Size)
-                    val newVisualW = max(280, initialWidth + dX)
-                    val newVisualH = max(180, initialHeight + dY)
+                    val newW = initialWidth + dX
+                    val newH = initialHeight + dY
                     
-                    // 2. Update Window Params
-                    keyboardParams?.width = newVisualW
-                    keyboardParams?.height = newVisualH
-                    
-                    // 3. Update LOGICAL Dimensions (Keyboard State)
-                    // If rotated, dragging "Width" actually changes the Keyboard's "Height" (Rows)
-                    if (currentRotation == 90 || currentRotation == 270) {
-                        keyboardHeight = newVisualW
-                        keyboardWidth = newVisualH
-                    } else {
-                        keyboardWidth = newVisualW
-                        keyboardHeight = newVisualH
-                    }
-                    
-                    // 4. Update Inner View Layout to match Logical Dimensions
-                    if (keyboardView != null) {
-                        val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
-                        lp.width = keyboardWidth
-                        lp.height = keyboardHeight
-                        keyboardView!!.layoutParams = lp
-                        
-                        // Re-center view if rotation is active
-                        alignRotatedView()
-                    }
-
-                    try {
-                        windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-                    } catch (e: Exception) {}
+                    // Use the shared function to handle visual update + scale + sync
+                    // Note: We might want to throttle 'saveKeyboardSize' inside applyWindowResize during drag
+                    // but for now this ensures visual consistency.
+                    applyWindowResize(newW, newH)
                 }
             }
+
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 isResizing = false
                 saveKeyboardSize()
