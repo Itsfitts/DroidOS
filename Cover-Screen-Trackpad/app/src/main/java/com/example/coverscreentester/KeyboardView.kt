@@ -82,12 +82,44 @@ class KeyboardView @JvmOverloads constructor(
     private var isMirrorMode = false
     fun setMirrorMode(active: Boolean) { isMirrorMode = active }
 
+
+
+
     fun highlightKey(tag: String, active: Boolean, color: Int) {
         val view = findViewWithTag<View>(tag) ?: return
-        val tv = (view as? ViewGroup)?.getChildAt(0) as? TextView ?: return
-        val bg = tv.background as? GradientDrawable ?: return
-        if (active) bg.setColor(color) else bg.setColor(getKeyColor(tag))
+        
+        // TARGET THE VISUAL ELEMENT: 
+        // 1. Try the container background
+        var bg = view.background
+        
+        // 2. If container has no background, try the child TextView/ImageView
+        if (bg == null && view is ViewGroup && view.childCount > 0) {
+            bg = view.getChildAt(0).background
+        }
+
+        if (bg != null) {
+            if (active) {
+                // FORCE RED using PorterDuff (Works on any Drawable type)
+                bg.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_ATOP)
+            } else {
+                // RESET: Clear the filter to restore original look
+                bg.clearColorFilter()
+            }
+            view.invalidate()
+        }
     }
+
+
+
+    // [NEW] Helper for Mirror Keyboard to refresh itself locally
+    fun removeCandidateAtIndex(index: Int) {
+        if (index < 0 || index >= currentCandidates.size) return
+        currentCandidates.removeAt(index)
+        // Add empty placeholder to keep alignment
+        while (currentCandidates.size < 3) currentCandidates.add(Candidate("", false))
+        setSuggestions(ArrayList(currentCandidates))
+    }
+
 
 
     // =================================================================================

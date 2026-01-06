@@ -3002,8 +3002,14 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 isInOrientationMode = true
                 lastOrientX = x; lastOrientY = y
 
+                // FIX: STOP PREVIOUS ANIMATIONS IMMEDIATELY
+                // Prevents transparency fighting when typing fast
+                mirrorKeyboardView?.animate()?.cancel()
                 mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
+                
+                // Force full visibility
                 mirrorKeyboardView?.alpha = 0.9f
+
                 mirrorKeyboardContainer?.alpha = 1f
 
                 keyboardOverlay?.setOrientationMode(true)
@@ -3091,10 +3097,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                      val upKey = keyboardOverlay?.getKeyAtPosition(x, y)
                      val isDroppedOnBksp = (upKey == "BKSP" || upKey == "⌫" || upKey == "BACKSPACE")
                      
+
                      if (isHoveringBackspace || isDroppedOnBksp) {
+                         // 1. Update Main Logic
                          keyboardOverlay?.blockPrediction(draggedPredictionIndex)
+                         
+                         // 2. Update Mirror UI Instantly (Make word disappear)
+                         mirrorKeyboardView?.removeCandidateAtIndex(draggedPredictionIndex)
+                         
                          showToast("Blocked Prediction")
                      } else {
+
                          val now = SystemClock.uptimeMillis()
                          val event = MotionEvent.obtain(now, now, action, mirrorX, mirrorY, 0)
                          mirrorKeyboardView?.dispatchTouchEvent(event)
@@ -3125,9 +3138,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     mirrorTrailView?.clear()
                 }
 
+                // Smoothly fade to dim state
                 mirrorKeyboardView?.animate()?.alpha(0.3f)?.setDuration(200)?.start()
                 mirrorFadeHandler.removeCallbacks(mirrorFadeRunnable)
                 mirrorFadeHandler.postDelayed(mirrorFadeRunnable, 2000)
+
 
                 return false
             }
