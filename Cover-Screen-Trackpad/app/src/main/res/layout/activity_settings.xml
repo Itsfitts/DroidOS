@@ -64,52 +64,51 @@
             android:layout_gravity="center"
             android:layout_marginBottom="10dp"/>
 
-        <Switch
-            android:id="@+id/switchTapScroll"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Tap-to-Scroll Buttons"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"
-            android:checked="true"/>
 
         <Switch
-            android:id="@+id/switchVibrate"
+            android:id="@+id/swTapScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tap to Scroll"
+            android:textColor="#FFFFFF"
+            android:minHeight="48dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/swVibrate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Haptic Feedback"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"/>
-
-        <Switch
-            android:id="@+id/switchReverseScroll"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Reverse Buttons (Natural)"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"/>
-
-        <Switch
-            android:id="@+id/switchVPosLeft"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Vertical Scroll on Left"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"/>
-
-        <Switch
-            android:id="@+id/switchHPosTop"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Horizontal Scroll on Top"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
             android:minHeight="48dp"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/swReverseScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Reverse Scrolling"
+            android:textColor="#FFFFFF"
+            android:minHeight="48dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/swVPos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Vertical Position (Left/Top)"
+            android:textColor="#FFFFFF"
+            android:minHeight="48dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/swHPos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Horizontal Position (Top/Left)"
+            android:textColor="#FFFFFF"
+            android:minHeight="48dp"
+            android:layout_marginBottom="16dp"/>
 
         <TextView
             android:layout_width="wrap_content"

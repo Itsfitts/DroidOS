@@ -1,3 +1,4 @@
+
 package com.example.coverscreentester
 
 import android.app.Activity
@@ -7,8 +8,6 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.SeekBar
 import android.widget.Switch
-import android.widget.TextView
-import androidx.core.content.ContextCompat
 
 class SettingsActivity : Activity() {
 
@@ -18,18 +17,17 @@ class SettingsActivity : Activity() {
 
         val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
 
-        // Views
+        // =================================================================================
+        // 1. DEFINE VARIABLES FIRST (findViewById)
+        // =================================================================================
+        val swTapScroll = findViewById<Switch>(R.id.swTapScroll)
+        val swVibrate = findViewById<Switch>(R.id.swVibrate)
+        val swReverseScroll = findViewById<Switch>(R.id.swReverseScroll) // Matches usage below
+        val swVPos = findViewById<Switch>(R.id.swVPos)
+        val swHPos = findViewById<Switch>(R.id.swHPos)
+        
         val seekBarCursor = findViewById<SeekBar>(R.id.seekBarCursorSpeed)
-        val tvCursor = findViewById<TextView>(R.id.tvCursorSpeed)
         val seekBarScroll = findViewById<SeekBar>(R.id.seekBarScrollSpeed)
-        val tvScroll = findViewById<TextView>(R.id.tvScrollSpeed)
-        
-        val swTapScroll = findViewById<Switch>(R.id.switchTapScroll)
-        val swVibrate = findViewById<Switch>(R.id.switchVibrate)
-        val swReverse = findViewById<Switch>(R.id.switchReverseScroll)
-        val swVPos = findViewById<Switch>(R.id.switchVPosLeft)
-        val swHPos = findViewById<Switch>(R.id.switchHPosTop)
-        
         val seekCursorSize = findViewById<SeekBar>(R.id.seekBarCursorSize)
         val seekAlpha = findViewById<SeekBar>(R.id.seekBarAlpha)
         val seekHandleSize = findViewById<SeekBar>(R.id.seekBarHandleSize)
@@ -41,45 +39,43 @@ class SettingsActivity : Activity() {
         val btnSave = findViewById<Button>(R.id.btnSave)
         val btnBack = findViewById<Button>(R.id.btnBack)
 
-        // Load Values
-        val cSpeed = prefs.getFloat("cursor_speed", 2.5f)
-        seekBarCursor.progress = (cSpeed * 10).toInt()
-        tvCursor.text = "Cursor Speed: "
-
-        val sSpeed = prefs.getFloat("scroll_speed", 0.6f) // CHANGED: Default 0.6f
-        seekBarScroll.progress = (sSpeed * 10).toInt()
-        tvScroll.text = "Scroll Distance: "
-
+        // =================================================================================
+        // 2. LOAD SAVED VALUES (Now that variables exist)
+        // =================================================================================
         swTapScroll.isChecked = prefs.getBoolean("tap_scroll", true)
         swVibrate.isChecked = prefs.getBoolean("vibrate", true)
-        swReverse.isChecked = prefs.getBoolean("reverse_scroll", false) // CHANGED: Default false
+        swReverseScroll.isChecked = prefs.getBoolean("reverse_scroll", false)
         swVPos.isChecked = prefs.getBoolean("v_pos_left", false)
         swHPos.isChecked = prefs.getBoolean("h_pos_top", false)
         
+        seekBarCursor.progress = ((prefs.getFloat("cursor_speed", 2.5f)) * 10).toInt()
+        seekBarScroll.progress = ((prefs.getFloat("scroll_speed", 1.0f)) * 10).toInt()
+        
         seekCursorSize.progress = prefs.getInt("cursor_size", 50)
-        seekAlpha.progress = prefs.getInt("alpha", 50) // CHANGED: Default 50
-        seekHandleSize.progress = prefs.getInt("handle_size", 14) // CHANGED: Default 14
+        seekAlpha.progress = prefs.getInt("alpha", 50)
+        seekHandleSize.progress = prefs.getInt("handle_size", 14)
         seekScrollVisual.progress = prefs.getInt("scroll_visual_size", 4)
+        
         seekHandleTouch.progress = prefs.getInt("handle_touch_size", 60)
         seekScrollTouch.progress = prefs.getInt("scroll_touch_size", 60)
 
-        // Listeners
-        seekBarCursor.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-                tvCursor.text = "Cursor Speed: "
+        // =================================================================================
+        // 3. LISTENERS
+        // =================================================================================
+        fun createPreviewListener(target: String): SeekBar.OnSeekBarChangeListener {
+            return object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val intent = Intent(this@SettingsActivity, OverlayService::class.java)
+                    intent.action = "PREVIEW_UPDATE"
+                    intent.putExtra("TARGET", target)
+                    intent.putExtra("VALUE", progress)
+                    startService(intent)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             }
-            override fun onStartTrackingTouch(s: SeekBar) {}
-            override fun onStopTrackingTouch(s: SeekBar) {}
-        })
+        }
 
-        seekBarScroll.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-                tvScroll.text = "Scroll Distance: "
-            }
-            override fun onStartTrackingTouch(s: SeekBar) {}
-            override fun onStopTrackingTouch(s: SeekBar) {}
-        })
-        
         seekCursorSize.setOnSeekBarChangeListener(createPreviewListener("cursor_size"))
         seekAlpha.setOnSeekBarChangeListener(createPreviewListener("alpha"))
         seekHandleSize.setOnSeekBarChangeListener(createPreviewListener("handle_size"))
@@ -87,6 +83,9 @@ class SettingsActivity : Activity() {
         seekHandleTouch.setOnSeekBarChangeListener(createPreviewListener("handle_touch"))
         seekScrollTouch.setOnSeekBarChangeListener(createPreviewListener("scroll_touch"))
 
+        // =================================================================================
+        // 4. SAVE BUTTON LOGIC
+        // =================================================================================
         btnSave.setOnClickListener {
             val cVal = if (seekBarCursor.progress < 1) 0.1f else seekBarCursor.progress / 10f
             val sVal = if (seekBarScroll.progress < 1) 0.1f else seekBarScroll.progress / 10f
@@ -96,7 +95,7 @@ class SettingsActivity : Activity() {
                 .putFloat("scroll_speed", sVal)
                 .putBoolean("tap_scroll", swTapScroll.isChecked)
                 .putBoolean("vibrate", swVibrate.isChecked)
-                .putBoolean("reverse_scroll", swReverse.isChecked)
+                .putBoolean("reverse_scroll", swReverseScroll.isChecked)
                 .putBoolean("v_pos_left", swVPos.isChecked)
                 .putBoolean("h_pos_top", swHPos.isChecked)
                 .putInt("cursor_size", seekCursorSize.progress)
@@ -112,19 +111,7 @@ class SettingsActivity : Activity() {
             startService(intent)
             finish()
         }
-        
+
         btnBack.setOnClickListener { finish() }
-    }
-    
-    private fun createPreviewListener(target: String) = object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-            val intent = Intent(this@SettingsActivity, OverlayService::class.java)
-            intent.action = "PREVIEW_UPDATE"
-            intent.putExtra("TARGET", target)
-            intent.putExtra("VALUE", v)
-            startService(intent)
-        }
-        override fun onStartTrackingTouch(s: SeekBar) {}
-        override fun onStopTrackingTouch(s: SeekBar) {}
     }
 }

@@ -212,6 +212,9 @@ class KeyboardOverlay(
         isAnchored = anchored
     }
 
+    fun setVibrationEnabled(enabled: Boolean) {
+        keyboardView?.setVibrationEnabled(enabled)
+    }
     // Helper for OverlayService Profile Load
     fun updatePosition(x: Int, y: Int) {
         if (keyboardContainer == null || keyboardParams == null) {
