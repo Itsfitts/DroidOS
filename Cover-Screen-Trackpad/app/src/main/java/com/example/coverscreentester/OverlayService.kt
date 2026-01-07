@@ -1888,7 +1888,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         if (type == 0) { loadLayout(); showToast("Freeform Profile Loaded"); return }
         val h = uiScreenHeight; val w = uiScreenWidth; val density = resources.displayMetrics.density
         val targetW = (w * 0.96f).toInt(); val marginX = (w - targetW) / 2
-        val kbHeight = (275f * (prefs.prefKeyScale / 100f) * density).toInt().coerceAtMost((h * 0.6f).toInt())
+        // Added 20dp buffer to preset height calculation
+        val kbHeight = ((275f * (prefs.prefKeyScale / 100f) * density) + (20 * density)).toInt().coerceAtMost((h * 0.6f).toInt())
         val tpHeight = h - kbHeight
         if (keyboardOverlay == null) initCustomKeyboard()
         if (!isCustomKeyboardVisible) toggleCustomKeyboard(suppressAutomation = true)
@@ -2177,11 +2178,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             keyboardOverlay?.updatePosition(savedKbX, savedKbY)
             keyboardOverlay?.updateSize(savedKbW, savedKbH)
         } else {
-            // [Fixed] Default Size: Calculate exact height based on scale (matches Reset Position)
-            // Instead of a hardcoded 45% (which is too tall), we calculate the 
-            // exact dp height required for the 69% scale to prevent large empty backgrounds.
+            // [Fixed] Default Size: Calculate height based on scale + 20dp buffer
             val density = resources.displayMetrics.density
-            val defaultH = (275f * (prefs.prefKeyScale / 100f) * density).toInt()
+            // Add 20dp padding so the scale fits comfortably without clipping
+            val buffer = 20 * density
+            val defaultH = ((275f * (prefs.prefKeyScale / 100f) * density) + buffer).toInt()
             
             keyboardOverlay?.updatePosition(0, uiScreenHeight - defaultH)
             keyboardOverlay?.updateSize(uiScreenWidth, defaultH)
