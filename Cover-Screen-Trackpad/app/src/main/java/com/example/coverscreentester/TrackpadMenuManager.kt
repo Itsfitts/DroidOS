@@ -93,6 +93,10 @@ class TrackpadMenuManager(
         val inflater = LayoutInflater.from(themedContext)
         drawerView = inflater.inflate(R.layout.layout_trackpad_drawer, null)
 
+        // FUNCTION: Force Tab Icons
+        // Manually set the Mirror Tab icon to the new custom asset
+        drawerView?.findViewById<ImageView>(R.id.tab_mirror)?.setImageResource(R.drawable.mirrorkb)
+
         // Close button logic
         drawerView?.findViewById<View>(R.id.btn_close_menu)?.setOnClickListener { hide() }
         
@@ -261,9 +265,11 @@ class TrackpadMenuManager(
         //          - Restores previous visibility state
         //          - Saves/loads separate profile
         // =================================================================================
+        // FUNCTION: Virtual Mirror Toggle
+        // Updated to use R.drawable.mirrorkb
         list.add(TrackpadMenuAdapter.MenuItem(
             "Virtual Mirror Mode",
-            if(p.prefVirtualMirrorMode) R.drawable.ic_lock_closed else R.drawable.ic_lock_open,
+            R.drawable.mirrorkb,
             TrackpadMenuAdapter.Type.TOGGLE,
             if(p.prefVirtualMirrorMode) 1 else 0
         ) { _ ->
