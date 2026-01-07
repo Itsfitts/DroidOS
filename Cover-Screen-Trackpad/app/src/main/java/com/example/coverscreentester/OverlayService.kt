@@ -2177,8 +2177,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             keyboardOverlay?.updatePosition(savedKbX, savedKbY)
             keyboardOverlay?.updateSize(savedKbW, savedKbH)
         } else {
-            // Sane Defaults: Bottom 45% of screen
-            val defaultH = (uiScreenHeight * 0.45f).toInt()
+            // [Fixed] Default Size: Calculate exact height based on scale (matches Reset Position)
+            // Instead of a hardcoded 45% (which is too tall), we calculate the 
+            // exact dp height required for the 69% scale to prevent large empty backgrounds.
+            val density = resources.displayMetrics.density
+            val defaultH = (275f * (prefs.prefKeyScale / 100f) * density).toInt()
+            
             keyboardOverlay?.updatePosition(0, uiScreenHeight - defaultH)
             keyboardOverlay?.updateSize(uiScreenWidth, defaultH)
         }
