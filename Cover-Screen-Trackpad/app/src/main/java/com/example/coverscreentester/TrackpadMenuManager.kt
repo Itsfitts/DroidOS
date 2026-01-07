@@ -418,22 +418,38 @@ class TrackpadMenuManager(
             
 
 
+// =================================================================================
+            // MIRROR KEYBOARD DPAD CONTROLS  
+            // SUMMARY: Send raw intuitive directions to adjustMirrorKeyboard
+            //          UP = -step (move up / shrink)
+            //          DOWN = +step (move down / grow)
+            //          The service handles gravity conversion
+            // =================================================================================
             when(command) {
                 "UP" -> {
-                    // [FIX] Reverse direction for MOVE only (User reported -step goes Down)
-                    // Resize mode stays same (-step). Move mode flips to (+step).
-                    val dir = if (isMirrorResizeMode) -step else step
-                    service.adjustMirrorKeyboard(isMirrorResizeMode, 0, dir)
+                    android.util.Log.d("MirrorDpad", "UP pressed, isResize=$isMirrorResizeMode, sending deltaY=-$step")
+                    service.adjustMirrorKeyboard(isMirrorResizeMode, 0, -step)
                 }
                 "DOWN" -> {
-                    // Resize mode stays same (step). Move mode flips to (-step).
-                    val dir = if (isMirrorResizeMode) step else -step
-                    service.adjustMirrorKeyboard(isMirrorResizeMode, 0, dir)
+                    android.util.Log.d("MirrorDpad", "DOWN pressed, isResize=$isMirrorResizeMode, sending deltaY=+$step")
+                    service.adjustMirrorKeyboard(isMirrorResizeMode, 0, step)
                 }
-                "LEFT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, -step, 0)
-                "RIGHT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, step, 0)
+                "LEFT" -> {
+                    android.util.Log.d("MirrorDpad", "LEFT pressed, isResize=$isMirrorResizeMode")
+                    service.adjustMirrorKeyboard(isMirrorResizeMode, -step, 0)
+                }
+                "RIGHT" -> {
+                    android.util.Log.d("MirrorDpad", "RIGHT pressed, isResize=$isMirrorResizeMode")
+                    service.adjustMirrorKeyboard(isMirrorResizeMode, step, 0)
+                }
                 "CENTER" -> service.resetMirrorKeyboardPosition()
             }
+            // =================================================================================
+            // END BLOCK: MIRROR KEYBOARD DPAD CONTROLS
+            // =================================================================================
+            // =================================================================================
+            // END BLOCK: MIRROR KEYBOARD DPAD CONTROLS
+            // =================================================================================
 
 
         })

@@ -2688,72 +2688,108 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 // =================================================================================
     // FUNCTION: adjustMirrorKeyboard
     // SUMMARY: Adjusts mirror keyboard position or size via D-pad controls.
-    //          Shows mirror during adjustment and syncs coordinate scaling.
-    //          Resize mode triggers a layout pass which updates sync dimensions.
+    //          FIXED: Correct Y direction for both move and resize.
+    //          FIXED: Handle WRAP_CONTENT properly for resize.
     // =================================================================================
     fun adjustMirrorKeyboard(isResize: Boolean, deltaX: Int, deltaY: Int) {
-        if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) return
+        // DEBUG: Show toast so we know function is called
+        showToast("adjust: resize=$isResize dX=$deltaX dY=$deltaY")
+        
+        if (mirrorKeyboardParams == null || mirrorKeyboardContainer == null) {
+            showToast("ERROR: params null")
+            return
+        }
         
         // Show mirror during adjustment
         showMirrorTemporarily()
         
         if (isResize) {
-            // Resize mode - adjust width/height independently
-            var currentWidth = mirrorKeyboardParams?.width ?: return
-            var currentHeight = mirrorKeyboardParams?.height ?: return
+            // =================================================================================
+            // RESIZE MODE - adjust width/height
+            // =================================================================================
+            var currentWidth = mirrorKeyboardParams?.width ?: 600
+            var currentHeight = mirrorKeyboardParams?.height ?: 350
             
-            // Handle WRAP_CONTENT - get actual measured dimensions
-            if (currentWidth == WindowManager.LayoutParams.WRAP_CONTENT) {
+            // Handle WRAP_CONTENT (-2) - get measured size
+            if (currentWidth == WindowManager.LayoutParams.WRAP_CONTENT || currentWidth <= 0) {
                 currentWidth = mirrorKeyboardContainer?.width ?: 600
+                if (currentWidth <= 0) currentWidth = 600
             }
-            if (currentHeight == WindowManager.LayoutParams.WRAP_CONTENT) {
-                currentHeight = mirrorKeyboardContainer?.height ?: 400
+            if (currentHeight == WindowManager.LayoutParams.WRAP_CONTENT || currentHeight <= 0) {
+                currentHeight = mirrorKeyboardContainer?.height ?: 350
+                if (currentHeight <= 0) currentHeight = 350
             }
             
-            // Apply deltas with constraints
-            val newWidth = (currentWidth + deltaX).coerceIn(200, 2000)
-            val newHeight = (currentHeight + deltaY).coerceIn(100, 1000)
+            // Apply deltas: positive = grow, negative = shrink
+            val newWidth = (currentWidth + deltaX).coerceIn(250, 1500)
+            val newHeight = (currentHeight + deltaY).coerceIn(150, 600)
+            
+            showToast("Resize: ${currentWidth}x${currentHeight} -> ${newWidth}x${newHeight}")
             
             mirrorKeyboardParams?.width = newWidth
             mirrorKeyboardParams?.height = newHeight
             
-            // Save to prefs
             getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
                 .putInt("mirror_width", newWidth)
                 .putInt("mirror_height", newHeight)
                 .apply()
             
-            Log.d(TAG, "Mirror keyboard resized to: ${newWidth}x${newHeight}")
-            
         } else {
-            // Move mode - adjust x/y position
-            mirrorKeyboardParams?.x = (mirrorKeyboardParams?.x ?: 0) + deltaX
-            mirrorKeyboardParams?.y = (mirrorKeyboardParams?.y ?: 0) - deltaY  // INVERTED for Gravity.BOTTOM
+            // =================================================================================
+            // MOVE MODE - adjust x/y position
+            // For move: we want UP button to move keyboard UP on screen
+            // UP sends deltaY = -20
+            // With Gravity.BOTTOM: to move UP visually, Y offset must INCREASE
+            // With Gravity.TOP: to move UP visually, Y offset must DECREASE
+            // =================================================================================
+            val currentX = mirrorKeyboardParams?.x ?: 0
+            val currentY = mirrorKeyboardParams?.y ?: 0
+            val gravity = mirrorKeyboardParams?.gravity ?: 0
+            val isBottomGravity = (gravity and Gravity.BOTTOM) == Gravity.BOTTOM
             
-            // Save to prefs
+            val newX = currentX + deltaX
+            
+            // CRITICAL FIX: Correct Y handling based on gravity
+            val newY = if (isBottomGravity) {
+                // Gravity.BOTTOM: positive Y = UP from bottom
+                // UP button sends -20, we want to move UP, so negate: currentY - (-20) = currentY + 20
+                currentY - deltaY
+            } else {
+                // Gravity.TOP: positive Y = DOWN from top  
+                // UP button sends -20, we want to move UP, so add directly: currentY + (-20)
+                currentY + deltaY
+            }
+            
+            showToast("Move: ($currentX,$currentY)->($newX,$newY) btm=$isBottomGravity")
+            
+            mirrorKeyboardParams?.x = newX
+            mirrorKeyboardParams?.y = newY
+            
+            // Switch to TOP gravity after first move for consistent behavior
+            mirrorKeyboardParams?.gravity = Gravity.TOP or Gravity.START
+            
             getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-                .putInt("mirror_x", mirrorKeyboardParams?.x ?: 0)
-                .putInt("mirror_y", mirrorKeyboardParams?.y ?: 0)
+                .putInt("mirror_x", newX)
+                .putInt("mirror_y", newY)
                 .apply()
         }
         
         try {
             mirrorWindowManager?.updateViewLayout(mirrorKeyboardContainer, mirrorKeyboardParams)
             
-            // FIX: After layout update, post a delayed sync dimension update
-            // This ensures we capture the new measured dimensions after the layout pass
             if (isResize) {
-                handler.postDelayed({
-                    updateMirrorSyncDimensions()
-                }, 100)  // Small delay to allow layout to complete
+                handler.postDelayed({ updateMirrorSyncDimensions() }, 100)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to update mirror keyboard layout", e)
+            showToast("Layout update failed: ${e.message}")
         }
     }
     // =================================================================================
     // END BLOCK: adjustMirrorKeyboard
-    // =================================================================================    
+    // =================================================================================
+    // =================================================================================
+    // END BLOCK: adjustMirrorKeyboard
+    // =================================================================================
     // =================================================================================
 // =================================================================================
     // FUNCTION: resetMirrorKeyboardPosition
