@@ -417,6 +417,7 @@ class TrackpadMenuManager(
             val command = cmd as String
             
 
+
             when(command) {
                 "UP" -> {
                     // [FIX] Reverse direction for MOVE only (User reported -step goes Down)
@@ -433,6 +434,7 @@ class TrackpadMenuManager(
                 "RIGHT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, step, 0)
                 "CENTER" -> service.resetMirrorKeyboardPosition()
             }
+
 
         })
         
