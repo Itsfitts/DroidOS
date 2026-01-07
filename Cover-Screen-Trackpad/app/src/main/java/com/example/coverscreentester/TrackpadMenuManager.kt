@@ -390,16 +390,14 @@ class TrackpadMenuManager(
     // =========================
     private var isMirrorResizeMode = false
     
+
     private fun getMirrorItems(): List<TrackpadMenuAdapter.MenuItem> {
         val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
         val p = service.prefs
         
         list.add(TrackpadMenuAdapter.MenuItem("MIRROR KEYBOARD", 0, TrackpadMenuAdapter.Type.HEADER))
         
-        // Virtual Mirror Mode Toggle
-        list.add(TrackpadMenuAdapter.MenuItem("Virtual Mirror Mode", android.R.drawable.ic_menu_view, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVirtualMirrorMode) 1 else 0) { v ->
-            service.updatePref("virtual_mirror_mode", v as Boolean)
-        })
+        // [REMOVED] Virtual Mirror Mode Toggle (Redundant)
         
         list.add(TrackpadMenuAdapter.MenuItem("POSITION & SIZE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
         
@@ -418,13 +416,24 @@ class TrackpadMenuManager(
             val step = 20
             val command = cmd as String
             
+
             when(command) {
-                "UP" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, -step)
-                "DOWN" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, step)
+                "UP" -> {
+                    // [FIX] Reverse direction for MOVE only (User reported -step goes Down)
+                    // Resize mode stays same (-step). Move mode flips to (+step).
+                    val dir = if (isMirrorResizeMode) -step else step
+                    service.adjustMirrorKeyboard(isMirrorResizeMode, 0, dir)
+                }
+                "DOWN" -> {
+                    // Resize mode stays same (step). Move mode flips to (-step).
+                    val dir = if (isMirrorResizeMode) step else -step
+                    service.adjustMirrorKeyboard(isMirrorResizeMode, 0, dir)
+                }
                 "LEFT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, -step, 0)
                 "RIGHT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, step, 0)
                 "CENTER" -> service.resetMirrorKeyboardPosition()
             }
+
         })
         
         list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
@@ -446,6 +455,7 @@ class TrackpadMenuManager(
         
         return list
     }
+
     // =========================
     // END GET MIRROR ITEMS
     // =========================
