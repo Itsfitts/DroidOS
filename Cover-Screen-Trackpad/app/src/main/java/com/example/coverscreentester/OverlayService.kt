@@ -93,39 +93,59 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 
+
     fun enforceZOrder() {
         try {
             if (windowManager != null) {
-                // CRITICAL: Explicitly remove and re-add Cursor to force it to the top of the stack
-                // Simply updating layout params is often not enough to change Z-order relative to other apps.
+                // LAYER 1: TRACKPAD (Lowest)
+                // We update layout but do NOT remove/add, keeping it at the bottom of the stack
+                if (trackpadLayout != null) {
+                    try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception) {}
+                }
+
+                // LAYER 2: KEYBOARD
+                // Managed independently. If visible, it sits above Trackpad.
+                // We don't touch it here; we just stack everything else ON TOP of it.
+
+                // LAYER 3: MENU
+                // Bring Menu to front (puts it above Keyboard)
+                if (menuManager != null) {
+                    try { menuManager?.bringToFront() } catch(e: Exception) {}
+                }
+
+                // LAYER 4: BUBBLE
+                // Explicitly Remove and Add to force it ABOVE Keyboard and Menu
+                if (bubbleView != null && bubbleView?.isAttachedToWindow == true) {
+                    try {
+                        windowManager?.removeView(bubbleView)
+                        windowManager?.addView(bubbleView, bubbleParams)
+                    } catch (e: Exception) {
+                        // Ignore errors if view state is weird
+                    }
+                } else if (bubbleView != null) {
+                    try { windowManager?.addView(bubbleView, bubbleParams) } catch(e: Exception) {}
+                }
+
+                // LAYER 5: CURSOR (Highest)
+                // Explicitly Remove and Add to force it ABOVE everything
                 if (cursorLayout != null && cursorLayout?.isAttachedToWindow == true) {
                     try {
                         windowManager?.removeView(cursorLayout)
                         windowManager?.addView(cursorLayout, cursorParams)
                     } catch (e: Exception) {
-                        // If remove fails (not attached), try adding
                         try { windowManager?.addView(cursorLayout, cursorParams) } catch(z: Exception) {}
                     }
                 } else if (cursorLayout != null) {
-                    // Not attached but exists? Try adding.
                     try { windowManager?.addView(cursorLayout, cursorParams) } catch(e: Exception) {}
                 }
-
-                // For Trackpad and Bubble, standard update is usually fine, but re-adding is safer if issues persist.
-                // For now, we stick to update for large layers to reduce flicker, but ensure Cursor is top.
-                if (trackpadLayout != null) {
-                    try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception) {}
-                }
-                if (bubbleView != null) {
-                    try { windowManager?.updateViewLayout(bubbleView, bubbleParams) } catch(e: Exception) {}
-                }
                 
-                Log.d("OverlayService", "Z-Order Enforced (Cursor Popped to Top)")
+                Log.d("OverlayService", "Z-Order Enforced (T < K < M < B < C)")
             }
         } catch (e: Exception) {
             Log.e("OverlayService", "Z-Order failed", e)
         }
     }
+
     // === RECEIVER & ACTIONS - END ===
 
     private val TAG = "OverlayService"
