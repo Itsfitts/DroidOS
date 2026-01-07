@@ -1,3 +1,4 @@
+
 package com.example.coverscreentester
 
 import android.content.Context
@@ -11,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Gravity
+import android.view.InputDevice // <--- ADD THIS LINE
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -18,6 +20,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import kotlin.math.max
+
 
 class KeyboardOverlay(
     private val context: Context,
@@ -838,8 +841,75 @@ class KeyboardOverlay(
         }
     }
 
+
+
+
+
     private fun createKeyboardWindow() {
-        keyboardContainer = FrameLayout(context)
+        // [FIX] Use custom FrameLayout to intercept ALL touches.
+        keyboardContainer = object : FrameLayout(context) {
+            
+            // SHIELD 1: Block Mouse Hovers
+            override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+                if (event.isFromSource(InputDevice.SOURCE_MOUSE) || 
+                    event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
+                    return true 
+                }
+                return super.dispatchGenericMotionEvent(event)
+            }
+
+            // SHIELD 2: Block Injected/Obscured Touches
+            override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+                
+                // [CRITICAL FIX] OBSCURED FILTER
+                // If the touch is passing through another window (like our Cursor Overlay),
+                // Android flags it as OBSCURED. We reject these to prevent the cursor loop.
+                if ((event.flags and MotionEvent.FLAG_WINDOW_IS_OBSCURED) != 0 ||
+                    (event.flags and MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED) != 0) {
+                    return true
+                }
+
+                // 1. Block Non-Fingers
+                if (event.getToolType(0) != MotionEvent.TOOL_TYPE_FINGER) return true
+                
+                // 2. Block Virtual/Null Devices
+                if (event.device == null || event.deviceId <= 0) return true
+                
+                // 3. Block Mouse Sources
+                if (event.isFromSource(InputDevice.SOURCE_MOUSE)) return true
+
+                val devId = event.deviceId
+                val action = event.actionMasked
+
+                when (action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        // Lock onto the first physical finger. 
+                        if (activeFingerDeviceId != -1 && activeFingerDeviceId != devId) {
+                            return true
+                        }
+                        activeFingerDeviceId = devId
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        // GHOST BLOCK: If no physical finger is locked, IGNORE ALL MOVES.
+                        if (activeFingerDeviceId == -1) return true
+                        
+                        // Strict Lock: Only allow the specific locked physical device.
+                        if (devId != activeFingerDeviceId) return true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (devId == activeFingerDeviceId) {
+                            activeFingerDeviceId = -1
+                        }
+                    }
+                }
+                
+                return super.dispatchTouchEvent(event)
+            }
+        }
+
+        // [IMPORTANT] Enable security filter on the view itself as a backup
+        keyboardContainer?.filterTouchesWhenObscured = true
+
         val containerBg = GradientDrawable()
         val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
         containerBg.setColor(fillColor)
@@ -847,64 +917,48 @@ class KeyboardOverlay(
         containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
         keyboardContainer?.background = containerBg
         
-        // [NEW] Handle D-pad keys for resizing when window is focused
         keyboardContainer?.isFocusable = true
         keyboardContainer?.isFocusableInTouchMode = true
         keyboardContainer?.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN) {
-                // Check if we are in "Resize Mode" or just allow D-pad to always resize if intended
-                // Using the handleResizeDpad function we added earlier
                 if (handleResizeDpad(keyCode)) {
                     return@setOnKeyListener true
                 }
             }
             false
         }
+
         // 1. The Keyboard Keys
-        // --- FIX Connect Shell for Spacebar Trackpad ---
-        // Pass the shell command capability to the view so it can inject mouse events
-
-
-        // Initialize Handler using 'targetDisplayId' (the class property), NOT 'inputTargetDisplayId'
-
         keyboardView = KeyboardView(context)
 
-        // Bind KeyboardView events to our OverlayService callbacks
+        // SHIELD 3: Backup Generic Motion Listener
+        keyboardView?.setOnGenericMotionListener { _, event ->
+            if (event.isFromSource(InputDevice.SOURCE_MOUSE) || 
+                event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
+                return@setOnGenericMotionListener true
+            }
+            false
+        }
+
+        // Bind KeyboardView events
         keyboardView?.cursorMoveAction = { dx, dy, isDragging ->
-            onCursorMove?.invoke(dx, dy, isDragging)
+            // Use Mouse Injection (isDragging=false) to help differentiation
+            onCursorMove?.invoke(dx, dy, false)
         }
 
         keyboardView?.cursorClickAction = { isRight ->
             onCursorClick?.invoke(isRight)
         }
 
-        // Touch Primitives
         keyboardView?.touchDownAction = { onTouchDown?.invoke() }
         keyboardView?.touchUpAction = { onTouchUp?.invoke() }
         keyboardView?.touchTapAction = { onTouchTap?.invoke() }
 
-        // =================================================================================
-        // VIRTUAL MIRROR MODE - WIRE CALLBACK DIRECTLY TO KEYBOARDVIEW
-        // SUMMARY: The only way to intercept touches before KeyboardView processes them
-        //          is to have KeyboardView call us directly. Container listeners don't
-        //          work because child views receive touches first.
-        // =================================================================================
         keyboardView?.mirrorTouchCallback = { x, y, action ->
             val cb = onMirrorTouch
-            if (cb != null) {
-                cb.invoke(x, y, action)
-            } else {
-                false
-            }
+            if (cb != null) cb.invoke(x, y, action) else false
         }
-        // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE - WIRE CALLBACK
-        // =================================================================================
 
-
-        
-
-        // ------------------------------------------------
         keyboardView?.setKeyboardListener(this)
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
@@ -915,34 +969,22 @@ class KeyboardOverlay(
         kbParams.setMargins(6, 28, 6, 6)
         keyboardContainer?.addView(keyboardView, kbParams)
 
-        
-
-        // 2. The Swipe Trail Overlay (Must match keyboard params to align coordinates)
+        // 2. The Swipe Trail Overlay
         val trailView = SwipeTrailView(context)
         val trailParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        trailParams.setMargins(6, 28, 6, 6) // Exact same margins as keyboard
+        trailParams.setMargins(6, 28, 6, 6)
         keyboardContainer?.addView(trailView, trailParams)
-
-        // Link them
         keyboardView?.attachTrailView(trailView)
 
-        // =================================================================================
-        // ORIENTATION TRAIL VIEW (for virtual mirror mode)
-        // SUMMARY: A separate trail view for orange orientation trails. Layered on top
-        //          of the normal blue swipe trail so both can be visible simultaneously
-        //          if needed. Normally invisible; only shows during orientation mode.
-        // =================================================================================
+        // ORIENTATION TRAIL VIEW
         orientationTrailView = SwipeTrailView(context)
-        orientationTrailView?.setTrailColor(0xFFFF9900.toInt()) // Orange color
+        orientationTrailView?.setTrailColor(0xFFFF9900.toInt())
         val orientTrailParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         )
         orientTrailParams.setMargins(6, 28, 6, 6)
         keyboardContainer?.addView(orientationTrailView, orientTrailParams)
-        // =================================================================================
-        // END BLOCK: ORIENTATION TRAIL VIEW
-        // =================================================================================
 
         addDragHandle(); addResizeHandle(); addCloseButton(); addTargetLabel()
 
@@ -965,6 +1007,10 @@ class KeyboardOverlay(
         windowManager.addView(keyboardContainer, keyboardParams)
         updateAlpha(currentAlpha)
     }
+
+
+
+
 
     private fun addDragHandle() {
         val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 28); handleParams.gravity = Gravity.TOP

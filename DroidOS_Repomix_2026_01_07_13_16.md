@@ -4766,144 +4766,6 @@ class ProfilesActivity : Activity() {
 }
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/SettingsActivity.kt
-```kotlin
-package com.example.coverscreentester
-
-import android.app.Activity
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.widget.Button
-import android.widget.SeekBar
-import android.widget.Switch
-import android.widget.TextView
-import androidx.core.content.ContextCompat
-
-class SettingsActivity : Activity() {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_settings)
-
-        val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-
-        // Views
-        val seekBarCursor = findViewById<SeekBar>(R.id.seekBarCursorSpeed)
-        val tvCursor = findViewById<TextView>(R.id.tvCursorSpeed)
-        val seekBarScroll = findViewById<SeekBar>(R.id.seekBarScrollSpeed)
-        val tvScroll = findViewById<TextView>(R.id.tvScrollSpeed)
-        
-        val swTapScroll = findViewById<Switch>(R.id.switchTapScroll)
-        val swVibrate = findViewById<Switch>(R.id.switchVibrate)
-        val swReverse = findViewById<Switch>(R.id.switchReverseScroll)
-        val swVPos = findViewById<Switch>(R.id.switchVPosLeft)
-        val swHPos = findViewById<Switch>(R.id.switchHPosTop)
-        
-        val seekCursorSize = findViewById<SeekBar>(R.id.seekBarCursorSize)
-        val seekAlpha = findViewById<SeekBar>(R.id.seekBarAlpha)
-        val seekHandleSize = findViewById<SeekBar>(R.id.seekBarHandleSize)
-        val seekScrollVisual = findViewById<SeekBar>(R.id.seekBarScrollVisual)
-        
-        val seekHandleTouch = findViewById<SeekBar>(R.id.seekBarHandleTouch)
-        val seekScrollTouch = findViewById<SeekBar>(R.id.seekBarScrollTouch)
-        val seekKeyScale = findViewById<SeekBar>(R.id.seekBarKeyScale)
-        
-        val btnSave = findViewById<Button>(R.id.btnSave)
-        val btnBack = findViewById<Button>(R.id.btnBack)
-
-        // Load Values
-        val cSpeed = prefs.getFloat("cursor_speed", 2.5f)
-        seekBarCursor.progress = (cSpeed * 10).toInt()
-        tvCursor.text = "Cursor Speed: "
-
-        val sSpeed = prefs.getFloat("scroll_speed", 0.6f) // CHANGED: Default 0.6f
-        seekBarScroll.progress = (sSpeed * 10).toInt()
-        tvScroll.text = "Scroll Distance: "
-
-        swTapScroll.isChecked = prefs.getBoolean("tap_scroll", true)
-        swVibrate.isChecked = prefs.getBoolean("vibrate", true)
-        swReverse.isChecked = prefs.getBoolean("reverse_scroll", false) // CHANGED: Default false
-        swVPos.isChecked = prefs.getBoolean("v_pos_left", false)
-        swHPos.isChecked = prefs.getBoolean("h_pos_top", false)
-        
-        seekCursorSize.progress = prefs.getInt("cursor_size", 50)
-        seekAlpha.progress = prefs.getInt("alpha", 50) // CHANGED: Default 50
-        seekHandleSize.progress = prefs.getInt("handle_size", 14) // CHANGED: Default 14
-        seekScrollVisual.progress = prefs.getInt("scroll_visual_size", 4)
-        seekHandleTouch.progress = prefs.getInt("handle_touch_size", 60)
-        seekScrollTouch.progress = prefs.getInt("scroll_touch_size", 60)
-        seekKeyScale.progress = prefs.getInt("keyboard_key_scale", 135) // CHANGED: Default 135
-
-        // Listeners
-        seekBarCursor.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-                tvCursor.text = "Cursor Speed: "
-            }
-            override fun onStartTrackingTouch(s: SeekBar) {}
-            override fun onStopTrackingTouch(s: SeekBar) {}
-        })
-
-        seekBarScroll.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-                tvScroll.text = "Scroll Distance: "
-            }
-            override fun onStartTrackingTouch(s: SeekBar) {}
-            override fun onStopTrackingTouch(s: SeekBar) {}
-        })
-        
-        seekCursorSize.setOnSeekBarChangeListener(createPreviewListener("cursor_size"))
-        seekAlpha.setOnSeekBarChangeListener(createPreviewListener("alpha"))
-        seekHandleSize.setOnSeekBarChangeListener(createPreviewListener("handle_size"))
-        seekScrollVisual.setOnSeekBarChangeListener(createPreviewListener("scroll_visual"))
-        seekHandleTouch.setOnSeekBarChangeListener(createPreviewListener("handle_touch"))
-        seekScrollTouch.setOnSeekBarChangeListener(createPreviewListener("scroll_touch"))
-        seekKeyScale.setOnSeekBarChangeListener(createPreviewListener("keyboard_scale"))
-
-        btnSave.setOnClickListener {
-            val cVal = if (seekBarCursor.progress < 1) 0.1f else seekBarCursor.progress / 10f
-            val sVal = if (seekBarScroll.progress < 1) 0.1f else seekBarScroll.progress / 10f
-            
-            prefs.edit()
-                .putFloat("cursor_speed", cVal)
-                .putFloat("scroll_speed", sVal)
-                .putBoolean("tap_scroll", swTapScroll.isChecked)
-                .putBoolean("vibrate", swVibrate.isChecked)
-                .putBoolean("reverse_scroll", swReverse.isChecked)
-                .putBoolean("v_pos_left", swVPos.isChecked)
-                .putBoolean("h_pos_top", swHPos.isChecked)
-                .putInt("cursor_size", seekCursorSize.progress)
-                .putInt("alpha", seekAlpha.progress)
-                .putInt("handle_size", seekHandleSize.progress)
-                .putInt("scroll_visual_size", seekScrollVisual.progress)
-                .putInt("handle_touch_size", seekHandleTouch.progress)
-                .putInt("scroll_touch_size", seekScrollTouch.progress)
-                .putInt("keyboard_key_scale", seekKeyScale.progress)
-                .apply()
-
-            val intent = Intent(this, OverlayService::class.java)
-            intent.action = "RELOAD_PREFS"
-            startService(intent)
-            finish()
-        }
-        
-        btnBack.setOnClickListener { finish() }
-    }
-    
-    private fun createPreviewListener(target: String) = object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(s: SeekBar, v: Int, f: Boolean) {
-            val intent = Intent(this@SettingsActivity, OverlayService::class.java)
-            intent.action = "PREVIEW_UPDATE"
-            intent.putExtra("TARGET", target)
-            intent.putExtra("VALUE", v)
-            startService(intent)
-        }
-        override fun onStartTrackingTouch(s: SeekBar) {}
-        override fun onStopTrackingTouch(s: SeekBar) {}
-    }
-}
-```
-
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShellUserService.kt
 ```kotlin
 package com.example.coverscreentester
@@ -5324,6 +5186,57 @@ public class ShizukuBinder {
                 .daemon(false);
         
         Shizuku.unbindUserService(args, connection, true); 
+    }
+}
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShizukuInputHandler.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
+
+class ShizukuInputHandler(
+    private val shellService: IShellService?,
+    private var displayId: Int
+) {
+    fun updateDisplay(newDisplayId: Int) {
+        this.displayId = newDisplayId
+    }
+
+    fun moveMouseRelative(dx: Float, dy: Float) {
+        if (shellService == null) return
+        
+        // Convert to Int for shell command
+        val dxInt = dx.toInt()
+        val dyInt = dy.toInt()
+        
+        if (dxInt == 0 && dyInt == 0) return
+
+        Thread {
+            try {
+                // Use input command for relative movement
+                shellService.runCommand("input -d $displayId mouse relative $dxInt $dyInt")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }.start()
+    }
+
+    fun injectKey(keyCode: Int, metaState: Int) {
+        if (shellService == null) return
+        Thread {
+            try {
+                // Inject Down and Up events
+                shellService.injectKey(keyCode, android.view.KeyEvent.ACTION_DOWN, metaState, displayId, -1)
+                Thread.sleep(10)
+                shellService.injectKey(keyCode, android.view.KeyEvent.ACTION_UP, metaState, displayId, -1)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }.start()
     }
 }
 ```
@@ -6604,250 +6517,6 @@ class TrackpadService : Service() {
             android:text="Back"
             android:backgroundTint="#444444"
             android:layout_marginBottom="40dp"/>
-
-    </LinearLayout>
-</ScrollView>
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_settings.xml
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#121212"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Configuration"
-            android:textColor="#FFFFFF"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="20dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--- Input Speed ---"
-            android:textColor="#AAAAAA"
-            android:layout_gravity="center"
-            android:layout_marginBottom="10dp"/>
-
-        <TextView
-            android:id="@+id/tvCursorSpeed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cursor Speed: 2.5"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarCursorSpeed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100"
-            android:progress="25"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvScrollSpeed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Scroll Distance (Swipe Length)"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarScrollSpeed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100"
-            android:progress="30"
-            android:layout_marginBottom="24dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--- Behavior ---"
-            android:textColor="#AAAAAA"
-            android:layout_gravity="center"
-            android:layout_marginBottom="10dp"/>
-
-        <Switch
-            android:id="@+id/switchTapScroll"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Tap-to-Scroll Buttons"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"
-            android:checked="true"/>
-
-        <Switch
-            android:id="@+id/switchVibrate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Haptic Feedback"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"/>
-
-        <Switch
-            android:id="@+id/switchReverseScroll"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Reverse Buttons (Natural)"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"/>
-
-        <Switch
-            android:id="@+id/switchVPosLeft"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Vertical Scroll on Left"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"/>
-
-        <Switch
-            android:id="@+id/switchHPosTop"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Horizontal Scroll on Top"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:minHeight="48dp"
-            android:layout_marginBottom="24dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--- Visuals ---"
-            android:textColor="#AAAAAA"
-            android:layout_gravity="center"
-            android:layout_marginBottom="10dp"/>
-            
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Keyboard Key Size (%)"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarKeyScale"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="200"
-            android:progress="100"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cursor Size"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarCursorSize"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="150"
-            android:progress="50"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Border Visibility (Alpha)"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarAlpha"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="255"
-            android:progress="200"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Handle Icon Size"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarHandleSize"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100"
-            android:progress="60"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Scroll Bar Thickness (Visual)"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarScrollVisual"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="20"
-            android:progress="4"
-            android:layout_marginBottom="24dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--- Touch Areas ---"
-            android:textColor="#AAAAAA"
-            android:layout_gravity="center"
-            android:layout_marginBottom="10dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Corner Handle Touch Area"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarHandleTouch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="150"
-            android:progress="60"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Scroll Bar Touch Width"
-            android:textColor="#FFFFFF"/>
-        <SeekBar
-            android:id="@+id/seekBarScrollTouch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="150"
-            android:progress="60"
-            android:layout_marginBottom="24dp"/>
-
-        <Button
-            android:id="@+id/btnSave"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Save &amp; Apply"
-            android:backgroundTint="#3DDC84"
-            android:textColor="#000000"
-            android:textStyle="bold"
-            android:layout_marginBottom="12dp"/>
-
-        <Button
-            android:id="@+id/btnBack"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Back to Main Menu"
-            android:backgroundTint="#444444"
-            android:textColor="#FFFFFF"/>
 
     </LinearLayout>
 </ScrollView>
@@ -8831,57 +8500,6 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
 // =================================================================================
 // END FILE: MainActivity.kt
 // =================================================================================
-```
-
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/ShizukuInputHandler.kt
-```kotlin
-package com.example.coverscreentester
-
-import android.os.SystemClock
-import android.view.InputDevice
-import android.view.MotionEvent
-
-class ShizukuInputHandler(
-    private val shellService: IShellService?,
-    private var displayId: Int
-) {
-    fun updateDisplay(newDisplayId: Int) {
-        this.displayId = newDisplayId
-    }
-
-    fun moveMouseRelative(dx: Float, dy: Float) {
-        if (shellService == null) return
-        
-        // Convert to Int for shell command
-        val dxInt = dx.toInt()
-        val dyInt = dy.toInt()
-        
-        if (dxInt == 0 && dyInt == 0) return
-
-        Thread {
-            try {
-                // Use input command for relative movement
-                shellService.runCommand("input -d $displayId mouse relative $dxInt $dyInt")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }.start()
-    }
-
-    fun injectKey(keyCode: Int, metaState: Int) {
-        if (shellService == null) return
-        Thread {
-            try {
-                // Inject Down and Up events
-                shellService.injectKey(keyCode, android.view.KeyEvent.ACTION_DOWN, metaState, displayId, -1)
-                Thread.sleep(10)
-                shellService.injectKey(keyCode, android.view.KeyEvent.ACTION_UP, metaState, displayId, -1)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }.start()
-    }
-}
 ```
 
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/SwipeTrailView.kt
@@ -11524,6 +11142,317 @@ class KeyboardManager(
 }
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/SettingsActivity.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Button
+import android.widget.SeekBar
+import android.widget.Switch
+
+class SettingsActivity : Activity() {
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_settings)
+
+        val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+
+        // 1. Define UI Elements
+        val swTapScroll = findViewById<Switch>(R.id.swTapScroll)
+        val swVibrate = findViewById<Switch>(R.id.swVibrate)
+        val swReverseScroll = findViewById<Switch>(R.id.swReverseScroll) // Matches XML
+        val swVPos = findViewById<Switch>(R.id.swVPos)
+        val swHPos = findViewById<Switch>(R.id.swHPos)
+        
+        // ... rest of the file ...
+
+        
+        val seekBarCursor = findViewById<SeekBar>(R.id.seekBarCursorSpeed)
+        val seekBarScroll = findViewById<SeekBar>(R.id.seekBarScrollSpeed)
+        val seekCursorSize = findViewById<SeekBar>(R.id.seekBarCursorSize)
+        val seekAlpha = findViewById<SeekBar>(R.id.seekBarAlpha)
+        val seekHandleSize = findViewById<SeekBar>(R.id.seekBarHandleSize)
+        val seekScrollVisual = findViewById<SeekBar>(R.id.seekBarScrollVisual)
+        
+        val seekHandleTouch = findViewById<SeekBar>(R.id.seekBarHandleTouch)
+        val seekScrollTouch = findViewById<SeekBar>(R.id.seekBarScrollTouch)
+        
+        val btnSave = findViewById<Button>(R.id.btnSave)
+        val btnBack = findViewById<Button>(R.id.btnBack)
+
+        // =================================================================================
+        // 2. LOAD SAVED VALUES
+        // =================================================================================
+        swTapScroll.isChecked = prefs.getBoolean("tap_scroll", true)
+        swVibrate.isChecked = prefs.getBoolean("vibrate", true)
+        swReverseScroll.isChecked = prefs.getBoolean("reverse_scroll", false)
+        swVPos.isChecked = prefs.getBoolean("v_pos_left", false)
+        swHPos.isChecked = prefs.getBoolean("h_pos_top", false)
+        
+        seekBarCursor.progress = ((prefs.getFloat("cursor_speed", 2.5f)) * 10).toInt()
+        seekBarScroll.progress = ((prefs.getFloat("scroll_speed", 1.0f)) * 10).toInt()
+        
+        seekCursorSize.progress = prefs.getInt("cursor_size", 50)
+        seekAlpha.progress = prefs.getInt("alpha", 50)
+        seekHandleSize.progress = prefs.getInt("handle_size", 14)
+        seekScrollVisual.progress = prefs.getInt("scroll_visual_size", 4)
+        
+        seekHandleTouch.progress = prefs.getInt("handle_touch_size", 60)
+        seekScrollTouch.progress = prefs.getInt("scroll_touch_size", 60)
+
+        // =================================================================================
+        // 3. LISTENERS
+        // =================================================================================
+        fun createPreviewListener(target: String): SeekBar.OnSeekBarChangeListener {
+            return object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val intent = Intent(this@SettingsActivity, OverlayService::class.java)
+                    intent.action = "PREVIEW_UPDATE"
+                    intent.putExtra("TARGET", target)
+                    intent.putExtra("VALUE", progress)
+                    startService(intent)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            }
+        }
+
+        seekCursorSize.setOnSeekBarChangeListener(createPreviewListener("cursor_size"))
+        seekAlpha.setOnSeekBarChangeListener(createPreviewListener("alpha"))
+        seekHandleSize.setOnSeekBarChangeListener(createPreviewListener("handle_size"))
+        seekScrollVisual.setOnSeekBarChangeListener(createPreviewListener("scroll_visual"))
+        seekHandleTouch.setOnSeekBarChangeListener(createPreviewListener("handle_touch"))
+        seekScrollTouch.setOnSeekBarChangeListener(createPreviewListener("scroll_touch"))
+
+        // =================================================================================
+        // 4. SAVE BUTTON LOGIC
+        // =================================================================================
+        btnSave.setOnClickListener {
+            val cVal = if (seekBarCursor.progress < 1) 0.1f else seekBarCursor.progress / 10f
+            val sVal = if (seekBarScroll.progress < 1) 0.1f else seekBarScroll.progress / 10f
+            
+            prefs.edit()
+                .putFloat("cursor_speed", cVal)
+                .putFloat("scroll_speed", sVal)
+                .putBoolean("tap_scroll", swTapScroll.isChecked)
+                .putBoolean("vibrate", swVibrate.isChecked)
+                .putBoolean("reverse_scroll", swReverseScroll.isChecked)
+                .putBoolean("v_pos_left", swVPos.isChecked)
+                .putBoolean("h_pos_top", swHPos.isChecked)
+                .putInt("cursor_size", seekCursorSize.progress)
+                .putInt("alpha", seekAlpha.progress)
+                .putInt("handle_size", seekHandleSize.progress)
+                .putInt("scroll_visual_size", seekScrollVisual.progress)
+                .putInt("handle_touch_size", seekHandleTouch.progress)
+                .putInt("scroll_touch_size", seekScrollTouch.progress)
+                .apply()
+
+            val intent = Intent(this, OverlayService::class.java)
+            intent.action = "RELOAD_PREFS"
+            startService(intent)
+            finish()
+        }
+
+        btnBack.setOnClickListener { finish() }
+    }
+}
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/res/layout/activity_settings.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Trackpad Settings"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp"/>
+
+        <Switch
+            android:id="@+id/swTapScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tap to Scroll"
+            android:textColor="#FFFFFF"
+            android:minHeight="48dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/swVibrate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Haptic Feedback"
+            android:textColor="#FFFFFF"
+            android:minHeight="48dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/swReverseScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Reverse Scrolling"
+            android:textColor="#FFFFFF"
+            android:minHeight="48dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/swVPos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Vertical Position (Left/Top)"
+            android:textColor="#FFFFFF"
+            android:minHeight="48dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/swHPos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Horizontal Position (Top/Left)"
+            android:textColor="#FFFFFF"
+            android:minHeight="48dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cursor Speed"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarCursorSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="25"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scroll Speed"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarScrollSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="10"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cursor Size"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarCursorSize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="50"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Transparency"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarAlpha"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="255"
+            android:progress="50"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Handle Size"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarHandleSize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="50"
+            android:progress="14"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scroll Visual Size"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarScrollVisual"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="20"
+            android:progress="4"
+            android:layout_marginBottom="16dp"/>
+            
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Handle Touch Area"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarHandleTouch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="150"
+            android:progress="60"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scroll Touch Area"
+            android:textColor="#FFFFFF"/>
+        <SeekBar
+            android:id="@+id/seekBarScrollTouch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="150"
+            android:progress="60"
+            android:layout_marginBottom="24dp"/>
+
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Save &amp; Reload"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnBack"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Back"/>
+
+    </LinearLayout>
+</ScrollView>
+```
+
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/FloatingLauncherService.kt
 ```kotlin
 package com.example.quadrantlauncher
@@ -13483,820 +13412,6 @@ class FloatingLauncherService : AccessibilityService() {
 }
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuManager.kt
-```kotlin
-package com.example.coverscreentester
-
-import android.content.Context
-import android.graphics.PixelFormat
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.view.View
-import android.view.WindowManager
-import android.widget.ImageView
-import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import android.graphics.Color
-import android.view.ViewGroup
-import android.view.MotionEvent
-import java.util.ArrayList
-
-class TrackpadMenuManager(
-    private val context: Context,
-    private val windowManager: WindowManager,
-    private val service: OverlayService
-) {
-    private var drawerView: View? = null
-    private var recyclerView: RecyclerView? = null
-    private var drawerParams: WindowManager.LayoutParams? = null
-    private var isVisible = false
-    
-    // Manual Adjust State
-    private var isResizeMode = false // Default to Move Mode
-
-    // Tab Constants - Order must match layout_trackpad_drawer.xml tab order
-    private val TAB_MAIN = 0
-    private val TAB_PRESETS = 1
-    private val TAB_MOVE = 2
-    private val TAB_KB_MOVE = 3
-    private val TAB_MIRROR = 4      // NEW: Mirror keyboard config
-    private val TAB_CONFIG = 5
-    private val TAB_TUNE = 6
-    private val TAB_HARDKEYS = 7
-    private val TAB_BUBBLE = 8
-    private val TAB_PROFILES = 9
-    private val TAB_HELP = 10
-    
-    private var currentTab = TAB_MAIN
-
-    fun show() {
-        if (isVisible) return
-        if (drawerView == null) setupDrawer()
-        try {
-            windowManager.addView(drawerView, drawerParams)
-            isVisible = true
-            loadTab(currentTab)
-            
-            // CRITICAL FIX: Force Cursor and Bubble to top of stack
-            // Since Menu was just added, it is currently on top. 
-            // We must re-add the others to cover it.
-            service.enforceZOrder()
-            
-        } catch (e: SecurityException) {
-            android.widget.Toast.makeText(context, "Missing Overlay Permission! Open App to Fix.", android.widget.Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-        } catch (e: Exception) { 
-            e.printStackTrace() 
-        }
-    }
-
-    fun hide() {
-        if (!isVisible) return
-        try {
-            windowManager.removeView(drawerView)
-            isVisible = false
-        } catch (e: Exception) { }
-    }
-
-    fun toggle() {
-        if (isVisible) hide() else show()
-    }
-
-    fun bringToFront() {
-        if (!isVisible || drawerView == null) return
-        try {
-            // Detach and Re-attach to move to top of Z-Order stack
-            windowManager.removeView(drawerView)
-            windowManager.addView(drawerView, drawerParams)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun setupDrawer() {
-        // Use ContextWrapper to ensure correct theme (Matches Launcher)
-        val themedContext = android.view.ContextThemeWrapper(context, R.style.Theme_CoverScreenTester)
-        val inflater = LayoutInflater.from(themedContext)
-        drawerView = inflater.inflate(R.layout.layout_trackpad_drawer, null)
-
-        // Close button logic
-        drawerView?.findViewById<View>(R.id.btn_close_menu)?.setOnClickListener { hide() }
-        
-        recyclerView = drawerView?.findViewById(R.id.menu_recycler)
-        recyclerView?.layoutManager = LinearLayoutManager(context)
-
-        // Tab click listeners
-        val tabs = listOf(
-            R.id.tab_main to TAB_MAIN,
-            R.id.tab_presets to TAB_PRESETS,
-            R.id.tab_move to TAB_MOVE,
-            R.id.tab_kb_move to TAB_KB_MOVE,
-            R.id.tab_mirror to TAB_MIRROR,      // NEW
-            R.id.tab_config to TAB_CONFIG,
-            R.id.tab_tune to TAB_TUNE,
-            R.id.tab_hardkeys to TAB_HARDKEYS,
-            R.id.tab_bubble to TAB_BUBBLE,
-            R.id.tab_profiles to TAB_PROFILES,
-            R.id.tab_help to TAB_HELP
-        )
-
-        for ((id, index) in tabs) {
-            drawerView?.findViewById<ImageView>(id)?.setOnClickListener { 
-                loadTab(index) 
-            }
-        }
-
-        // =========================
-        // WINDOW CONFIG (MATCHING DROIDOS LAUNCHER)
-        // =========================
-        drawerParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT, 
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, 
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, 
-            PixelFormat.TRANSLUCENT
-        )
-        // Explicitly set Gravity to TOP|START for absolute positioning
-        drawerParams?.gravity = Gravity.TOP or Gravity.START
-        
-        // Initial Center Calculation
-        val metrics = context.resources.displayMetrics
-        val screenWidth = metrics.widthPixels
-        val screenHeight = metrics.heightPixels
-        
-        // Approx Menu Size (320dp width + margins, ~400dp height)
-        val density = metrics.density
-        val menuW = (360 * density).toInt() 
-        val menuH = (400 * density).toInt()
-        
-        drawerParams?.x = (screenWidth - menuW) / 2
-        drawerParams?.y = (screenHeight - menuH) / 2
-        
-        // =========================
-        // INTERACTION LOGIC
-        // =========================
-        // 1. Background Click -> Removed (Handled by FLAG_NOT_TOUCH_MODAL)
-        
-        // 2. Menu Card Click -> Block (Consume)
-        drawerView?.findViewById<View>(R.id.menu_container)?.setOnClickListener { 
-            // Do nothing
-        }
-        
-        // 3. DRAG HANDLE LOGIC
-        val dragHandle = drawerView?.findViewById<View>(R.id.menu_drag_handle)
-        var initialX = 0
-        var initialY = 0
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-
-        dragHandle?.setOnTouchListener { v, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = drawerParams!!.x
-                    initialY = drawerParams!!.y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    drawerParams!!.x = initialX + (event.rawX - initialTouchX).toInt()
-                    drawerParams!!.y = initialY + (event.rawY - initialTouchY).toInt()
-                    
-                    try {
-                        windowManager.updateViewLayout(drawerView, drawerParams)
-                    } catch (e: Exception) {}
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    private fun loadTab(index: Int) {
-        currentTab = index
-        updateTabIcons(index)
-        
-        val items = when(index) {
-            TAB_MAIN -> getMainItems()
-            TAB_PRESETS -> getPresetItems()
-            TAB_MOVE -> getMoveItems(false)
-            TAB_KB_MOVE -> getMoveItems(true)
-            TAB_MIRROR -> getMirrorItems()      // NEW
-            TAB_CONFIG -> getConfigItems()
-            TAB_TUNE -> getTuneItems()
-            TAB_HARDKEYS -> getHardkeyItems()   // Hardkey bindings configuration
-            TAB_BUBBLE -> getBubbleItems()
-            TAB_PROFILES -> getProfileItems()
-            TAB_HELP -> getHelpItems()
-            else -> emptyList()
-        }
-        
-        recyclerView?.adapter = TrackpadMenuAdapter(items)
-    }
-
-    private fun updateTabIcons(activeIdx: Int) {
-        val tabIds = listOf(R.id.tab_main, R.id.tab_presets, R.id.tab_move, R.id.tab_kb_move, R.id.tab_mirror, R.id.tab_config, R.id.tab_tune, R.id.tab_hardkeys, R.id.tab_bubble, R.id.tab_profiles, R.id.tab_help)
-        for ((i, id) in tabIds.withIndex()) {
-            val view = drawerView?.findViewById<ImageView>(id)
-            if (i == activeIdx) view?.setColorFilter(Color.parseColor("#3DDC84")) 
-            else view?.setColorFilter(Color.GRAY)
-        }
-    }
-
-    // =========================
-    // GET MAIN ITEMS - Generates main menu items list
-    // =========================
-    private fun getMainItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("MAIN CONTROLS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // --- COMMENTED OUT PER REQUEST ---
-        /*
-        list.add(TrackpadMenuAdapter.MenuItem("Switch Screen (0 <-> 1)", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { 
-            service.switchDisplay() 
-            hide()
-        })
-        */
-        // ---------------------------------
-
-        list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_myplaces, TrackpadMenuAdapter.Type.ACTION) { 
-            service.resetBubblePosition()
-            hide()
-        })
-        
-        // --- COMMENTED OUT PER REQUEST ---
-        /*
-        list.add(TrackpadMenuAdapter.MenuItem("Move Trackpad Here", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { service.forceMoveToCurrentDisplay(); hide() })
-        */
-        
-        // Renamed: "Target: ..." -> "Toggle Remote Display"
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Remote Display", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) { service.cycleInputTarget(); loadTab(TAB_MAIN) })
-
-        // =================================================================================
-        // VIRTUAL MIRROR MODE TOGGLE
-        // SUMMARY: Enhanced toggle for AR glasses/remote displays.
-        //          When enabled:
-        //          - Auto-switches cursor to virtual display
-        //          - Shows keyboard and trackpad
-        //          - Loads mirror-mode specific profile
-        //          When disabled:
-        //          - Returns to local display
-        //          - Restores previous visibility state
-        //          - Saves/loads separate profile
-        // =================================================================================
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Virtual Mirror Mode",
-            if(p.prefVirtualMirrorMode) R.drawable.ic_lock_closed else R.drawable.ic_lock_open,
-            TrackpadMenuAdapter.Type.TOGGLE,
-            if(p.prefVirtualMirrorMode) 1 else 0
-        ) { _ ->
-            service.toggleVirtualMirrorMode()
-            hide()  // Close menu since display context may change
-        })
-        // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE TOGGLE
-        // =================================================================================
-
-        // --- ANCHOR TOGGLE: Locks trackpad and keyboard position/size ---
-        list.add(TrackpadMenuAdapter.MenuItem("Anchor (Lock Position)", 
-            if(p.prefAnchored) R.drawable.ic_lock_closed else R.drawable.ic_lock_open, 
-            TrackpadMenuAdapter.Type.TOGGLE, 
-            if(p.prefAnchored) 1 else 0) { v ->
-            service.updatePref("anchored", v)
-            loadTab(TAB_MAIN)  // Refresh to update icon
-        })
-        // --- END ANCHOR TOGGLE ---
-        
-        // Toggle Trackpad (Using correct icon
-        // Toggle Trackpad
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Trackpad", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) {
-            service.toggleTrackpad()
-            hide()
-        })
-
-
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
-            if (service.isCustomKeyboardVisible) service.performSmartHide()
-            else service.toggleCustomKeyboard()
-        })
-        list.add(TrackpadMenuAdapter.MenuItem("Reset Cursor", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { service.resetCursorCenter() })
-        
-        // Renamed: "Hide App" -> "Hide All"
-        list.add(TrackpadMenuAdapter.MenuItem("Hide All", android.R.drawable.ic_menu_close_clear_cancel, TrackpadMenuAdapter.Type.ACTION) { service.hideApp() })
-        
-        // Renamed: "Force Kill Service" -> "Close/Restart App"
-        list.add(TrackpadMenuAdapter.MenuItem("Close/Restart App", android.R.drawable.ic_delete, TrackpadMenuAdapter.Type.ACTION) { service.forceExit() })
-        return list
-    }
-    // =========================
-    // END GET MAIN ITEMS
-    // =========================
-
-
-    
-// =========================
-    // GET PRESET ITEMS - Layout presets for split screen modes
-    // Freeform (type 0) loads saved profile, NOT a split preset
-    // =========================
-    private fun getPresetItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        list.add(TrackpadMenuAdapter.MenuItem("SPLIT SCREEN PRESETS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // Freeform FIRST - this loads the saved profile (not a split preset)
-        list.add(TrackpadMenuAdapter.MenuItem("Freeform (Use Profile)", android.R.drawable.ic_menu_edit, TrackpadMenuAdapter.Type.ACTION) { 
-            service.applyLayoutPreset(0)
-            hide()
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("KB Top / TP Bottom", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
-            service.applyLayoutPreset(1)
-            hide()
-        })
-        list.add(TrackpadMenuAdapter.MenuItem("TP Top / KB Bottom", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { 
-            service.applyLayoutPreset(2)
-            hide()
-        })
-        return list
-    }
-    // =========================
-    // END GET PRESET ITEMS
-    // =========================
-    private fun getMoveItems(isKeyboard: Boolean): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val target = if (isKeyboard) "Keyboard" else "Trackpad"
-        
-        list.add(TrackpadMenuAdapter.MenuItem(if (isKeyboard) "KEYBOARD POSITION" else "TRACKPAD POSITION", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // 1. Mode Switcher (Toggle Item)
-        val modeText = if (isResizeMode) "Resize (Size)" else "Position (Move)"
-        val modeIcon = if (isResizeMode) android.R.drawable.ic_menu_crop else android.R.drawable.ic_menu_mylocation
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Mode: $modeText", modeIcon, TrackpadMenuAdapter.Type.ACTION) {
-            isResizeMode = !isResizeMode
-            loadTab(currentTab) // Refresh UI to update text
-        })
-        
-        // 2. The D-Pad
-        val actionText = if (isResizeMode) "Resize" else "Move"
-        list.add(TrackpadMenuAdapter.MenuItem("$target $actionText", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.DPAD) { cmd ->
-            val step = 20
-            val command = cmd as String
-            
-            // isResizeMode determines whether we move X/Y or change W/H
-            when(command) {
-                "UP" -> service.manualAdjust(isKeyboard, isResizeMode, 0, -step)
-                "DOWN" -> service.manualAdjust(isKeyboard, isResizeMode, 0, step)
-                "LEFT" -> service.manualAdjust(isKeyboard, isResizeMode, -step, 0)
-                "RIGHT" -> service.manualAdjust(isKeyboard, isResizeMode, step, 0)
-                "CENTER" -> {
-                    if (isKeyboard) service.resetKeyboardPosition() else service.resetTrackpadPosition()
-                }
-            }
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Rotate 90°", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) {
-            if (isKeyboard) service.rotateKeyboard() else service.performRotation()
-        })
-            
-        if (isKeyboard) {
-            val p = service.prefs
-            list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha) { v ->
-                service.updatePref("keyboard_alpha", v)
-            })
-        }
-            
-        return list
-    }
-
-    // =========================
-    // GET MIRROR ITEMS - Mirror keyboard configuration
-    // =========================
-    private var isMirrorResizeMode = false
-    
-    private fun getMirrorItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("MIRROR KEYBOARD", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // Virtual Mirror Mode Toggle
-        list.add(TrackpadMenuAdapter.MenuItem("Virtual Mirror Mode", android.R.drawable.ic_menu_view, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVirtualMirrorMode) 1 else 0) { v ->
-            service.updatePref("virtual_mirror_mode", v as Boolean)
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("POSITION & SIZE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        // Mode Switcher (Position vs Resize)
-        val modeText = if (isMirrorResizeMode) "Resize (Size)" else "Position (Move)"
-        val modeIcon = if (isMirrorResizeMode) android.R.drawable.ic_menu_crop else android.R.drawable.ic_menu_mylocation
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Mode: $modeText", modeIcon, TrackpadMenuAdapter.Type.ACTION) {
-            isMirrorResizeMode = !isMirrorResizeMode
-            loadTab(currentTab) // Refresh UI
-        })
-        
-        // D-Pad for position/size
-        val actionText = if (isMirrorResizeMode) "Resize" else "Move"
-        list.add(TrackpadMenuAdapter.MenuItem("Mirror $actionText", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.DPAD) { cmd ->
-            val step = 20
-            val command = cmd as String
-            
-            when(command) {
-                "UP" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, -step)
-                "DOWN" -> service.adjustMirrorKeyboard(isMirrorResizeMode, 0, step)
-                "LEFT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, -step, 0)
-                "RIGHT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, step, 0)
-                "CENTER" -> service.resetMirrorKeyboardPosition()
-            }
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        // Mirror Keyboard Opacity Slider
-        list.add(TrackpadMenuAdapter.MenuItem("Mirror Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefMirrorAlpha, 255) { v ->
-            service.updatePref("mirror_alpha", v)
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        // Orange Trail Delay Slider (100ms - 3000ms, show as 0.1s - 3.0s)
-        val currentDelayMs = p.prefMirrorOrientDelayMs
-        list.add(TrackpadMenuAdapter.MenuItem("Orient Delay: ${currentDelayMs}ms", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, (currentDelayMs / 100).toInt(), 30) { v ->
-            val newDelayMs = (v as Int) * 100L
-            service.updatePref("mirror_orient_delay", newDelayMs)
-            loadTab(currentTab) // Refresh to show new value
-        })
-        
-        return list
-    }
-    // =========================
-    // END GET MIRROR ITEMS
-    // =========================
-
-    // =========================
-    // GET CONFIG ITEMS - Trackpad configuration settings
-    // FIXED: Tap to Scroll Boolean Logic
-    // ========================= 
-    private fun getConfigItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("TRACKPAD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem("SENSITIVITY", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        list.add(TrackpadMenuAdapter.MenuItem("Cursor Speed", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.SLIDER, (p.cursorSpeed * 10).toInt()) { v -> service.updatePref("cursor_speed", (v as Int) / 10f) })
-        list.add(TrackpadMenuAdapter.MenuItem("Scroll Speed", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.SLIDER, (p.scrollSpeed * 10).toInt(), 50) { v -> service.updatePref("scroll_speed", (v as Int) / 10f) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        list.add(TrackpadMenuAdapter.MenuItem("Border Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefAlpha, 255) { v -> service.updatePref("alpha", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Background Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBgAlpha, 255) { v -> service.updatePref("bg_alpha", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Handle Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefHandleSize / 2) { v -> service.updatePref("handle_size", v) })        
-        list.add(TrackpadMenuAdapter.MenuItem("Scroll Bar Width", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefScrollTouchSize, 200) { v -> service.updatePref("scroll_size", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Cursor Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefCursorSize) { v -> service.updatePref("cursor_size", v) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("BEHAVIOR", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Reverse Scroll", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefReverseScroll) 1 else 0) { v -> service.updatePref("reverse_scroll", v) })
-        
-        // MODIFIED: Correct Boolean Check for Toast
-        list.add(TrackpadMenuAdapter.MenuItem("Tap to Scroll", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefTapScroll) 1 else 0) { v -> 
-            service.updatePref("tap_scroll", v)
-            // Fix: Cast strictly to Boolean or check against false directly
-            if (v == false) {
-                android.widget.Toast.makeText(context, "Beta mouse scrolling is activated - warning - scroll slowly for optimal results", android.widget.Toast.LENGTH_LONG).show()
-            }
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Haptic Feedback", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVibrate) 1 else 0) { v -> service.updatePref("vibrate", v) })
-        return list
-    }
-    // =========================
-    // END GET CONFIG ITEMS
-    // =========================
-
-    // =========================
-    // GET TUNE ITEMS - Keyboard configuration settings
-    // =========================
-    private fun getTuneItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("KEYBOARD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // NEW: Launch Proxy Activity for Picker
-        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Picker (Null KB to block default)", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
-            service.forceSystemKeyboardVisible()
-            hide() // Close menu
-            
-            try {
-                val intent = android.content.Intent(context, KeyboardPickerActivity::class.java)
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            } catch(e: Exception) {
-                android.widget.Toast.makeText(context, "Error launching picker", android.widget.Toast.LENGTH_SHORT).show()
-            }
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha, 255) { v -> service.updatePref("keyboard_alpha", v) })
-        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Scale", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyScale, 200) { v -> service.updatePref("keyboard_key_scale", v) })
-                list.add(TrackpadMenuAdapter.MenuItem("Auto Display Off", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefAutomationEnabled) 1 else 0) {
-                    v -> service.updatePref("automation_enabled", v as Boolean)
-                })
-
-        // MOVED & RENAMED: Cover Screen KB Blocker
-        list.add(TrackpadMenuAdapter.MenuItem("Cover Screen KB blocker (restart app after reverting)", android.R.drawable.ic_lock_lock, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefBlockSoftKeyboard) 1 else 0) {
-            v -> service.updatePref("block_soft_kb", v as Boolean)
-        })
-
-        return list
-    }
-    // =========================
-    // END GET TUNE ITEMS
-    // =========================
-
-    // =========================
-    // HARDKEY ACTIONS LIST
-    // =========================
-    private val hardkeyActions = listOf(
-        "none" to "None (System Default)",
-        "left_click" to "Left Click (Hold to Drag)",
-        "right_click" to "Right Click (Hold to Drag)",
-        "scroll_up" to "Scroll Up",
-        "scroll_down" to "Scroll Down",
-        "display_toggle_alt" to "Display (Alt Mode)",
-        "display_toggle_std" to "Display (Std Mode)",
-        "display_wake" to "Display Wake",
-        "alt_position" to "Alt KB Position",
-        "toggle_keyboard" to "Toggle Keyboard",
-        "toggle_trackpad" to "Toggle Trackpad",
-        "open_menu" to "Open Menu",
-        "reset_cursor" to "Reset Cursor",
-        "toggle_bubble" to "Launcher Bubble", // <--- NEW ITEM
-        "action_back" to "Back",
-        "action_home" to "Home",
-        "action_forward" to "Forward (Browser)",
-        "action_vol_up" to "Volume Up",
-        "action_vol_down" to "Volume Down"
-    )
-    
-    private fun getActionDisplayName(actionId: String): String {
-        return hardkeyActions.find { it.first == actionId }?.second ?: actionId
-    }
-    // =========================
-    // END HARDKEY ACTIONS LIST
-    // =========================
-
-    // =========================
-    // SHOW ACTION PICKER - In-Menu Replacement for Dialog
-    // Replaces the current menu list with selection options to avoid Service/Dialog crashes
-    // =========================
-    private fun showActionPicker(prefKey: String, currentValue: String) {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        
-        // 1. Header
-        list.add(TrackpadMenuAdapter.MenuItem("Select Action", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // 2. Cancel / Back Option
-        list.add(TrackpadMenuAdapter.MenuItem("<< Go Back", android.R.drawable.ic_menu_revert, TrackpadMenuAdapter.Type.ACTION) {
-            // Reload the previous tab to "go back"
-            loadTab(TAB_HARDKEYS)
-        })
-
-        // 3. Action Options
-        for ((id, name) in hardkeyActions) {
-            // Show a "Check" icon if this is the currently selected value
-            // Otherwise show 0 (no icon) or a generic dot
-            val iconRes = if (id == currentValue) android.R.drawable.checkbox_on_background else 0
-            
-            list.add(TrackpadMenuAdapter.MenuItem(name, iconRes, TrackpadMenuAdapter.Type.ACTION) {
-                // On Click: Update Pref and Go Back
-                service.updatePref(prefKey, id)
-                loadTab(TAB_HARDKEYS)
-            })
-        }
-        
-        // 4. Update the View
-        recyclerView?.adapter = TrackpadMenuAdapter(list)
-    }
-    // =========================
-    // END SHOW ACTION PICKER
-    // =========================
-
-    // =========================
-    // GET HARDKEY ITEMS - Hardkey bindings configuration menu
-    // Allows users to customize Vol Up/Down and Power button actions
-    // =========================
-    private fun getHardkeyItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        // NEW MAIN HEADER
-        list.add(TrackpadMenuAdapter.MenuItem("KEYBINDS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // Subheader
-        list.add(TrackpadMenuAdapter.MenuItem("VOLUME UP", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Tap: ${getActionDisplayName(p.hardkeyVolUpTap)}",
-            android.R.drawable.ic_media_play,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_up_tap", p.hardkeyVolUpTap) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Double-Tap: ${getActionDisplayName(p.hardkeyVolUpDouble)}",
-            android.R.drawable.ic_media_ff,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_up_double", p.hardkeyVolUpDouble) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Hold: ${getActionDisplayName(p.hardkeyVolUpHold)}",
-            android.R.drawable.ic_menu_crop,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_up_hold", p.hardkeyVolUpHold) })
-        
-        // Subheader
-        list.add(TrackpadMenuAdapter.MenuItem("VOLUME DOWN", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Tap: ${getActionDisplayName(p.hardkeyVolDownTap)}",
-            android.R.drawable.ic_media_play,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_down_tap", p.hardkeyVolDownTap) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Double-Tap: ${getActionDisplayName(p.hardkeyVolDownDouble)}",
-            android.R.drawable.ic_media_ff,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_down_double", p.hardkeyVolDownDouble) })
-        
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Hold: ${getActionDisplayName(p.hardkeyVolDownHold)}",
-            android.R.drawable.ic_menu_crop,
-            TrackpadMenuAdapter.Type.ACTION
-        ) { showActionPicker("hardkey_vol_down_hold", p.hardkeyVolDownHold) })
-        
-        // Subheader
-        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.SUBHEADER))
-        
-        // Max 500ms
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Double-Tap Speed (ms)",
-            android.R.drawable.ic_menu_recent_history,
-            TrackpadMenuAdapter.Type.SLIDER,
-            p.doubleTapMs,
-            500 
-        ) { v ->
-            service.updatePref("double_tap_ms", v)
-        })
-        
-        // Max 800ms
-        list.add(TrackpadMenuAdapter.MenuItem(
-            "Hold Duration (ms)",
-            android.R.drawable.ic_menu_recent_history,
-            TrackpadMenuAdapter.Type.SLIDER,
-            p.holdDurationMs,
-            800 
-        ) { v ->
-            service.updatePref("hold_duration_ms", v)
-        })
-        
-        return list
-    }
-    // =========================
-    // END GET HARDKEY ITEMS
-    // =========================
-
-
-    // =========================
-    // GET BUBBLE ITEMS - Bubble launcher customization
-    // Size slider, Icon cycle, Opacity slider
-    // =========================
-    private fun getBubbleItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val p = service.prefs
-        
-        list.add(TrackpadMenuAdapter.MenuItem("BUBBLE CUSTOMIZATION", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        // Size slider: 50-200 (50=half, 100=standard, 200=double)
-        list.add(TrackpadMenuAdapter.MenuItem("Bubble Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBubbleSize, 200) { v ->
-            service.updatePref("bubble_size", v)
-        })
-        
-        // Icon cycle action
-        val iconNames = arrayOf("Trackpad", "Cursor", "Main", "Keyboard", "Compass", "Location")
-        val currentIconName = iconNames.getOrElse(p.prefBubbleIconIndex) { "Default" }
-        list.add(TrackpadMenuAdapter.MenuItem("Icon: $currentIconName", android.R.drawable.ic_menu_gallery, TrackpadMenuAdapter.Type.ACTION) { 
-            service.updatePref("bubble_icon", true)
-            loadTab(TAB_BUBBLE) // Refresh to show new icon name
-        })
-        
-        // Opacity slider: 50-255
-        list.add(TrackpadMenuAdapter.MenuItem("Bubble Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBubbleAlpha, 255) { v ->
-            service.updatePref("bubble_alpha", v)
-        })
-        
-        // Reset button
-        list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_revert, TrackpadMenuAdapter.Type.ACTION) { 
-            service.resetBubblePosition()
-        })
-        
-        // --- PERSISTENCE TOGGLE ---
-        list.add(TrackpadMenuAdapter.MenuItem("SERVICE BEHAVIOR", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        val persistHelp = if (p.prefPersistentService) "Bubble stays when app closes" else "Bubble closes with app"
-        list.add(TrackpadMenuAdapter.MenuItem("Keep Alive (Background)", 
-            android.R.drawable.ic_menu_manage, 
-            TrackpadMenuAdapter.Type.TOGGLE, 
-            if(p.prefPersistentService) 1 else 0) { v ->
-            service.updatePref("persistent_service", v)
-            loadTab(TAB_BUBBLE) // Refresh description
-        })
-        list.add(TrackpadMenuAdapter.MenuItem(persistHelp, 0, TrackpadMenuAdapter.Type.INFO))
-        
-        return list
-    }
-    // =========================
-    // END GET BUBBLE ITEMS
-    // =========================
-
-    private fun getProfileItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        val currentRes = "${service.currentDisplayId}: ${service.getProfileKey().replace("P_", "").replace("_", " x ")}"
-        
-        list.add(TrackpadMenuAdapter.MenuItem("LAYOUT PROFILES", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Current: $currentRes", R.drawable.ic_tab_profiles, TrackpadMenuAdapter.Type.INFO))
-        
-        // CHANGED TITLE
-        list.add(TrackpadMenuAdapter.MenuItem("Save Layout and Presets", android.R.drawable.ic_menu_save, TrackpadMenuAdapter.Type.ACTION) { 
-            service.saveLayout()
-            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
-        })
-
-        // NEW: Reload Profile
-        list.add(TrackpadMenuAdapter.MenuItem("Reload Profile", android.R.drawable.ic_popup_sync, TrackpadMenuAdapter.Type.ACTION) { 
-            service.loadLayout() // Reloads based on current resolution/display
-            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
-        })
-        
-        list.add(TrackpadMenuAdapter.MenuItem("Delete Profile", android.R.drawable.ic_menu_delete, TrackpadMenuAdapter.Type.ACTION) { 
-            service.deleteCurrentProfile()
-            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
-        })
-        
-        // --- SAVED LAYOUTS LIST ---
-        list.add(TrackpadMenuAdapter.MenuItem("SAVED LAYOUTS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        val saved = service.getSavedProfileList()
-        if (saved.isEmpty()) {
-            list.add(TrackpadMenuAdapter.MenuItem("No saved layouts found.", 0, TrackpadMenuAdapter.Type.INFO))
-        } else {
-            for (res in saved) {
-                list.add(TrackpadMenuAdapter.MenuItem("• $res", 0, TrackpadMenuAdapter.Type.INFO))
-            }
-        }
-        
-        return list
-    }
-
-    private fun getHelpItems(): List<TrackpadMenuAdapter.MenuItem> {
-        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
-        
-        list.add(TrackpadMenuAdapter.MenuItem("INSTRUCTIONS", 0, TrackpadMenuAdapter.Type.HEADER))
-        
-        val text = 
-            "TRACKPAD CONTROLS\n" +
-            "• Tap: Left Click\n" +
-            "• 2-Finger Tap: Right Click\n" +
-            "• Hold + Slide: Drag & Drop\n" +
-            "• Edge (Top/Bottom): V-Scroll\n" +
-            "• Edge (Left/Right): H-Scroll\n\n" +
-            "KEYBOARD OVERLAY\n" +
-            "• Drag Top Bar: Move Window\n" +
-            "• Drag Bottom-Right: Resize\n" +
-            "• Hold Corner: Toggle Key/Mouse\n\n" +
-            "HARDWARE KEYS\n" +
-            "• Use the 'Hardkeys' tab to map\n" +
-            "  Volume Up/Down to clicks,\n" +
-            "  scrolling, or screen controls."
-            
-        list.add(TrackpadMenuAdapter.MenuItem(text, 0, TrackpadMenuAdapter.Type.INFO))
-        
-        list.add(TrackpadMenuAdapter.MenuItem("LAUNCHER & APP", 0, TrackpadMenuAdapter.Type.HEADER))
-        val text2 = 
-            "• Floating Bubble: Tap to open this menu. Drag to move.\n" +
-            "• Setup App: Open 'DroidOS Trackpad' from your Android App Drawer to adjust permissions or restart the service."
-        list.add(TrackpadMenuAdapter.MenuItem(text2, 0, TrackpadMenuAdapter.Type.INFO))
-        
-        return list
-    }
-}
-```
-
 ## File: Cover-Screen-Launcher/app/src/main/java/com/example/quadrantlauncher/ShellUserService.kt
 ```kotlin
 package com.example.quadrantlauncher
@@ -15083,6 +14198,831 @@ override fun getWindowLayouts(displayId: Int): List<String> {
     override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
     override fun isAutoBrightness(): Boolean = true
     override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
+}
+```
+
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/TrackpadMenuManager.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.content.Context
+import android.graphics.PixelFormat
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.WindowManager
+import android.widget.ImageView
+import android.widget.TextView
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import android.graphics.Color
+import android.view.ViewGroup
+import android.view.MotionEvent
+import java.util.ArrayList
+
+class TrackpadMenuManager(
+    private val context: Context,
+    private val windowManager: WindowManager,
+    private val service: OverlayService
+) {
+    private var drawerView: View? = null
+    private var recyclerView: RecyclerView? = null
+    private var drawerParams: WindowManager.LayoutParams? = null
+    private var isVisible = false
+    
+    // Manual Adjust State
+    private var isResizeMode = false // Default to Move Mode
+
+    // Tab Constants - Order must match layout_trackpad_drawer.xml tab order
+    private val TAB_MAIN = 0
+    private val TAB_PRESETS = 1
+    private val TAB_MOVE = 2
+    private val TAB_KB_MOVE = 3
+    private val TAB_MIRROR = 4      // NEW: Mirror keyboard config
+    private val TAB_CONFIG = 5
+    private val TAB_TUNE = 6
+    private val TAB_HARDKEYS = 7
+    private val TAB_BUBBLE = 8
+    private val TAB_PROFILES = 9
+    private val TAB_HELP = 10
+    
+    private var currentTab = TAB_MAIN
+
+    fun show() {
+        if (isVisible) return
+        if (drawerView == null) setupDrawer()
+        try {
+            windowManager.addView(drawerView, drawerParams)
+            isVisible = true
+            loadTab(currentTab)
+            
+            // CRITICAL FIX: Force Cursor and Bubble to top of stack
+            // Since Menu was just added, it is currently on top. 
+            // We must re-add the others to cover it.
+            service.enforceZOrder()
+            
+        } catch (e: SecurityException) {
+            android.widget.Toast.makeText(context, "Missing Overlay Permission! Open App to Fix.", android.widget.Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        } catch (e: Exception) { 
+            e.printStackTrace() 
+        }
+    }
+
+    fun hide() {
+        if (!isVisible) return
+        try {
+            windowManager.removeView(drawerView)
+            isVisible = false
+        } catch (e: Exception) { }
+    }
+
+    fun toggle() {
+        if (isVisible) hide() else show()
+    }
+
+    fun bringToFront() {
+        if (!isVisible || drawerView == null) return
+        try {
+            // Detach and Re-attach to move to top of Z-Order stack
+            windowManager.removeView(drawerView)
+            windowManager.addView(drawerView, drawerParams)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun setupDrawer() {
+        // Use ContextWrapper to ensure correct theme (Matches Launcher)
+        val themedContext = android.view.ContextThemeWrapper(context, R.style.Theme_CoverScreenTester)
+        val inflater = LayoutInflater.from(themedContext)
+        drawerView = inflater.inflate(R.layout.layout_trackpad_drawer, null)
+
+        // Close button logic
+        drawerView?.findViewById<View>(R.id.btn_close_menu)?.setOnClickListener { hide() }
+        
+        recyclerView = drawerView?.findViewById(R.id.menu_recycler)
+        recyclerView?.layoutManager = LinearLayoutManager(context)
+
+        // Tab click listeners
+        val tabs = listOf(
+            R.id.tab_main to TAB_MAIN,
+            R.id.tab_presets to TAB_PRESETS,
+            R.id.tab_move to TAB_MOVE,
+            R.id.tab_kb_move to TAB_KB_MOVE,
+            R.id.tab_mirror to TAB_MIRROR,      // NEW
+            R.id.tab_config to TAB_CONFIG,
+            R.id.tab_tune to TAB_TUNE,
+            R.id.tab_hardkeys to TAB_HARDKEYS,
+            R.id.tab_bubble to TAB_BUBBLE,
+            R.id.tab_profiles to TAB_PROFILES,
+            R.id.tab_help to TAB_HELP
+        )
+
+        for ((id, index) in tabs) {
+            drawerView?.findViewById<ImageView>(id)?.setOnClickListener { 
+                loadTab(index) 
+            }
+        }
+
+        // =========================
+        // WINDOW CONFIG (MATCHING DROIDOS LAUNCHER)
+        // =========================
+        drawerParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT, 
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, 
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, 
+            PixelFormat.TRANSLUCENT
+        )
+        // Explicitly set Gravity to TOP|START for absolute positioning
+        drawerParams?.gravity = Gravity.TOP or Gravity.START
+        
+        // Initial Center Calculation
+        val metrics = context.resources.displayMetrics
+        val screenWidth = metrics.widthPixels
+        val screenHeight = metrics.heightPixels
+        
+        // Approx Menu Size (320dp width + margins, ~400dp height)
+        val density = metrics.density
+        val menuW = (360 * density).toInt() 
+        val menuH = (400 * density).toInt()
+        
+        drawerParams?.x = (screenWidth - menuW) / 2
+        drawerParams?.y = (screenHeight - menuH) / 2
+        
+        // =========================
+        // INTERACTION LOGIC
+        // =========================
+        // 1. Background Click -> Removed (Handled by FLAG_NOT_TOUCH_MODAL)
+        
+        // 2. Menu Card Click -> Block (Consume)
+        drawerView?.findViewById<View>(R.id.menu_container)?.setOnClickListener { 
+            // Do nothing
+        }
+        
+        // 3. DRAG HANDLE LOGIC
+        val dragHandle = drawerView?.findViewById<View>(R.id.menu_drag_handle)
+        var initialX = 0
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+
+        dragHandle?.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = drawerParams!!.x
+                    initialY = drawerParams!!.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    drawerParams!!.x = initialX + (event.rawX - initialTouchX).toInt()
+                    drawerParams!!.y = initialY + (event.rawY - initialTouchY).toInt()
+                    
+                    try {
+                        windowManager.updateViewLayout(drawerView, drawerParams)
+                    } catch (e: Exception) {}
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun loadTab(index: Int) {
+        currentTab = index
+        updateTabIcons(index)
+        
+        val items = when(index) {
+            TAB_MAIN -> getMainItems()
+            TAB_PRESETS -> getPresetItems()
+            TAB_MOVE -> getMoveItems(false)
+            TAB_KB_MOVE -> getMoveItems(true)
+            TAB_MIRROR -> getMirrorItems()      // NEW
+            TAB_CONFIG -> getConfigItems()
+            TAB_TUNE -> getTuneItems()
+            TAB_HARDKEYS -> getHardkeyItems()   // Hardkey bindings configuration
+            TAB_BUBBLE -> getBubbleItems()
+            TAB_PROFILES -> getProfileItems()
+            TAB_HELP -> getHelpItems()
+            else -> emptyList()
+        }
+        
+        recyclerView?.adapter = TrackpadMenuAdapter(items)
+    }
+
+    private fun updateTabIcons(activeIdx: Int) {
+        val tabIds = listOf(R.id.tab_main, R.id.tab_presets, R.id.tab_move, R.id.tab_kb_move, R.id.tab_mirror, R.id.tab_config, R.id.tab_tune, R.id.tab_hardkeys, R.id.tab_bubble, R.id.tab_profiles, R.id.tab_help)
+        for ((i, id) in tabIds.withIndex()) {
+            val view = drawerView?.findViewById<ImageView>(id)
+            if (i == activeIdx) view?.setColorFilter(Color.parseColor("#3DDC84")) 
+            else view?.setColorFilter(Color.GRAY)
+        }
+    }
+
+    // =========================
+    // GET MAIN ITEMS - Generates main menu items list
+    // =========================
+    private fun getMainItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("MAIN CONTROLS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // --- COMMENTED OUT PER REQUEST ---
+        /*
+        list.add(TrackpadMenuAdapter.MenuItem("Switch Screen (0 <-> 1)", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { 
+            service.switchDisplay() 
+            hide()
+        })
+        */
+        // ---------------------------------
+
+        list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_myplaces, TrackpadMenuAdapter.Type.ACTION) { 
+            service.resetBubblePosition()
+            hide()
+        })
+        
+        // --- COMMENTED OUT PER REQUEST ---
+        /*
+        list.add(TrackpadMenuAdapter.MenuItem("Move Trackpad Here", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { service.forceMoveToCurrentDisplay(); hide() })
+        */
+        
+        // Renamed: "Target: ..." -> "Toggle Remote Display"
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Remote Display", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) { service.cycleInputTarget(); loadTab(TAB_MAIN) })
+
+        // =================================================================================
+        // VIRTUAL MIRROR MODE TOGGLE
+        // SUMMARY: Enhanced toggle for AR glasses/remote displays.
+        //          When enabled:
+        //          - Auto-switches cursor to virtual display
+        //          - Shows keyboard and trackpad
+        //          - Loads mirror-mode specific profile
+        //          When disabled:
+        //          - Returns to local display
+        //          - Restores previous visibility state
+        //          - Saves/loads separate profile
+        // =================================================================================
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Virtual Mirror Mode",
+            if(p.prefVirtualMirrorMode) R.drawable.ic_lock_closed else R.drawable.ic_lock_open,
+            TrackpadMenuAdapter.Type.TOGGLE,
+            if(p.prefVirtualMirrorMode) 1 else 0
+        ) { _ ->
+            service.toggleVirtualMirrorMode()
+            hide()  // Close menu since display context may change
+        })
+        // =================================================================================
+        // END BLOCK: VIRTUAL MIRROR MODE TOGGLE
+        // =================================================================================
+
+        // --- ANCHOR TOGGLE: Locks trackpad and keyboard position/size ---
+        list.add(TrackpadMenuAdapter.MenuItem("Anchor (Lock Position)", 
+            if(p.prefAnchored) R.drawable.ic_lock_closed else R.drawable.ic_lock_open, 
+            TrackpadMenuAdapter.Type.TOGGLE, 
+            if(p.prefAnchored) 1 else 0) { v ->
+            service.updatePref("anchored", v)
+            loadTab(TAB_MAIN)  // Refresh to update icon
+        })
+        // --- END ANCHOR TOGGLE ---
+        
+        // Toggle Trackpad (Using correct icon
+        // Toggle Trackpad
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Trackpad", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) {
+            service.toggleTrackpad()
+            hide()
+        })
+
+
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
+            if (service.isCustomKeyboardVisible) service.performSmartHide()
+            else service.toggleCustomKeyboard()
+        })
+        list.add(TrackpadMenuAdapter.MenuItem("Reset Cursor", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { service.resetCursorCenter() })
+        
+        // Renamed: "Hide App" -> "Hide All"
+        list.add(TrackpadMenuAdapter.MenuItem("Hide All", android.R.drawable.ic_menu_close_clear_cancel, TrackpadMenuAdapter.Type.ACTION) { service.hideApp() })
+        
+        // Renamed: "Force Kill Service" -> "Close/Restart App"
+        list.add(TrackpadMenuAdapter.MenuItem("Close/Restart App", android.R.drawable.ic_delete, TrackpadMenuAdapter.Type.ACTION) { service.forceExit() })
+        return list
+    }
+    // =========================
+    // END GET MAIN ITEMS
+    // =========================
+
+
+    
+// =========================
+    // GET PRESET ITEMS - Layout presets for split screen modes
+    // Freeform (type 0) loads saved profile, NOT a split preset
+    // =========================
+    private fun getPresetItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        list.add(TrackpadMenuAdapter.MenuItem("SPLIT SCREEN PRESETS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // Freeform FIRST - this loads the saved profile (not a split preset)
+        list.add(TrackpadMenuAdapter.MenuItem("Freeform (Use Profile)", android.R.drawable.ic_menu_edit, TrackpadMenuAdapter.Type.ACTION) { 
+            service.applyLayoutPreset(0)
+            hide()
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("KB Top / TP Bottom", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
+            service.applyLayoutPreset(1)
+            hide()
+        })
+        list.add(TrackpadMenuAdapter.MenuItem("TP Top / KB Bottom", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.ACTION) { 
+            service.applyLayoutPreset(2)
+            hide()
+        })
+        return list
+    }
+    // =========================
+    // END GET PRESET ITEMS
+    // =========================
+    private fun getMoveItems(isKeyboard: Boolean): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val target = if (isKeyboard) "Keyboard" else "Trackpad"
+        
+        list.add(TrackpadMenuAdapter.MenuItem(if (isKeyboard) "KEYBOARD POSITION" else "TRACKPAD POSITION", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // 1. Mode Switcher (Toggle Item)
+        val modeText = if (isResizeMode) "Resize (Size)" else "Position (Move)"
+        val modeIcon = if (isResizeMode) android.R.drawable.ic_menu_crop else android.R.drawable.ic_menu_mylocation
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Mode: $modeText", modeIcon, TrackpadMenuAdapter.Type.ACTION) {
+            isResizeMode = !isResizeMode
+            loadTab(currentTab) // Refresh UI to update text
+        })
+        
+        // 2. The D-Pad
+        val actionText = if (isResizeMode) "Resize" else "Move"
+        list.add(TrackpadMenuAdapter.MenuItem("$target $actionText", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.DPAD) { cmd ->
+            val step = 20
+            val command = cmd as String
+            
+            // isResizeMode determines whether we move X/Y or change W/H
+            when(command) {
+                "UP" -> service.manualAdjust(isKeyboard, isResizeMode, 0, -step)
+                "DOWN" -> service.manualAdjust(isKeyboard, isResizeMode, 0, step)
+                "LEFT" -> service.manualAdjust(isKeyboard, isResizeMode, -step, 0)
+                "RIGHT" -> service.manualAdjust(isKeyboard, isResizeMode, step, 0)
+                "CENTER" -> {
+                    if (isKeyboard) service.resetKeyboardPosition() else service.resetTrackpadPosition()
+                }
+            }
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Rotate 90°", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) {
+            if (isKeyboard) service.rotateKeyboard() else service.performRotation()
+        })
+            
+        if (isKeyboard) {
+            val p = service.prefs
+            list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha) { v ->
+                service.updatePref("keyboard_alpha", v)
+            })
+        }
+            
+        return list
+    }
+
+    // =========================
+    // GET MIRROR ITEMS - Mirror keyboard configuration
+    // =========================
+    private var isMirrorResizeMode = false
+    
+
+    private fun getMirrorItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("MIRROR KEYBOARD", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // [REMOVED] Virtual Mirror Mode Toggle (Redundant)
+        
+        list.add(TrackpadMenuAdapter.MenuItem("POSITION & SIZE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Mode Switcher (Position vs Resize)
+        val modeText = if (isMirrorResizeMode) "Resize (Size)" else "Position (Move)"
+        val modeIcon = if (isMirrorResizeMode) android.R.drawable.ic_menu_crop else android.R.drawable.ic_menu_mylocation
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Mode: $modeText", modeIcon, TrackpadMenuAdapter.Type.ACTION) {
+            isMirrorResizeMode = !isMirrorResizeMode
+            loadTab(currentTab) // Refresh UI
+        })
+        
+        // D-Pad for position/size
+        val actionText = if (isMirrorResizeMode) "Resize" else "Move"
+        list.add(TrackpadMenuAdapter.MenuItem("Mirror $actionText", R.drawable.ic_tab_move, TrackpadMenuAdapter.Type.DPAD) { cmd ->
+            val step = 20
+            val command = cmd as String
+            
+
+
+            when(command) {
+                "UP" -> {
+                    // [FIX] Reverse direction for MOVE only (User reported -step goes Down)
+                    // Resize mode stays same (-step). Move mode flips to (+step).
+                    val dir = if (isMirrorResizeMode) -step else step
+                    service.adjustMirrorKeyboard(isMirrorResizeMode, 0, dir)
+                }
+                "DOWN" -> {
+                    // Resize mode stays same (step). Move mode flips to (-step).
+                    val dir = if (isMirrorResizeMode) step else -step
+                    service.adjustMirrorKeyboard(isMirrorResizeMode, 0, dir)
+                }
+                "LEFT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, -step, 0)
+                "RIGHT" -> service.adjustMirrorKeyboard(isMirrorResizeMode, step, 0)
+                "CENTER" -> service.resetMirrorKeyboardPosition()
+            }
+
+
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Mirror Keyboard Opacity Slider
+        list.add(TrackpadMenuAdapter.MenuItem("Mirror Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefMirrorAlpha, 255) { v ->
+            service.updatePref("mirror_alpha", v)
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Orange Trail Delay Slider (100ms - 3000ms, show as 0.1s - 3.0s)
+        val currentDelayMs = p.prefMirrorOrientDelayMs
+        list.add(TrackpadMenuAdapter.MenuItem("Orient Delay: ${currentDelayMs}ms", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, (currentDelayMs / 100).toInt(), 30) { v ->
+            val newDelayMs = (v as Int) * 100L
+            service.updatePref("mirror_orient_delay", newDelayMs)
+            loadTab(currentTab) // Refresh to show new value
+        })
+        
+        return list
+    }
+
+    // =========================
+    // END GET MIRROR ITEMS
+    // =========================
+
+    // =========================
+    // GET CONFIG ITEMS - Trackpad configuration settings
+    // FIXED: Tap to Scroll Boolean Logic
+    // ========================= 
+    private fun getConfigItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("TRACKPAD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem("SENSITIVITY", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        list.add(TrackpadMenuAdapter.MenuItem("Cursor Speed", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.SLIDER, (p.cursorSpeed * 10).toInt()) { v -> service.updatePref("cursor_speed", (v as Int) / 10f) })
+        list.add(TrackpadMenuAdapter.MenuItem("Scroll Speed", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.SLIDER, (p.scrollSpeed * 10).toInt(), 50) { v -> service.updatePref("scroll_speed", (v as Int) / 10f) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("APPEARANCE", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        list.add(TrackpadMenuAdapter.MenuItem("Border Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefAlpha, 255) { v -> service.updatePref("alpha", v) })
+        list.add(TrackpadMenuAdapter.MenuItem("Background Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBgAlpha, 255) { v -> service.updatePref("bg_alpha", v) })
+        list.add(TrackpadMenuAdapter.MenuItem("Handle Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefHandleSize / 2) { v -> service.updatePref("handle_size", v) })        
+        list.add(TrackpadMenuAdapter.MenuItem("Scroll Bar Width", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefScrollTouchSize, 200) { v -> service.updatePref("scroll_size", v) })
+        list.add(TrackpadMenuAdapter.MenuItem("Cursor Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefCursorSize) { v -> service.updatePref("cursor_size", v) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("BEHAVIOR", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Reverse Scroll", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefReverseScroll) 1 else 0) { v -> service.updatePref("reverse_scroll", v) })
+        
+        // MODIFIED: Correct Boolean Check for Toast
+        list.add(TrackpadMenuAdapter.MenuItem("Tap to Scroll", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefTapScroll) 1 else 0) { v -> 
+            service.updatePref("tap_scroll", v)
+            // Fix: Cast strictly to Boolean or check against false directly
+            if (v == false) {
+                android.widget.Toast.makeText(context, "Beta mouse scrolling is activated - warning - scroll slowly for optimal results", android.widget.Toast.LENGTH_LONG).show()
+            }
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Haptic Feedback", R.drawable.ic_tab_settings, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefVibrate) 1 else 0) { v -> service.updatePref("vibrate", v) })
+        return list
+    }
+    // =========================
+    // END GET CONFIG ITEMS
+    // =========================
+
+    // =========================
+    // GET TUNE ITEMS - Keyboard configuration settings
+    // =========================
+    private fun getTuneItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("KEYBOARD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // NEW: Launch Proxy Activity for Picker
+        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Picker (Null KB to block default)", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
+            service.forceSystemKeyboardVisible()
+            hide() // Close menu
+            
+            try {
+                val intent = android.content.Intent(context, KeyboardPickerActivity::class.java)
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch(e: Exception) {
+                android.widget.Toast.makeText(context, "Error launching picker", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha, 255) { v -> service.updatePref("keyboard_alpha", v) })
+                list.add(TrackpadMenuAdapter.MenuItem("Auto Display Off", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefAutomationEnabled) 1 else 0) {
+                    v -> service.updatePref("automation_enabled", v as Boolean)
+                })
+
+        // MOVED & RENAMED: Cover Screen KB Blocker
+        list.add(TrackpadMenuAdapter.MenuItem("Cover Screen KB blocker (restart app after reverting)", android.R.drawable.ic_lock_lock, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefBlockSoftKeyboard) 1 else 0) {
+            v -> service.updatePref("block_soft_kb", v as Boolean)
+        })
+
+        return list
+    }
+    // =========================
+    // END GET TUNE ITEMS
+    // =========================
+
+    // =========================
+    // HARDKEY ACTIONS LIST
+    // =========================
+    private val hardkeyActions = listOf(
+        "none" to "None (System Default)",
+        "left_click" to "Left Click (Hold to Drag)",
+        "right_click" to "Right Click (Hold to Drag)",
+        "scroll_up" to "Scroll Up",
+        "scroll_down" to "Scroll Down",
+        "display_toggle_alt" to "Display (Alt Mode)",
+        "display_toggle_std" to "Display (Std Mode)",
+        "display_wake" to "Display Wake",
+        "alt_position" to "Alt KB Position",
+        "toggle_keyboard" to "Toggle Keyboard",
+        "toggle_trackpad" to "Toggle Trackpad",
+        "open_menu" to "Open Menu",
+        "reset_cursor" to "Reset Cursor",
+        "toggle_bubble" to "Launcher Bubble", // <--- NEW ITEM
+        "action_back" to "Back",
+        "action_home" to "Home",
+        "action_forward" to "Forward (Browser)",
+        "action_vol_up" to "Volume Up",
+        "action_vol_down" to "Volume Down"
+    )
+    
+    private fun getActionDisplayName(actionId: String): String {
+        return hardkeyActions.find { it.first == actionId }?.second ?: actionId
+    }
+    // =========================
+    // END HARDKEY ACTIONS LIST
+    // =========================
+
+    // =========================
+    // SHOW ACTION PICKER - In-Menu Replacement for Dialog
+    // Replaces the current menu list with selection options to avoid Service/Dialog crashes
+    // =========================
+    private fun showActionPicker(prefKey: String, currentValue: String) {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        
+        // 1. Header
+        list.add(TrackpadMenuAdapter.MenuItem("Select Action", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // 2. Cancel / Back Option
+        list.add(TrackpadMenuAdapter.MenuItem("<< Go Back", android.R.drawable.ic_menu_revert, TrackpadMenuAdapter.Type.ACTION) {
+            // Reload the previous tab to "go back"
+            loadTab(TAB_HARDKEYS)
+        })
+
+        // 3. Action Options
+        for ((id, name) in hardkeyActions) {
+            // Show a "Check" icon if this is the currently selected value
+            // Otherwise show 0 (no icon) or a generic dot
+            val iconRes = if (id == currentValue) android.R.drawable.checkbox_on_background else 0
+            
+            list.add(TrackpadMenuAdapter.MenuItem(name, iconRes, TrackpadMenuAdapter.Type.ACTION) {
+                // On Click: Update Pref and Go Back
+                service.updatePref(prefKey, id)
+                loadTab(TAB_HARDKEYS)
+            })
+        }
+        
+        // 4. Update the View
+        recyclerView?.adapter = TrackpadMenuAdapter(list)
+    }
+    // =========================
+    // END SHOW ACTION PICKER
+    // =========================
+
+    // =========================
+    // GET HARDKEY ITEMS - Hardkey bindings configuration menu
+    // Allows users to customize Vol Up/Down and Power button actions
+    // =========================
+    private fun getHardkeyItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        // NEW MAIN HEADER
+        list.add(TrackpadMenuAdapter.MenuItem("KEYBINDS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // Subheader
+        list.add(TrackpadMenuAdapter.MenuItem("VOLUME UP", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Tap: ${getActionDisplayName(p.hardkeyVolUpTap)}",
+            android.R.drawable.ic_media_play,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_up_tap", p.hardkeyVolUpTap) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap: ${getActionDisplayName(p.hardkeyVolUpDouble)}",
+            android.R.drawable.ic_media_ff,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_up_double", p.hardkeyVolUpDouble) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Hold: ${getActionDisplayName(p.hardkeyVolUpHold)}",
+            android.R.drawable.ic_menu_crop,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_up_hold", p.hardkeyVolUpHold) })
+        
+        // Subheader
+        list.add(TrackpadMenuAdapter.MenuItem("VOLUME DOWN", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Tap: ${getActionDisplayName(p.hardkeyVolDownTap)}",
+            android.R.drawable.ic_media_play,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_down_tap", p.hardkeyVolDownTap) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap: ${getActionDisplayName(p.hardkeyVolDownDouble)}",
+            android.R.drawable.ic_media_ff,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_down_double", p.hardkeyVolDownDouble) })
+        
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Hold: ${getActionDisplayName(p.hardkeyVolDownHold)}",
+            android.R.drawable.ic_menu_crop,
+            TrackpadMenuAdapter.Type.ACTION
+        ) { showActionPicker("hardkey_vol_down_hold", p.hardkeyVolDownHold) })
+        
+        // Subheader
+        list.add(TrackpadMenuAdapter.MenuItem("TIMING", 0, TrackpadMenuAdapter.Type.SUBHEADER))
+        
+        // Max 500ms
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Double-Tap Speed (ms)",
+            android.R.drawable.ic_menu_recent_history,
+            TrackpadMenuAdapter.Type.SLIDER,
+            p.doubleTapMs,
+            500 
+        ) { v ->
+            service.updatePref("double_tap_ms", v)
+        })
+        
+        // Max 800ms
+        list.add(TrackpadMenuAdapter.MenuItem(
+            "Hold Duration (ms)",
+            android.R.drawable.ic_menu_recent_history,
+            TrackpadMenuAdapter.Type.SLIDER,
+            p.holdDurationMs,
+            800 
+        ) { v ->
+            service.updatePref("hold_duration_ms", v)
+        })
+        
+        return list
+    }
+    // =========================
+    // END GET HARDKEY ITEMS
+    // =========================
+
+
+    // =========================
+    // GET BUBBLE ITEMS - Bubble launcher customization
+    // Size slider, Icon cycle, Opacity slider
+    // =========================
+    private fun getBubbleItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val p = service.prefs
+        
+        list.add(TrackpadMenuAdapter.MenuItem("BUBBLE CUSTOMIZATION", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        // Size slider: 50-200 (50=half, 100=standard, 200=double)
+        list.add(TrackpadMenuAdapter.MenuItem("Bubble Size", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBubbleSize, 200) { v ->
+            service.updatePref("bubble_size", v)
+        })
+        
+        // Icon cycle action
+        val iconNames = arrayOf("Trackpad", "Cursor", "Main", "Keyboard", "Compass", "Location")
+        val currentIconName = iconNames.getOrElse(p.prefBubbleIconIndex) { "Default" }
+        list.add(TrackpadMenuAdapter.MenuItem("Icon: $currentIconName", android.R.drawable.ic_menu_gallery, TrackpadMenuAdapter.Type.ACTION) { 
+            service.updatePref("bubble_icon", true)
+            loadTab(TAB_BUBBLE) // Refresh to show new icon name
+        })
+        
+        // Opacity slider: 50-255
+        list.add(TrackpadMenuAdapter.MenuItem("Bubble Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefBubbleAlpha, 255) { v ->
+            service.updatePref("bubble_alpha", v)
+        })
+        
+        // Reset button
+        list.add(TrackpadMenuAdapter.MenuItem("Reset Bubble Position", android.R.drawable.ic_menu_revert, TrackpadMenuAdapter.Type.ACTION) { 
+            service.resetBubblePosition()
+        })
+        
+        // --- PERSISTENCE TOGGLE ---
+        list.add(TrackpadMenuAdapter.MenuItem("SERVICE BEHAVIOR", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        val persistHelp = if (p.prefPersistentService) "Bubble stays when app closes" else "Bubble closes with app"
+        list.add(TrackpadMenuAdapter.MenuItem("Keep Alive (Background)", 
+            android.R.drawable.ic_menu_manage, 
+            TrackpadMenuAdapter.Type.TOGGLE, 
+            if(p.prefPersistentService) 1 else 0) { v ->
+            service.updatePref("persistent_service", v)
+            loadTab(TAB_BUBBLE) // Refresh description
+        })
+        list.add(TrackpadMenuAdapter.MenuItem(persistHelp, 0, TrackpadMenuAdapter.Type.INFO))
+        
+        return list
+    }
+    // =========================
+    // END GET BUBBLE ITEMS
+    // =========================
+
+    private fun getProfileItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        val currentRes = "${service.currentDisplayId}: ${service.getProfileKey().replace("P_", "").replace("_", " x ")}"
+        
+        list.add(TrackpadMenuAdapter.MenuItem("LAYOUT PROFILES", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Current: $currentRes", R.drawable.ic_tab_profiles, TrackpadMenuAdapter.Type.INFO))
+        
+        // CHANGED TITLE
+        list.add(TrackpadMenuAdapter.MenuItem("Save Layout and Presets", android.R.drawable.ic_menu_save, TrackpadMenuAdapter.Type.ACTION) { 
+            service.saveLayout()
+            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
+        })
+
+        // NEW: Reload Profile
+        list.add(TrackpadMenuAdapter.MenuItem("Reload Profile", android.R.drawable.ic_popup_sync, TrackpadMenuAdapter.Type.ACTION) { 
+            service.loadLayout() // Reloads based on current resolution/display
+            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
+        })
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Delete Profile", android.R.drawable.ic_menu_delete, TrackpadMenuAdapter.Type.ACTION) { 
+            service.deleteCurrentProfile()
+            drawerView?.postDelayed({ loadTab(TAB_PROFILES) }, 200)
+        })
+        
+        // --- SAVED LAYOUTS LIST ---
+        list.add(TrackpadMenuAdapter.MenuItem("SAVED LAYOUTS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        val saved = service.getSavedProfileList()
+        if (saved.isEmpty()) {
+            list.add(TrackpadMenuAdapter.MenuItem("No saved layouts found.", 0, TrackpadMenuAdapter.Type.INFO))
+        } else {
+            for (res in saved) {
+                list.add(TrackpadMenuAdapter.MenuItem("• $res", 0, TrackpadMenuAdapter.Type.INFO))
+            }
+        }
+        
+        return list
+    }
+
+    private fun getHelpItems(): List<TrackpadMenuAdapter.MenuItem> {
+        val list = ArrayList<TrackpadMenuAdapter.MenuItem>()
+        
+        list.add(TrackpadMenuAdapter.MenuItem("INSTRUCTIONS", 0, TrackpadMenuAdapter.Type.HEADER))
+        
+        val text = 
+            "TRACKPAD CONTROLS\n" +
+            "• Tap: Left Click\n" +
+            "• 2-Finger Tap: Right Click\n" +
+            "• Hold + Slide: Drag & Drop\n" +
+            "• Edge (Top/Bottom): V-Scroll\n" +
+            "• Edge (Left/Right): H-Scroll\n\n" +
+            "KEYBOARD OVERLAY\n" +
+            "• Drag Top Bar: Move Window\n" +
+            "• Drag Bottom-Right: Resize\n" +
+            "• Hold Corner: Toggle Key/Mouse\n\n" +
+            "HARDWARE KEYS\n" +
+            "• Use the 'Hardkeys' tab to map\n" +
+            "  Volume Up/Down to clicks,\n" +
+            "  scrolling, or screen controls."
+            
+        list.add(TrackpadMenuAdapter.MenuItem(text, 0, TrackpadMenuAdapter.Type.INFO))
+        
+        list.add(TrackpadMenuAdapter.MenuItem("LAUNCHER & APP", 0, TrackpadMenuAdapter.Type.HEADER))
+        val text2 = 
+            "• Floating Bubble: Tap to open this menu. Drag to move.\n" +
+            "• Setup App: Open 'DroidOS Trackpad' from your Android App Drawer to adjust permissions or restart the service."
+        list.add(TrackpadMenuAdapter.MenuItem(text2, 0, TrackpadMenuAdapter.Type.INFO))
+        
+        return list
+    }
 }
 ```
 
@@ -17037,1484 +16977,6 @@ if (!isCandidateDragging && dist > 20) {
 }
 ```
 
-## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardOverlay.kt
-```kotlin
-package com.example.coverscreentester
-
-import android.content.Context
-import android.graphics.Color
-import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
-import android.media.AudioManager
-import android.media.AudioRecordingConfiguration
-import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
-import android.view.Gravity
-import android.view.KeyEvent
-import android.view.MotionEvent
-import android.view.View
-import android.view.WindowManager
-import android.widget.FrameLayout
-import android.widget.TextView
-import kotlin.math.max
-
-class KeyboardOverlay(
-    private val context: Context,
-    private val windowManager: WindowManager,
-    private val shellService: IShellService?,
-    private val targetDisplayId: Int,
-    private val onScreenToggleAction: () -> Unit,
-    private val onScreenModeChangeAction: () -> Unit,
-
-
-    private val onCloseAction: () -> Unit // New Parameter
-) : KeyboardView.KeyboardListener {
-
-    private var keyboardContainer: FrameLayout? = null
-
-
-    private var keyboardView: KeyboardView? = null
-    private var keyboardParams: WindowManager.LayoutParams? = null
-    private var isVisible = false
-    private val predictionEngine = PredictionEngine.instance
-    // State Variables
-    private var isMoving = false
-    private var isResizing = false
-    private var isAnchored = false
-    private var initialTouchX = 0f
-    private var initialTouchY = 0f
-    private var initialWindowX = 0
-    private var initialWindowY = 0
-    private var initialWidth = 0
-    private var initialHeight = 0
-
-    private val TAG = "KeyboardOverlay"
-
-    // =================================================================================
-    // VIRTUAL MIRROR ORIENTATION MODE VARIABLES
-    // SUMMARY: State for orientation mode when virtual mirror is active.
-    //          During orientation mode, an orange trail is shown and key input is blocked
-    //          until the finger stops moving for the configured delay.
-    // =================================================================================
-    private var isOrientationModeActive = false
-    private var orientationTrailView: SwipeTrailView? = null
-    // =================================================================================
-    // END BLOCK: VIRTUAL MIRROR ORIENTATION MODE VARIABLES
-    // =================================================================================
-
-    // --- PREDICTION STATE ---
-
-    private var currentComposingWord = StringBuilder()
-    private val handler = Handler(Looper.getMainLooper())
-
-    // NEW: Track sentence context and swipe history
-    private var lastCommittedSwipeWord: String? = null
-    private var isSentenceStart = true
-
-    // Helper to inject text via OverlayService
-    private fun injectText(text: String) {
-        (context as? OverlayService)?.injectText(text)
-    }
-
-    // FIX Default height to WRAP_CONTENT (-2) to avoid cutting off rows
-    private var keyboardWidth = 500
-    private var keyboardHeight = WindowManager.LayoutParams.WRAP_CONTENT 
-    
-    private var screenWidth = 720
-    private var screenHeight = 748
-    private var currentRotation = 0
-    private var currentAlpha = 200
-    private var currentDisplayId = 0
-
-
-    // Callbacks to talk back to OverlayService
-    var onCursorMove: ((Float, Float, Boolean) -> Unit)? = null // dx, dy, isDragging
-    var onCursorClick: ((Boolean) -> Unit)? = null
-    var onTouchDown: (() -> Unit)? = null
-    var onTouchUp: (() -> Unit)? = null
-    var onTouchTap: (() -> Unit)? = null
-
-    // =================================================================================
-    // VIRTUAL MIRROR CALLBACK
-    // SUMMARY: Callback to forward touch events to OverlayService for mirror sync.
-    //          Returns true if touch should be consumed (orientation mode active).
-    // =================================================================================
-    var onMirrorTouch: ((Float, Float, Int) -> Boolean)? = null // x, y, action -> consumed
-    // =================================================================================
-    // END BLOCK: VIRTUAL MIRROR CALLBACK
-    // =================================================================================
-
-    // Layer change callback for syncing mirror keyboard
-    var onLayerChanged: ((KeyboardView.KeyboardState) -> Unit)? = null
-
-    // =================================================================================
-    // CALLBACK: onSuggestionsChanged
-    // SUMMARY: Called whenever the suggestion bar is updated. Used to sync mirror keyboard.
-    // =================================================================================
-    var onSuggestionsChanged: ((List<KeyboardView.Candidate>) -> Unit)? = null
-    var onSizeChanged: (() -> Unit)? = null
-    // =================================================================================
-    // END BLOCK: onSuggestionsChanged
-    // =================================================================================
-
-
-
-    fun setScreenDimensions(width: Int, height: Int, displayId: Int) {
-        // We no longer update inputHandler here
-        
-        keyboardParams?.let {
-            it.width = width
-            it.height = height
-            try {
-                windowManager.updateViewLayout(keyboardContainer, it)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-
-
-    fun updateScale(scale: Float) {
-        if (keyboardView == null) return
-        keyboardView?.setScale(scale)
-        
-        // FIX: Removed forced reset of keyboardHeight to WRAP_CONTENT.
-        // We now respect the existing keyboardHeight (whether it's fixed pixels from a manual resize
-        // or WRAP_CONTENT from default).
-        
-        if (isVisible && keyboardParams != null) {
-            // If the window is set to WRAP_CONTENT, we might need to poke the WM to re-measure
-            // effectively, but we shouldn't change the param value itself if it's already -2.
-            // If it is fixed pixels, we leave it alone.
-            
-            // We only need to update layout if we want to ensure constraints are met,
-            // but simply invalidating the view is usually enough for internal changes.
-            // To be safe, we update the view layout with the *current* params.
-            try { 
-                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-                // Do NOT call saveKeyboardSize() here. Scaling shouldn't change the 
-                // "Window Size Preference" (Container), only the content scale.
-            } catch (e: Exception) {}
-        }
-    }
-    
-    fun updateAlpha(alpha: Int) {
-        currentAlpha = alpha
-        if (isVisible && keyboardContainer != null) {
-            val bg = keyboardContainer?.background as? GradientDrawable
-            if (bg != null) {
-                val fillColor = (alpha shl 24) or (0x1A1A1A)
-                bg.setColor(fillColor)
-                bg.setStroke(2, Color.parseColor("#44FFFFFF"))
-            }
-            val normalizedAlpha = alpha / 255f
-            keyboardView?.alpha = normalizedAlpha
-            keyboardContainer?.invalidate()
-        }
-    }
-    
-    fun setWindowBounds(x: Int, y: Int, width: Int, height: Int) {
-        keyboardWidth = width
-        keyboardHeight = height
-        if (isVisible && keyboardParams != null) {
-            keyboardParams?.x = x
-            keyboardParams?.y = y
-            keyboardParams?.width = width
-            keyboardParams?.height = height
-            try { 
-                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-                saveKeyboardPosition()
-                saveKeyboardSize()
-            } catch (e: Exception) {}
-        } else {
-            // Even if hidden, save the new bounds so they apply on next show
-            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            prefs.edit()
-                .putInt("keyboard_x_d$currentDisplayId", x)
-                .putInt("keyboard_y_d$currentDisplayId", y)
-                .putInt("keyboard_width_d$currentDisplayId", width)
-                .putInt("keyboard_height_d$currentDisplayId", height)
-                .apply()
-        }
-    }
-   
-    fun setAnchored(anchored: Boolean) {
-        isAnchored = anchored
-    }
-
-    // Helper for OverlayService Profile Load
-    fun updatePosition(x: Int, y: Int) {
-        if (keyboardContainer == null || keyboardParams == null) {
-            // Save to prefs if hidden
-            context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-                .putInt("keyboard_x_d$currentDisplayId", x)
-                .putInt("keyboard_y_d$currentDisplayId", y)
-                .apply()
-            return
-        }
-        keyboardParams?.x = x
-        keyboardParams?.y = y
-        try {
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-            saveKeyboardPosition()
-        } catch (e: Exception) { e.printStackTrace() }
-    }
-
-    // Helper for OverlayService Profile Load
-    fun updateSize(w: Int, h: Int) {
-        keyboardWidth = w
-        keyboardHeight = h
-        
-        if (keyboardContainer == null || keyboardParams == null) {
-            saveKeyboardSize()
-            return
-        }
-        keyboardParams?.width = w
-        keyboardParams?.height = h
-        try {
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-            saveKeyboardSize()
-        } catch (e: Exception) { e.printStackTrace() }
-    }
-    
-    // Robust Getters: Return live values if visible, otherwise return saved Prefs
-    fun getViewX(): Int {
-        if (keyboardParams != null) return keyboardParams!!.x
-        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            .getInt("keyboard_x_d$currentDisplayId", 0)
-    }
-    
-    fun getViewY(): Int {
-        if (keyboardParams != null) return keyboardParams!!.y
-        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            .getInt("keyboard_y_d$currentDisplayId", 0)
-    }
-    
-    fun getViewWidth(): Int = keyboardWidth
-    fun getViewHeight(): Int = keyboardHeight
-    fun getKeyboardView(): KeyboardView? = keyboardView
-
-    
-    // [START ROTATION FIX]
-    fun setRotation(angle: Int) {
-        currentRotation = angle
-        if (!isVisible || keyboardContainer == null || keyboardParams == null || keyboardView == null) return
-
-        val isPortrait = (angle == 90 || angle == 270)
-
-        // 1. Determine Logical Dimensions (Unrotated size)
-        // We rely on keyboardWidth/Height being the canonical "Landscape" size.
-        val baseW = keyboardWidth
-        val baseH = keyboardHeight 
-
-        // 2. Configure WINDOW Params (The touchable area on screen)
-        // If rotated, we swap the dimensions passed to WindowManager
-        if (isPortrait) {
-            keyboardParams?.width = if (baseH == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseH
-            keyboardParams?.height = if (baseW == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseW
-        } else {
-            keyboardParams?.width = if (baseW == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseW
-            keyboardParams?.height = if (baseH == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseH
-        }
-
-        // 3. Configure VIEW Params (The Internal Content)
-        // The View must ALWAYS be the logical size (e.g. Wide) to layout keys in rows correctly.
-        val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
-        lp.width = if (baseW == -2) FrameLayout.LayoutParams.WRAP_CONTENT else baseW
-        lp.height = if (baseH == -2) FrameLayout.LayoutParams.WRAP_CONTENT else baseH
-        keyboardView!!.layoutParams = lp
-
-        // 4. Apply Rotation to View (Not Container)
-        keyboardView!!.rotation = angle.toFloat()
-        keyboardContainer!!.rotation = 0f // Ensure container is NOT rotated
-
-        // 5. Update Layout
-        try {
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-        } catch (e: Exception) {}
-
-        // 6. Post-Layout Alignment
-        // We must translate the view to re-center it because rotation happens around the pivot (center).
-        // Since we swapped the Window dimensions, the centers might not align by default without this.
-        keyboardView!!.post { alignRotatedView() }
-    }
-
-    private fun alignRotatedView() {
-        if (keyboardView == null) return
-        
-        val angle = currentRotation
-        val w = keyboardView!!.measuredWidth
-        val h = keyboardView!!.measuredHeight
-        
-        // When rotated 90/270, the "Visual" width matches the View's Height, and vice versa.
-        // We translate the view so its visual center matches the window's center.
-        
-        when (angle) {
-            90, 270 -> {
-                val tx = (h - w) / 2f
-                val ty = (w - h) / 2f
-                keyboardView!!.translationX = tx
-                keyboardView!!.translationY = ty
-            }
-            else -> {
-                keyboardView!!.translationX = 0f
-                keyboardView!!.translationY = 0f
-            }
-        }
-    }
-
-    fun cycleRotation() {
-        if (keyboardContainer == null) return
-        val nextRotation = (currentRotation + 90) % 360
-        setRotation(nextRotation)
-    }
-
-    fun resetPosition() {
-        if (keyboardParams == null) return
-        
-        // 1. Reset Rotation state
-        currentRotation = 0
-        keyboardContainer?.rotation = 0f
-        keyboardView?.rotation = 0f
-        keyboardView?.translationX = 0f
-        keyboardView?.translationY = 0f
-
-        // 2. Calculate Defaults
-        val defaultWidth = (screenWidth * 0.90f).toInt().coerceIn(300, 1200) // CHANGED: 90% width
-        val defaultHeight = WindowManager.LayoutParams.WRAP_CONTENT
-        val defaultX = (screenWidth - defaultWidth) / 2
-        val defaultY = (screenHeight / 2) // Place in middle
-
-        // 3. Update State & Params
-        keyboardWidth = defaultWidth
-        keyboardHeight = defaultHeight
-        
-        keyboardParams?.x = defaultX
-        keyboardParams?.y = defaultY
-        keyboardParams?.width = defaultWidth
-        keyboardParams?.height = defaultHeight
-
-        // 4. Update View Constraints
-        if (keyboardView != null) {
-            val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
-            lp.width = defaultWidth
-            lp.height = FrameLayout.LayoutParams.WRAP_CONTENT
-            keyboardView!!.layoutParams = lp
-        }
-
-        try {
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-        } catch (e: Exception) {}
-        
-        saveKeyboardPosition()
-        saveKeyboardSize()
-    }
-    // [END ROTATION FIX]
-
-
-
-
-
-
-
-
-    fun show() { 
-        if (isVisible) return
-        try { 
-            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            currentAlpha = prefs.getInt("keyboard_alpha", 200)
-
-            createKeyboardWindow()
-
-            // --- FIX: Strict Aspect Ratio Sync ---
-            // We force the Window Height to be exactly 55% of the Width.
-            // This guarantees that the Physical Keyboard and Mirror Keyboard 
-            // have the exact same shape, ensuring the Touch Trail aligns perfectly.
-            keyboardContainer?.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-                val width = right - left
-                val height = bottom - top
-                
-                if (width > 0) {
-                    // Ratio 0.55 (Keys are slightly taller than square to fit text comfortably)
-                    // 10 keys wide, 5 rows tall. 0.5 would be square. 0.55 prevents cutoff.
-                    val targetHeight = (width * 0.55f).toInt()
-                    
-                    if (kotlin.math.abs(height - targetHeight) > 5) {
-                        keyboardParams?.height = targetHeight
-                        try { 
-                            windowManager.updateViewLayout(keyboardContainer, keyboardParams) 
-                        } catch (e: Exception) { }
-                    }
-                }
-            }
-
-            // Set initial params to match logic
-            if (keyboardParams?.width ?: 0 > 0) {
-                 keyboardParams?.height = ((keyboardParams?.width ?: 100) * 0.55f).toInt()
-            }
-
-            isVisible = true
-            if (currentRotation != 0) setRotation(currentRotation)
-        } catch (e: Exception) { android.util.Log.e("KeyboardOverlay", "Failed to show keyboard", e) } 
-    }
-
-
-
-
-
-
-
-
-
-    
-    fun hide() { 
-        if (!isVisible) return
-        try { 
-            windowManager.removeView(keyboardContainer)
-            keyboardContainer = null
-            keyboardView = null
-            isVisible = false 
-        } catch (e: Exception) { Log.e(TAG, "Failed to hide keyboard", e) } 
-    }
-    
-    fun toggle() { if (isVisible) hide() else show() }
-    fun isShowing(): Boolean = isVisible
-
-    fun setFocusable(focusable: Boolean) {
-        try {
-            if (keyboardContainer == null || keyboardParams == null) return
-
-            if (focusable) {
-                // Remove NOT_FOCUSABLE (Make it focusable)
-                keyboardParams?.flags = keyboardParams?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
-            } else {
-                // Add NOT_FOCUSABLE (Make it click-through for focus purposes)
-                keyboardParams?.flags = keyboardParams?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-            }
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    // =================================================================================
-    // FUNCTION: setVoiceActive
-    // SUMMARY: Passes the voice state down to the keyboard view.
-    // =================================================================================
-    fun setVoiceActive(active: Boolean) {
-        keyboardView?.setVoiceActive(active)
-    }
-    // =================================================================================
-    // END BLOCK: setVoiceActive
-    // =================================================================================
-
-    // =================================================================================
-    // VIRTUAL MIRROR ORIENTATION MODE METHODS
-    // SUMMARY: Methods for managing orientation mode during virtual mirror operation.
-    //          These handle the orange trail that helps users locate their finger
-    //          position on the physical keyboard without looking at the screen.
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: setOrientationMode
-    // SUMMARY: Enables or disables orientation mode. When enabled, an orange trail
-    //          is shown and key input is blocked until the mode ends.
-    // @param active - true to enable orientation mode, false to disable
-    // =================================================================================
-    fun setOrientationMode(active: Boolean) {
-        isOrientationModeActive = active
-        keyboardView?.setOrientationModeActive(active)
-
-        if (!active) {
-            // Clear the orange trail when exiting orientation mode
-            orientationTrailView?.clear()
-        }
-    }
-    // =================================================================================
-    // END BLOCK: setOrientationMode
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: startOrientationTrail
-    // SUMMARY: Starts a new orange orientation trail at the specified position.
-    // @param x - Starting X coordinate
-    // @param y - Starting Y coordinate
-    // =================================================================================
-    fun startOrientationTrail(x: Float, y: Float) {
-        orientationTrailView?.clear()
-        orientationTrailView?.addPoint(x, y)
-    }
-    // =================================================================================
-    // END BLOCK: startOrientationTrail
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: addOrientationTrailPoint
-    // SUMMARY: Adds a point to the orange orientation trail.
-    // @param x - X coordinate of new point
-    // @param y - Y coordinate of new point
-    // =================================================================================
-    fun addOrientationTrailPoint(x: Float, y: Float) {
-        orientationTrailView?.addPoint(x, y)
-    }
-    // =================================================================================
-    // END BLOCK: addOrientationTrailPoint
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: clearOrientationTrail
-    // SUMMARY: Clears the orange orientation trail.
-    // =================================================================================
-    fun clearOrientationTrail() {
-        orientationTrailView?.clear()
-    }
-    // =================================================================================
-    // END BLOCK: clearOrientationTrail
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: setOrientationTrailColor
-    // SUMMARY: Sets the color of the orientation trail on the physical display.
-    // =================================================================================
-    fun setOrientationTrailColor(color: Int) {
-        orientationTrailView?.setTrailColor(color)
-    }
-    // =================================================================================
-    // END BLOCK: setOrientationTrailColor
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: startSwipeFromCurrentPosition
-    // SUMMARY: Called when switching from orange to blue trail mid-gesture.
-    //          Initializes swipe tracking so the path starts from the given position.
-    // =================================================================================
-    fun startSwipeFromCurrentPosition(x: Float, y: Float) {
-        keyboardView?.startSwipeFromPosition(x, y)
-    }
-    // =================================================================================
-    // END BLOCK: startSwipeFromCurrentPosition
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: handleDeferredTap
-    // SUMMARY: Forwards deferred tap to KeyboardView for single key press in mirror mode.
-    // =================================================================================
-
-    fun handleDeferredTap(x: Float, y: Float) {
-        // CRITICAL: If a tap is detected, immediately stop any pending repeat logic.
-        // This prevents the "stuck" state where the system thinks you are still holding the key.
-        stopMirrorRepeat()
-        keyboardView?.handleDeferredTap(x, y)
-    }
-// =================================================================================
-    // FUNCTION: getKeyAtPosition
-    // SUMMARY: Returns the key tag at the given position, or null if no key found.
-    //          Used by mirror mode to check if finger is on a repeatable key.
-    // =================================================================================
-    fun getKeyAtPosition(x: Float, y: Float): String? {
-        return keyboardView?.getKeyAtPosition(x, y)
-    }
-    // =================================================================================
-    // END BLOCK: getKeyAtPosition
-    // =================================================================================
-
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: triggerKeyPress (Updated with Tap-Reset Fix)
-    // SUMMARY: Triggers a key press by key tag for Mirror Mode.
-    //          Includes 400ms initial delay + Watchdog timeout.
-    //          Now robustly resets if the sequence is broken.
-    // =================================================================================
-    private var activeRepeatKey: String? = null
-    private var lastMirrorKeyTime = 0L
-    private val mirrorRepeatHandler = Handler(Looper.getMainLooper())
-    private val REPEAT_START_DELAY = 400L
-    private val REPEAT_INTERVAL = 50L 
-    
-    // Watchdog: If no input received for 150ms, assume key was released
-    // Increased to 150ms to be more tolerant of input jitters
-    private val MIRROR_INPUT_TIMEOUT = 150L 
-
-    private val mirrorRepeatRunnable = object : Runnable {
-        override fun run() {
-            val key = activeRepeatKey ?: return
-            val now = System.currentTimeMillis()
-            
-            // Watchdog Check
-            if (now - lastMirrorKeyTime > MIRROR_INPUT_TIMEOUT) {
-                stopMirrorRepeat()
-                return
-            }
-
-            // Fire event
-            keyboardView?.triggerKeyPress(key)
-            mirrorRepeatHandler.postDelayed(this, REPEAT_INTERVAL)
-        }
-    }
-
-    // Changed from private to private-but-accessible-internally (or keep private if handleDeferredTap is in same class)
-    private fun stopMirrorRepeat() {
-        activeRepeatKey = null
-        mirrorRepeatHandler.removeCallbacks(mirrorRepeatRunnable)
-    }
-
-
-    fun blockPrediction(index: Int) {
-        keyboardView?.blockPredictionAtIndex(index)
-    }
-
-
-    fun triggerKeyPress(keyTag: String) {
-        val isRepeatable = keyTag in setOf("BKSP", "DEL", "◄", "▲", "▼", "►", "←", "↑", "↓", "→", "VOL+", "VOL-", "VOL_UP", "VOL_DOWN")
-
-        if (!isRepeatable) {
-            stopMirrorRepeat()
-            keyboardView?.triggerKeyPress(keyTag)
-            return
-        }
-
-        val now = System.currentTimeMillis()
-
-        if (keyTag == activeRepeatKey) {
-            // Update watchdog time
-            lastMirrorKeyTime = now
-            
-            // ROBUSTNESS FIX: If for some reason the handler isn't running (race condition),
-            // restart it to ensure we don't get stuck in a silent state.
-            if (!mirrorRepeatHandler.hasCallbacks(mirrorRepeatRunnable)) {
-                mirrorRepeatHandler.postDelayed(mirrorRepeatRunnable, REPEAT_START_DELAY)
-            }
-        } else {
-            // New Key Sequence
-            stopMirrorRepeat()
-            
-            activeRepeatKey = keyTag
-            lastMirrorKeyTime = now
-            
-            // Start Delay (Wait 400ms before first fire)
-            mirrorRepeatHandler.postDelayed(mirrorRepeatRunnable, REPEAT_START_DELAY)
-        }
-    }
-   // FUNCTION: getKeyboardState
-    // SUMMARY: Gets current keyboard state (layer) from KeyboardView.
-    // =================================================================================
-    fun getKeyboardState(): KeyboardView.KeyboardState? {
-        return keyboardView?.getKeyboardState()
-    }
-
-    // =================================================================================
-    // FUNCTION: setKeyboardState
-    // SUMMARY: Sets keyboard state (layer) in KeyboardView.
-    // =================================================================================
-    fun setKeyboardState(state: KeyboardView.KeyboardState) {
-        keyboardView?.setKeyboardState(state)
-    }
-
-    // =================================================================================
-    // FUNCTION: getCtrlAltState
-    // SUMMARY: Gets current Ctrl/Alt modifier states from KeyboardView.
-    // =================================================================================
-    fun getCtrlAltState(): Pair<Boolean, Boolean>? {
-        return keyboardView?.getCtrlAltState()
-    }
-
-    // =================================================================================
-    // FUNCTION: setCtrlAltState
-    // SUMMARY: Sets Ctrl/Alt modifier states in KeyboardView.
-    // =================================================================================
-    fun setCtrlAltState(ctrl: Boolean, alt: Boolean) {
-        keyboardView?.setCtrlAltState(ctrl, alt)
-    }
-    // =================================================================================
-    // END BLOCK: State accessor functions for mirror sync
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: updateSuggestionsWithSync
-    // SUMMARY: Sets suggestions on the keyboard view AND notifies callback for mirror sync.
-    // =================================================================================
-    private fun updateSuggestionsWithSync(candidates: List<KeyboardView.Candidate>) {
-        keyboardView?.setSuggestions(candidates)
-        onSuggestionsChanged?.invoke(candidates)
-    }
-    // =================================================================================
-    // END BLOCK: updateSuggestionsWithSync
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: isInOrientationMode
-    // SUMMARY: Returns whether orientation mode is currently active.
-    // @return true if orientation mode is active
-    // =================================================================================
-    fun isInOrientationMode(): Boolean {
-        return isOrientationModeActive
-    }
-    // =================================================================================
-    // END BLOCK: isInOrientationMode
-    // =================================================================================
-
-    // =================================================================================
-    // END BLOCK: VIRTUAL MIRROR ORIENTATION MODE METHODS
-    // =================================================================================
-
-    fun moveWindow(dx: Int, dy: Int) {
-        if (!isVisible || keyboardParams == null) return
-        keyboardParams!!.x += dx; keyboardParams!!.y += dy
-        try { 
-            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-            saveKeyboardPosition()
-            onSizeChanged?.invoke()
-        } catch (e: Exception) {}
-    }
-    
-    fun resizeWindow(dw: Int, dh: Int) {
-         if (!isVisible || keyboardParams == null) return
-         
-         // If current height is WRAP_CONTENT (-2), start from current measured height
-         var currentH = keyboardParams!!.height
-         if (currentH == WindowManager.LayoutParams.WRAP_CONTENT) {
-             currentH = keyboardContainer?.height ?: 260
-         }
-         
-         var currentW = keyboardParams!!.width
-         if (currentW == WindowManager.LayoutParams.WRAP_CONTENT) {
-             currentW = keyboardContainer?.width ?: 500
-         }
-
-         keyboardParams!!.width = max(280, currentW + dw)
-         keyboardParams!!.height = max(180, currentH + dh)
-         
-         keyboardWidth = keyboardParams!!.width
-         keyboardHeight = keyboardParams!!.height
-         
-         try { 
-             windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-             saveKeyboardSize()
-             onSizeChanged?.invoke()
-         } catch (e: Exception) {}
-    }
-
-    private fun createKeyboardWindow() {
-        keyboardContainer = FrameLayout(context)
-        val containerBg = GradientDrawable()
-        val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
-        containerBg.setColor(fillColor)
-        containerBg.cornerRadius = 16f
-        containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
-        keyboardContainer?.background = containerBg
-
-        // 1. The Keyboard Keys
-        // --- FIX Connect Shell for Spacebar Trackpad ---
-        // Pass the shell command capability to the view so it can inject mouse events
-
-
-        // Initialize Handler using 'targetDisplayId' (the class property), NOT 'inputTargetDisplayId'
-
-        keyboardView = KeyboardView(context)
-
-        // Bind KeyboardView events to our OverlayService callbacks
-        keyboardView?.cursorMoveAction = { dx, dy, isDragging ->
-            onCursorMove?.invoke(dx, dy, isDragging)
-        }
-
-        keyboardView?.cursorClickAction = { isRight ->
-            onCursorClick?.invoke(isRight)
-        }
-
-        // Touch Primitives
-        keyboardView?.touchDownAction = { onTouchDown?.invoke() }
-        keyboardView?.touchUpAction = { onTouchUp?.invoke() }
-        keyboardView?.touchTapAction = { onTouchTap?.invoke() }
-
-        // =================================================================================
-        // VIRTUAL MIRROR MODE - WIRE CALLBACK DIRECTLY TO KEYBOARDVIEW
-        // SUMMARY: The only way to intercept touches before KeyboardView processes them
-        //          is to have KeyboardView call us directly. Container listeners don't
-        //          work because child views receive touches first.
-        // =================================================================================
-        keyboardView?.mirrorTouchCallback = { x, y, action ->
-            val cb = onMirrorTouch
-            if (cb != null) {
-                cb.invoke(x, y, action)
-            } else {
-                false
-            }
-        }
-        // =================================================================================
-        // END BLOCK: VIRTUAL MIRROR MODE - WIRE CALLBACK
-        // =================================================================================
-
-
-        
-
-        // ------------------------------------------------
-        keyboardView?.setKeyboardListener(this)
-        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
-        val scale = prefs.getInt("keyboard_key_scale", 100) / 100f; keyboardView?.setScale(scale)
-        keyboardView?.alpha = currentAlpha / 255f
-
-        val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        kbParams.setMargins(6, 28, 6, 6)
-        keyboardContainer?.addView(keyboardView, kbParams)
-
-        
-
-        // 2. The Swipe Trail Overlay (Must match keyboard params to align coordinates)
-        val trailView = SwipeTrailView(context)
-        val trailParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        trailParams.setMargins(6, 28, 6, 6) // Exact same margins as keyboard
-        keyboardContainer?.addView(trailView, trailParams)
-
-        // Link them
-        keyboardView?.attachTrailView(trailView)
-
-        // =================================================================================
-        // ORIENTATION TRAIL VIEW (for virtual mirror mode)
-        // SUMMARY: A separate trail view for orange orientation trails. Layered on top
-        //          of the normal blue swipe trail so both can be visible simultaneously
-        //          if needed. Normally invisible; only shows during orientation mode.
-        // =================================================================================
-        orientationTrailView = SwipeTrailView(context)
-        orientationTrailView?.setTrailColor(0xFFFF9900.toInt()) // Orange color
-        val orientTrailParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        orientTrailParams.setMargins(6, 28, 6, 6)
-        keyboardContainer?.addView(orientationTrailView, orientTrailParams)
-        // =================================================================================
-        // END BLOCK: ORIENTATION TRAIL VIEW
-        // =================================================================================
-
-        addDragHandle(); addResizeHandle(); addCloseButton(); addTargetLabel()
-
-        val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
-        val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - 350 - 10)
-
-        keyboardParams = WindowManager.LayoutParams(
-            keyboardWidth,
-            keyboardHeight,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        )
-        keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT
-        keyboardParams?.x = savedX
-        keyboardParams?.y = savedY
-
-        windowManager.addView(keyboardContainer, keyboardParams)
-        updateAlpha(currentAlpha)
-    }
-
-    private fun addDragHandle() {
-        val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 28); handleParams.gravity = Gravity.TOP
-        val indicator = View(context); val indicatorBg = GradientDrawable(); indicatorBg.setColor(Color.parseColor("#555555")); indicatorBg.cornerRadius = 3f; indicator.background = indicatorBg
-        val indicatorParams = FrameLayout.LayoutParams(50, 5); indicatorParams.gravity = Gravity.CENTER; indicatorParams.topMargin = 8
-        handle.addView(indicator, indicatorParams); handle.setOnTouchListener { _, event -> handleDrag(event); true }
-        keyboardContainer?.addView(handle, handleParams)
-    }
-
-    private fun addResizeHandle() {
-        val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(36, 36); handleParams.gravity = Gravity.BOTTOM or Gravity.RIGHT
-        val indicator = View(context); val indicatorBg = GradientDrawable(); indicatorBg.setColor(Color.parseColor("#3DDC84")); indicatorBg.cornerRadius = 4f; indicator.background = indicatorBg; indicator.alpha = 0.7f
-        val indicatorParams = FrameLayout.LayoutParams(14, 14); indicatorParams.gravity = Gravity.BOTTOM or Gravity.RIGHT; indicatorParams.setMargins(0, 0, 6, 6)
-        handle.addView(indicator, indicatorParams); handle.setOnTouchListener { _, event -> handleResize(event); true }
-        keyboardContainer?.addView(handle, handleParams)
-    }
-
-    private fun addCloseButton() {
-        val button = FrameLayout(context); val buttonParams = FrameLayout.LayoutParams(28, 28); buttonParams.gravity = Gravity.TOP or Gravity.RIGHT; buttonParams.setMargins(0, 2, 4, 0)
-        val closeText = TextView(context); closeText.text = "X"; closeText.setTextColor(Color.parseColor("#FF5555")); closeText.textSize = 12f; closeText.gravity = Gravity.CENTER
-        // CHANGED: Call onCloseAction to notify Service (handles IME toggle & automation)
-        button.addView(closeText, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)); button.setOnClickListener { onCloseAction() }
-        keyboardContainer?.addView(button, buttonParams)
-    }
-
-    private fun addTargetLabel() {
-        val label = TextView(context); label.text = "Display $targetDisplayId"; label.setTextColor(Color.parseColor("#888888")); label.textSize = 9f
-        val labelParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT); labelParams.gravity = Gravity.TOP or Gravity.LEFT; labelParams.setMargins(8, 6, 0, 0)
-        keyboardContainer?.addView(label, labelParams)
-    }
-
-    private fun handleDrag(event: MotionEvent): Boolean {
-        if (isAnchored) return true
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> { 
-                isMoving = true
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                initialWindowX = keyboardParams?.x ?: 0
-                initialWindowY = keyboardParams?.y ?: 0 
-            }
-            MotionEvent.ACTION_MOVE -> { 
-                if (isMoving) { 
-                    keyboardParams?.x = initialWindowX + (event.rawX - initialTouchX).toInt()
-                    keyboardParams?.y = initialWindowY + (event.rawY - initialTouchY).toInt()
-                    try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} 
-                } 
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
-                isMoving = false
-                saveKeyboardPosition() 
-            }
-        }
-        return true
-    }
-
-    // [START RESIZE FIX]
-    private fun handleResize(event: MotionEvent): Boolean {
-        if (isAnchored) return true
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                isResizing = true
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                // Capture the current WINDOW dimensions (Visual)
-                initialWidth = keyboardParams?.width ?: keyboardWidth
-                initialHeight = keyboardParams?.height ?: keyboardHeight
-                
-                // Handle WRAP_CONTENT case for initial values
-                if (initialWidth < 0) initialWidth = keyboardContainer?.width ?: 300
-                if (initialHeight < 0) initialHeight = keyboardContainer?.height ?: 200
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (isResizing) {
-                    val dX = (event.rawX - initialTouchX).toInt()
-                    val dY = (event.rawY - initialTouchY).toInt()
-                    
-                    // 1. Calculate New VISUAL Dimensions (Window Size)
-                    val newVisualW = max(280, initialWidth + dX)
-                    val newVisualH = max(180, initialHeight + dY)
-                    
-                    // 2. Update Window Params
-                    keyboardParams?.width = newVisualW
-                    keyboardParams?.height = newVisualH
-                    
-                    // 3. Update LOGICAL Dimensions (Keyboard State)
-                    // If rotated, dragging "Width" actually changes the Keyboard's "Height" (Rows)
-                    if (currentRotation == 90 || currentRotation == 270) {
-                        keyboardHeight = newVisualW
-                        keyboardWidth = newVisualH
-                    } else {
-                        keyboardWidth = newVisualW
-                        keyboardHeight = newVisualH
-                    }
-                    
-                    // 4. Update Inner View Layout to match Logical Dimensions
-                    if (keyboardView != null) {
-                        val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
-                        lp.width = keyboardWidth
-                        lp.height = keyboardHeight
-                        keyboardView!!.layoutParams = lp
-                        
-                        // Re-center view if rotation is active
-                        alignRotatedView()
-                    }
-
-                    try {
-                        windowManager.updateViewLayout(keyboardContainer, keyboardParams)
-                    } catch (e: Exception) {}
-                }
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                isResizing = false
-                saveKeyboardSize()
-            }
-        }
-        return true
-    }
-    // [END RESIZE FIX]
-
-    private fun saveKeyboardSize() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_width_d$currentDisplayId", keyboardWidth).putInt("keyboard_height_d$currentDisplayId", keyboardHeight).apply() }
-    private fun saveKeyboardPosition() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_x_d$currentDisplayId", keyboardParams?.x ?: 0).putInt("keyboard_y_d$currentDisplayId", keyboardParams?.y ?: 0).apply() }
-    private fun loadKeyboardSizeForDisplay(displayId: Int) { val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE); keyboardWidth = prefs.getInt("keyboard_width_d$displayId", keyboardWidth); keyboardHeight = prefs.getInt("keyboard_height_d$displayId", keyboardHeight) }
-
-
-    // =================================================================================
-    // FUNCTION: onKeyPress
-    // SUMMARY: Handles key press events from the keyboard. Manages composing word state,
-    //          sentence start detection, and auto-learning. Special handling for
-    //          punctuation after swiped words to remove the trailing space.
-    // =================================================================================
-    override fun onKeyPress(keyCode: Int, char: Char?, metaState: Int) {
-        android.util.Log.d("DroidOS_Key", "Press: $keyCode ('$char')")
-
-        // --- PUNCTUATION AFTER SWIPE: Remove trailing space ---
-        // If the last action was a swipe (which adds "word "), and user types punctuation,
-        // we need to delete the trailing space first so we get "word." not "word ."
-        val isPunctuation = char != null && (char == '.' || char == ',' || char == '!' ||
-                                              char == '?' || char == ';' || char == ':' ||
-                                              char == '\'' || char == '"')
-
-        if (isPunctuation && lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.endsWith(" ")) {
-            // Delete the trailing space from the swiped word
-            injectKey(KeyEvent.KEYCODE_DEL, 0)
-            android.util.Log.d("DroidOS_Swipe", "PUNCTUATION: Removed trailing space before '$char'")
-
-            // Update the swipe word to not include the space (in case they backspace)
-            lastCommittedSwipeWord = lastCommittedSwipeWord!!.trimEnd()
-        }
-
-        // 1. Inject the key event
-        injectKey(keyCode, metaState)
-
-        // 2. Clear Swipe History on manual typing (but NOT for punctuation or shift)
-        if (keyCode != KeyEvent.KEYCODE_SHIFT_LEFT &&
-            keyCode != KeyEvent.KEYCODE_SHIFT_RIGHT &&
-            !isPunctuation) {
-            lastCommittedSwipeWord = null
-        }
-
-        // 3. Handle Backspace (Fixes "deleted text persists" bug)
-        if (keyCode == KeyEvent.KEYCODE_DEL) {
-            if (currentComposingWord.isNotEmpty()) {
-                currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
-                updateSuggestions()
-            }
-            return
-        }
-
-        // 4. Track Sentence Start
-        if (keyCode == KeyEvent.KEYCODE_ENTER || char == '.' || char == '!' || char == '?') {
-            isSentenceStart = true
-            lastCommittedSwipeWord = null // Clear swipe state on sentence end
-
-
-
-            // Auto-learn on punctuation
-            if (currentComposingWord.isNotEmpty()) {
-                val word = currentComposingWord.toString()
-                // DISABLE AUTO-LEARN
-                // if (word.length >= 2) predictionEngine.learnWord(context, word)
-            }
-
-
-            currentComposingWord.clear()
-
-        } else if (char != null && !Character.isWhitespace(char) && !isPunctuation) {
-            isSentenceStart = false
-        }
-
-        // 5. Update Composing Word
-        if (char != null && Character.isLetterOrDigit(char)) {
-            currentComposingWord.append(char)
-            updateSuggestions()
-        } else if (char != null && Character.isWhitespace(char)) {
-
-            // Space finishes a word
-            if (currentComposingWord.isNotEmpty()) {
-                val word = currentComposingWord.toString()
-                // DISABLE AUTO-LEARN
-                // if (word.length >= 2) predictionEngine.learnWord(context, word)
-            }
-
-            currentComposingWord.clear()
-            lastCommittedSwipeWord = null // Clear swipe state on space
-            updateSuggestions()
-        } else {
-            // Other symbols clear composition
-            currentComposingWord.clear()
-            updateSuggestions()
-        }
-    }
-    // =================================================================================
-    // END BLOCK: onKeyPress with punctuation spacing fix
-    // =================================================================================
-
-    
-    override fun onTextInput(text: String) {
-        if (shellService == null) return
-        Thread { try { val cmd = "input -d $targetDisplayId text \"$text\""; shellService.runCommand(cmd) } catch (e: Exception) { Log.e(TAG, "Text injection failed", e) } }.start()
-    }
-
-    override fun onScreenToggle() { onScreenToggleAction() }
-    override fun onScreenModeChange() { onScreenModeChangeAction() }
-
-    override fun onSpecialKey(key: KeyboardView.SpecialKey, metaState: Int) {
-        if (key == KeyboardView.SpecialKey.VOICE_INPUT) {
-            triggerVoiceTyping()
-            return
-        }
-        if (key == KeyboardView.SpecialKey.HIDE_KEYBOARD) {
-            onCloseAction() // Calls the close/hide action passed from Service
-            return
-        }
-
-        // =================================================================================
-        // BACKSPACE HANDLING - SWIPE WORD DELETE
-        // SUMMARY: If the last action was a swipe word commit, backspace deletes the
-        //          entire word (plus trailing space). Otherwise, normal backspace behavior.
-        //          This allows quick correction of mis-swiped words.
-        // =================================================================================
-        if (key == KeyboardView.SpecialKey.BACKSPACE) {
-            // CHECK: Was the last input a swiped word?
-            if (lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.isNotEmpty()) {
-                // Delete the entire swiped word (including trailing space)
-                val deleteCount = lastCommittedSwipeWord!!.length
-                android.util.Log.d("DroidOS_Swipe", "BACKSPACE: Deleting swiped word '${lastCommittedSwipeWord}' ($deleteCount chars)")
-
-                for (i in 0 until deleteCount) {
-                    injectKey(KeyEvent.KEYCODE_DEL, 0)
-                }
-
-                // Clear the swipe history so next backspace is normal
-                lastCommittedSwipeWord = null
-
-                // Don't inject another backspace - we already deleted
-                return
-            }
-
-            // Normal backspace: delete from composing word
-            if (currentComposingWord.isNotEmpty()) {
-                currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
-                updateSuggestions()
-            }
-        } else if (key == KeyboardView.SpecialKey.SPACE) {
-            // Space clears swipe history (user is continuing to type)
-            lastCommittedSwipeWord = null
-            resetComposition()
-        } else {
-            // Enter, Tabs, Arrows all break the current word chain
-            lastCommittedSwipeWord = null
-            resetComposition()
-        }
-        // =================================================================================
-        // END BLOCK: BACKSPACE HANDLING - SWIPE WORD DELETE
-        // =================================================================================
-
-        val keyCode = when (key) {
-            KeyboardView.SpecialKey.BACKSPACE -> KeyEvent.KEYCODE_DEL
-            KeyboardView.SpecialKey.ENTER -> KeyEvent.KEYCODE_ENTER
-            KeyboardView.SpecialKey.SPACE -> KeyEvent.KEYCODE_SPACE
-            KeyboardView.SpecialKey.TAB -> KeyEvent.KEYCODE_TAB
-            KeyboardView.SpecialKey.ESCAPE -> KeyEvent.KEYCODE_ESCAPE
-            KeyboardView.SpecialKey.ARROW_UP -> KeyEvent.KEYCODE_DPAD_UP
-            KeyboardView.SpecialKey.ARROW_DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
-            KeyboardView.SpecialKey.ARROW_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
-            KeyboardView.SpecialKey.ARROW_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
-            KeyboardView.SpecialKey.HOME -> KeyEvent.KEYCODE_MOVE_HOME
-            KeyboardView.SpecialKey.END -> KeyEvent.KEYCODE_MOVE_END
-            KeyboardView.SpecialKey.DELETE -> KeyEvent.KEYCODE_FORWARD_DEL
-            KeyboardView.SpecialKey.MUTE -> KeyEvent.KEYCODE_VOLUME_MUTE
-            KeyboardView.SpecialKey.VOL_UP -> KeyEvent.KEYCODE_VOLUME_UP
-            KeyboardView.SpecialKey.VOL_DOWN -> KeyEvent.KEYCODE_VOLUME_DOWN
-            KeyboardView.SpecialKey.BACK_NAV -> KeyEvent.KEYCODE_BACK
-            KeyboardView.SpecialKey.FWD_NAV -> KeyEvent.KEYCODE_FORWARD
-            else -> return
-        }
-        injectKey(keyCode, metaState)
-    }
-
-
-    // =================================================================================
-    // FUNCTION: onSuggestionClick
-    // SUMMARY: Handles when user taps a word in the prediction bar.
-    //          SCENARIO 1: Swipe Correction (Replaces last committed word)
-    //          SCENARIO 2: Manual Typing (Replaces current composing characters)
-    // =================================================================================
-    override fun onSuggestionClick(text: String, isNew: Boolean) {
-        android.util.Log.d("DroidOS_Prediction", "Suggestion clicked: '$text' (isNew=$isNew)")
-
-        // 1. Learn word if it was flagged as New
-        if (isNew) {
-            predictionEngine.learnWord(context, text)
-        }
-
-        // 2. Handle Deletion (Key Injection)
-        if (!lastCommittedSwipeWord.isNullOrEmpty()) {
-            // SCENARIO 1: Correcting a previously swiped word
-            // We must delete the full word + the space we added
-            val deleteCount = lastCommittedSwipeWord!!.length
-            for (i in 0 until deleteCount) {
-                injectKey(KeyEvent.KEYCODE_DEL, 0)
-            }
-        } else if (currentComposingWord.isNotEmpty()) {
-            // SCENARIO 2: Completing a manually typed word (e.g. "partia" -> "partially")
-            // We delete the characters typed so far
-            val deleteCount = currentComposingWord.length
-            for (i in 0 until deleteCount) {
-                injectKey(KeyEvent.KEYCODE_DEL, 0)
-            }
-        }
-
-        // 3. Insert new word (always add space for flow)
-        val newText = "$text "
-        injectText(newText)
-        
-        // 4. Update State
-        lastCommittedSwipeWord = newText
-        currentComposingWord.clear() // Reset manual typing state
-        
-        // Clear suggestions immediately since we just committed
-        updateSuggestionsWithSync(emptyList()) 
-    }
-
-
-    // =================================================================================
-    // END BLOCK: onSuggestionClick with reliable replacement
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: onSuggestionDropped
-    // SUMMARY: Called when user drags a suggestion to backspace to delete/block it.
-    //          DEBUG: Logging to confirm this is being called.
-    // =================================================================================
-    override fun onSuggestionDropped(text: String) {
-        android.util.Log.d("DroidOS_Drag", ">>> onSuggestionDropped CALLED: '$text'")
-
-        // Block the word
-        predictionEngine.blockWord(context, text)
-
-        android.widget.Toast.makeText(context, "Removed: $text", android.widget.Toast.LENGTH_SHORT).show()
-
-        // Refresh suggestions to remove the blocked word
-        updateSuggestions()
-
-        android.util.Log.d("DroidOS_Drag", "<<< onSuggestionDropped COMPLETE: '$text' blocked")
-    }
-    // =================================================================================
-    // END BLOCK: onSuggestionDropped with debug logging
-    // =================================================================================
-
-    // Layer change notification for mirror keyboard sync
-    override fun onLayerChanged(state: KeyboardView.KeyboardState) {
-        onLayerChanged?.invoke(state)
-    }
-
-    // =================================================================================
-    // FUNCTION: onSwipeDetected
-    // SUMMARY: Handles swipe gesture completion. Runs decoding in background thread.
-    //          OPTIMIZED: Reduced logging for better performance.
-    // =================================================================================
-    override fun onSwipeDetected(path: List<android.graphics.PointF>) {
-        if (keyboardView == null) return
-        
-        val keyMap = keyboardView?.getKeyCenters()
-        if (keyMap.isNullOrEmpty()) return
-
-        Thread {
-            try {
-                val suggestions = predictionEngine.decodeSwipe(path, keyMap)
-
-                if (suggestions.isNotEmpty()) {
-                    handler.post {
-                        var bestMatch = suggestions[0]
-                        if (isSentenceStart) {
-                            bestMatch = bestMatch.replaceFirstChar { 
-                                if (it.isLowerCase()) it.titlecase() else it.toString() 
-                            }
-                        }
-
-                        val isCap = Character.isUpperCase(bestMatch.firstOrNull() ?: ' ')
-                        val displaySuggestions = if (isCap) {
-                            suggestions.map { it.replaceFirstChar { c -> c.titlecase() } }
-                        } else {
-                            suggestions
-                        }.map { KeyboardView.Candidate(it, isNew = false) }
-
-                        updateSuggestionsWithSync(displaySuggestions)
-
-                        // Commit text with proper spacing
-                        var textToCommit = bestMatch
-                        if (currentComposingWord.isNotEmpty()) {
-                            textToCommit = " $bestMatch"
-                            currentComposingWord.clear()
-                        }
-                        textToCommit = "$textToCommit "
-
-                        injectText(textToCommit)
-                        lastCommittedSwipeWord = textToCommit
-                        isSentenceStart = false
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("DroidOS_Swipe", "Swipe decode error: ${e.message}")
-            }
-        }.start()
-    }
-    // =================================================================================
-    // END BLOCK: onSwipeDetected
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: onSwipeProgress (LIVE SWIPE PREVIEW)
-    // SUMMARY: Called during swipe to show real-time predictions as user swipes.
-    //          Uses a lightweight prediction that doesn't commit text.
-    //          This helps users see what word will be typed and helps debug.
-    // =================================================================================
-// =================================================================================
-    // FUNCTION: onSwipeProgress (LIVE SWIPE PREVIEW - Single Prediction)
-    // SUMMARY: Called during swipe to show real-time prediction as user swipes.
-    //          Shows ONLY the top prediction (like GBoard) for cleaner UX.
-    //          Full suggestions shown on swipe completion in onSwipeDetected.
-    // =================================================================================
-    override fun onSwipeProgress(path: List<android.graphics.PointF>) {
-        if (keyboardView == null || path.size < 5) return
-        
-        val keyMap = keyboardView?.getKeyCenters()
-        if (keyMap.isNullOrEmpty()) return
-
-        // Run prediction in background to avoid UI lag
-        Thread {
-            try {
-                val suggestions = predictionEngine.decodeSwipePreview(path, keyMap)
-
-                if (suggestions.isNotEmpty()) {
-                    handler.post {
-                        // Get only the TOP prediction
-                        var topPrediction = suggestions[0]
-                        
-                        // Apply capitalization if at sentence start
-                        if (isSentenceStart) {
-                            topPrediction = topPrediction.replaceFirstChar { 
-                                if (it.isLowerCase()) it.titlecase() else it.toString() 
-                            }
-                        }
-
-                        // Show ONLY the top prediction (single item list)
-                        val singleSuggestion = listOf(KeyboardView.Candidate(topPrediction, isNew = false))
-                        updateSuggestionsWithSync(singleSuggestion)
-                    }
-                }
-            } catch (e: Exception) {
-                // Silently ignore errors during preview
-            }
-        }.start()
-    }
-    // =================================================================================
-    // END BLOCK: onSwipeProgress
-    // =================================================================================
-    // =================================================================================
-    // END BLOCK: onSwipeProgress
-    // =================================================================================
-
-    // =================================================================================
-    // FUNCTION: updateSuggestions
-    // SUMMARY: Updates the suggestion bar based on current composing word.
-    //          Shows raw input + dictionary suggestions, filtering blocked words.
-    // =================================================================================
-    private fun updateSuggestions() {
-        val prefix = currentComposingWord.toString()
-        if (prefix.isEmpty()) {
-            updateSuggestionsWithSync(emptyList())
-            return
-        }
-
-
-        // 1. Get dictionary suggestions (already filtered for blocked words)
-        val suggestions = predictionEngine.getSuggestions(prefix, 3)
-        val candidates = ArrayList<KeyboardView.Candidate>()
-
-        // 2. Add Raw Input as first option (Always allow raw input to enable unblocking)
-        // If the word is blocked, it won't be in the dictionary (hasWord=false), so it will show as New (Cyan).
-        // Clicking it will trigger learnWord(), which now unblocks it.
-        val rawExists = predictionEngine.hasWord(prefix)
-        candidates.add(KeyboardView.Candidate(prefix, isNew = !rawExists))
-
-
-        // 3. Add dictionary suggestions (avoiding duplicates)
-        for (s in suggestions) {
-            // Don't show if it looks exactly like the raw input (ignore case)
-            if (!s.equals(prefix, ignoreCase = true)) {
-                candidates.add(KeyboardView.Candidate(s, isNew = false))
-            }
-        }
-
-        updateSuggestionsWithSync(candidates.take(3))
-    }
-    // =================================================================================
-    // END BLOCK: updateSuggestions
-    // =================================================================================
-
-    private fun resetComposition() {
-        currentComposingWord.clear()
-        updateSuggestionsWithSync(emptyList())
-    }
-
-    private fun injectKey(keyCode: Int, metaState: Int) {
-        (context as? OverlayService)?.injectKeyFromKeyboard(keyCode, metaState)
-    }
-
-    // --- Voice Logic & Mic Check Loop ---
-    
-    // Handler for the 1-second loop
-    private val micCheckHandler = Handler(Looper.getMainLooper())
-    
-    // Runnable that checks if the Microphone is currently recording
-    private val micCheckRunnable = object : Runnable {
-        override fun run() {
-            try {
-                val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
-                
-                // Use activeRecordingConfigurations (API 24+) to check if any app is recording
-                var isMicOn = false
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    if (audioManager.activeRecordingConfigurations.isNotEmpty()) {
-                        isMicOn = true
-                    }
-                }
-                
-                if (isMicOn) {
-                    // Still recording, check again in 1 second
-                    micCheckHandler.postDelayed(this, 1000)
-                } else {
-                    // Mic stopped (or not supported), turn off the green light
-                    keyboardView?.setVoiceActive(false)
-                }
-            } catch (e: Exception) {
-                // If check fails, fail safe to off
-                keyboardView?.setVoiceActive(false)
-            }
-        }
-    }
-
-    private fun triggerVoiceTyping() {
-        if (shellService == null) return
-
-        // 1. UI: Turn Button Green Immediately
-        keyboardView?.setVoiceActive(true)
-        
-        // 2. Start Monitoring Loop
-        // Delay 3 seconds to allow the Voice IME to open and start recording
-        micCheckHandler.removeCallbacks(micCheckRunnable)
-        micCheckHandler.postDelayed(micCheckRunnable, 3000)
-
-        // 3. Notify Service to stop blocking touches
-        val intent = android.content.Intent("VOICE_TYPE_TRIGGERED")
-        intent.setPackage(context.packageName)
-        context.sendBroadcast(intent)
-
-        // 4. Perform IME Switch via Shell
-        Thread {
-            try {
-                // Fetch IME list and find Google Voice Typing
-                val output = shellService?.runCommand("ime list -a -s") ?: ""
-                val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) } 
-                    ?: output.lines().find { it.contains("voice", true) }
-                
-                if (voiceIme != null) {
-                    shellService?.runCommand("ime set $voiceIme")
-                } else {
-                    android.util.Log.w(TAG, "Voice IME not found")
-                    // If IME missing, turn off light
-                    micCheckHandler.post { keyboardView?.setVoiceActive(false) }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e(TAG, "Voice Switch Failed", e)
-                micCheckHandler.post { keyboardView?.setVoiceActive(false) }
-            }
-        }.start()
-    }
-}
-```
-
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/PredictionEngine.kt
 ```kotlin
 package com.example.coverscreentester
@@ -20319,6 +18781,1606 @@ class PredictionEngine {
 }
 ```
 
+## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/KeyboardOverlay.kt
+```kotlin
+package com.example.coverscreentester
+
+import android.content.Context
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
+import android.media.AudioManager
+import android.media.AudioRecordingConfiguration
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.view.Gravity
+import android.view.InputDevice // <--- ADD THIS LINE
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.TextView
+import kotlin.math.max
+
+
+class KeyboardOverlay(
+    private val context: Context,
+    private val windowManager: WindowManager,
+    private val shellService: IShellService?,
+    private val targetDisplayId: Int,
+    private val onScreenToggleAction: () -> Unit,
+    private val onScreenModeChangeAction: () -> Unit,
+
+
+    private val onCloseAction: () -> Unit // New Parameter
+) : KeyboardView.KeyboardListener {
+
+    private var keyboardContainer: FrameLayout? = null
+
+
+    private var keyboardView: KeyboardView? = null
+    private var keyboardParams: WindowManager.LayoutParams? = null
+    private var isVisible = false
+    private val predictionEngine = PredictionEngine.instance
+    // State Variables
+    private var isMoving = false
+
+    private var isResizing = false
+    // [NEW] Track scale internally to avoid slow SharedPreferences reads during drag
+    private var internalScale = 1.0f 
+    private var dragStartScale = 1.0f
+    private var dragStartHeight = 0
+
+    private var isAnchored = false
+    private var initialTouchX = 0f
+    private var initialTouchY = 0f
+    private var initialWindowX = 0
+    private var initialWindowY = 0
+    private var initialWidth = 0
+    private var initialHeight = 0
+
+    private val TAG = "KeyboardOverlay"
+
+    // [FIX] Track the physical device ID to ignore injected events (Anti-Loop)
+    private var activeFingerDeviceId = -1
+    // =================================================================================
+    // VIRTUAL MIRROR ORIENTATION MODE VARIABLES
+    // SUMMARY: State for orientation mode when virtual mirror is active.
+    //          During orientation mode, an orange trail is shown and key input is blocked
+    //          until the finger stops moving for the configured delay.
+    // =================================================================================
+    private var isOrientationModeActive = false
+    private var orientationTrailView: SwipeTrailView? = null
+    // =================================================================================
+    // END BLOCK: VIRTUAL MIRROR ORIENTATION MODE VARIABLES
+    // =================================================================================
+
+    // --- PREDICTION STATE ---
+
+    private var currentComposingWord = StringBuilder()
+    private val handler = Handler(Looper.getMainLooper())
+
+    // NEW: Track sentence context and swipe history
+    private var lastCommittedSwipeWord: String? = null
+    private var isSentenceStart = true
+
+    // Helper to inject text via OverlayService
+    private fun injectText(text: String) {
+        (context as? OverlayService)?.injectText(text)
+    }
+
+    // FIX Default height to WRAP_CONTENT (-2) to avoid cutting off rows
+    private var keyboardWidth = 500
+    private var keyboardHeight = WindowManager.LayoutParams.WRAP_CONTENT 
+    
+    private var screenWidth = 720
+    private var screenHeight = 748
+    private var currentRotation = 0
+    private var currentAlpha = 200
+    private var currentDisplayId = 0
+
+
+    // Callbacks to talk back to OverlayService
+    var onCursorMove: ((Float, Float, Boolean) -> Unit)? = null // dx, dy, isDragging
+    var onCursorClick: ((Boolean) -> Unit)? = null
+    var onTouchDown: (() -> Unit)? = null
+    var onTouchUp: (() -> Unit)? = null
+    var onTouchTap: (() -> Unit)? = null
+
+    // =================================================================================
+    // VIRTUAL MIRROR CALLBACK
+    // SUMMARY: Callback to forward touch events to OverlayService for mirror sync.
+    //          Returns true if touch should be consumed (orientation mode active).
+    // =================================================================================
+    var onMirrorTouch: ((Float, Float, Int) -> Boolean)? = null // x, y, action -> consumed
+    // =================================================================================
+    // END BLOCK: VIRTUAL MIRROR CALLBACK
+    // =================================================================================
+
+    // Layer change callback for syncing mirror keyboard
+    var onLayerChanged: ((KeyboardView.KeyboardState) -> Unit)? = null
+
+    // =================================================================================
+    // CALLBACK: onSuggestionsChanged
+    // SUMMARY: Called whenever the suggestion bar is updated. Used to sync mirror keyboard.
+    // =================================================================================
+    var onSuggestionsChanged: ((List<KeyboardView.Candidate>) -> Unit)? = null
+    var onSizeChanged: (() -> Unit)? = null
+    // =================================================================================
+    // END BLOCK: onSuggestionsChanged
+    // =================================================================================
+
+
+
+    fun setScreenDimensions(width: Int, height: Int, displayId: Int) {
+        // We no longer update inputHandler here
+        
+        keyboardParams?.let {
+            it.width = width
+            it.height = height
+            try {
+                windowManager.updateViewLayout(keyboardContainer, it)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+
+
+
+    fun updateScale(scale: Float) {
+        internalScale = scale // [FIX] Track scale state
+        if (keyboardView == null) return
+        keyboardView?.setScale(scale)
+        
+        // FIX: Removed forced reset of keyboardHeight to WRAP_CONTENT.
+        // We now respect the existing keyboardHeight (whether it's fixed pixels from a manual resize
+        // or WRAP_CONTENT from default).
+        
+        if (isVisible && keyboardParams != null) {
+            // If the window is set to WRAP_CONTENT, we might need to poke the WM to re-measure
+            // effectively, but we shouldn't change the param value itself if it's already -2.
+            // If it is fixed pixels, we leave it alone.
+            
+            // We only need to update layout if we want to ensure constraints are met,
+            // but simply invalidating the view is usually enough for internal changes.
+            // To be safe, we update the view layout with the *current* params.
+            try { 
+                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                // Do NOT call saveKeyboardSize() here. Scaling shouldn't change the 
+                // "Window Size Preference" (Container), only the content scale.
+            } catch (e: Exception) {}
+        }
+    }
+    
+    fun updateAlpha(alpha: Int) {
+        currentAlpha = alpha
+        if (isVisible && keyboardContainer != null) {
+            val bg = keyboardContainer?.background as? GradientDrawable
+            if (bg != null) {
+                val fillColor = (alpha shl 24) or (0x1A1A1A)
+                bg.setColor(fillColor)
+                bg.setStroke(2, Color.parseColor("#44FFFFFF"))
+            }
+            val normalizedAlpha = alpha / 255f
+            keyboardView?.alpha = normalizedAlpha
+            keyboardContainer?.invalidate()
+        }
+    }
+    
+    fun setWindowBounds(x: Int, y: Int, width: Int, height: Int) {
+        keyboardWidth = width
+        keyboardHeight = height
+        if (isVisible && keyboardParams != null) {
+            keyboardParams?.x = x
+            keyboardParams?.y = y
+            keyboardParams?.width = width
+            keyboardParams?.height = height
+            try { 
+                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                saveKeyboardPosition()
+                saveKeyboardSize()
+            } catch (e: Exception) {}
+        } else {
+            // Even if hidden, save the new bounds so they apply on next show
+            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putInt("keyboard_x_d$currentDisplayId", x)
+                .putInt("keyboard_y_d$currentDisplayId", y)
+                .putInt("keyboard_width_d$currentDisplayId", width)
+                .putInt("keyboard_height_d$currentDisplayId", height)
+                .apply()
+        }
+    }
+   
+    fun setAnchored(anchored: Boolean) {
+        isAnchored = anchored
+    }
+
+    fun setVibrationEnabled(enabled: Boolean) {
+        keyboardView?.setVibrationEnabled(enabled)
+    }
+    // Helper for OverlayService Profile Load
+    fun updatePosition(x: Int, y: Int) {
+        if (keyboardContainer == null || keyboardParams == null) {
+            // Save to prefs if hidden
+            context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+                .putInt("keyboard_x_d$currentDisplayId", x)
+                .putInt("keyboard_y_d$currentDisplayId", y)
+                .apply()
+            return
+        }
+        keyboardParams?.x = x
+        keyboardParams?.y = y
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardPosition()
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+
+    // Helper for OverlayService Profile Load
+    fun updateSize(w: Int, h: Int) {
+        keyboardWidth = w
+        keyboardHeight = h
+        
+        if (keyboardContainer == null || keyboardParams == null) {
+            saveKeyboardSize()
+            return
+        }
+        keyboardParams?.width = w
+        keyboardParams?.height = h
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardSize()
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+    
+    // Robust Getters: Return live values if visible, otherwise return saved Prefs
+    fun getViewX(): Int {
+        if (keyboardParams != null) return keyboardParams!!.x
+        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            .getInt("keyboard_x_d$currentDisplayId", 0)
+    }
+    
+
+    fun getViewY(): Int {
+        if (keyboardParams != null) return keyboardParams!!.y
+        return context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            .getInt("keyboard_y_d$currentDisplayId", 0)
+    }
+    
+    fun getViewWidth(): Int = keyboardWidth
+    fun getViewHeight(): Int = keyboardHeight
+    fun getScale(): Float = internalScale // [FIX] Added accessor
+    fun getKeyboardView(): KeyboardView? = keyboardView
+
+
+    
+    // [START ROTATION FIX]
+    fun setRotation(angle: Int) {
+        currentRotation = angle
+        if (!isVisible || keyboardContainer == null || keyboardParams == null || keyboardView == null) return
+
+        val isPortrait = (angle == 90 || angle == 270)
+
+        // 1. Determine Logical Dimensions (Unrotated size)
+        // We rely on keyboardWidth/Height being the canonical "Landscape" size.
+        val baseW = keyboardWidth
+        val baseH = keyboardHeight 
+
+        // 2. Configure WINDOW Params (The touchable area on screen)
+        // If rotated, we swap the dimensions passed to WindowManager
+        if (isPortrait) {
+            keyboardParams?.width = if (baseH == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseH
+            keyboardParams?.height = if (baseW == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseW
+        } else {
+            keyboardParams?.width = if (baseW == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseW
+            keyboardParams?.height = if (baseH == -2) WindowManager.LayoutParams.WRAP_CONTENT else baseH
+        }
+
+        // 3. Configure VIEW Params (The Internal Content)
+        // The View must ALWAYS be the logical size (e.g. Wide) to layout keys in rows correctly.
+        val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
+        lp.width = if (baseW == -2) FrameLayout.LayoutParams.WRAP_CONTENT else baseW
+        lp.height = if (baseH == -2) FrameLayout.LayoutParams.WRAP_CONTENT else baseH
+        keyboardView!!.layoutParams = lp
+
+        // 4. Apply Rotation to View (Not Container)
+        keyboardView!!.rotation = angle.toFloat()
+        keyboardContainer!!.rotation = 0f // Ensure container is NOT rotated
+
+        // 5. Update Layout
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+        } catch (e: Exception) {}
+
+        // 6. Post-Layout Alignment
+        // We must translate the view to re-center it because rotation happens around the pivot (center).
+        // Since we swapped the Window dimensions, the centers might not align by default without this.
+        keyboardView!!.post { alignRotatedView() }
+    }
+
+    private fun alignRotatedView() {
+        if (keyboardView == null) return
+        
+        val angle = currentRotation
+        val w = keyboardView!!.measuredWidth
+        val h = keyboardView!!.measuredHeight
+        
+        // When rotated 90/270, the "Visual" width matches the View's Height, and vice versa.
+        // We translate the view so its visual center matches the window's center.
+        
+        when (angle) {
+            90, 270 -> {
+                val tx = (h - w) / 2f
+                val ty = (w - h) / 2f
+                keyboardView!!.translationX = tx
+                keyboardView!!.translationY = ty
+            }
+            else -> {
+                keyboardView!!.translationX = 0f
+                keyboardView!!.translationY = 0f
+            }
+        }
+    }
+
+    fun cycleRotation() {
+        if (keyboardContainer == null) return
+        val nextRotation = (currentRotation + 90) % 360
+        setRotation(nextRotation)
+    }
+
+
+
+
+    // [Removed duplicate accessors to fix build error]
+
+
+    fun resetPosition() {
+        if (keyboardParams == null) return
+        
+        // [FIX] Set Scale to 0.69f (69%) to fit the 0.55 Aspect Ratio perfectly
+        val defaultScale = 0.69f
+        internalScale = defaultScale
+        keyboardView?.setScale(defaultScale)
+        
+        // Save as 69 (Int)
+        context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+             .edit().putInt("keyboard_key_scale", 69).apply()
+
+        // 2. Reset Rotation state
+        currentRotation = 0
+        keyboardContainer?.rotation = 0f
+        keyboardView?.rotation = 0f
+        keyboardView?.translationX = 0f
+        keyboardView?.translationY = 0f
+
+        // 3. Calculate Defaults with Fixed 0.55 Aspect Ratio
+        val defaultWidth = (screenWidth * 0.90f).toInt().coerceIn(300, 1200)
+        
+        // Fixed 0.55 ratio matches the 0.69 key scale
+        val defaultHeight = (defaultWidth * 0.55f).toInt()
+        
+        val defaultX = (screenWidth - defaultWidth) / 2
+        val defaultY = (screenHeight / 2)
+
+        // 4. Update Params
+        keyboardWidth = defaultWidth
+        keyboardHeight = defaultHeight
+        
+        // [IMPORTANT] Reset Drag Start variables to match new defaults
+        dragStartHeight = defaultHeight
+        dragStartScale = defaultScale // Set to 0.69f
+        
+        keyboardParams?.x = defaultX
+        keyboardParams?.y = defaultY
+        keyboardParams?.width = defaultWidth
+        keyboardParams?.height = defaultHeight
+
+        // 5. Force View to Fill Window
+        if (keyboardView != null) {
+            val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
+            lp.width = FrameLayout.LayoutParams.MATCH_PARENT
+            lp.height = FrameLayout.LayoutParams.MATCH_PARENT 
+            keyboardView!!.layoutParams = lp
+        }
+
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+        } catch (e: Exception) {}
+        
+        saveKeyboardPosition()
+        saveKeyboardSize()
+        
+        // 6. Sync Mirror
+        syncMirrorRatio(defaultWidth, defaultHeight)
+    }
+
+
+    // [END ROTATION FIX]
+
+
+    fun show() { 
+        if (isVisible) return
+        try { 
+            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            currentAlpha = prefs.getInt("keyboard_alpha", 200)
+
+
+            createKeyboardWindow()
+
+            // [NEW] Initialize internal scale from prefs once on show
+            val savedScale = prefs.getInt("keyboard_key_scale", 100) / 100f
+            internalScale = savedScale
+            dragStartScale = savedScale // Init for safety
+
+
+
+            // [MODIFIED] Removed forced 0.55 aspect ratio listener to allow independent resizing.
+            // Sync is now handled via explicit broadcast in resize functions.
+
+
+            isVisible = true
+            if (currentRotation != 0) setRotation(currentRotation)
+        } catch (e: Exception) { android.util.Log.e("KeyboardOverlay", "Failed to show keyboard", e) } 
+    }
+
+
+    
+    fun hide() { 
+        if (!isVisible) return
+        try { 
+            windowManager.removeView(keyboardContainer)
+            keyboardContainer = null
+            keyboardView = null
+            isVisible = false 
+        } catch (e: Exception) { Log.e(TAG, "Failed to hide keyboard", e) } 
+    }
+    
+    fun toggle() { if (isVisible) hide() else show() }
+    fun isShowing(): Boolean = isVisible
+
+    fun setFocusable(focusable: Boolean) {
+        try {
+            if (keyboardContainer == null || keyboardParams == null) return
+
+            if (focusable) {
+                // Remove NOT_FOCUSABLE (Make it focusable)
+                keyboardParams?.flags = keyboardParams?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
+            } else {
+                // Add NOT_FOCUSABLE (Make it click-through for focus purposes)
+                keyboardParams?.flags = keyboardParams?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+            }
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // =================================================================================
+    // FUNCTION: setVoiceActive
+    // SUMMARY: Passes the voice state down to the keyboard view.
+    // =================================================================================
+    fun setVoiceActive(active: Boolean) {
+        keyboardView?.setVoiceActive(active)
+    }
+    // =================================================================================
+    // END BLOCK: setVoiceActive
+    // =================================================================================
+
+    // =================================================================================
+    // VIRTUAL MIRROR ORIENTATION MODE METHODS
+    // SUMMARY: Methods for managing orientation mode during virtual mirror operation.
+    //          These handle the orange trail that helps users locate their finger
+    //          position on the physical keyboard without looking at the screen.
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: setOrientationMode
+    // SUMMARY: Enables or disables orientation mode. When enabled, an orange trail
+    //          is shown and key input is blocked until the mode ends.
+    // @param active - true to enable orientation mode, false to disable
+    // =================================================================================
+    fun setOrientationMode(active: Boolean) {
+        isOrientationModeActive = active
+        keyboardView?.setOrientationModeActive(active)
+
+        if (!active) {
+            // Clear the orange trail when exiting orientation mode
+            orientationTrailView?.clear()
+        }
+    }
+    // =================================================================================
+    // END BLOCK: setOrientationMode
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: startOrientationTrail
+    // SUMMARY: Starts a new orange orientation trail at the specified position.
+    // @param x - Starting X coordinate
+    // @param y - Starting Y coordinate
+    // =================================================================================
+    fun startOrientationTrail(x: Float, y: Float) {
+        orientationTrailView?.clear()
+        orientationTrailView?.addPoint(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: startOrientationTrail
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: addOrientationTrailPoint
+    // SUMMARY: Adds a point to the orange orientation trail.
+    // @param x - X coordinate of new point
+    // @param y - Y coordinate of new point
+    // =================================================================================
+    fun addOrientationTrailPoint(x: Float, y: Float) {
+        orientationTrailView?.addPoint(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: addOrientationTrailPoint
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: clearOrientationTrail
+    // SUMMARY: Clears the orange orientation trail.
+    // =================================================================================
+    fun clearOrientationTrail() {
+        orientationTrailView?.clear()
+    }
+    // =================================================================================
+    // END BLOCK: clearOrientationTrail
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: setOrientationTrailColor
+    // SUMMARY: Sets the color of the orientation trail on the physical display.
+    // =================================================================================
+    fun setOrientationTrailColor(color: Int) {
+        orientationTrailView?.setTrailColor(color)
+    }
+    // =================================================================================
+    // END BLOCK: setOrientationTrailColor
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: startSwipeFromCurrentPosition
+    // SUMMARY: Called when switching from orange to blue trail mid-gesture.
+    //          Initializes swipe tracking so the path starts from the given position.
+    // =================================================================================
+    fun startSwipeFromCurrentPosition(x: Float, y: Float) {
+        keyboardView?.startSwipeFromPosition(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: startSwipeFromCurrentPosition
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: handleDeferredTap
+    // SUMMARY: Forwards deferred tap to KeyboardView for single key press in mirror mode.
+    // =================================================================================
+
+    fun handleDeferredTap(x: Float, y: Float) {
+        // CRITICAL: If a tap is detected, immediately stop any pending repeat logic.
+        // This prevents the "stuck" state where the system thinks you are still holding the key.
+        stopMirrorRepeat()
+        keyboardView?.handleDeferredTap(x, y)
+    }
+// =================================================================================
+    // FUNCTION: getKeyAtPosition
+    // SUMMARY: Returns the key tag at the given position, or null if no key found.
+    //          Used by mirror mode to check if finger is on a repeatable key.
+    // =================================================================================
+    fun getKeyAtPosition(x: Float, y: Float): String? {
+        return keyboardView?.getKeyAtPosition(x, y)
+    }
+    // =================================================================================
+    // END BLOCK: getKeyAtPosition
+    // =================================================================================
+
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: triggerKeyPress (Updated with Tap-Reset Fix)
+    // SUMMARY: Triggers a key press by key tag for Mirror Mode.
+    //          Includes 400ms initial delay + Watchdog timeout.
+    //          Now robustly resets if the sequence is broken.
+    // =================================================================================
+    private var activeRepeatKey: String? = null
+    private var lastMirrorKeyTime = 0L
+    private val mirrorRepeatHandler = Handler(Looper.getMainLooper())
+    private val REPEAT_START_DELAY = 400L
+    private val REPEAT_INTERVAL = 50L 
+    
+    // Watchdog: If no input received for 150ms, assume key was released
+    // Increased to 150ms to be more tolerant of input jitters
+    private val MIRROR_INPUT_TIMEOUT = 150L 
+
+    private val mirrorRepeatRunnable = object : Runnable {
+        override fun run() {
+            val key = activeRepeatKey ?: return
+            val now = System.currentTimeMillis()
+            
+            // Watchdog Check
+            if (now - lastMirrorKeyTime > MIRROR_INPUT_TIMEOUT) {
+                stopMirrorRepeat()
+                return
+            }
+
+            // Fire event
+            keyboardView?.triggerKeyPress(key)
+            mirrorRepeatHandler.postDelayed(this, REPEAT_INTERVAL)
+        }
+    }
+
+    // Changed from private to private-but-accessible-internally (or keep private if handleDeferredTap is in same class)
+    private fun stopMirrorRepeat() {
+        activeRepeatKey = null
+        mirrorRepeatHandler.removeCallbacks(mirrorRepeatRunnable)
+    }
+
+
+    fun blockPrediction(index: Int) {
+        keyboardView?.blockPredictionAtIndex(index)
+    }
+
+
+    fun triggerKeyPress(keyTag: String) {
+        val isRepeatable = keyTag in setOf("BKSP", "DEL", "◄", "▲", "▼", "►", "←", "↑", "↓", "→", "VOL+", "VOL-", "VOL_UP", "VOL_DOWN")
+
+        if (!isRepeatable) {
+            stopMirrorRepeat()
+            keyboardView?.triggerKeyPress(keyTag)
+            return
+        }
+
+        val now = System.currentTimeMillis()
+
+        if (keyTag == activeRepeatKey) {
+            // Update watchdog time
+            lastMirrorKeyTime = now
+            
+            // ROBUSTNESS FIX: If for some reason the handler isn't running (race condition),
+            // restart it to ensure we don't get stuck in a silent state.
+            if (!mirrorRepeatHandler.hasCallbacks(mirrorRepeatRunnable)) {
+                mirrorRepeatHandler.postDelayed(mirrorRepeatRunnable, REPEAT_START_DELAY)
+            }
+        } else {
+            // New Key Sequence
+            stopMirrorRepeat()
+            
+            activeRepeatKey = keyTag
+            lastMirrorKeyTime = now
+            
+            // Start Delay (Wait 400ms before first fire)
+            mirrorRepeatHandler.postDelayed(mirrorRepeatRunnable, REPEAT_START_DELAY)
+        }
+    }
+   // FUNCTION: getKeyboardState
+    // SUMMARY: Gets current keyboard state (layer) from KeyboardView.
+    // =================================================================================
+    fun getKeyboardState(): KeyboardView.KeyboardState? {
+        return keyboardView?.getKeyboardState()
+    }
+
+    // =================================================================================
+    // FUNCTION: setKeyboardState
+    // SUMMARY: Sets keyboard state (layer) in KeyboardView.
+    // =================================================================================
+    fun setKeyboardState(state: KeyboardView.KeyboardState) {
+        keyboardView?.setKeyboardState(state)
+    }
+
+    // =================================================================================
+    // FUNCTION: getCtrlAltState
+    // SUMMARY: Gets current Ctrl/Alt modifier states from KeyboardView.
+    // =================================================================================
+    fun getCtrlAltState(): Pair<Boolean, Boolean>? {
+        return keyboardView?.getCtrlAltState()
+    }
+
+    // =================================================================================
+    // FUNCTION: setCtrlAltState
+    // SUMMARY: Sets Ctrl/Alt modifier states in KeyboardView.
+    // =================================================================================
+    fun setCtrlAltState(ctrl: Boolean, alt: Boolean) {
+        keyboardView?.setCtrlAltState(ctrl, alt)
+    }
+    // =================================================================================
+    // END BLOCK: State accessor functions for mirror sync
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: updateSuggestionsWithSync
+    // SUMMARY: Sets suggestions on the keyboard view AND notifies callback for mirror sync.
+    // =================================================================================
+    private fun updateSuggestionsWithSync(candidates: List<KeyboardView.Candidate>) {
+        keyboardView?.setSuggestions(candidates)
+        onSuggestionsChanged?.invoke(candidates)
+    }
+    // =================================================================================
+    // END BLOCK: updateSuggestionsWithSync
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: isInOrientationMode
+    // SUMMARY: Returns whether orientation mode is currently active.
+    // @return true if orientation mode is active
+    // =================================================================================
+    fun isInOrientationMode(): Boolean {
+        return isOrientationModeActive
+    }
+    // =================================================================================
+    // END BLOCK: isInOrientationMode
+    // =================================================================================
+
+    // =================================================================================
+    // END BLOCK: VIRTUAL MIRROR ORIENTATION MODE METHODS
+    // =================================================================================
+
+    fun moveWindow(dx: Int, dy: Int) {
+        if (!isVisible || keyboardParams == null) return
+        keyboardParams!!.x += dx; keyboardParams!!.y += dy
+        try { 
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            saveKeyboardPosition()
+            onSizeChanged?.invoke()
+        } catch (e: Exception) {}
+    }
+    
+
+    // [MODIFIED] Legacy support: Redirects to the new smart resize logic
+    fun resizeWindow(dw: Int, dh: Int) {
+        if (!isVisible || keyboardParams == null) return
+        
+        // Calculate target dimensions based on current params
+        // Handle WRAP_CONTENT cases if necessary
+        val currentW = if (keyboardParams!!.width > 0) keyboardParams!!.width else keyboardContainer?.width ?: 300
+        val currentH = if (keyboardParams!!.height > 0) keyboardParams!!.height else keyboardContainer?.height ?: 200
+
+        // Pass to the new centralized function that handles Scaling + Sync
+        applyWindowResize(currentW + dw, currentH + dh)
+    }
+
+
+    // =================================================================================
+    // NEW: Centralized Resize Logic with Auto-Scale and Mirror Sync
+    // =================================================================================
+
+    // [MODIFIED] Deterministic Resizing Logic (Fixes Lag & Mismatch)
+    private fun applyWindowResize(width: Int, height: Int) {
+        if (keyboardParams == null) return
+
+        val newWidth = max(300, width)
+        val newHeight = max(150, height)
+        
+        // 1. Calculate New Scale Deterministically
+        // Formula: NewScale = StartScale * (NewHeight / StartHeight)
+        // This ensures the keys grow exactly proportional to the window drag.
+        if (dragStartHeight > 0 && newHeight != dragStartHeight) {
+             val heightRatio = newHeight.toFloat() / dragStartHeight.toFloat()
+             val targetScale = dragStartScale * heightRatio
+             
+             // Update Internal State
+             internalScale = targetScale
+             keyboardView?.setScale(internalScale)
+        }
+
+        // 2. Update Window Params
+        keyboardParams!!.width = newWidth
+        keyboardParams!!.height = newHeight
+        keyboardWidth = newWidth
+        keyboardHeight = newHeight
+
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+            onSizeChanged?.invoke()
+        } catch (e: Exception) {}
+
+        // 3. Sync Mirror Aspect Ratio
+        syncMirrorRatio(newWidth, newHeight)
+    }
+
+
+    fun handleResizeDpad(keyCode: Int): Boolean {
+        if (!isVisible || keyboardParams == null) return false
+        
+        val STEP = 20
+        var w = keyboardParams!!.width
+        var h = keyboardParams!!.height
+        var changed = false
+
+        when (keyCode) {
+            // Horizontal Only
+            KeyEvent.KEYCODE_DPAD_LEFT -> { w -= STEP; changed = true }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> { w += STEP; changed = true }
+            
+            // Vertical Only
+            KeyEvent.KEYCODE_DPAD_UP -> { h -= STEP; changed = true }   // Shrink Height
+            KeyEvent.KEYCODE_DPAD_DOWN -> { h += STEP; changed = true } // Grow Height
+        }
+
+        if (changed) {
+            applyWindowResize(w, h)
+            return true
+        }
+        return false
+    }
+
+    private fun syncMirrorRatio(width: Int, height: Int) {
+        try {
+            val ratio = width.toFloat() / height.toFloat()
+            val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.SYNC_KEYBOARD_RATIO")
+            intent.putExtra("ratio", ratio)
+            intent.putExtra("width", width)
+            intent.putExtra("height", height)
+            intent.setPackage("com.katsuyamaki.DroidOSLauncher")
+            context.sendBroadcast(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("KeyboardOverlay", "Failed to sync mirror ratio", e)
+        }
+    }
+
+
+
+
+
+    private fun createKeyboardWindow() {
+        // [FIX] Use custom FrameLayout to intercept ALL touches.
+        keyboardContainer = object : FrameLayout(context) {
+            
+            // SHIELD 1: Block Mouse Hovers
+            override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+                if (event.isFromSource(InputDevice.SOURCE_MOUSE) || 
+                    event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
+                    return true 
+                }
+                return super.dispatchGenericMotionEvent(event)
+            }
+
+            // SHIELD 2: Block Injected/Obscured Touches
+            override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+                
+                // [CRITICAL FIX] OBSCURED FILTER
+                // If the touch is passing through another window (like our Cursor Overlay),
+                // Android flags it as OBSCURED. We reject these to prevent the cursor loop.
+                if ((event.flags and MotionEvent.FLAG_WINDOW_IS_OBSCURED) != 0 ||
+                    (event.flags and MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED) != 0) {
+                    return true
+                }
+
+                // 1. Block Non-Fingers
+                if (event.getToolType(0) != MotionEvent.TOOL_TYPE_FINGER) return true
+                
+                // 2. Block Virtual/Null Devices
+                if (event.device == null || event.deviceId <= 0) return true
+                
+                // 3. Block Mouse Sources
+                if (event.isFromSource(InputDevice.SOURCE_MOUSE)) return true
+
+                val devId = event.deviceId
+                val action = event.actionMasked
+
+                when (action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        // Lock onto the first physical finger. 
+                        if (activeFingerDeviceId != -1 && activeFingerDeviceId != devId) {
+                            return true
+                        }
+                        activeFingerDeviceId = devId
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        // GHOST BLOCK: If no physical finger is locked, IGNORE ALL MOVES.
+                        if (activeFingerDeviceId == -1) return true
+                        
+                        // Strict Lock: Only allow the specific locked physical device.
+                        if (devId != activeFingerDeviceId) return true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (devId == activeFingerDeviceId) {
+                            activeFingerDeviceId = -1
+                        }
+                    }
+                }
+                
+                return super.dispatchTouchEvent(event)
+            }
+        }
+
+        // [IMPORTANT] Enable security filter on the view itself as a backup
+        keyboardContainer?.filterTouchesWhenObscured = true
+
+        val containerBg = GradientDrawable()
+        val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
+        containerBg.setColor(fillColor)
+        containerBg.cornerRadius = 16f
+        containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
+        keyboardContainer?.background = containerBg
+        
+        keyboardContainer?.isFocusable = true
+        keyboardContainer?.isFocusableInTouchMode = true
+        keyboardContainer?.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                if (handleResizeDpad(keyCode)) {
+                    return@setOnKeyListener true
+                }
+            }
+            false
+        }
+
+        // 1. The Keyboard Keys
+        keyboardView = KeyboardView(context)
+
+        // SHIELD 3: Backup Generic Motion Listener
+        keyboardView?.setOnGenericMotionListener { _, event ->
+            if (event.isFromSource(InputDevice.SOURCE_MOUSE) || 
+                event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
+                return@setOnGenericMotionListener true
+            }
+            false
+        }
+
+        // Bind KeyboardView events
+        keyboardView?.cursorMoveAction = { dx, dy, isDragging ->
+            // Use Mouse Injection (isDragging=false) to help differentiation
+            onCursorMove?.invoke(dx, dy, false)
+        }
+
+        keyboardView?.cursorClickAction = { isRight ->
+            onCursorClick?.invoke(isRight)
+        }
+
+        keyboardView?.touchDownAction = { onTouchDown?.invoke() }
+        keyboardView?.touchUpAction = { onTouchUp?.invoke() }
+        keyboardView?.touchTapAction = { onTouchTap?.invoke() }
+
+        keyboardView?.mirrorTouchCallback = { x, y, action ->
+            val cb = onMirrorTouch
+            if (cb != null) cb.invoke(x, y, action) else false
+        }
+
+        keyboardView?.setKeyboardListener(this)
+        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
+        val scale = prefs.getInt("keyboard_key_scale", 100) / 100f; keyboardView?.setScale(scale)
+        keyboardView?.alpha = currentAlpha / 255f
+
+        val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        kbParams.setMargins(6, 28, 6, 6)
+        keyboardContainer?.addView(keyboardView, kbParams)
+
+        // 2. The Swipe Trail Overlay
+        val trailView = SwipeTrailView(context)
+        val trailParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        trailParams.setMargins(6, 28, 6, 6)
+        keyboardContainer?.addView(trailView, trailParams)
+        keyboardView?.attachTrailView(trailView)
+
+        // ORIENTATION TRAIL VIEW
+        orientationTrailView = SwipeTrailView(context)
+        orientationTrailView?.setTrailColor(0xFFFF9900.toInt())
+        val orientTrailParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        orientTrailParams.setMargins(6, 28, 6, 6)
+        keyboardContainer?.addView(orientationTrailView, orientTrailParams)
+
+        addDragHandle(); addResizeHandle(); addCloseButton(); addTargetLabel()
+
+        val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", (screenWidth - keyboardWidth) / 2)
+        val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", screenHeight - 350 - 10)
+
+        keyboardParams = WindowManager.LayoutParams(
+            keyboardWidth,
+            keyboardHeight,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT
+        keyboardParams?.x = savedX
+        keyboardParams?.y = savedY
+
+        windowManager.addView(keyboardContainer, keyboardParams)
+        updateAlpha(currentAlpha)
+    }
+
+
+
+
+
+    private fun addDragHandle() {
+        val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 28); handleParams.gravity = Gravity.TOP
+        val indicator = View(context); val indicatorBg = GradientDrawable(); indicatorBg.setColor(Color.parseColor("#555555")); indicatorBg.cornerRadius = 3f; indicator.background = indicatorBg
+        val indicatorParams = FrameLayout.LayoutParams(50, 5); indicatorParams.gravity = Gravity.CENTER; indicatorParams.topMargin = 8
+        handle.addView(indicator, indicatorParams); handle.setOnTouchListener { _, event -> handleDrag(event); true }
+        keyboardContainer?.addView(handle, handleParams)
+    }
+
+    private fun addResizeHandle() {
+        val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(36, 36); handleParams.gravity = Gravity.BOTTOM or Gravity.RIGHT
+        val indicator = View(context); val indicatorBg = GradientDrawable(); indicatorBg.setColor(Color.parseColor("#3DDC84")); indicatorBg.cornerRadius = 4f; indicator.background = indicatorBg; indicator.alpha = 0.7f
+        val indicatorParams = FrameLayout.LayoutParams(14, 14); indicatorParams.gravity = Gravity.BOTTOM or Gravity.RIGHT; indicatorParams.setMargins(0, 0, 6, 6)
+        handle.addView(indicator, indicatorParams); handle.setOnTouchListener { _, event -> handleResize(event); true }
+        keyboardContainer?.addView(handle, handleParams)
+    }
+
+    private fun addCloseButton() {
+        val button = FrameLayout(context); val buttonParams = FrameLayout.LayoutParams(28, 28); buttonParams.gravity = Gravity.TOP or Gravity.RIGHT; buttonParams.setMargins(0, 2, 4, 0)
+        val closeText = TextView(context); closeText.text = "X"; closeText.setTextColor(Color.parseColor("#FF5555")); closeText.textSize = 12f; closeText.gravity = Gravity.CENTER
+        // CHANGED: Call onCloseAction to notify Service (handles IME toggle & automation)
+        button.addView(closeText, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)); button.setOnClickListener { onCloseAction() }
+        keyboardContainer?.addView(button, buttonParams)
+    }
+
+    private fun addTargetLabel() {
+        val label = TextView(context); label.text = "Display $targetDisplayId"; label.setTextColor(Color.parseColor("#888888")); label.textSize = 9f
+        val labelParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT); labelParams.gravity = Gravity.TOP or Gravity.LEFT; labelParams.setMargins(8, 6, 0, 0)
+        keyboardContainer?.addView(label, labelParams)
+    }
+
+    private fun handleDrag(event: MotionEvent): Boolean {
+        if (isAnchored) return true
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> { 
+                isMoving = true
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                initialWindowX = keyboardParams?.x ?: 0
+                initialWindowY = keyboardParams?.y ?: 0 
+            }
+            MotionEvent.ACTION_MOVE -> { 
+                if (isMoving) { 
+                    keyboardParams?.x = initialWindowX + (event.rawX - initialTouchX).toInt()
+                    keyboardParams?.y = initialWindowY + (event.rawY - initialTouchY).toInt()
+                    try { windowManager.updateViewLayout(keyboardContainer, keyboardParams) } catch (e: Exception) {} 
+                } 
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { 
+                isMoving = false
+                saveKeyboardPosition() 
+            }
+        }
+        return true
+    }
+
+    // [START RESIZE FIX]
+    private fun handleResize(event: MotionEvent): Boolean {
+        if (isAnchored) return true
+        when (event.action) {
+
+            MotionEvent.ACTION_DOWN -> {
+                isResizing = true
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                
+                initialWidth = keyboardParams?.width ?: keyboardWidth
+                initialHeight = keyboardParams?.height ?: keyboardHeight
+                
+                // Resolve WRAP_CONTENT to actual pixels
+                if (initialWidth < 0) initialWidth = keyboardContainer?.width ?: 300
+                if (initialHeight < 0) initialHeight = keyboardContainer?.height ?: 200
+                
+                // [FIX] Capture stable start values for deterministic scaling
+                dragStartHeight = initialHeight
+                dragStartScale = internalScale
+            }
+
+
+            MotionEvent.ACTION_MOVE -> {
+                if (isResizing) {
+                    val dX = (event.rawX - initialTouchX).toInt()
+                    val dY = (event.rawY - initialTouchY).toInt()
+                    
+                    val newW = initialWidth + dX
+                    val newH = initialHeight + dY
+                    
+                    // Use the shared function to handle visual update + scale + sync
+                    // Note: We might want to throttle 'saveKeyboardSize' inside applyWindowResize during drag
+                    // but for now this ensures visual consistency.
+                    applyWindowResize(newW, newH)
+                }
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isResizing = false
+                saveKeyboardSize()
+            }
+        }
+        return true
+    }
+    // [END RESIZE FIX]
+
+    private fun saveKeyboardSize() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_width_d$currentDisplayId", keyboardWidth).putInt("keyboard_height_d$currentDisplayId", keyboardHeight).apply() }
+    private fun saveKeyboardPosition() { context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit().putInt("keyboard_x_d$currentDisplayId", keyboardParams?.x ?: 0).putInt("keyboard_y_d$currentDisplayId", keyboardParams?.y ?: 0).apply() }
+    private fun loadKeyboardSizeForDisplay(displayId: Int) { val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE); keyboardWidth = prefs.getInt("keyboard_width_d$displayId", keyboardWidth); keyboardHeight = prefs.getInt("keyboard_height_d$displayId", keyboardHeight) }
+
+
+    // =================================================================================
+    // FUNCTION: onKeyPress
+    // SUMMARY: Handles key press events from the keyboard. Manages composing word state,
+    //          sentence start detection, and auto-learning. Special handling for
+    //          punctuation after swiped words to remove the trailing space.
+    // =================================================================================
+    override fun onKeyPress(keyCode: Int, char: Char?, metaState: Int) {
+        android.util.Log.d("DroidOS_Key", "Press: $keyCode ('$char')")
+
+        // --- PUNCTUATION AFTER SWIPE: Remove trailing space ---
+        // If the last action was a swipe (which adds "word "), and user types punctuation,
+        // we need to delete the trailing space first so we get "word." not "word ."
+        val isPunctuation = char != null && (char == '.' || char == ',' || char == '!' ||
+                                              char == '?' || char == ';' || char == ':' ||
+                                              char == '\'' || char == '"')
+
+        if (isPunctuation && lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.endsWith(" ")) {
+            // Delete the trailing space from the swiped word
+            injectKey(KeyEvent.KEYCODE_DEL, 0)
+            android.util.Log.d("DroidOS_Swipe", "PUNCTUATION: Removed trailing space before '$char'")
+
+            // Update the swipe word to not include the space (in case they backspace)
+            lastCommittedSwipeWord = lastCommittedSwipeWord!!.trimEnd()
+        }
+
+        // 1. Inject the key event
+        injectKey(keyCode, metaState)
+
+        // 2. Clear Swipe History on manual typing (but NOT for punctuation or shift)
+        if (keyCode != KeyEvent.KEYCODE_SHIFT_LEFT &&
+            keyCode != KeyEvent.KEYCODE_SHIFT_RIGHT &&
+            !isPunctuation) {
+            lastCommittedSwipeWord = null
+        }
+
+        // 3. Handle Backspace (Fixes "deleted text persists" bug)
+        if (keyCode == KeyEvent.KEYCODE_DEL) {
+            if (currentComposingWord.isNotEmpty()) {
+                currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
+                updateSuggestions()
+            }
+            return
+        }
+
+        // 4. Track Sentence Start
+        if (keyCode == KeyEvent.KEYCODE_ENTER || char == '.' || char == '!' || char == '?') {
+            isSentenceStart = true
+            lastCommittedSwipeWord = null // Clear swipe state on sentence end
+
+
+
+            // Auto-learn on punctuation
+            if (currentComposingWord.isNotEmpty()) {
+                val word = currentComposingWord.toString()
+                // DISABLE AUTO-LEARN
+                // if (word.length >= 2) predictionEngine.learnWord(context, word)
+            }
+
+
+            currentComposingWord.clear()
+
+        } else if (char != null && !Character.isWhitespace(char) && !isPunctuation) {
+            isSentenceStart = false
+        }
+
+        // 5. Update Composing Word
+        if (char != null && Character.isLetterOrDigit(char)) {
+            currentComposingWord.append(char)
+            updateSuggestions()
+        } else if (char != null && Character.isWhitespace(char)) {
+
+            // Space finishes a word
+            if (currentComposingWord.isNotEmpty()) {
+                val word = currentComposingWord.toString()
+                // DISABLE AUTO-LEARN
+                // if (word.length >= 2) predictionEngine.learnWord(context, word)
+            }
+
+            currentComposingWord.clear()
+            lastCommittedSwipeWord = null // Clear swipe state on space
+            updateSuggestions()
+        } else {
+            // Other symbols clear composition
+            currentComposingWord.clear()
+            updateSuggestions()
+        }
+    }
+    // =================================================================================
+    // END BLOCK: onKeyPress with punctuation spacing fix
+    // =================================================================================
+
+    
+    override fun onTextInput(text: String) {
+        if (shellService == null) return
+        Thread { try { val cmd = "input -d $targetDisplayId text \"$text\""; shellService.runCommand(cmd) } catch (e: Exception) { Log.e(TAG, "Text injection failed", e) } }.start()
+    }
+
+    override fun onScreenToggle() { onScreenToggleAction() }
+    override fun onScreenModeChange() { onScreenModeChangeAction() }
+
+    override fun onSpecialKey(key: KeyboardView.SpecialKey, metaState: Int) {
+        if (key == KeyboardView.SpecialKey.VOICE_INPUT) {
+            triggerVoiceTyping()
+            return
+        }
+        if (key == KeyboardView.SpecialKey.HIDE_KEYBOARD) {
+            onCloseAction() // Calls the close/hide action passed from Service
+            return
+        }
+
+        // =================================================================================
+        // BACKSPACE HANDLING - SWIPE WORD DELETE
+        // SUMMARY: If the last action was a swipe word commit, backspace deletes the
+        //          entire word (plus trailing space). Otherwise, normal backspace behavior.
+        //          This allows quick correction of mis-swiped words.
+        // =================================================================================
+        if (key == KeyboardView.SpecialKey.BACKSPACE) {
+            // CHECK: Was the last input a swiped word?
+            if (lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.isNotEmpty()) {
+                // Delete the entire swiped word (including trailing space)
+                val deleteCount = lastCommittedSwipeWord!!.length
+                android.util.Log.d("DroidOS_Swipe", "BACKSPACE: Deleting swiped word '${lastCommittedSwipeWord}' ($deleteCount chars)")
+
+                for (i in 0 until deleteCount) {
+                    injectKey(KeyEvent.KEYCODE_DEL, 0)
+                }
+
+                // Clear the swipe history so next backspace is normal
+                lastCommittedSwipeWord = null
+
+                // Don't inject another backspace - we already deleted
+                return
+            }
+
+            // Normal backspace: delete from composing word
+            if (currentComposingWord.isNotEmpty()) {
+                currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
+                updateSuggestions()
+            }
+        } else if (key == KeyboardView.SpecialKey.SPACE) {
+            // Space clears swipe history (user is continuing to type)
+            lastCommittedSwipeWord = null
+            resetComposition()
+        } else {
+            // Enter, Tabs, Arrows all break the current word chain
+            lastCommittedSwipeWord = null
+            resetComposition()
+        }
+        // =================================================================================
+        // END BLOCK: BACKSPACE HANDLING - SWIPE WORD DELETE
+        // =================================================================================
+
+        val keyCode = when (key) {
+            KeyboardView.SpecialKey.BACKSPACE -> KeyEvent.KEYCODE_DEL
+            KeyboardView.SpecialKey.ENTER -> KeyEvent.KEYCODE_ENTER
+            KeyboardView.SpecialKey.SPACE -> KeyEvent.KEYCODE_SPACE
+            KeyboardView.SpecialKey.TAB -> KeyEvent.KEYCODE_TAB
+            KeyboardView.SpecialKey.ESCAPE -> KeyEvent.KEYCODE_ESCAPE
+            KeyboardView.SpecialKey.ARROW_UP -> KeyEvent.KEYCODE_DPAD_UP
+            KeyboardView.SpecialKey.ARROW_DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
+            KeyboardView.SpecialKey.ARROW_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
+            KeyboardView.SpecialKey.ARROW_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
+            KeyboardView.SpecialKey.HOME -> KeyEvent.KEYCODE_MOVE_HOME
+            KeyboardView.SpecialKey.END -> KeyEvent.KEYCODE_MOVE_END
+            KeyboardView.SpecialKey.DELETE -> KeyEvent.KEYCODE_FORWARD_DEL
+            KeyboardView.SpecialKey.MUTE -> KeyEvent.KEYCODE_VOLUME_MUTE
+            KeyboardView.SpecialKey.VOL_UP -> KeyEvent.KEYCODE_VOLUME_UP
+            KeyboardView.SpecialKey.VOL_DOWN -> KeyEvent.KEYCODE_VOLUME_DOWN
+            KeyboardView.SpecialKey.BACK_NAV -> KeyEvent.KEYCODE_BACK
+            KeyboardView.SpecialKey.FWD_NAV -> KeyEvent.KEYCODE_FORWARD
+            else -> return
+        }
+        injectKey(keyCode, metaState)
+    }
+
+
+    // =================================================================================
+    // FUNCTION: onSuggestionClick
+    // SUMMARY: Handles when user taps a word in the prediction bar.
+    //          SCENARIO 1: Swipe Correction (Replaces last committed word)
+    //          SCENARIO 2: Manual Typing (Replaces current composing characters)
+    // =================================================================================
+    override fun onSuggestionClick(text: String, isNew: Boolean) {
+        android.util.Log.d("DroidOS_Prediction", "Suggestion clicked: '$text' (isNew=$isNew)")
+
+        // 1. Learn word if it was flagged as New
+        if (isNew) {
+            predictionEngine.learnWord(context, text)
+        }
+
+        // 2. Handle Deletion (Key Injection)
+        if (!lastCommittedSwipeWord.isNullOrEmpty()) {
+            // SCENARIO 1: Correcting a previously swiped word
+            // We must delete the full word + the space we added
+            val deleteCount = lastCommittedSwipeWord!!.length
+            for (i in 0 until deleteCount) {
+                injectKey(KeyEvent.KEYCODE_DEL, 0)
+            }
+        } else if (currentComposingWord.isNotEmpty()) {
+            // SCENARIO 2: Completing a manually typed word (e.g. "partia" -> "partially")
+            // We delete the characters typed so far
+            val deleteCount = currentComposingWord.length
+            for (i in 0 until deleteCount) {
+                injectKey(KeyEvent.KEYCODE_DEL, 0)
+            }
+        }
+
+        // 3. Insert new word (always add space for flow)
+        val newText = "$text "
+        injectText(newText)
+        
+        // 4. Update State
+        lastCommittedSwipeWord = newText
+        currentComposingWord.clear() // Reset manual typing state
+        
+        // Clear suggestions immediately since we just committed
+        updateSuggestionsWithSync(emptyList()) 
+    }
+
+
+    // =================================================================================
+    // END BLOCK: onSuggestionClick with reliable replacement
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: onSuggestionDropped
+    // SUMMARY: Called when user drags a suggestion to backspace to delete/block it.
+    //          DEBUG: Logging to confirm this is being called.
+    // =================================================================================
+    override fun onSuggestionDropped(text: String) {
+        android.util.Log.d("DroidOS_Drag", ">>> onSuggestionDropped CALLED: '$text'")
+
+        // Block the word
+        predictionEngine.blockWord(context, text)
+
+        android.widget.Toast.makeText(context, "Removed: $text", android.widget.Toast.LENGTH_SHORT).show()
+
+        // Refresh suggestions to remove the blocked word
+        updateSuggestions()
+
+        android.util.Log.d("DroidOS_Drag", "<<< onSuggestionDropped COMPLETE: '$text' blocked")
+    }
+    // =================================================================================
+    // END BLOCK: onSuggestionDropped with debug logging
+    // =================================================================================
+
+    // Layer change notification for mirror keyboard sync
+    override fun onLayerChanged(state: KeyboardView.KeyboardState) {
+        onLayerChanged?.invoke(state)
+    }
+
+    // =================================================================================
+    // FUNCTION: onSwipeDetected
+    // SUMMARY: Handles swipe gesture completion. Runs decoding in background thread.
+    //          OPTIMIZED: Reduced logging for better performance.
+    // =================================================================================
+    override fun onSwipeDetected(path: List<android.graphics.PointF>) {
+        if (keyboardView == null) return
+        
+        val keyMap = keyboardView?.getKeyCenters()
+        if (keyMap.isNullOrEmpty()) return
+
+        Thread {
+            try {
+                val suggestions = predictionEngine.decodeSwipe(path, keyMap)
+
+                if (suggestions.isNotEmpty()) {
+                    handler.post {
+                        var bestMatch = suggestions[0]
+                        if (isSentenceStart) {
+                            bestMatch = bestMatch.replaceFirstChar { 
+                                if (it.isLowerCase()) it.titlecase() else it.toString() 
+                            }
+                        }
+
+                        val isCap = Character.isUpperCase(bestMatch.firstOrNull() ?: ' ')
+                        val displaySuggestions = if (isCap) {
+                            suggestions.map { it.replaceFirstChar { c -> c.titlecase() } }
+                        } else {
+                            suggestions
+                        }.map { KeyboardView.Candidate(it, isNew = false) }
+
+                        updateSuggestionsWithSync(displaySuggestions)
+
+                        // Commit text with proper spacing
+                        var textToCommit = bestMatch
+                        if (currentComposingWord.isNotEmpty()) {
+                            textToCommit = " $bestMatch"
+                            currentComposingWord.clear()
+                        }
+                        textToCommit = "$textToCommit "
+
+                        injectText(textToCommit)
+                        lastCommittedSwipeWord = textToCommit
+                        isSentenceStart = false
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("DroidOS_Swipe", "Swipe decode error: ${e.message}")
+            }
+        }.start()
+    }
+    // =================================================================================
+    // END BLOCK: onSwipeDetected
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: onSwipeProgress (LIVE SWIPE PREVIEW)
+    // SUMMARY: Called during swipe to show real-time predictions as user swipes.
+    //          Uses a lightweight prediction that doesn't commit text.
+    //          This helps users see what word will be typed and helps debug.
+    // =================================================================================
+// =================================================================================
+    // FUNCTION: onSwipeProgress (LIVE SWIPE PREVIEW - Single Prediction)
+    // SUMMARY: Called during swipe to show real-time prediction as user swipes.
+    //          Shows ONLY the top prediction (like GBoard) for cleaner UX.
+    //          Full suggestions shown on swipe completion in onSwipeDetected.
+    // =================================================================================
+    override fun onSwipeProgress(path: List<android.graphics.PointF>) {
+        if (keyboardView == null || path.size < 5) return
+        
+        val keyMap = keyboardView?.getKeyCenters()
+        if (keyMap.isNullOrEmpty()) return
+
+        // Run prediction in background to avoid UI lag
+        Thread {
+            try {
+                val suggestions = predictionEngine.decodeSwipePreview(path, keyMap)
+
+                if (suggestions.isNotEmpty()) {
+                    handler.post {
+                        // Get only the TOP prediction
+                        var topPrediction = suggestions[0]
+                        
+                        // Apply capitalization if at sentence start
+                        if (isSentenceStart) {
+                            topPrediction = topPrediction.replaceFirstChar { 
+                                if (it.isLowerCase()) it.titlecase() else it.toString() 
+                            }
+                        }
+
+                        // Show ONLY the top prediction (single item list)
+                        val singleSuggestion = listOf(KeyboardView.Candidate(topPrediction, isNew = false))
+                        updateSuggestionsWithSync(singleSuggestion)
+                    }
+                }
+            } catch (e: Exception) {
+                // Silently ignore errors during preview
+            }
+        }.start()
+    }
+    // =================================================================================
+    // END BLOCK: onSwipeProgress
+    // =================================================================================
+    // =================================================================================
+    // END BLOCK: onSwipeProgress
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: updateSuggestions
+    // SUMMARY: Updates the suggestion bar based on current composing word.
+    //          Shows raw input + dictionary suggestions, filtering blocked words.
+    // =================================================================================
+    private fun updateSuggestions() {
+        val prefix = currentComposingWord.toString()
+        if (prefix.isEmpty()) {
+            updateSuggestionsWithSync(emptyList())
+            return
+        }
+
+
+        // 1. Get dictionary suggestions (already filtered for blocked words)
+        val suggestions = predictionEngine.getSuggestions(prefix, 3)
+        val candidates = ArrayList<KeyboardView.Candidate>()
+
+        // 2. Add Raw Input as first option (Always allow raw input to enable unblocking)
+        // If the word is blocked, it won't be in the dictionary (hasWord=false), so it will show as New (Cyan).
+        // Clicking it will trigger learnWord(), which now unblocks it.
+        val rawExists = predictionEngine.hasWord(prefix)
+        candidates.add(KeyboardView.Candidate(prefix, isNew = !rawExists))
+
+
+        // 3. Add dictionary suggestions (avoiding duplicates)
+        for (s in suggestions) {
+            // Don't show if it looks exactly like the raw input (ignore case)
+            if (!s.equals(prefix, ignoreCase = true)) {
+                candidates.add(KeyboardView.Candidate(s, isNew = false))
+            }
+        }
+
+        updateSuggestionsWithSync(candidates.take(3))
+    }
+    // =================================================================================
+    // END BLOCK: updateSuggestions
+    // =================================================================================
+
+    private fun resetComposition() {
+        currentComposingWord.clear()
+        updateSuggestionsWithSync(emptyList())
+    }
+
+    private fun injectKey(keyCode: Int, metaState: Int) {
+        (context as? OverlayService)?.injectKeyFromKeyboard(keyCode, metaState)
+    }
+
+    // --- Voice Logic & Mic Check Loop ---
+    
+    // Handler for the 1-second loop
+    private val micCheckHandler = Handler(Looper.getMainLooper())
+    
+    // Runnable that checks if the Microphone is currently recording
+    private val micCheckRunnable = object : Runnable {
+        override fun run() {
+            try {
+                val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+                
+                // Use activeRecordingConfigurations (API 24+) to check if any app is recording
+                var isMicOn = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    if (audioManager.activeRecordingConfigurations.isNotEmpty()) {
+                        isMicOn = true
+                    }
+                }
+                
+                if (isMicOn) {
+                    // Still recording, check again in 1 second
+                    micCheckHandler.postDelayed(this, 1000)
+                } else {
+                    // Mic stopped (or not supported), turn off the green light
+                    keyboardView?.setVoiceActive(false)
+                }
+            } catch (e: Exception) {
+                // If check fails, fail safe to off
+                keyboardView?.setVoiceActive(false)
+            }
+        }
+    }
+
+    private fun triggerVoiceTyping() {
+        if (shellService == null) return
+
+        // 1. UI: Turn Button Green Immediately
+        keyboardView?.setVoiceActive(true)
+        
+        // 2. Start Monitoring Loop
+        // Delay 3 seconds to allow the Voice IME to open and start recording
+        micCheckHandler.removeCallbacks(micCheckRunnable)
+        micCheckHandler.postDelayed(micCheckRunnable, 3000)
+
+        // 3. Notify Service to stop blocking touches
+        val intent = android.content.Intent("VOICE_TYPE_TRIGGERED")
+        intent.setPackage(context.packageName)
+        context.sendBroadcast(intent)
+
+        // 4. Perform IME Switch via Shell
+        Thread {
+            try {
+                // Fetch IME list and find Google Voice Typing
+                val output = shellService?.runCommand("ime list -a -s") ?: ""
+                val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) } 
+                    ?: output.lines().find { it.contains("voice", true) }
+                
+                if (voiceIme != null) {
+                    shellService?.runCommand("ime set $voiceIme")
+                } else {
+                    android.util.Log.w(TAG, "Voice IME not found")
+                    // If IME missing, turn off light
+                    micCheckHandler.post { keyboardView?.setVoiceActive(false) }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Voice Switch Failed", e)
+                micCheckHandler.post { keyboardView?.setVoiceActive(false) }
+            }
+        }.start()
+    }
+}
+```
+
 ## File: Cover-Screen-Trackpad/app/src/main/java/com/example/coverscreentester/OverlayService.kt
 ```kotlin
 package com.example.coverscreentester
@@ -20416,39 +20478,59 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 
+
     fun enforceZOrder() {
         try {
             if (windowManager != null) {
-                // CRITICAL: Explicitly remove and re-add Cursor to force it to the top of the stack
-                // Simply updating layout params is often not enough to change Z-order relative to other apps.
+                // LAYER 1: TRACKPAD (Lowest)
+                // We update layout but do NOT remove/add, keeping it at the bottom of the stack
+                if (trackpadLayout != null) {
+                    try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception) {}
+                }
+
+                // LAYER 2: KEYBOARD
+                // Managed independently. If visible, it sits above Trackpad.
+                // We don't touch it here; we just stack everything else ON TOP of it.
+
+                // LAYER 3: MENU
+                // Bring Menu to front (puts it above Keyboard)
+                if (menuManager != null) {
+                    try { menuManager?.bringToFront() } catch(e: Exception) {}
+                }
+
+                // LAYER 4: BUBBLE
+                // Explicitly Remove and Add to force it ABOVE Keyboard and Menu
+                if (bubbleView != null && bubbleView?.isAttachedToWindow == true) {
+                    try {
+                        windowManager?.removeView(bubbleView)
+                        windowManager?.addView(bubbleView, bubbleParams)
+                    } catch (e: Exception) {
+                        // Ignore errors if view state is weird
+                    }
+                } else if (bubbleView != null) {
+                    try { windowManager?.addView(bubbleView, bubbleParams) } catch(e: Exception) {}
+                }
+
+                // LAYER 5: CURSOR (Highest)
+                // Explicitly Remove and Add to force it ABOVE everything
                 if (cursorLayout != null && cursorLayout?.isAttachedToWindow == true) {
                     try {
                         windowManager?.removeView(cursorLayout)
                         windowManager?.addView(cursorLayout, cursorParams)
                     } catch (e: Exception) {
-                        // If remove fails (not attached), try adding
                         try { windowManager?.addView(cursorLayout, cursorParams) } catch(z: Exception) {}
                     }
                 } else if (cursorLayout != null) {
-                    // Not attached but exists? Try adding.
                     try { windowManager?.addView(cursorLayout, cursorParams) } catch(e: Exception) {}
                 }
-
-                // For Trackpad and Bubble, standard update is usually fine, but re-adding is safer if issues persist.
-                // For now, we stick to update for large layers to reduce flicker, but ensure Cursor is top.
-                if (trackpadLayout != null) {
-                    try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception) {}
-                }
-                if (bubbleView != null) {
-                    try { windowManager?.updateViewLayout(bubbleView, bubbleParams) } catch(e: Exception) {}
-                }
                 
-                Log.d("OverlayService", "Z-Order Enforced (Cursor Popped to Top)")
+                Log.d("OverlayService", "Z-Order Enforced (T < K < M < B < C)")
             }
         } catch (e: Exception) {
             Log.e("OverlayService", "Z-Order failed", e)
         }
     }
+
     // === RECEIVER & ACTIONS - END ===
 
     private val TAG = "OverlayService"
@@ -22001,14 +22083,53 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // =================================================================================
 
     
+
+
+    // =================================================================================
+    // PROFILE KEY GENERATION
+    // SUMMARY: Generates a unique key based on Resolution + Mirror Mode State.
+    //          Allows separate profiles for "Standard" and "Mirror" modes.
+    // =================================================================================
+    fun getProfileKey(): String {
+        val mode = if (prefs.prefVirtualMirrorMode) "MIRROR" else "STD"
+        return "P_${uiScreenWidth}_${uiScreenHeight}_$mode"
+    }
+
     fun getSavedProfileList(): List<String> {
+
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         val allKeys = p.all.keys
         val profiles = java.util.HashSet<String>()
-        val regex = Regex("X_P_(\\d+)_(\\d+)")
-        for (key in allKeys) { val match = regex.find(key); if (match != null) profiles.add("${match.groupValues[1]} x ${match.groupValues[2]}") }
+        
+        // Regex matches: X_P_{width}_{height}_{suffix}
+        // Group 1: Width
+        // Group 2: Height
+        // Group 3: Optional Suffix (MIRROR or STD)
+        val regex = Regex("X_P_(\\d+)_(\\d+)(?:_([A-Z]+))?")
+        
+        for (key in allKeys) { 
+            // We only care about X position keys to identify a profile exists
+            if (!key.startsWith("X_P_")) continue
+
+            val match = regex.matchEntire(key)
+            if (match != null) {
+                val w = match.groupValues[1]
+                val h = match.groupValues[2]
+                val suffix = match.groupValues.getOrNull(3) // Can be null, STD, or MIRROR
+                
+                var displayLabel = "$w x $h"
+                
+                // If it is a Mirror Profile, append VM
+                if (suffix == "MIRROR") {
+                    displayLabel += " VM"
+                }
+                
+                profiles.add(displayLabel)
+            }
+        }
         return profiles.sorted()
     }
+
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
@@ -22102,7 +22223,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             "persistent_service" -> prefs.prefPersistentService = parseBoolean(value)
             "block_soft_kb" -> { prefs.prefBlockSoftKeyboard = parseBoolean(value); setSoftKeyboardBlocking(prefs.prefBlockSoftKeyboard) }
             "keyboard_alpha" -> { prefs.prefKeyboardAlpha = value as Int; keyboardOverlay?.updateAlpha(prefs.prefKeyboardAlpha) }
-            "keyboard_key_scale" -> { prefs.prefKeyScale = value as Int; keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f) }
+
             "hardkey_vol_up_tap" -> prefs.hardkeyVolUpTap = value as String
             "hardkey_vol_up_double" -> prefs.hardkeyVolUpDouble = value as String
             "hardkey_vol_up_hold" -> prefs.hardkeyVolUpHold = value as String
@@ -22216,6 +22337,64 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // =================================================================================
     }
     
+
+
+    fun saveLayout() {
+        // 1. FETCH LIVE VALUES FROM PHYSICAL KEYBOARD
+        val currentKbX = keyboardOverlay?.getViewX() ?: savedKbX
+        val currentKbY = keyboardOverlay?.getViewY() ?: savedKbY
+        val currentKbW = keyboardOverlay?.getViewWidth() ?: savedKbW
+        val currentKbH = keyboardOverlay?.getViewHeight() ?: savedKbH
+        
+        // Fetch live scale
+        val liveScale = keyboardOverlay?.getScale() ?: (prefs.prefKeyScale / 100f)
+        prefs.prefKeyScale = (liveScale * 100).toInt()
+
+        savedKbX = currentKbX; savedKbY = currentKbY; savedKbW = currentKbW; savedKbH = currentKbH
+
+        // 2. SAVE TO SHARED PREFS (Using Mode-Specific Key)
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
+        val key = getProfileKey() // Returns ..._STD or ..._MIRROR
+        
+        // Save Trackpad Window
+        p.putInt("X_$key", trackpadParams.x)
+        p.putInt("Y_$key", trackpadParams.y)
+        p.putInt("W_$key", trackpadParams.width)
+        p.putInt("H_$key", trackpadParams.height)
+
+        // Save Settings String (Standard Settings)
+        val settingsStr = StringBuilder()
+        settingsStr.append("${prefs.cursorSpeed};${prefs.scrollSpeed};${if(prefs.prefTapScroll) 1 else 0};${if(prefs.prefReverseScroll) 1 else 0};${prefs.prefAlpha};${prefs.prefBgAlpha};${prefs.prefKeyboardAlpha};${prefs.prefHandleSize};${prefs.prefHandleTouchSize};${prefs.prefScrollTouchSize};${prefs.prefScrollVisualSize};${prefs.prefCursorSize};${prefs.prefKeyScale};${if(prefs.prefAutomationEnabled) 1 else 0};${if(prefs.prefAnchored) 1 else 0};${prefs.prefBubbleSize};${prefs.prefBubbleAlpha};${prefs.prefBubbleIconIndex};${prefs.prefBubbleX};${prefs.prefBubbleY};${prefs.hardkeyVolUpTap};${prefs.hardkeyVolUpDouble};${prefs.hardkeyVolUpHold};${prefs.hardkeyVolDownTap};${prefs.hardkeyVolDownDouble};${prefs.hardkeyVolDownHold};${prefs.hardkeyPowerDouble};")
+        
+        // New Settings (Vibrate, Position)
+        settingsStr.append("${if(prefs.prefVibrate) 1 else 0};${if(prefs.prefVPosLeft) 1 else 0};${if(prefs.prefHPosTop) 1 else 0};")
+
+        // Physical Keyboard Bounds
+        settingsStr.append("$currentKbX;$currentKbY;$currentKbW;$currentKbH")
+
+        p.putString("SETTINGS_$key", settingsStr.toString())
+
+        // [FIX] SAVE MIRROR KEYBOARD PARAMS (If in Mirror Mode)
+        if (prefs.prefVirtualMirrorMode) {
+            // Get live values from window params if available, otherwise use prefs
+            val mX = mirrorKeyboardParams?.x ?: prefs.prefMirrorX
+            val mY = mirrorKeyboardParams?.y ?: prefs.prefMirrorY
+            val mW = mirrorKeyboardParams?.width ?: prefs.prefMirrorWidth
+            val mH = mirrorKeyboardParams?.height ?: prefs.prefMirrorHeight
+            val mAlpha = prefs.prefMirrorAlpha
+
+            p.putInt("MIRROR_X_$key", mX)
+            p.putInt("MIRROR_Y_$key", mY)
+            p.putInt("MIRROR_W_$key", mW)
+            p.putInt("MIRROR_H_$key", mH)
+            p.putInt("MIRROR_ALPHA_$key", mAlpha)
+        }
+
+        p.apply()
+        showToast("Layout Saved (${if(prefs.prefVirtualMirrorMode) "Mirror" else "Std"})")
+    }
+
+
     private fun savePrefs() { 
         val e = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
         
@@ -22378,6 +22557,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             keyboardOverlay?.updatePosition(0, uiScreenHeight - defaultH)
             keyboardOverlay?.updateSize(uiScreenWidth, defaultH)
         }
+
+        // [FIX] Apply Saved Scale immediately after creation
+        // loadLayout() runs before this init, so we must manually apply the pref here
+        keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f)
     }
 
 
@@ -22385,10 +22568,23 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     fun toggleCustomKeyboard(suppressAutomation: Boolean = false) {
         if (keyboardOverlay == null) initCustomKeyboard()
-        val isNowVisible = if (keyboardOverlay?.isShowing() == true) { keyboardOverlay?.hide(); false } else { keyboardOverlay?.show(); true }
+        
+        val isNowVisible = if (keyboardOverlay?.isShowing() == true) { 
+            keyboardOverlay?.hide()
+            false 
+        } else { 
+            keyboardOverlay?.show()
+            // [FIX] Enforce scale when showing to prevent resets
+            keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f)
+            true 
+        }
+        
         isCustomKeyboardVisible = isNowVisible
         enforceZOrder()
-        if (prefs.prefAutomationEnabled && !suppressAutomation) { if (isNowVisible) turnScreenOn() else turnScreenOff() }
+        
+        if (prefs.prefAutomationEnabled && !suppressAutomation) { 
+            if (isNowVisible) turnScreenOn() else turnScreenOff() 
+        }
     }
 
     private fun turnScreenOn() { isScreenOff = false; Thread { try { shellService?.setBrightness(128); shellService?.setScreenOff(0, false) } catch(e: Exception) {} }.start(); showToast("Screen On") }
@@ -22605,7 +22801,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     fun performClick(right: Boolean) { if (shellService == null) return; Thread { try { if (right) shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId) else shellService?.execClick(cursorX, cursorY, inputTargetDisplayId) } catch(e: Exception){} }.start() }
     fun resetCursorCenter() { cursorX = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth/2f else uiScreenWidth/2f; cursorY = if (inputTargetDisplayId != currentDisplayId) targetScreenHeight/2f else uiScreenHeight/2f; if (inputTargetDisplayId == currentDisplayId) { cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); windowManager?.updateViewLayout(cursorLayout, cursorParams) } else { remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt(); try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception){} } }
     fun performRotation() { rotationAngle = (rotationAngle + 90) % 360; cursorView?.rotation = rotationAngle.toFloat() }
-    fun getProfileKey(): String = "P_${uiScreenWidth}_${uiScreenHeight}"
+
+    // =================================================================================
+    // PROFILE KEY GENERATION
+    // SUMMARY: Generates a unique key based on Resolution + Mirror Mode State.
+    //          Allows separate profiles for "Standard" and "Mirror" modes.
+    // =================================================================================
+
+    // =================================================================================
+    // PROFILE KEY GENERATION
+    // SUMMARY: Generates a unique key based on Resolution + Mirror Mode State.
+    //          Allows separate profiles for "Standard" and "Mirror" modes.
+    // =================================================================================
+
+
+
 
     // =================================================================================
     // VIRTUAL MIRROR MODE PROFILE KEY
@@ -22613,7 +22823,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     //          display-based profiles. This allows mirror mode to have its own
     //          trackpad/keyboard layout that persists independently.
     // =================================================================================
-    fun getMirrorModeProfileKey(): String = "MIRROR_MODE_${uiScreenWidth}_${uiScreenHeight}"
+
     // =================================================================================
     // END BLOCK: VIRTUAL MIRROR MODE PROFILE KEY
     // =================================================================================
@@ -22624,47 +22834,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     //          exiting mirror mode or when explicitly saving while in mirror mode.
     //          Includes both physical keyboard AND mirror keyboard positions/sizes.
     // =================================================================================
-    fun saveMirrorModeLayout() {
-        val currentKbX = keyboardOverlay?.getViewX() ?: savedKbX
-        val currentKbY = keyboardOverlay?.getViewY() ?: savedKbY
-        val currentKbW = keyboardOverlay?.getViewWidth() ?: savedKbW
-        val currentKbH = keyboardOverlay?.getViewHeight() ?: savedKbH
 
-        savedKbX = currentKbX; savedKbY = currentKbY; savedKbW = currentKbW; savedKbH = currentKbH
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit()
-        val key = getMirrorModeProfileKey()
-
-        // Save trackpad position/size
-        p.putInt("X_$key", trackpadParams.x)
-        p.putInt("Y_$key", trackpadParams.y)
-        p.putInt("W_$key", trackpadParams.width)
-        p.putInt("H_$key", trackpadParams.height)
-
-        val kbX = keyboardOverlay?.getViewX() ?: 0
-        val kbY = keyboardOverlay?.getViewY() ?: 0
-        val kbW = keyboardOverlay?.getViewWidth() ?: 0
-        val kbH = keyboardOverlay?.getViewHeight() ?: 0
-
-        // Save settings specific to mirror mode (same format as normal profile)
-        p.putString("SETTINGS_$key", "${prefs.cursorSpeed};${prefs.scrollSpeed};${if(prefs.prefTapScroll) 1 else 0};${if(prefs.prefReverseScroll) 1 else 0};${prefs.prefAlpha};${prefs.prefBgAlpha};${prefs.prefKeyboardAlpha};${prefs.prefHandleSize};${prefs.prefHandleTouchSize};${prefs.prefScrollTouchSize};${prefs.prefScrollVisualSize};${prefs.prefCursorSize};${prefs.prefKeyScale};${if(prefs.prefAutomationEnabled) 1 else 0};${if(prefs.prefAnchored) 1 else 0};${prefs.prefBubbleSize};${prefs.prefBubbleAlpha};${prefs.prefBubbleIconIndex};${prefs.prefBubbleX};${prefs.prefBubbleY};${prefs.hardkeyVolUpTap};${prefs.hardkeyVolUpDouble};${prefs.hardkeyVolUpHold};${prefs.hardkeyVolDownTap};${prefs.hardkeyVolDownDouble};${prefs.hardkeyVolDownHold};${prefs.hardkeyPowerDouble};$kbX;$kbY;$kbW;$kbH")
-
-        // FIX: Save mirror keyboard position/size/alpha separately
-        val mirrorX = mirrorKeyboardParams?.x ?: prefs.prefMirrorX
-        val mirrorY = mirrorKeyboardParams?.y ?: prefs.prefMirrorY
-        val mirrorW = mirrorKeyboardParams?.width ?: prefs.prefMirrorWidth
-        val mirrorH = mirrorKeyboardParams?.height ?: prefs.prefMirrorHeight
-        val mirrorAlpha = prefs.prefMirrorAlpha
-
-        p.putInt("MIRROR_X_$key", mirrorX)
-        p.putInt("MIRROR_Y_$key", mirrorY)
-        p.putInt("MIRROR_W_$key", mirrorW)
-        p.putInt("MIRROR_H_$key", mirrorH)
-        p.putInt("MIRROR_ALPHA_$key", mirrorAlpha)
-
-        p.apply()
-        Log.d(TAG, "Mirror mode layout saved: $key (Mirror KB: ${mirrorX},${mirrorY} ${mirrorW}x${mirrorH})")
-        showToast("Mirror Mode Layout Saved")
-    }
     // =================================================================================
     // END BLOCK: VIRTUAL MIRROR MODE LAYOUT SAVE
     // =================================================================================
@@ -22674,72 +22844,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // SUMMARY: Loads the mirror mode profile layout. Called when entering mirror mode.
     //          If no saved profile exists, uses sensible defaults.
     // =================================================================================
-    fun loadMirrorModeLayout() {
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-        val key = getMirrorModeProfileKey()
 
-        // Check if mirror mode profile exists
-        val hasSavedLayout = p.contains("X_$key")
-
-        if (hasSavedLayout) {
-            trackpadParams.x = p.getInt("X_$key", 100)
-            trackpadParams.y = p.getInt("Y_$key", 100)
-            trackpadParams.width = p.getInt("W_$key", 400)
-            trackpadParams.height = p.getInt("H_$key", 300)
-            try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception){}
-
-            val settings = p.getString("SETTINGS_$key", null)
-            if (settings != null) {
-                val parts = settings.split(";")
-                if (parts.size >= 17) {
-                    prefs.cursorSpeed = parts[0].toFloat(); prefs.scrollSpeed = parts[1].toFloat()
-                    prefs.prefTapScroll = parseBoolean(parts[2]); prefs.prefReverseScroll = parseBoolean(parts[3])
-                    prefs.prefAlpha = parts[4].toInt(); prefs.prefBgAlpha = parts[5].toInt()
-                    prefs.prefKeyboardAlpha = parts[6].toInt(); prefs.prefHandleSize = parts[7].toInt()
-                    prefs.prefHandleTouchSize = parts[8].toInt(); prefs.prefScrollTouchSize = parts[9].toInt()
-                    prefs.prefScrollVisualSize = parts[10].toInt(); prefs.prefCursorSize = parts[11].toInt()
-                    prefs.prefKeyScale = parts[12].toInt(); prefs.prefAutomationEnabled = parseBoolean(parts[13])
-                    prefs.prefAnchored = parseBoolean(parts[14]); prefs.prefBubbleSize = parts[15].toInt()
-                    prefs.prefBubbleAlpha = parts[16].toInt()
-
-                    if (parts.size >= 31) {
-                        savedKbX = parts[27].toInt()
-                        savedKbY = parts[28].toInt()
-                        savedKbW = parts[29].toInt()
-                        savedKbH = parts[30].toInt()
-                        keyboardOverlay?.setWindowBounds(savedKbX, savedKbY, savedKbW, savedKbH)
-                    }
-
-                    updateBorderColor(currentBorderColor)
-                    updateLayoutSizes()
-                    updateScrollSize()
-                    updateHandleSize()
-                    updateCursorSize()
-                    keyboardOverlay?.updateAlpha(prefs.prefKeyboardAlpha)
-                    keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f)
-                    keyboardOverlay?.setAnchored(prefs.prefAnchored)
-                }
-            }
-
-            // FIX: Load mirror keyboard position/size/alpha
-            if (p.contains("MIRROR_X_$key")) {
-                prefs.prefMirrorX = p.getInt("MIRROR_X_$key", -1)
-                prefs.prefMirrorY = p.getInt("MIRROR_Y_$key", 0)
-                prefs.prefMirrorWidth = p.getInt("MIRROR_W_$key", -1)
-                prefs.prefMirrorHeight = p.getInt("MIRROR_H_$key", -1)
-                prefs.prefMirrorAlpha = p.getInt("MIRROR_ALPHA_$key", 200)
-
-                // Apply to mirror keyboard if it exists
-                applyMirrorKeyboardSettings()
-
-                Log.d(TAG, "Mirror KB settings loaded: ${prefs.prefMirrorX},${prefs.prefMirrorY} ${prefs.prefMirrorWidth}x${prefs.prefMirrorHeight}")
-            }
-
-            Log.d(TAG, "Mirror mode layout loaded: $key")
-        } else {
-            Log.d(TAG, "No saved mirror mode layout, using current settings")
-        }
-    }
     // =================================================================================
     // END BLOCK: VIRTUAL MIRROR MODE LAYOUT LOAD
     // =================================================================================
@@ -22789,69 +22894,100 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // END BLOCK: applyMirrorKeyboardSettings
     // =================================================================================
 
-    fun saveLayout() {
-        // =================================================================================
-        // MIRROR MODE CHECK: If in mirror mode, save to mirror profile instead
-        // =================================================================================
-        if (prefs.prefVirtualMirrorMode && inputTargetDisplayId != currentDisplayId) {
-            saveMirrorModeLayout()
-            return
-        }
-        // =================================================================================
-        // END BLOCK: MIRROR MODE CHECK
-        // =================================================================================
 
-        // Cache the current values
-        val currentKbX = keyboardOverlay?.getViewX() ?: savedKbX
-        val currentKbY = keyboardOverlay?.getViewY() ?: savedKbY
-        val currentKbW = keyboardOverlay?.getViewWidth() ?: savedKbW
-        val currentKbH = keyboardOverlay?.getViewHeight() ?: savedKbH
-
-        // Update local memory
-        savedKbX = currentKbX; savedKbY = currentKbY; savedKbW = currentKbW; savedKbH = currentKbH
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE).edit(); val key = getProfileKey()
-        p.putInt("X_$key", trackpadParams.x); p.putInt("Y_$key", trackpadParams.y); p.putInt("W_$key", trackpadParams.width); p.putInt("H_$key", trackpadParams.height)
-        val kbX = keyboardOverlay?.getViewX() ?: 0; val kbY = keyboardOverlay?.getViewY() ?: 0; val kbW = keyboardOverlay?.getViewWidth() ?: 0; val kbH = keyboardOverlay?.getViewHeight() ?: 0
-        p.putString("SETTINGS_$key", "${prefs.cursorSpeed};${prefs.scrollSpeed};${if(prefs.prefTapScroll) 1 else 0};${if(prefs.prefReverseScroll) 1 else 0};${prefs.prefAlpha};${prefs.prefBgAlpha};${prefs.prefKeyboardAlpha};${prefs.prefHandleSize};${prefs.prefHandleTouchSize};${prefs.prefScrollTouchSize};${prefs.prefScrollVisualSize};${prefs.prefCursorSize};${prefs.prefKeyScale};${if(prefs.prefAutomationEnabled) 1 else 0};${if(prefs.prefAnchored) 1 else 0};${prefs.prefBubbleSize};${prefs.prefBubbleAlpha};${prefs.prefBubbleIconIndex};${prefs.prefBubbleX};${prefs.prefBubbleY};${prefs.hardkeyVolUpTap};${prefs.hardkeyVolUpDouble};${prefs.hardkeyVolUpHold};${prefs.hardkeyVolDownTap};${prefs.hardkeyVolDownDouble};${prefs.hardkeyVolDownHold};${prefs.hardkeyPowerDouble};$kbX;$kbY;$kbW;$kbH")
-        p.apply(); showToast("Layout Saved") 
-    }
-
-    fun loadLayout() { 
-        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE); val key = getProfileKey()
-        trackpadParams.x = p.getInt("X_$key", 100); trackpadParams.y = p.getInt("Y_$key", 100); trackpadParams.width = p.getInt("W_$key", 400); trackpadParams.height = p.getInt("H_$key", 300)
-        try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception){} 
+    fun loadLayout() {
+        val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        val key = getProfileKey()
+        
+        // 1. Load Trackpad Window
+        trackpadParams.x = p.getInt("X_$key", 100)
+        trackpadParams.y = p.getInt("Y_$key", 100)
+        trackpadParams.width = p.getInt("W_$key", 400)
+        trackpadParams.height = p.getInt("H_$key", 300)
+        try {
+            windowManager?.updateViewLayout(trackpadLayout, trackpadParams)
+        } catch(e: Exception){}
+        
+        // 2. Load Settings String
         val settings = p.getString("SETTINGS_$key", null)
+        var keyboardUpdated = false
+
         if (settings != null) {
             val parts = settings.split(";")
-            if (parts.size >= 17) {
-                prefs.cursorSpeed = parts[0].toFloat(); prefs.scrollSpeed = parts[1].toFloat(); prefs.prefTapScroll = parseBoolean(parts[2]); prefs.prefReverseScroll = parseBoolean(parts[3])
-                prefs.prefAlpha = parts[4].toInt(); prefs.prefBgAlpha = parts[5].toInt(); prefs.prefKeyboardAlpha = parts[6].toInt(); prefs.prefHandleSize = parts[7].toInt()
-                prefs.prefHandleTouchSize = parts[8].toInt(); prefs.prefScrollTouchSize = parts[9].toInt(); prefs.prefScrollVisualSize = parts[10].toInt(); prefs.prefCursorSize = parts[11].toInt()
-                prefs.prefKeyScale = parts[12].toInt(); prefs.prefAutomationEnabled = parseBoolean(parts[13]); prefs.prefAnchored = parseBoolean(parts[14]); prefs.prefBubbleSize = parts[15].toInt(); prefs.prefBubbleAlpha = parts[16].toInt()
-                if (parts.size >= 27) { prefs.prefBubbleIconIndex = parts[17].toInt(); prefs.prefBubbleX = parts[18].toInt(); prefs.prefBubbleY = parts[19].toInt(); prefs.hardkeyVolUpTap = parts[20]; prefs.hardkeyVolUpDouble = parts[21]; prefs.hardkeyVolUpHold = parts[22]; prefs.hardkeyVolDownTap = parts[23]; prefs.hardkeyVolDownDouble = parts[24]; prefs.hardkeyVolDownHold = parts[25]; prefs.hardkeyPowerDouble = parts[26] }
-                else if (parts.size >= 29) { keyboardOverlay?.updatePosition(parts[27].toInt(), parts[28].toInt()) }
-                updateBorderColor(currentBorderColor); updateLayoutSizes(); updateScrollSize(); updateHandleSize(); updateCursorSize(); keyboardOverlay?.updateAlpha(prefs.prefKeyboardAlpha); keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f); keyboardOverlay?.setAnchored(prefs.prefAnchored)
-                if (bubbleView != null) { bubbleParams.x = prefs.prefBubbleX; bubbleParams.y = prefs.prefBubbleY; windowManager?.updateViewLayout(bubbleView, bubbleParams); applyBubbleAppearance() }
-                if (parts.size >= 31) { 
-                    savedKbX = parts[27].toInt()
-                    savedKbY = parts[28].toInt()
-                    savedKbW = parts[29].toInt()
-                    savedKbH = parts[30].toInt()
-                } else {
-                    // Default if no save exists yet
-                    savedKbW = uiScreenWidth
-                    savedKbH = (uiScreenHeight * 0.45f).toInt()
-                    savedKbX = 0
-                    savedKbY = uiScreenHeight - savedKbH
-                } 
-
-                // IMPORTANT: Save loaded values to disk so toggling components (Keyboard) recalls correct state
-                savePrefs()
+            if (parts.size >= 15) {
+                // ... (Parsing Basic Params) ...
+                prefs.cursorSpeed = parts[0].toFloat(); prefs.scrollSpeed = parts[1].toFloat()
+                prefs.prefTapScroll = parts[2] == "1"; prefs.prefReverseScroll = parts[3] == "1"
+                prefs.prefAlpha = parts[4].toInt(); prefs.prefBgAlpha = parts[5].toInt()
+                prefs.prefKeyboardAlpha = parts[6].toInt(); prefs.prefHandleSize = parts[7].toInt()
+                prefs.prefHandleTouchSize = parts[8].toInt(); prefs.prefScrollTouchSize = parts[9].toInt()
+                prefs.prefScrollVisualSize = parts[10].toInt(); prefs.prefCursorSize = parts[11].toInt()
+                prefs.prefKeyScale = parts[12].toInt()
+                prefs.prefAutomationEnabled = parts[13] == "1"; prefs.prefAnchored = parts[14] == "1"
                 
-                showToast("Layout Loaded")
+                if (parts.size >= 27) {
+                    prefs.prefBubbleSize = parts[15].toInt(); prefs.prefBubbleAlpha = parts[16].toInt()
+                    prefs.prefBubbleIconIndex = parts[17].toInt(); prefs.prefBubbleX = parts[18].toInt()
+                    prefs.prefBubbleY = parts[19].toInt(); prefs.hardkeyVolUpTap = parts[20]
+                    prefs.hardkeyVolUpDouble = parts[21]; prefs.hardkeyVolUpHold = parts[22]
+                    prefs.hardkeyVolDownTap = parts[23]; prefs.hardkeyVolDownDouble = parts[24]
+                    prefs.hardkeyVolDownHold = parts[25]; prefs.hardkeyPowerDouble = parts[26]
+                }
+                
+                if (parts.size >= 30) {
+                    prefs.prefVibrate = parts[27] == "1"
+                    prefs.prefVPosLeft = parts[28] == "1"
+                    prefs.prefHPosTop = parts[29] == "1"
+                }
+
+                // Load Physical Keyboard Bounds
+                var kbIndex = 30
+                if (parts.size < 34 && parts.size >= 31) kbIndex = 27 
+
+                if (parts.size > kbIndex) {
+                     savedKbX = parts[kbIndex].toInt(); savedKbY = parts[kbIndex+1].toInt()
+                     savedKbW = parts[kbIndex+2].toInt(); savedKbH = parts[kbIndex+3].toInt()
+                     
+                     keyboardOverlay?.setWindowBounds(savedKbX, savedKbY, savedKbW, savedKbH)
+                     keyboardUpdated = true
+                }
+
+                // Apply Visuals
+                updateBorderColor(currentBorderColor); updateScrollSize(); updateHandleSize()
+                updateCursorSize(); updateScrollPosition()
+                keyboardOverlay?.updateScale(prefs.prefKeyScale / 100f)
+                keyboardOverlay?.updateAlpha(prefs.prefKeyboardAlpha)
+                keyboardOverlay?.setAnchored(prefs.prefAnchored)
+                keyboardOverlay?.setVibrationEnabled(prefs.prefVibrate)
+                applyBubbleAppearance()
             }
         }
+
+        // [FIX] LOAD MIRROR KEYBOARD PARAMS (If in Mirror Mode)
+        if (prefs.prefVirtualMirrorMode) {
+            if (p.contains("MIRROR_X_$key")) {
+                prefs.prefMirrorX = p.getInt("MIRROR_X_$key", -1)
+                prefs.prefMirrorY = p.getInt("MIRROR_Y_$key", 0)
+                prefs.prefMirrorWidth = p.getInt("MIRROR_W_$key", -1)
+                prefs.prefMirrorHeight = p.getInt("MIRROR_H_$key", -1)
+                prefs.prefMirrorAlpha = p.getInt("MIRROR_ALPHA_$key", 200)
+                
+                // Update live window if it exists
+                applyMirrorKeyboardSettings()
+            }
+        }
+
+        // [FIX] GHOSTING PREVENTION
+        if (!keyboardUpdated) {
+            keyboardOverlay?.resetPosition()
+            showToast("Defaults Loaded")
+        } else {
+            showToast("Profile Loaded: ${if(prefs.prefVirtualMirrorMode) "Mirror" else "Std"}")
+        }
     }
+
+
+
     fun deleteCurrentProfile() { /* Stub */ }
     fun resetKeyboardPosition() {
         keyboardOverlay?.resetPosition()
@@ -23529,7 +23665,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     //          - When OFF: Saves mirror mode profile, restores previous visibility
     //            state, switches back to local display, loads normal profile
     // =================================================================================
+
+
     fun toggleVirtualMirrorMode() {
+        // 1. Save CURRENT state (before switching)
+        // This correctly saves to the OLD profile (VM or STD) before we flip the switch.
+        saveLayout() 
+
         val wasEnabled = prefs.prefVirtualMirrorMode
         prefs.prefVirtualMirrorMode = !wasEnabled
 
@@ -23537,110 +23679,78 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             // === ENTERING MIRROR MODE ===
             android.util.Log.d(TAG, "Entering Virtual Mirror Mode")
 
-            // 1. Save current state before changes
+            // Store state for smart-toggle
             preMirrorTrackpadVisible = isTrackpadVisible
             preMirrorKeyboardVisible = isCustomKeyboardVisible
             preMirrorTargetDisplayId = inputTargetDisplayId
 
-            // 2. Save current layout to normal profile before switching
-            saveLayout()
-
-            // 3. Find and switch to a virtual/remote display
+            // Switch to virtual display
             val displays = displayManager?.displays ?: emptyArray()
             var targetDisplay: Display? = null
-            for (d in displays) {
-                if (d.displayId != currentDisplayId && d.displayId >= 2) {
-                    // Prefer virtual displays (ID >= 2)
-                    targetDisplay = d
-                    break
-                }
-            }
-            // Fallback to any non-current display
-            if (targetDisplay == null) {
-                for (d in displays) {
-                    if (d.displayId != currentDisplayId) {
-                        targetDisplay = d
-                        break
-                    }
-                }
-            }
+            for (d in displays) { if (d.displayId != currentDisplayId && d.displayId >= 2) { targetDisplay = d; break } }
+            if (targetDisplay == null) { for (d in displays) { if (d.displayId != currentDisplayId) { targetDisplay = d; break } } }
 
             if (targetDisplay != null) {
-                // Switch cursor target to remote display
                 inputTargetDisplayId = targetDisplay.displayId
                 updateTargetMetrics(inputTargetDisplayId)
                 createRemoteCursor(inputTargetDisplayId)
-                cursorX = targetScreenWidth / 2f
-                cursorY = targetScreenHeight / 2f
-                remoteCursorParams.x = cursorX.toInt()
-                remoteCursorParams.y = cursorY.toInt()
+                cursorX = targetScreenWidth / 2f; cursorY = targetScreenHeight / 2f
+                remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt()
                 try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {}
                 cursorView?.visibility = View.GONE
                 updateBorderColor(0xFFFF00FF.toInt())
 
-                // 4. Load mirror mode profile
-                loadMirrorModeLayout()
-
-                // 5. Ensure keyboard and trackpad are visible
+                // Ensure visibility
                 if (!isTrackpadVisible) toggleTrackpad()
                 if (!isCustomKeyboardVisible) toggleCustomKeyboard(suppressAutomation = true)
 
-                // 6. Create mirror keyboard
+                // 2. Load MIRROR Profile (Pref is now true, so this loads VM profile)
+                loadLayout() 
                 updateVirtualMirrorMode()
 
-                showToast("Mirror Mode ON → Display ${inputTargetDisplayId}")
+                showToast("Mirror Mode ON")
                 
-                // NEW: Tell Launcher to Cycle to Virtual Display
                 val intentCycle = Intent("com.katsuyamaki.DroidOSLauncher.CYCLE_DISPLAY")
                 intentCycle.setPackage("com.katsuyamaki.DroidOSLauncher")
                 sendBroadcast(intentCycle)
-                
             } else {
-                // No remote display available
                 prefs.prefVirtualMirrorMode = false
-                showToast("No virtual display found. Enable Virtual Display first.")
+                showToast("No virtual display found.")
             }
 
         } else {
             // === EXITING MIRROR MODE ===
             android.util.Log.d(TAG, "Exiting Virtual Mirror Mode")
 
-            // 1. Save mirror mode layout
-            saveMirrorModeLayout()
+            // [FIX] REMOVED the redundant saveLayout() here.
+            // It was overwriting the Standard Profile with the active VM layout 
+            // because prefVirtualMirrorMode was already set to false above.
 
-            // 2. Remove mirror keyboard
             removeMirrorKeyboard()
-
-            // 3. Switch back to local display
             inputTargetDisplayId = currentDisplayId
             targetScreenWidth = uiScreenWidth
             targetScreenHeight = uiScreenHeight
             removeRemoteCursor()
-            cursorX = uiScreenWidth / 2f
-            cursorY = uiScreenHeight / 2f
-            cursorParams.x = cursorX.toInt()
-            cursorParams.y = cursorY.toInt()
+            cursorX = uiScreenWidth / 2f; cursorY = uiScreenHeight / 2f
+            cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt()
             try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {}
             cursorView?.visibility = View.VISIBLE
             updateBorderColor(0x55FFFFFF.toInt())
-
-            // 4. Load normal profile
-            loadLayout()
-
-            // 5. Restore previous visibility state
-            if (isTrackpadVisible != preMirrorTrackpadVisible) toggleTrackpad()
-            if (isCustomKeyboardVisible != preMirrorKeyboardVisible) toggleCustomKeyboard(suppressAutomation = true)
-
-            showToast("Mirror Mode OFF → Local Display")
             
-            // NEW: Tell Launcher to Cycle back to Physical Display
+            // 3. Load STANDARD Profile (Pref is now false, so this loads STD profile)
+            loadLayout() 
+
+            showToast("Mirror Mode OFF")
+            
             val intentCycle = Intent("com.katsuyamaki.DroidOSLauncher.CYCLE_DISPLAY")
             intentCycle.setPackage("com.katsuyamaki.DroidOSLauncher")
             sendBroadcast(intentCycle)
         }
-
+        
         savePrefs()
     }
+
+
     // =================================================================================
     // END BLOCK: FUNCTION toggleVirtualMirrorMode
     // =================================================================================

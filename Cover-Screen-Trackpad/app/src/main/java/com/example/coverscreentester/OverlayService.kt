@@ -2350,6 +2350,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     // Helper to allow external components (like Keyboard) to control the cursor
     // Added 'isDragging' to switch between Hover (Mouse) and Drag (Touch)
+// =================================================================================
+    // SPACEBAR MOUSE CURSOR MOVEMENT HANDLER
+    // SUMMARY: Handles cursor movement from the spacebar trackpad feature.
+    //          Updates cursor position and visual, then injects hover/drag events.
+    //          CRITICAL: Skips hover injection when cursor is over keyboard bounds
+    //          to prevent feedback loop that causes lag/freezing.
+    // =================================================================================
     fun handleExternalMouseMove(dx: Float, dy: Float, isDragging: Boolean) {
         // Calculate safe bounds
         val safeW = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth.toFloat() else uiScreenWidth.toFloat()
@@ -2370,15 +2377,57 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
              try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {}
         }
 
+        // [ANTI-FEEDBACK-LOOP FIX]
+        // Check if cursor is over the keyboard - if so, skip hover injection
+        // This prevents the injected mouse events from creating a feedback loop
+        // where the keyboard receives the hover, processes it, and triggers more events
+        val isOverKeyboard = isCursorOverKeyboard()
+        
         // Input Injection
         if (isDragging) {
              // TOUCH DRAG: SOURCE_TOUCHSCREEN + ACTION_MOVE
+             // Always inject drag events - user explicitly initiated drag
              injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, 0, SystemClock.uptimeMillis())
         } else {
              // MOUSE HOVER: SOURCE_MOUSE + ACTION_HOVER_MOVE
-             injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+             // Skip hover injection when over keyboard to prevent feedback loop
+             if (!isOverKeyboard) {
+                 injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+             }
         }
     }
+    // =================================================================================
+    // END BLOCK: SPACEBAR MOUSE CURSOR MOVEMENT HANDLER
+    // =================================================================================
+
+    // =================================================================================
+    // KEYBOARD BOUNDS CHECK FOR CURSOR
+    // SUMMARY: Returns true if the cursor is currently positioned over the keyboard
+    //          overlay window. Used to prevent feedback loops when the spacebar
+    //          mouse feature moves the cursor over the keyboard itself.
+    // =================================================================================
+    private fun isCursorOverKeyboard(): Boolean {
+        // Only check if keyboard is visible and we're on the same display
+        if (!isCustomKeyboardVisible) return false
+        if (inputTargetDisplayId != currentDisplayId) return false
+        
+        // Get keyboard bounds from the overlay
+        val kbX = keyboardOverlay?.getViewX() ?: return false
+        val kbY = keyboardOverlay?.getViewY() ?: return false
+        val kbW = keyboardOverlay?.getViewWidth() ?: return false
+        val kbH = keyboardOverlay?.getViewHeight() ?: return false
+        
+        // Add a small padding to the bounds to ensure we catch edge cases
+        val padding = 10
+        
+        return cursorX >= (kbX - padding) && 
+               cursorX <= (kbX + kbW + padding) &&
+               cursorY >= (kbY - padding) && 
+               cursorY <= (kbY + kbH + padding)
+    }
+    // =================================================================================
+    // END BLOCK: KEYBOARD BOUNDS CHECK FOR CURSOR
+    // ==============================================
 
     // Explicit Touch Down (Start Drag/Hold)
     fun handleExternalTouchDown() {
