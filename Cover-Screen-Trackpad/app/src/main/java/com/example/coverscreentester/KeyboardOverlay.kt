@@ -239,51 +239,20 @@ class KeyboardOverlay(
     }
 
     // Helper for OverlayService Profile Load
-    fun updateSize(width: Int, height: Int) {
-        keyboardWidth = width
-        
-        var finalHeight = height
-        
-        // [Fixed] Manual Measurement Strategy
-        // We intercept the WRAP_CONTENT signal (-2) and manually measure the view.
-        if (height == WindowManager.LayoutParams.WRAP_CONTENT || height == -2) {
-            if (keyboardView != null) {
-                val displayMetrics = context.resources.displayMetrics
-                val screenHeight = displayMetrics.heightPixels
-
-                // 1. Measure with AT_MOST to get the tightest fit
-                keyboardView!!.measure(
-                    View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(screenHeight, View.MeasureSpec.AT_MOST)
-                )
-                
-                // 2. [Fixed] Add Safety Buffer (50dp)
-                // The measured height often misses the bottom row padding or margins.
-                // We add 50dp to ensure the 6th row (Ctrl/Arrows) and Android nav keys are visible.
-                val buffer = (50 * displayMetrics.density).toInt()
-                finalHeight = keyboardView!!.measuredHeight + buffer
-                
-                // 3. Safety Clamp: Never exceed screen height
-                if (finalHeight > screenHeight) {
-                    finalHeight = screenHeight
-                }
-            }
-        }
-
-        keyboardHeight = finalHeight // Update internal state
+    fun updateSize(w: Int, h: Int) {
+        keyboardWidth = w
+        keyboardHeight = h
         
         if (keyboardContainer == null || keyboardParams == null) {
             saveKeyboardSize()
             return
         }
-        keyboardParams?.width = width
-        keyboardParams?.height = finalHeight
+        keyboardParams?.width = w
+        keyboardParams?.height = h
         try {
             windowManager.updateViewLayout(keyboardContainer, keyboardParams)
             saveKeyboardSize()
-        } catch (e: Exception) {
-            Log.e("KeyboardOverlay", "Failed to update size", e)
-        }
+        } catch (e: Exception) { e.printStackTrace() }
     }
     
     // Robust Getters: Return live values if visible, otherwise return saved Prefs
@@ -387,21 +356,20 @@ class KeyboardOverlay(
     // [Removed duplicate accessors to fix build error]
 
 
+
+
+
     fun resetPosition() {
-        if (keyboardParams == null) return // Add this check for safety.
-
-        val metrics = context.resources.displayMetrics
-        val screenWidth = metrics.widthPixels
-        val screenHeight = metrics.heightPixels
-
-        // 1. Reset Scale
+        if (keyboardParams == null) return
+        
+        // 1. Set Scale to 0.69f (Standard Reset Scale)
         val defaultScale = 0.69f
-        // Save to shared preferences, not directly to prefs object here
+        internalScale = defaultScale
+        keyboardView?.setScale(defaultScale)
+        
+        // Save preference
         context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-             .edit().putInt("keyboard_key_scale", (defaultScale * 100).toInt()).apply()
-        internalScale = defaultScale // Update internal state
-        keyboardView?.setScale(defaultScale) // Use existing method
-
+             .edit().putInt("keyboard_key_scale", 69).apply()
 
         // 2. Reset Rotation state
         currentRotation = 0
@@ -410,33 +378,57 @@ class KeyboardOverlay(
         keyboardView?.translationX = 0f
         keyboardView?.translationY = 0f
 
-        // 3. Width
-        val defaultWidth = (screenWidth * 0.96f).toInt().coerceIn(300, 1200)
+        // 3. Calculate Dimensions
+        // Width: 90% of screen, capped at 1200px to prevent ultra-wide windows
+        val defaultWidth = (screenWidth * 0.90f).toInt().coerceIn(300, 1200)
         
-        // 4. Height: Send WRAP_CONTENT (-2) to trigger the manual measure above
-        val defaultHeight = WindowManager.LayoutParams.WRAP_CONTENT
+        // Height: Fixed Physical Height Calculation
+        // Problem: Calculating height as % of width fails on wide screens (Beam Pro), creating huge empty space.
+        // Solution: Use fixed DP height.
+        // 300dp = Physical height of 7 rows (derived from your Flip 7 1080p setup).
+        // This ensures the window is exactly tall enough for the keys on ANY device.
+        val density = context.resources.displayMetrics.density
+        val baseHeightDp = 300f
+        val defaultHeight = (baseHeightDp * defaultScale * density).toInt()
         
+        // Position: Center
         val defaultX = (screenWidth - defaultWidth) / 2
-        // [Fixed] Use Percentage-Based Y Position (30% down)
-        // Calculating "ScreenHeight - Pixels" pushes the window off-screen on small Cover Screens.
-        // Placing it at 30% ensures it is always visible on any display size.
-        val defaultY = (screenHeight * 0.3f).toInt()
+        val defaultY = (screenHeight / 2)
 
-        // 5. Force Internal View to WRAP_CONTENT
+        // 4. Update Params
+        keyboardWidth = defaultWidth
+        keyboardHeight = defaultHeight
+        
+        // Reset Drag Anchors
+        dragStartHeight = defaultHeight
+        dragStartScale = defaultScale
+        
+        keyboardParams?.x = defaultX
+        keyboardParams?.y = defaultY
+        keyboardParams?.width = defaultWidth
+        keyboardParams?.height = defaultHeight
+
+        // 5. Force View to Fill Window
         if (keyboardView != null) {
             val lp = keyboardView!!.layoutParams as FrameLayout.LayoutParams
             lp.width = FrameLayout.LayoutParams.MATCH_PARENT
-            lp.height = FrameLayout.LayoutParams.WRAP_CONTENT 
+            lp.height = FrameLayout.LayoutParams.MATCH_PARENT 
             keyboardView!!.layoutParams = lp
         }
 
-        // 6. Update
-        updatePosition(defaultX, defaultY)
-        updateSize(defaultWidth, defaultHeight) // This will trigger the manual measurement
-
-        // 7. Sync Mirror (Keep this as it's part of the existing logic)
+        try {
+            windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+        } catch (e: Exception) {}
+        
+        saveKeyboardPosition()
+        saveKeyboardSize()
+        
+        // 6. Sync Mirror
         syncMirrorRatio(defaultWidth, defaultHeight)
     }
+
+
+
 
 
     // [END ROTATION FIX]
@@ -987,9 +979,7 @@ class KeyboardOverlay(
         val scale = prefs.getInt("keyboard_key_scale", 100) / 100f; keyboardView?.setScale(scale)
         keyboardView?.alpha = currentAlpha / 255f
 
-        // [Fixed] Use WRAP_CONTENT for height. 
-        // This ensures the container shrinks to fit the keys exactly, preventing the "Full Screen Stretch" issue.
-        val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)
+        val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         kbParams.setMargins(6, 28, 6, 6)
         keyboardContainer?.addView(keyboardView, kbParams)
 
