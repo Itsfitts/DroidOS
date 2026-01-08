@@ -1065,13 +1065,26 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // Initialize WindowManager
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
     }
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-                try { createNotification() } catch(e: Exception){ e.printStackTrace() }
+   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        try { createNotification() } catch(e: Exception){ e.printStackTrace() }
         
-                // [FIX] Wrap startup in Try-Catch to prevent "Flash and Crash"
-                try {
-                    // Re-check Shizuku binding on every start command to ensure connection is alive
-                    checkAndBindShizuku()
+        // === DEBUG LOGGING START ===
+        if (intent != null) {
+            val dId = intent.getIntExtra("displayId", -999)
+            val action = intent.action
+            val force = intent.getBooleanExtra("force_start", false)
+            Log.w(TAG, ">>> SERVICE STARTED | Action: $action | DisplayID: $dId | Force: $force <<<")
+            
+            if (dId != -999) {
+                handler.post { Toast.makeText(this, "Service Started on D:$dId", Toast.LENGTH_SHORT).show() }
+            }
+        } else {
+            Log.e(TAG, ">>> SERVICE STARTED | INTENT IS NULL <<<")
+        }
+        // === DEBUG LOGGING END ===
+
+        try {
+            checkAndBindShizuku()
         
 
             // [FIX] Combined Startup Logic
@@ -1747,48 +1760,70 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
 
 
+
+
+
+
+
+
     private fun scheduleRestart() {
         try {
-            Log.i(TAG, "Scheduling Safety Restart (1s)...")
-
-            // [FIX] Launch the MAIN ACTIVITY instead of the Service directly.
-            // This bypasses Android's "Background Start" restrictions which cause the 
-            // "App stops but doesn't restart" bug.
-            val restartIntent = packageManager.getLaunchIntentForPackage(packageName)
-            if (restartIntent != null) {
-                restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                // Add a flag so MainActivity knows to minimize itself or start silent if possible
-                restartIntent.putExtra("IS_RESTART", true)
-                
-                val flags = if (Build.VERSION.SDK_INT >= 23) 
-                    android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_CANCEL_CURRENT
-                else 
-                    android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_CANCEL_CURRENT
-
-                // Use getActivity (Guaranteed to work)
-                val pendingIntent = android.app.PendingIntent.getActivity(applicationContext, 1, restartIntent, flags)
-                
-                val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-                val triggerTime = System.currentTimeMillis() + 1000
-
-                if (Build.VERSION.SDK_INT >= 31) {
-                    try {
-                        alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-                    } catch (e: SecurityException) {
-                        alarmManager.set(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-                    }
-                } else {
-                     if (Build.VERSION.SDK_INT >= 23) {
-                         alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-                     } else {
-                         alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+            // Keep the Smart Display Logic (it's safe to keep)
+            var restartDisplayId = currentDisplayId
+            try {
+                val d0 = displayManager?.getDisplay(0)
+                if (d0 != null && d0.state == Display.STATE_OFF) {
+                     val d1 = displayManager?.getDisplay(1)
+                     if (d1 != null && d1.state == Display.STATE_ON) {
+                         restartDisplayId = 1
                      }
                 }
+            } catch(e: Exception) {}
+
+            Log.i(TAG, ">>> SCHEDULING RESTART (SERVICE) | Display: $restartDisplayId <<<")
+            
+            // [FIX] Target the SERVICE directly, not the Activity.
+            // This bypasses the "Background Activity Start" restriction that was blocking the restart.
+            val restartIntent = Intent(applicationContext, OverlayService::class.java)
+            restartIntent.putExtra("displayId", restartDisplayId)
+            restartIntent.putExtra("force_start", true)
+            restartIntent.putExtra("IS_RESTART", true)
+            
+            val flags = if (Build.VERSION.SDK_INT >= 23) 
+                android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            else 
+                android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+
+            // [FIX] Use getForegroundService (or getService) instead of getActivity
+            val pendingIntent = if (Build.VERSION.SDK_INT >= 26) {
+                android.app.PendingIntent.getForegroundService(applicationContext, 1, restartIntent, flags)
+            } else {
+                android.app.PendingIntent.getService(applicationContext, 1, restartIntent, flags)
+            }
+            
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            val triggerTime = System.currentTimeMillis() + 800
+
+            try {
+                if (Build.VERSION.SDK_INT >= 23) {
+                     alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                } else {
+                     alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                }
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Exact Alarm permission missing, using standard alarm")
+                alarmManager.set(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to schedule restart", e)
         }
     }
+
+
+
+
+
+
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
@@ -2118,19 +2153,30 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun bindShizuku() { try { val c = ComponentName(packageName, ShellUserService::class.java.name); ShizukuBinder.bind(c, userServiceConnection, BuildConfig.DEBUG, BuildConfig.VERSION_CODE) } catch (e: Exception) { e.printStackTrace() } }
 
     // Helper to retry binding if connection is dead/null
+
     private fun checkAndBindShizuku() {
-        // If we think we are bound, but the binder is dead, reset flag
+        // If dead, clear it
         if (shellService != null && !shellService!!.asBinder().isBinderAlive) {
             isBound = false
             shellService = null
         }
 
-        // If actually connected, do nothing
+        // If alive, we are good
         if (shellService != null) return
 
-        // Otherwise, try to bind
+        // Try to bind
         bindShizuku()
+        
+        // [FIX] Double-check delay for Red Dot issue
+        // If binding failed immediately, try again in 1 second
+        handler.postDelayed({
+            if (shellService == null) {
+                Log.d(TAG, "Retrying Shizuku Bind...")
+                bindShizuku()
+            }
+        }, 1000)
     }
+
 
     private fun createNotification() { 
         try {

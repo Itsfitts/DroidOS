@@ -31,8 +31,18 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
     // Track if we've already initialized the UI
     private var uiInitialized = false
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // DEBUG LOG
+        val dId = intent.getIntExtra("displayId", -999)
+        val force = intent.getBooleanExtra("force_start", false)
+        val isRestart = intent.getBooleanExtra("IS_RESTART", false)
+        android.util.Log.w("MainActivity", ">>> ON CREATE | Display: $dId | Force: $force | IsRestart: $isRestart <<<")
+        
+        if (dId != -999) {
+            Toast.makeText(this, "Activity Woke: D$dId", Toast.LENGTH_SHORT).show()
+        }
         
         // [FIX] Check for Force Start flag from Launcher (Hard Restart)
         // If this flag is present, we assume the Launcher has already handled 
