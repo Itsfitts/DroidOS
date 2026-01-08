@@ -368,26 +368,54 @@ class FloatingLauncherService : AccessibilityService() {
         override fun onServiceDisconnected(name: ComponentName?) { shellService = null; isBound = false; updateExecuteButtonColor(false); updateBubbleIcon() }
     }
 
+
     private fun restartTrackpad() {
         safeToast("Restarting Trackpad...")
         Thread {
             try {
-                // Use pkill to kill by package name. 
-                // -9 ensures a hard kill which mimics a crash, prompting the system to restart the service 
-                // typically without revoking the 'Enabled' status in Accessibility Settings.
-                shellService?.runCommand("pkill -9 -f $PACKAGE_TRACKPAD")
+                // Target Component for Accessibility Service
+                val targetComponent = "com.katsuyamaki.DroidOSTrackpadKeyboard/com.example.coverscreentester.OverlayService"
                 
-                Thread.sleep(1200) // Wait for process cleanup
+                // 1. Kill the App (Hard Reset for Z-Order)
+                shellService?.runCommand("am force-stop com.katsuyamaki.DroidOSTrackpadKeyboard")
+                shellService?.runCommand("am force-stop com.example.coverscreentester") // Legacy cleanup
+                
+                Thread.sleep(1200) // Wait for system to clear window tokens
 
+
+                // 2. RESTORE PERMISSIONS (System disables services on force-stop)
+                // [FIX] Read using Android API because runCommand returns Unit (void)
+                val currentServices = android.provider.Settings.Secure.getString(
+                    contentResolver, 
+                    android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                ) ?: ""
+                
+                if (!currentServices.contains("OverlayService")) {
+                    Log.d(TAG, "Service was disabled by system. Re-enabling...")
+                    
+                    val newServices = if (currentServices.isEmpty()) {
+                        targetComponent
+                    } else {
+                        "$currentServices:$targetComponent"
+                    }
+
+                    
+                    // Inject updated list back to Settings
+                    shellService?.runCommand("settings put secure enabled_accessibility_services $newServices")
+                    shellService?.runCommand("settings put secure accessibility_enabled 1")
+                }
+                
+                // 3. Launch
                 uiHandler.post {
                     launchTrackpad()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Soft Restart Failed", e)
-                uiHandler.post { launchTrackpad() } // Fallback
+                Log.e(TAG, "Restart Sequence Failed", e)
+                uiHandler.post { launchTrackpad() }
             }
         }.start()
     }
+
 
     private fun launchShizuku() { try { val intent = packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api"); if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(intent) } else { safeToast("Shizuku app not found") } } catch(e: Exception) { safeToast("Failed to launch Shizuku") } }
 
@@ -1749,7 +1777,15 @@ class FloatingLauncherService : AccessibilityService() {
             MODE_PROFILES -> { searchBar.hint = "Enter Profile Name..."; displayList.add(ProfileOption("Save Current as New", true, 0,0,0, emptyList())); val profileNames = AppPreferences.getProfileNames(this).sorted(); for (pName in profileNames) { val data = AppPreferences.getProfileData(this, pName); if (data != null) { try { val parts = data.split("|"); val lay = parts[0].toInt(); val res = parts[1].toInt(); val d = parts[2].toInt(); val pkgs = parts[3].split(",").filter { it.isNotEmpty() }; displayList.add(ProfileOption(pName, false, lay, res, d, pkgs)) } catch(e: Exception) {} } } }
             MODE_SETTINGS -> {
                 searchBar.hint = "Settings"
-                displayList.add(ActionOption("Launch DroidOS Trackpad") { launchTrackpad() })
+                // [FIX] Use restartTrackpad() (Hard Kill) to ensure Z-Order is reset properly.
+                // launchTrackpad() alone is too gentle and doesn't reset the window stack.
+                displayList.add(ActionOption("Launch/Reset Trackpad") { 
+                    if (isBound && shellService != null) {
+                        restartTrackpad() 
+                    } else {
+                        launchTrackpad()
+                    }
+                })
 
 
                 displayList.add(ActionOption("Switch Display (Current $currentDisplayId)") { switchDisplay() })

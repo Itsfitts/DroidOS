@@ -86,44 +86,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 
-    // Debounce token for restarts
-    private var lastRestartTime = 0L
-
     private fun performSoftRestart() {
-        val now = System.currentTimeMillis()
-        if (now - lastRestartTime < 1000) {
-            return // Ignore spam
-        }
-        lastRestartTime = now
-
-        // [FIX] DEEP UI RESET (Non-Destructive)
+        // [FIX] HARD RESET (Process Kill)
+        // This is the ONLY method that fixes Z-order relative to the Launcher.
+        // We rely on the updated scheduleRestart() (Activity Launch) to bring the app back alive.
         handler.post {
-            Toast.makeText(this, "Refreshing UI...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Restarting System...", Toast.LENGTH_SHORT).show()
             
-            // 1. Tear down immediately
-            removeOldViews()
-            windowManager = null // Force fresh context
+            // 1. Schedule the wake-up alarm
+            scheduleRestart()
             
-            // 2. Rebuild after 500ms (Give Launcher time to appear)
+            // 2. Kill the process after a short delay
             handler.postDelayed({
-                try {
-                    checkAndBindShizuku()
-                    setupUI(currentDisplayId)
-                    
-                    // 3. Immediate Z-Order Enforce
-                    enforceZOrder()
-                    
-                    // 4. [CRITICAL] DELAYED ENFORCEMENT (The "Double Tap")
-                    // Run again after 1.5 seconds to beat slow Launchers/Animations
-                    handler.postDelayed({ 
-                        enforceZOrder() 
-                        Toast.makeText(this, "Z-Order Fixed", Toast.LENGTH_SHORT).show()
-                    }, 1500)
-                    
-                } catch (e: Exception) {
-                    Log.e(TAG, "Soft Restart Failed", e)
-                    setupUI(Display.DEFAULT_DISPLAY)
-                }
+                forceExit()
             }, 500)
         }
     }
@@ -1753,46 +1728,42 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
 
 
-    // [Fixed] Helper to schedule the restart alarm
     private fun scheduleRestart() {
         try {
             Log.i(TAG, "Scheduling Safety Restart (1s)...")
-            
-            // 1. Explicit Intent with Action
-            val restartIntent = Intent(applicationContext, OverlayService::class.java)
-            restartIntent.action = "$packageName.SOFT_RESTART"
-            restartIntent.setPackage(packageName)
-            
-            // 2. Use getForegroundService for Android 8+ (Stronger wake-up capability)
-            val flags = if (Build.VERSION.SDK_INT >= 23) 
-                android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_CANCEL_CURRENT
-            else 
-                android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_CANCEL_CURRENT
 
-            val pendingIntent = if (Build.VERSION.SDK_INT >= 26) {
-                android.app.PendingIntent.getForegroundService(applicationContext, 1, restartIntent, flags)
-            } else {
-                android.app.PendingIntent.getService(applicationContext, 1, restartIntent, flags)
-            }
-            
-            // 3. Robust Alarm Scheduling (Fallback for Permission/Device issues)
-            val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-            val triggerTime = System.currentTimeMillis() + 1000
+            // [FIX] Launch the MAIN ACTIVITY instead of the Service directly.
+            // This bypasses Android's "Background Start" restrictions which cause the 
+            // "App stops but doesn't restart" bug.
+            val restartIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (restartIntent != null) {
+                restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                // Add a flag so MainActivity knows to minimize itself or start silent if possible
+                restartIntent.putExtra("IS_RESTART", true)
+                
+                val flags = if (Build.VERSION.SDK_INT >= 23) 
+                    android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_CANCEL_CURRENT
+                else 
+                    android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_CANCEL_CURRENT
 
-            if (Build.VERSION.SDK_INT >= 31) {
-                // Try setExact, fallback if permission missing
-                try {
-                    alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-                } catch (e: SecurityException) {
-                    Log.w(TAG, "Missing SCHEDULE_EXACT_ALARM, using standard set()")
-                    alarmManager.set(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-                }
-            } else {
-                // For older versions, use setExactAndAllowWhileIdle for Doze penetration
-                if (Build.VERSION.SDK_INT >= 23) {
-                     alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                // Use getActivity (Guaranteed to work)
+                val pendingIntent = android.app.PendingIntent.getActivity(applicationContext, 1, restartIntent, flags)
+                
+                val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+                val triggerTime = System.currentTimeMillis() + 1000
+
+                if (Build.VERSION.SDK_INT >= 31) {
+                    try {
+                        alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                    } catch (e: SecurityException) {
+                        alarmManager.set(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                    }
                 } else {
-                     alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                     if (Build.VERSION.SDK_INT >= 23) {
+                         alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                     } else {
+                         alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                     }
                 }
             }
         } catch (e: Exception) {
@@ -1818,10 +1789,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         try {
             removeOldViews()
             
-            // If triggered manually (Button/Broadcast), schedule restart if enabled
+            // Note: performSoftRestart calls scheduleRestart() explicitly before calling this.
+            // But if called from elsewhere (Button), we ensure it schedules if persistent.
+            // We duplicate the call here to be safe (AlarmManager overwrites existing pending intents).
             if (prefs.prefPersistentService) {
                 scheduleRestart()
-                handler.post { Toast.makeText(applicationContext, "Restarting...", Toast.LENGTH_SHORT).show() }
             }
 
             stopSelf()
