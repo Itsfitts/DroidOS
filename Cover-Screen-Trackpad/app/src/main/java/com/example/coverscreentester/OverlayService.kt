@@ -3582,6 +3582,7 @@ if (isResize) {
                         } catch(e: Exception) {}
                     }, 500)
                 }
+
                 // CASE B: Phone Closed (Display 0 turned OFF/DOZE) -> Move to Cover (1)
                 else if (display.state != Display.STATE_ON && currentDisplayId == 0) {
                     handler.postDelayed({
@@ -3591,15 +3592,20 @@ if (isResize) {
                             if (d0?.state != Display.STATE_ON && 
                                 System.currentTimeMillis() - lastManualSwitchTime > 5000) {
                                 
-                                setupUI(1)
-                                // We don't reset bubble pos here to avoid it jumping if you just locked the screen
-                                // But we do ensure menu is hidden if it was open
-                                menuManager?.hide() 
-                                // showToast("Phone Closed: Moved to Cover Screen") // Removed debug toast
+                                // [FIX] Only switch if Display 1 actually exists!
+                                // This prevents the UI from disappearing on single-screen devices (Beam Pro)
+                                // where setupUI(1) would remove the views but fail to re-add them.
+                                if (displayManager?.getDisplay(1) != null) {
+                                    setupUI(1)
+                                    // We don't reset bubble pos here to avoid it jumping if you just locked the screen
+                                    // But we do ensure menu is hidden if it was open
+                                    menuManager?.hide()
+                                }
                             }
                         } catch(e: Exception) {}
                     }, 500)
                 }
+
             }
         }
     }
