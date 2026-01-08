@@ -369,65 +369,62 @@ class FloatingLauncherService : AccessibilityService() {
     }
 
 
+
+
     private fun restartTrackpad() {
         safeToast("Restarting Trackpad...")
         Thread {
             try {
-                // Target Component for Accessibility Service
-                val targetComponent = "com.katsuyamaki.DroidOSTrackpadKeyboard/com.example.coverscreentester.OverlayService"
+                val pkgName = "com.katsuyamaki.DroidOSTrackpadKeyboard"
+                val legacyPkg = "com.example.coverscreentester"
+                val serviceComponent = "$pkgName/com.example.coverscreentester.OverlayService"
                 
-                // 1. Kill the App (Hard Reset for Z-Order)
-                shellService?.runCommand("am force-stop com.katsuyamaki.DroidOSTrackpadKeyboard")
-                shellService?.runCommand("am force-stop com.example.coverscreentester") // Legacy cleanup
+                // 1. HARD KILL (Fixes Z-Order)
+                shellService?.runCommand("am force-stop $pkgName")
+                shellService?.runCommand("am force-stop $legacyPkg")
                 
-                Thread.sleep(1200) // Wait for system to clear window tokens
+                // 2. Wait for system cleanup
+                Thread.sleep(1500)
 
-
-                // 2. RESTORE PERMISSIONS (System disables services on force-stop)
-                // [FIX] Read using Android API because runCommand returns Unit (void)
-                val currentServices = android.provider.Settings.Secure.getString(
+                // 3. RESTORE ACCESSIBILITY PERMISSION
+                val currentList = android.provider.Settings.Secure.getString(
                     contentResolver, 
                     android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
                 ) ?: ""
                 
-                if (!currentServices.contains("OverlayService")) {
-                    Log.d(TAG, "Service was disabled by system. Re-enabling...")
-                    
-                    val newServices = if (currentServices.isEmpty()) {
-                        targetComponent
+                if (!currentList.contains("OverlayService")) {
+                    Log.d(TAG, "Restoring Accessibility Permissions...")
+                    val newList = if (currentList.isEmpty()) {
+                        serviceComponent
                     } else {
-                        "$currentServices:$targetComponent"
+                        "$currentList:$serviceComponent"
                     }
-
-                    
-                    // Inject updated list back to Settings
-                    shellService?.runCommand("settings put secure enabled_accessibility_services $newServices")
+                    shellService?.runCommand("settings put secure enabled_accessibility_services $newList")
                     shellService?.runCommand("settings put secure accessibility_enabled 1")
                 }
-                
 
-                // 3. Launch with "Force Start" flag
-                uiHandler.post {
-                    // We manually construct the launch intent to add the extra
-                    val launchIntent = packageManager.getLaunchIntentForPackage("com.katsuyamaki.DroidOSTrackpadKeyboard")
-                        ?: packageManager.getLaunchIntentForPackage("com.example.coverscreentester")
-                        
-                    if (launchIntent != null) {
-                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                        launchIntent.putExtra("force_start", true) // Signal to skip permissions page
-                        startActivity(launchIntent)
-                        safeToast("Launching Trackpad...")
-                    } else {
-                        launchTrackpad() // Fallback
-                    }
-                }
+
+                // 4. FORCE LAUNCH (Shell Logic)
+                // [FIX] Pass '--ei displayId $currentDisplayId' so app starts on the CORRECT screen
+                val startCmd = "am start -n $pkgName/com.example.coverscreentester.MainActivity --ez force_start true --ei displayId $currentDisplayId"
+                shellService?.runCommand(startCmd)
+                
+                // Fallback: Try legacy package launch if the first one fails
+                val legacyStartCmd = "am start -n $legacyPkg/com.example.coverscreentester.MainActivity --ez force_start true --ei displayId $currentDisplayId"
+                shellService?.runCommand(legacyStartCmd)
+
 
             } catch (e: Exception) {
-                Log.e(TAG, "Restart Sequence Failed", e)
-                uiHandler.post { launchTrackpad() }
+                Log.e(TAG, "Shell Restart Failed", e)
+                uiHandler.post { 
+                    safeToast("Restart Failed: ${e.message}")
+                    launchTrackpad() 
+                }
             }
         }.start()
     }
+
+
 
 
     private fun launchShizuku() { try { val intent = packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api"); if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(intent) } else { safeToast("Shizuku app not found") } } catch(e: Exception) { safeToast("Failed to launch Shizuku") } }

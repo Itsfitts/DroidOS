@@ -1073,19 +1073,32 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     // Re-check Shizuku binding on every start command to ensure connection is alive
                     checkAndBindShizuku()
         
-                    // Handle display recall from MainActivity
-                    if (intent != null) {
-                        val targetDisplayId = intent.getIntExtra("displayId", currentDisplayId)
-                        val isRecall = intent.getBooleanExtra("isRecall", false)
-        
-                        android.util.Log.d("OverlayService", "onStartCommand: target=$targetDisplayId, current=$currentDisplayId, recall=$isRecall")
-        
-                        // Only setup UI if display changed OR if user explicitly tapped the icon (Recall)
-                        if (targetDisplayId != currentDisplayId || isRecall || bubbleView == null) {
-                            setupUI(targetDisplayId)
-                            return START_STICKY
-                        }
-                    }
+
+            // [FIX] Combined Startup Logic
+            if (intent != null) {
+                // 1. Capture explicit ID (Default to -1 so we know if it was actually sent)
+                val explicitId = intent.getIntExtra("displayId", -1)
+                val isRecall = intent.getBooleanExtra("isRecall", false)
+                
+                Log.d(TAG, "onStartCommand: explicit=$explicitId, current=$currentDisplayId, recall=$isRecall")
+
+                // 2. Priority Logic:
+                // - IF explicit ID is sent and different/valid -> Use it
+                // - IF Recall requested -> Refresh
+                // - IF UI is missing (bubbleView == null) -> Init
+                if ((explicitId != -1 && explicitId != currentDisplayId) || 
+                    (explicitId != -1 && bubbleView == null) ||
+                    isRecall || 
+                    bubbleView == null) {
+                    
+                    // Use the explicit ID if valid, otherwise fallback to current
+                    val finalTarget = if (explicitId != -1) explicitId else currentDisplayId
+                    
+                    setupUI(finalTarget)
+                    return START_STICKY
+                }
+            }
+
         
                     val action = intent?.action
                     fun matches(suffix: String): Boolean = action?.endsWith(suffix) == true

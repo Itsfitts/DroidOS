@@ -180,29 +180,46 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
     // SUMMARY: Launches the OverlayService on the current display and finishes
     //          the activity. This is called when all permissions are granted.
     // =================================================================================
+
+
+
     private fun launchOverlayServiceAndFinish() {
-        // Robust display ID detection
-        val displayId = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            this.display?.displayId ?: 0
-        } else {
-            @Suppress("DEPRECATION")
-            windowManager.defaultDisplay.displayId
-        }
-
-        android.util.Log.d("DroidOS_Trackpad", "MainActivity: Triggering recall to Display $displayId")
-
-        val intent = Intent(this, OverlayService::class.java)
-        intent.putExtra("displayId", displayId)
-        intent.putExtra("isRecall", true)
+        // 1. Create the Service Intent (Rename to 'serviceIntent' to avoid shadowing bug)
+        val serviceIntent = Intent(this, OverlayService::class.java)
         
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
+        // 2. Read from the Activity Intent (Use 'getIntent()' explicitly)
+        val originIntent = getIntent()
+
+        // [FIX] Forward the Display ID
+        // We check 'originIntent' (from Launcher) and put into 'serviceIntent' (for Service)
+        if (originIntent.hasExtra("displayId")) {
+            val targetId = originIntent.getIntExtra("displayId", 0)
+            serviceIntent.putExtra("displayId", targetId)
+        }
+        
+        // Forward force_start flag
+        if (originIntent.hasExtra("force_start")) {
+             serviceIntent.putExtra("force_start", true)
         }
 
-        finish()
+        // 3. Start Service
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+
+        // 4. Minimize to keep process alive
+        moveTaskToBack(true)
+        
+        // 5. Finish after delay
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            finish()
+        }, 1500)
     }
+
+
+
     // =================================================================================
     // END FUNCTION: launchOverlayServiceAndFinish
     // =================================================================================
