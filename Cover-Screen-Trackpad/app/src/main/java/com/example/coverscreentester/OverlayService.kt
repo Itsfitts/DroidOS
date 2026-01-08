@@ -104,12 +104,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
 
 
+
     fun enforceZOrder() {
         try {
             if (windowManager != null) {
-                // LAYER 1: TRACKPAD (Lowest)
-                // [FIX] Explicitly Remove/Add to force window to TOP of System Stack
-                // Simply updating layout keeps it at the same Z-index relative to other apps (like Launcher).
+                // LAYER 1: TRACKPAD (Base Layer)
+                // Remove and Re-add to ensure it is on top of OTHER apps (like Launcher),
+                // but we will stack our own Keyboard on top of this shortly.
                 if (trackpadLayout != null && trackpadLayout?.isAttachedToWindow == true) {
                     try {
                         windowManager?.removeView(trackpadLayout)
@@ -119,7 +120,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     }
                 }
 
-                // LAYER 2: KEYBOARD (Managed internally by KeyboardOverlay)
+                // LAYER 2: KEYBOARD (Middle Layer)
+                // [FIX] Explicitly bring Keyboard to front so it sits ON TOP of the Trackpad
+                if (keyboardOverlay != null && keyboardOverlay?.isShowing() == true) {
+                     keyboardOverlay?.bringToFront()
+                }
 
                 // LAYER 3: MENU
                 if (menuManager != null) {
@@ -136,8 +141,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     }
                 }
 
-                // LAYER 5: CURSOR (Highest)
-                // [CRITICAL] This must be Remove/Add to jump over Launcher Bubble
+                // LAYER 5: CURSOR (Top Layer)
+                // Must be added LAST to float over everything
                 if (cursorLayout != null && cursorLayout?.isAttachedToWindow == true) {
                     try {
                         windowManager?.removeView(cursorLayout)
@@ -147,12 +152,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     }
                 }
                 
-                Log.d("OverlayService", "Z-Order Enforced (Aggressive)")
+                Log.d("OverlayService", "Z-Order Enforced: Trackpad -> Keyboard -> Cursor")
             }
         } catch (e: Exception) {
             Log.e("OverlayService", "Z-Order failed", e)
         }
     }
+
 
     // === RECEIVER & ACTIONS - END ===
 

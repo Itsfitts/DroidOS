@@ -1682,4 +1682,16 @@ class KeyboardOverlay(
             }
         }.start()
     }
+
+    // [FIX] Helper to fix Z-Order relative to Trackpad
+    fun bringToFront() {
+        if (!isVisible || keyboardContainer == null) return
+        try {
+            // Remove and Re-add to move to the top of the WindowManager stack
+            windowManager.removeView(keyboardContainer)
+            windowManager.addView(keyboardContainer, keyboardParams)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }
