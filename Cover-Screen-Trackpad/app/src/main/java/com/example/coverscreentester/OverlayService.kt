@@ -1888,8 +1888,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         if (type == 0) { loadLayout(); showToast("Freeform Profile Loaded"); return }
         val h = uiScreenHeight; val w = uiScreenWidth; val density = resources.displayMetrics.density
         val targetW = (w * 0.96f).toInt(); val marginX = (w - targetW) / 2
-        // Added 20dp buffer to preset height calculation
-        val kbHeight = ((275f * (prefs.prefKeyScale / 100f) * density) + (20 * density)).toInt().coerceAtMost((h * 0.6f).toInt())
+        // [Fixed] Send WRAP_CONTENT (-2) to trigger manual measurement
+        val kbHeight = WindowManager.LayoutParams.WRAP_CONTENT
         val tpHeight = h - kbHeight
         if (keyboardOverlay == null) initCustomKeyboard()
         if (!isCustomKeyboardVisible) toggleCustomKeyboard(suppressAutomation = true)
@@ -1897,7 +1897,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         prefs.prefScrollTouchSize = 80; prefs.prefScrollVisualSize = 8
         when(type) {
             1 -> { keyboardOverlay?.setWindowBounds(marginX, 0, targetW, kbHeight); trackpadParams.width = targetW; trackpadParams.height = tpHeight; trackpadParams.x = marginX; trackpadParams.y = kbHeight }
-            2 -> { trackpadParams.width = targetW; trackpadParams.height = tpHeight; trackpadParams.x = marginX; trackpadParams.y = 0; keyboardOverlay?.setWindowBounds(marginX, tpHeight, targetW, kbHeight) }
+            2 -> { trackpadParams.width = targetW; trackpadParams.height = tpHeight; trackpadParams.x = marginX; trackpadParams.y = 0; keyboardOverlay?.setWindowBounds(marginX, (h * 0.5f).toInt(), targetW, kbHeight) }
         }
         try { windowManager?.updateViewLayout(trackpadLayout, trackpadParams) } catch(e: Exception){}
         updateScrollSize(); updateScrollPosition(); updateHandleSize(); updateLayoutSizes(); savePrefs(); showToast("Preset Applied")
@@ -2179,13 +2179,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             keyboardOverlay?.updatePosition(savedKbX, savedKbY)
             keyboardOverlay?.updateSize(savedKbW, savedKbH)
         } else {
-            // [Fixed] Default Size: Calculate height based on scale + 20dp buffer
-            val density = resources.displayMetrics.density
-            // Add 20dp padding so the scale fits comfortably without clipping
-            val buffer = 20 * density
-            val defaultH = ((275f * (prefs.prefKeyScale / 100f) * density) + buffer).toInt()
+            // [Fixed] Default: Send WRAP_CONTENT (-2) to trigger manual measurement
+            val defaultH = WindowManager.LayoutParams.WRAP_CONTENT
             
-            keyboardOverlay?.updatePosition(0, uiScreenHeight - defaultH)
+            keyboardOverlay?.updatePosition(0, uiScreenHeight - 500)
             keyboardOverlay?.updateSize(uiScreenWidth, defaultH)
         }
 
