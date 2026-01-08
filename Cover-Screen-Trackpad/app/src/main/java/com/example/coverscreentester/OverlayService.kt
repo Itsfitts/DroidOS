@@ -92,33 +92,33 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private fun performSoftRestart() {
         val now = System.currentTimeMillis()
         if (now - lastRestartTime < 1000) {
-            Log.d(TAG, "Restart ignored (Debounced)")
-            return 
+            return // Ignore spam
         }
         lastRestartTime = now
 
         // [FIX] DEEP UI RESET (Non-Destructive)
-        // 1. Tear down immediately
         handler.post {
             Toast.makeText(this, "Refreshing UI...", Toast.LENGTH_SHORT).show()
-            removeOldViews()
-            windowManager = null // Force fresh context next time
             
-            // 2. Rebuild after delay (gives Launcher time to settle)
+            // 1. Tear down immediately
+            removeOldViews()
+            windowManager = null // Force fresh context
+            
+            // 2. Rebuild after 500ms (Give Launcher time to appear)
             handler.postDelayed({
                 try {
                     checkAndBindShizuku()
                     setupUI(currentDisplayId)
                     
-                    // 3. Initial Z-Order Enforce
+                    // 3. Immediate Z-Order Enforce
                     enforceZOrder()
                     
-                    // 4. [FIX] SECONDARY ENFORCEMENT
-                    // Run again after 800ms to ensure we jump over any late-loading Launcher windows
+                    // 4. [CRITICAL] DELAYED ENFORCEMENT (The "Double Tap")
+                    // Run again after 1.5 seconds to beat slow Launchers/Animations
                     handler.postDelayed({ 
                         enforceZOrder() 
-                        Toast.makeText(this, "Trackpad Refreshed", Toast.LENGTH_SHORT).show()
-                    }, 800)
+                        Toast.makeText(this, "Z-Order Fixed", Toast.LENGTH_SHORT).show()
+                    }, 1500)
                     
                 } catch (e: Exception) {
                     Log.e(TAG, "Soft Restart Failed", e)
@@ -144,31 +144,25 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     }
                 }
 
-                // LAYER 2: KEYBOARD
-                // Managed independently. If visible, it sits above Trackpad.
-                // We don't touch it here; we just stack everything else ON TOP of it.
+                // LAYER 2: KEYBOARD (Managed internally by KeyboardOverlay)
 
                 // LAYER 3: MENU
-                // Bring Menu to front (puts it above Keyboard)
                 if (menuManager != null) {
                     try { menuManager?.bringToFront() } catch(e: Exception) {}
                 }
 
                 // LAYER 4: BUBBLE
-                // Explicitly Remove and Add to force it ABOVE Keyboard and Menu
                 if (bubbleView != null && bubbleView?.isAttachedToWindow == true) {
                     try {
                         windowManager?.removeView(bubbleView)
                         windowManager?.addView(bubbleView, bubbleParams)
                     } catch (e: Exception) {
-                        // Ignore errors if view state is weird
+                         try { windowManager?.updateViewLayout(bubbleView, bubbleParams) } catch(z: Exception) {}
                     }
-                } else if (bubbleView != null) {
-                    try { windowManager?.addView(bubbleView, bubbleParams) } catch(e: Exception) {}
                 }
 
                 // LAYER 5: CURSOR (Highest)
-                // Explicitly Remove and Add to force it ABOVE everything
+                // [CRITICAL] This must be Remove/Add to jump over Launcher Bubble
                 if (cursorLayout != null && cursorLayout?.isAttachedToWindow == true) {
                     try {
                         windowManager?.removeView(cursorLayout)
@@ -176,11 +170,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     } catch (e: Exception) {
                         try { windowManager?.addView(cursorLayout, cursorParams) } catch(z: Exception) {}
                     }
-                } else if (cursorLayout != null) {
-                    try { windowManager?.addView(cursorLayout, cursorParams) } catch(e: Exception) {}
                 }
                 
-                Log.d("OverlayService", "Z-Order Enforced (T < K < M < B < C)")
+                Log.d("OverlayService", "Z-Order Enforced (Aggressive)")
             }
         } catch (e: Exception) {
             Log.e("OverlayService", "Z-Order failed", e)

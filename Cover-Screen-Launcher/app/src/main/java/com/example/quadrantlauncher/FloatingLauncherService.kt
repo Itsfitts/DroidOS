@@ -924,67 +924,62 @@ class FloatingLauncherService : AccessibilityService() {
 
 
     private fun launchTrackpad() {
-        if (isTrackpadRunning()) {
-            safeToast("Trackpad is already active")
-            return
-        }
+        // [FIX] Robust Launch Strategy: Service -> Activity -> Broadcast
+        // 1. Try to start the Service directly (Fastest, maintains state)
         try {
-            val intent = packageManager.getLaunchIntentForPackage(PACKAGE_TRACKPAD)
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            val serviceIntent = Intent()
+            serviceIntent.component = ComponentName(
+                "com.katsuyamaki.DroidOSTrackpadKeyboard", 
+                "com.example.coverscreentester.OverlayService" 
+            )
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(serviceIntent) else startService(serviceIntent)
+            safeToast("Starting Trackpad Service...")
+            return
+        } catch (e: Exception) {
+            // Service start failed (likely Background Restrictions) -> Proceed to Step 2
+        }
 
-                val dm = DisplayMetrics()
-                val display = displayContext?.display ?: windowManager.defaultDisplay
-                display.getRealMetrics(dm)
-                val w = dm.widthPixels
-                val h = dm.heightPixels
-                val targetW = (w * 0.5f).toInt()
-                val targetH = (h * 0.5f).toInt()
-                val left = (w - targetW) / 2
-                val top = (h - targetH) / 2
-                val bounds = Rect(left, top, left + targetW, top + targetH)
-
-                val options = android.app.ActivityOptions.makeBasic()
-                options.setLaunchDisplayId(currentDisplayId)
-                options.setLaunchBounds(bounds)
-                try {
-                    val method = android.app.ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType)
-                    method.invoke(options, 5)
-                } catch (e: Exception) {}
-
-                startActivity(intent, options.toBundle())
-                toggleDrawer()
-
-                if (shellService != null) {
-                    // 1. Reposition Window (Using 6 arguments to match interface)
-                    uiHandler.postDelayed({
-                        Thread {
-                            try {
-                                shellService?.repositionTask(PACKAGE_TRACKPAD, null, left, top, left+targetW, top+targetH)
-                            } catch(e: Exception) {
-                                Log.e(TAG, "Shell launch failed", e)
-                            }
-                        }.start()
-                    }, 400)
-
-                    // 2. Trigger Z-Order Fix (Soft Restart) after 2 seconds
-                    uiHandler.postDelayed({
-                        try {
-                            val fixIntent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.SOFT_RESTART")
-                            fixIntent.setPackage(PACKAGE_TRACKPAD)
-                            sendBroadcast(fixIntent)
-                            Log.d(TAG, "Sent Soft Restart Broadcast to Trackpad")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to send Soft Restart", e)
-                        }
-                    }, 2000)
-                }
-            } else {
-                safeToast("Trackpad App not found")
+        // 2. Try to Launch the Main Activity (Guaranteed to wake app)
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage("com.katsuyamaki.DroidOSTrackpadKeyboard")
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                safeToast("Launching Trackpad App...")
+                return
             }
         } catch (e: Exception) {
-            safeToast("Error launching Trackpad")
+            // New package not found -> Proceed to Step 3
         }
+
+        // 3. Legacy Fallback (Old Package Name)
+        try {
+            val oldIntent = Intent()
+            oldIntent.component = ComponentName(
+                "com.example.coverscreentester", 
+                "com.example.coverscreentester.OverlayService"
+            )
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(oldIntent) else startService(oldIntent)
+            return
+        } catch (e: Exception) {
+            // Legacy Service failed -> Try Legacy Activity
+            try {
+                val oldLaunchIntent = packageManager.getLaunchIntentForPackage("com.example.coverscreentester")
+                if (oldLaunchIntent != null) {
+                    oldLaunchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(oldLaunchIntent)
+                    return
+                }
+            } catch (e2: Exception) {}
+        }
+
+        // 4. Final Resort: Broadcast (Only works if app is already alive)
+        val broadcastNew = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.SET_TRACKPAD_VISIBILITY")
+        broadcastNew.setPackage("com.katsuyamaki.DroidOSTrackpadKeyboard")
+        broadcastNew.putExtra("VISIBLE", true)
+        sendBroadcast(broadcastNew)
+        
+        safeToast("Trackpad not found or failed to launch.")
     }
 
     private fun isTrackpadRunning(): Boolean { try { val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager; val runningApps = am.runningAppProcesses; if (runningApps != null) { for (info in runningApps) { if (info.processName == PACKAGE_TRACKPAD) return true } } } catch (e: Exception) {}; return false }
