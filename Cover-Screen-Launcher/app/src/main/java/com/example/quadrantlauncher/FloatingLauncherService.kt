@@ -135,6 +135,15 @@ class FloatingLauncherService : AccessibilityService() {
     private val EXECUTE_DEBOUNCE_MS = 2000L  // 2 second minimum between executions
     // === EXECUTION DEBOUNCE - END ===
 
+
+    // =================================================================================
+    // DISPLAY LISTENER
+    // SUMMARY: Monitors display state changes to handle fold/unfold events on foldable devices.
+    //          Automatically switches the launcher between main screen (0) and cover screen (1)
+    //          based on which display is active.
+    //          CRITICAL: Skips auto-switch when on a virtual display (ID >= 2) to prevent
+    //          the launcher from jumping back to physical screens during virtual display use.
+    // =================================================================================
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {}
         override fun onDisplayRemoved(displayId: Int) {
@@ -144,6 +153,20 @@ class FloatingLauncherService : AccessibilityService() {
             }
         }
         override fun onDisplayChanged(displayId: Int) {
+            // =================================================================================
+            // VIRTUAL DISPLAY PROTECTION
+            // SUMMARY: Skip auto-switch logic when targeting a virtual display (ID >= 2).
+            //          This prevents the launcher from "crashing" back to physical screens
+            //          when display states flicker during virtual display use (e.g., launching apps).
+            // =================================================================================
+            if (currentDisplayId >= 2) {
+                Log.d(TAG, "onDisplayChanged: Ignoring - targeting virtual display $currentDisplayId")
+                return
+            }
+            // =================================================================================
+            // END BLOCK: VIRTUAL DISPLAY PROTECTION
+            // =================================================================================
+
             // Logic to detect Fold/Unfold events monitoring Display 0 (Main)
             if (displayId == 0) {
                 val display = displayManager?.getDisplay(0)
@@ -179,6 +202,10 @@ class FloatingLauncherService : AccessibilityService() {
             }
         }
     }
+    // =================================================================================
+    // END BLOCK: DISPLAY LISTENER
+    // =================================================================================
+
 
     private var bubbleView: View? = null
     private var drawerView: View? = null
