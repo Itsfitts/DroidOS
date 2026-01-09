@@ -1059,37 +1059,62 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
     // This is the Accessibility Service entry point
 
+
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d(TAG, "Accessibility Service Connected")
         isAccessibilityReady = true
 
-        // [FIX] Read Target Display from Global Settings
-        // This solves the race condition where onServiceConnected runs before onStartCommand.
+        // Initialize Managers
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        
+        // [FIX] Correct variable names for OverlayService:
+        // Use 'this' (because OverlayService implements DisplayListener)
+        // Use 'handler' (not uiHandler)
+        displayManager?.registerDisplayListener(this, handler)
+
+        // Register receivers
+        val filter = IntentFilter().apply {
+            addAction("com.katsuyamaki.DroidOSLauncher.OPEN_DRAWER")
+            addAction("com.katsuyamaki.DroidOSLauncher.UPDATE_ICON")
+            addAction("com.katsuyamaki.DroidOSLauncher.CYCLE_DISPLAY")
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(commandReceiver, filter, Context.RECEIVER_EXPORTED) else registerReceiver(commandReceiver, filter)
+
+        // [FIX] Removed incompatible Shizuku listeners that belong to Launcher
+        
+        // [FIX] USE RETRY LOGIC HERE
+        checkAndBindShizuku()
+
+        // Load preferences
+        loadPrefs() 
+        
+        // [FIX] READ TARGET DISPLAY (Fixes "Wrong Display" on Race Condition)
         val globalTarget = try {
             android.provider.Settings.Global.getInt(contentResolver, "droidos_target_display", -1)
-        } catch (e: Exception) {
-            -1
-        }
+        } catch (e: Exception) { -1 }
 
-        // Determine Final Target
-        // Priority: 1. Explicit Intent (pending) 2. Global Setting 3. Current Default
-        val finalTarget = when {
-            pendingDisplayId != -1 -> pendingDisplayId
-            globalTarget != -1 -> globalTarget
-            else -> currentDisplayId
-        }
-
+        val finalTarget = if (globalTarget != -1) globalTarget else currentDisplayId
+        
         Log.i(TAG, "Startup: Launching UI on Display $finalTarget (Global: $globalTarget)")
         
+        // Build UI
         setupUI(finalTarget)
         
+        // [FIX] Ensure bubble icon status is updated
+        updateBubbleStatus()
+
         // Clear pending states
         pendingDisplayId = -1
-        
-        // Reset the global setting to avoid sticking to this display forever (Optional, but good practice)
-        // We do this via shell later or just leave it as "Last Known Position"
+
+        showToast("Trackpad Ready")
     }
+
+
 
 
    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -2178,29 +2203,35 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // Helper to retry binding if connection is dead/null
 
 
+
+
     private fun checkAndBindShizuku() {
-        // If dead, clear it
+        // 1. If already bound and alive, do nothing
+        if (shellService != null && shellService!!.asBinder().isBinderAlive) {
+            return
+        }
+
+        // 2. If dead but not null, clear it
         if (shellService != null && !shellService!!.asBinder().isBinderAlive) {
             isBound = false
             shellService = null
         }
 
-        // If alive, we are good
-        if (shellService != null) return
-
-        // 1. Immediate Attempt
-        bindShizuku()
+        Log.d(TAG, "Binding Shizuku: Attempt 1 (Immediate)")
+        // Use existing safe bind method
+        bindShizuku() 
         
-        // 2. [FIX] Increased Safety Delay (1s -> 2.5s)
-        // Shizuku sometimes rejects binding immediately after a process kill/restart.
-        // Waiting 2.5 seconds ensures the system is stable before we retry.
+        // 3. Retry after 2.5 seconds (The Critical Fix)
+        // We use 'handler' here (not uiHandler)
         handler.postDelayed({
             if (shellService == null) {
-                Log.d(TAG, "Retrying Shizuku Bind (Safety Check)...")
+                Log.w(TAG, "Binding Shizuku: Attempt 2 (Delayed 2.5s)")
                 bindShizuku()
             }
         }, 2500)
     }
+
+
 
 
 
