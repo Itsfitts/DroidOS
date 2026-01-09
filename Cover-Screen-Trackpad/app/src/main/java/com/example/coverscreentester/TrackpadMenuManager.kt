@@ -42,6 +42,10 @@ class TrackpadMenuManager(
     private val TAB_HELP = 10
     
     private var currentTab = TAB_MAIN
+    
+    // [NEW] Debug Trigger Vars
+    private var helpClickCount = 0
+    private var lastHelpClickTime = 0L
 
     fun show() {
         if (isVisible) return
@@ -120,6 +124,23 @@ class TrackpadMenuManager(
 
         for ((id, index) in tabs) {
             drawerView?.findViewById<ImageView>(id)?.setOnClickListener { 
+                // [FIX] INSTRUCTIONS TAB - DEBUG TRIGGER (5 Clicks)
+                if (id == R.id.tab_help) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastHelpClickTime < 500) {
+                        helpClickCount++
+                    } else {
+                        helpClickCount = 1
+                    }
+                    lastHelpClickTime = now
+
+                    if (helpClickCount >= 5) {
+                        // Toggle debug mode in the main Service
+                        service.toggleDebugMode()
+                        helpClickCount = 0
+                    }
+                }
+                
                 loadTab(index) 
             }
         }

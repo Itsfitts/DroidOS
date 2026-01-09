@@ -54,6 +54,11 @@ import kotlin.math.min
 
 class FloatingLauncherService : AccessibilityService() {
 
+    // [NEW] Debug Mode State
+    private var isDebugMode = false
+    private var debugClickCount = 0
+    private var lastDebugClickTime = 0L
+
     private var virtualDisplay: android.hardware.display.VirtualDisplay? = null
     private var virtualImageReader: ImageReader? = null // Keeps surface alive
     private val ACTION_TOGGLE_VIRTUAL = "com.katsuyamaki.DroidOSLauncher.TOGGLE_VIRTUAL_DISPLAY"
@@ -629,6 +634,9 @@ class FloatingLauncherService : AccessibilityService() {
     // Visual debug function to show package/activity when apps are opened/modified/identified
     // This displays in the bright green text area above the app queue in the launcher drawer
     private fun debugShowAppIdentification(action: String, pkg: String, className: String?) {
+        // [FIX] Only run if Debug Mode is enabled
+        if (!isDebugMode) return
+
         val basePkg = if (pkg.contains(":")) pkg.substringBefore(":") else pkg
         val suffix = if (pkg.contains(":")) pkg.substringAfter(":") else null
         
@@ -777,6 +785,10 @@ class FloatingLauncherService : AccessibilityService() {
             debugStatusView?.setTextColor(Color.GREEN)
             debugStatusView?.textSize = 10f
             debugStatusView?.gravity = Gravity.CENTER
+            
+            // [FIX] Hide Debug View by Default
+            debugStatusView?.visibility = View.GONE
+            
             container.addView(debugStatusView, 0)
         }
 
@@ -790,7 +802,34 @@ class FloatingLauncherService : AccessibilityService() {
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_dpi).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_DPI) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_blacklist)?.setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_BLACKLIST) }
         drawerView!!.findViewById<ImageView>(R.id.icon_mode_profiles).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_PROFILES) }
-        drawerView!!.findViewById<ImageView>(R.id.icon_mode_settings).setOnClickListener { dismissKeyboardAndRestore(); switchMode(MODE_SETTINGS) }
+        
+        // [FIX] SETTINGS ICON - DEBUG TRIGGER (5 Clicks)
+        drawerView!!.findViewById<ImageView>(R.id.icon_mode_settings).setOnClickListener { 
+            dismissKeyboardAndRestore()
+            
+            // Check for 5 clicks
+            val now = System.currentTimeMillis()
+            if (now - lastDebugClickTime < 500) {
+                debugClickCount++
+            } else {
+                debugClickCount = 1
+            }
+            lastDebugClickTime = now
+
+            if (debugClickCount >= 5) {
+                isDebugMode = !isDebugMode
+                debugClickCount = 0
+                val status = if (isDebugMode) "ON" else "OFF"
+                
+                uiHandler.post {
+                    Toast.makeText(context, "Debug Mode: $status", Toast.LENGTH_SHORT).show()
+                    debugStatusView?.visibility = if (isDebugMode) View.VISIBLE else View.GONE
+                    if (currentMode == MODE_SETTINGS) switchMode(MODE_SETTINGS)
+                }
+            }
+
+            switchMode(MODE_SETTINGS) 
+        }
         // === MODE ICON CLICK LISTENERS - END ===
         executeBtn.setOnClickListener { executeLaunch(selectedLayoutType, closeDrawer = true) }
         searchBar.addTextChangedListener(object : TextWatcher { override fun afterTextChanged(s: Editable?) { filterList(s.toString()) }; override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}; override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {} })
