@@ -1009,13 +1009,30 @@ class KeyboardOverlay(
         // END BLOCK: SPACEBAR MOUSE CURSOR MOVE CALLBACK BINDING
         // =================================================================================
 
+
         keyboardView?.cursorClickAction = { isRight ->
             onCursorClick?.invoke(isRight)
+            // Fix: Reset swipe state on click to prevent accidental full-word delete
+            lastCommittedSwipeWord = null
+            resetComposition()
         }
 
-        keyboardView?.touchDownAction = { onTouchDown?.invoke() }
+        keyboardView?.touchDownAction = { 
+            onTouchDown?.invoke()
+            // Fix: Reset swipe state on drag start
+            lastCommittedSwipeWord = null
+            resetComposition()
+        }
+        
         keyboardView?.touchUpAction = { onTouchUp?.invoke() }
-        keyboardView?.touchTapAction = { onTouchTap?.invoke() }
+        
+        keyboardView?.touchTapAction = { 
+            onTouchTap?.invoke()
+            // Fix: Reset swipe state on tap
+            lastCommittedSwipeWord = null
+            resetComposition() 
+        }
+
 
         keyboardView?.mirrorTouchCallback = { x, y, action ->
             val cb = onMirrorTouch
@@ -1767,11 +1784,26 @@ val singleSuggestion = listOf(KeyboardView.Candidate(
     // =================================================================================
     // END BLOCK: updateSuggestions with styling flags
     // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: resetSwipeHistory
+    // SUMMARY: Public access to reset swipe state. Called by OverlayService when
+    //          external cursor movement (e.g. touching the app) is detected.
+    // =================================================================================
+    fun resetSwipeHistory() {
+        if (lastCommittedSwipeWord != null) {
+            android.util.Log.d("DroidOS_Swipe", "External cursor move detected -> Reset swipe history")
+        }
+        lastCommittedSwipeWord = null
+        resetComposition()
+    }
+
     private fun resetComposition() {
         currentComposingWord.clear()
         originalCaseWord.clear()
         updateSuggestionsWithSync(emptyList())
     }
+
 
     private fun injectKey(keyCode: Int, metaState: Int) {
         (context as? OverlayService)?.injectKeyFromKeyboard(keyCode, metaState)

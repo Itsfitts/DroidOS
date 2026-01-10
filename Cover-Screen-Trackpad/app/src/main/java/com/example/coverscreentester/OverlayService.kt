@@ -49,8 +49,12 @@ import com.example.coverscreentester.BuildConfig
 
 class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
+
     private var isAccessibilityReady = false
     private var pendingDisplayId = -1
+    // Track last time we injected text to distinguish our events from user touches
+    private var lastInjectionTime = 0L
+
 
     // === RECEIVER & ACTIONS - START ===
     private val commandReceiver = object : BroadcastReceiver() {
@@ -492,10 +496,26 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             }
         }
 
+
         val eventPkg = event.packageName?.toString() ?: ""
 
         // [FIX 3] Anti-Loop (Ignore Self)
         if (eventPkg == packageName) return
+
+        // [FIX] External Cursor Movement Detection
+        // If selection changes or user clicks text in the target app, reset swipe history.
+        // We check 'lastInjectionTime' to ensure we don't reset immediately after WE injected text
+        // (which also causes selection change events).
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED || 
+            event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            
+            val timeSinceInjection = System.currentTimeMillis() - lastInjectionTime
+            // If > 500ms has passed since we last typed, assume this is a manual user interaction
+            if (timeSinceInjection > 500) {
+                keyboardOverlay?.resetSwipeHistory()
+            }
+        }
+
 
         // [FIX 4] Allow Voice Input
         if (eventPkg.contains("google.android.googlequicksearchbox") ||
@@ -3826,11 +3846,15 @@ if (isResize) {
     private fun updateTargetMetrics(displayId: Int) { val display = displayManager?.getDisplay(displayId) ?: return; val metrics = android.util.DisplayMetrics(); display.getRealMetrics(metrics); targetScreenWidth = metrics.widthPixels; targetScreenHeight = metrics.heightPixels }
     
 
+
     fun injectKeyFromKeyboard(keyCode: Int, metaState: Int) {
+        // Update timestamp so we ignore the resulting AccessibilityEvent
+        lastInjectionTime = System.currentTimeMillis()
+
         // NEW: dismiss Voice if active
         checkAndDismissVoice()
-
         // Submit to the sequential queue instead of spinning a random thread
+
         inputExecutor.execute {
             try {
                 // 1. CHECK ACTUAL SYSTEM STATE
@@ -3857,9 +3881,14 @@ if (isResize) {
         }
     }
 
+
     fun injectText(text: String) {
+        // Update timestamp so we ignore the resulting AccessibilityEvent
+        lastInjectionTime = System.currentTimeMillis()
+
         inputExecutor.execute {
             try {
+
                 // 1. CHECK ACTUAL SYSTEM STATE
                 val currentIme = android.provider.Settings.Secure.getString(contentResolver, "default_input_method") ?: ""
                 val isNullKeyboardActive = currentIme.contains(packageName) && currentIme.contains("NullInputMethodService")
