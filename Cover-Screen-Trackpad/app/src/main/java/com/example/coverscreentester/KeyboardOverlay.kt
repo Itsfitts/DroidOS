@@ -993,11 +993,21 @@ class KeyboardOverlay(
             false
         }
 
-        // Bind KeyboardView events
+// =================================================================================
+        // SPACEBAR MOUSE CURSOR MOVE CALLBACK BINDING
+        // SUMMARY: Forwards cursor movement from KeyboardView's spacebar trackpad feature
+        //          to OverlayService. The isDragging parameter indicates whether user is
+        //          performing a hold-to-drag operation (true) or just moving cursor (false).
+        //          When isDragging=true, OverlayService injects ACTION_MOVE with TOUCHSCREEN
+        //          source; when false, it injects HOVER_MOVE with MOUSE source.
+        // =================================================================================
         keyboardView?.cursorMoveAction = { dx, dy, isDragging ->
-            // Use Mouse Injection (isDragging=false) to help differentiation
-            onCursorMove?.invoke(dx, dy, false)
+            // Pass through isDragging state to enable hold-to-drag functionality
+            onCursorMove?.invoke(dx, dy, isDragging)
         }
+        // =================================================================================
+        // END BLOCK: SPACEBAR MOUSE CURSOR MOVE CALLBACK BINDING
+        // =================================================================================
 
         keyboardView?.cursorClickAction = { isRight ->
             onCursorClick?.invoke(isRight)
