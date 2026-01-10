@@ -1,4 +1,3 @@
-
 package com.example.coverscreentester
 
 import android.content.Context
@@ -77,6 +76,15 @@ class KeyboardOverlay(
     // --- PREDICTION STATE ---
 
     private var currentComposingWord = StringBuilder()
+    // =================================================================================
+    // ORIGINAL CASE TRACKING
+    // SUMMARY: Stores the word with original casing (e.g., "DroidOS", "don't")
+    //          while currentComposingWord stores lowercase for dictionary lookup.
+    // =================================================================================
+    private var originalCaseWord = StringBuilder()
+    // =================================================================================
+    // END BLOCK: ORIGINAL CASE TRACKING
+    // =================================================================================
     private val handler = Handler(Looper.getMainLooper())
 
     // NEW: Track sentence context and swipe history
@@ -379,8 +387,7 @@ class KeyboardOverlay(
 
 
 
-    // [Removed duplicate accessors to fix build error]
-
+    // [Removed duplicate accessors to fix build error] 
 
 
 
@@ -457,7 +464,7 @@ class KeyboardOverlay(
 
 
 
-    // [END ROTATION FIX]
+    // [END ROTATION FIX] 
 
 
     fun show() { 
@@ -1213,87 +1220,110 @@ class KeyboardOverlay(
     //          sentence start detection, and auto-learning. Special handling for
     //          punctuation after swiped words to remove the trailing space.
     // =================================================================================
+    // =================================================================================
+    // FUNCTION: onKeyPress
+    // SUMMARY: Handles key press events from the keyboard. Manages composing word state,
+    //          sentence start detection, and auto-learning.
+    //          
+    // UPDATED: 
+    //   - Apostrophe (') is now part of words for "don't", "won't", etc.
+    //   - Tracks originalCaseWord for "DroidOS", "iPhone" etc.
+    //   - Shift keys don't clear composition
+    //   - Properly clears prediction bar on space/enter
+    // =================================================================================
     override fun onKeyPress(keyCode: Int, char: Char?, metaState: Int) {
-        android.util.Log.d("DroidOS_Key", "Press: $keyCode ('$char')")
+        android.util.Log.d("DroidOS_Key", "Press: keyCode=$keyCode char='$char' meta=$metaState")
+
+        // --- SHIFT KEY: Ignore completely, don't affect composition ---
+        if (keyCode == KeyEvent.KEYCODE_SHIFT_LEFT || 
+            keyCode == KeyEvent.KEYCODE_SHIFT_RIGHT ||
+            keyCode == KeyEvent.KEYCODE_CAPS_LOCK) {
+            // Don't inject shift as a key, just return
+            // The keyboard handles shift state internally
+            return
+        }
 
         // --- PUNCTUATION AFTER SWIPE: Remove trailing space ---
-        // If the last action was a swipe (which adds "word "), and user types punctuation,
-        // we need to delete the trailing space first so we get "word." not "word ."
-        val isPunctuation = char != null && (char == '.' || char == ',' || char == '!' ||
-                                              char == '?' || char == ';' || char == ':' ||
-                                              char == '\'' || char == '"')
+        val isEndingPunctuation = char != null && (char == '.' || char == ',' || char == '!' ||
+                                          char == '?' || char == ';' || char == ':' || char == '"')
 
-        if (isPunctuation && lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.endsWith(" ")) {
-            // Delete the trailing space from the swiped word
+        if (isEndingPunctuation && lastCommittedSwipeWord != null && lastCommittedSwipeWord!!.endsWith(" ")) {
             injectKey(KeyEvent.KEYCODE_DEL, 0)
             android.util.Log.d("DroidOS_Swipe", "PUNCTUATION: Removed trailing space before '$char'")
-
-            // Update the swipe word to not include the space (in case they backspace)
             lastCommittedSwipeWord = lastCommittedSwipeWord!!.trimEnd()
         }
 
         // 1. Inject the key event
         injectKey(keyCode, metaState)
 
-        // 2. Clear Swipe History on manual typing (but NOT for punctuation or shift)
-        if (keyCode != KeyEvent.KEYCODE_SHIFT_LEFT &&
-            keyCode != KeyEvent.KEYCODE_SHIFT_RIGHT &&
-            !isPunctuation) {
-            lastCommittedSwipeWord = null
-        }
-
-        // 3. Handle Backspace (Fixes "deleted text persists" bug)
+// 2. Handle Backspace - delete from composing word
         if (keyCode == KeyEvent.KEYCODE_DEL) {
             if (currentComposingWord.isNotEmpty()) {
                 currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
+                originalCaseWord.deleteCharAt(originalCaseWord.length - 1)
+                android.util.Log.d("DroidOS_Compose", "BACKSPACE: Now composing '$originalCaseWord'")
                 updateSuggestions()
+            } else {
+                // Composing word is empty, clear prediction bar
+                updateSuggestionsWithSync(emptyList())
             }
             return
         }
 
-        // 4. Track Sentence Start
-        if (keyCode == KeyEvent.KEYCODE_ENTER || char == '.' || char == '!' || char == '?') {
+        // 3. Handle Enter - clears everything
+        if (keyCode == KeyEvent.KEYCODE_ENTER) {
             isSentenceStart = true
-            lastCommittedSwipeWord = null // Clear swipe state on sentence end
-
-
-
-            // Auto-learn on punctuation
-            if (currentComposingWord.isNotEmpty()) {
-                val word = currentComposingWord.toString()
-                // DISABLE AUTO-LEARN
-                // if (word.length >= 2) predictionEngine.learnWord(context, word)
-            }
-
-
+            lastCommittedSwipeWord = null
             currentComposingWord.clear()
+            originalCaseWord.clear()
+            updateSuggestionsWithSync(emptyList())  // CLEAR prediction bar
+            return
+        }
 
-        } else if (char != null && !Character.isWhitespace(char) && !isPunctuation) {
+        // 4. Handle Space - clears composition, clears prediction bar
+        if (char != null && Character.isWhitespace(char)) {
             isSentenceStart = false
+            lastCommittedSwipeWord = null
+            currentComposingWord.clear()
+            originalCaseWord.clear()
+            updateSuggestionsWithSync(emptyList())  // CLEAR prediction bar
+            return
         }
 
-        // 5. Update Composing Word
-        if (char != null && Character.isLetterOrDigit(char)) {
-            currentComposingWord.append(char)
-            updateSuggestions()
-        } else if (char != null && Character.isWhitespace(char)) {
-
-            // Space finishes a word
-            if (currentComposingWord.isNotEmpty()) {
-                val word = currentComposingWord.toString()
-                // DISABLE AUTO-LEARN
-                // if (word.length >= 2) predictionEngine.learnWord(context, word)
+        // 5. Handle ending punctuation (. , ! ? ; : ") - clears composition
+        if (isEndingPunctuation) {
+            if (char == '.' || char == '!' || char == '?') {
+                isSentenceStart = true
             }
-
+            lastCommittedSwipeWord = null
             currentComposingWord.clear()
-            lastCommittedSwipeWord = null // Clear swipe state on space
-            updateSuggestions()
-        } else {
-            // Other symbols clear composition
-            currentComposingWord.clear()
-            updateSuggestions()
+            originalCaseWord.clear()
+            updateSuggestionsWithSync(emptyList())  // CLEAR prediction bar
+            return
         }
+
+        // 6. Handle letters, digits, and apostrophe - ADD to composition
+        if (char != null && (Character.isLetterOrDigit(char) || char == '\'')) {
+            // Clear swipe history when manually typing
+            lastCommittedSwipeWord = null
+            
+            // Add to composition trackers
+            currentComposingWord.append(char.lowercaseChar())  // Lowercase for lookup
+            originalCaseWord.append(char)  // Original case for display/saving
+            
+            isSentenceStart = false
+            updateSuggestions()
+            android.util.Log.d("DroidOS_Compose", "Composing: '$originalCaseWord' (lookup: '$currentComposingWord')")
+            return
+        }
+
+        // 7. Any other character - ignore, don't clear composition
+        // This prevents random symbols from breaking the composition
+        android.util.Log.d("DroidOS_Key", "Ignored char: '$char'")
     }
+    // =================================================================================
+    // END BLOCK: onKeyPress with proper clearing and case tracking
+    // =================================================================================
     // =================================================================================
     // END BLOCK: onKeyPress with punctuation spacing fix
     // =================================================================================
@@ -1336,6 +1366,11 @@ class KeyboardOverlay(
 
                 // Clear the swipe history so next backspace is normal
                 lastCommittedSwipeWord = null
+                
+                // Also clear composition state
+                currentComposingWord.clear()
+                originalCaseWord.clear()
+                updateSuggestionsWithSync(emptyList())
 
                 // Don't inject another backspace - we already deleted
                 return
@@ -1344,7 +1379,12 @@ class KeyboardOverlay(
             // Normal backspace: delete from composing word
             if (currentComposingWord.isNotEmpty()) {
                 currentComposingWord.deleteCharAt(currentComposingWord.length - 1)
+                originalCaseWord.deleteCharAt(originalCaseWord.length - 1)
+                android.util.Log.d("DroidOS_Compose", "BACKSPACE (special): Now composing '$originalCaseWord'")
                 updateSuggestions()
+            } else {
+                // Nothing to delete from composition, clear prediction bar
+                updateSuggestionsWithSync(emptyList())
             }
         } else if (key == KeyboardView.SpecialKey.SPACE) {
             // Space clears swipe history (user is continuing to type)
@@ -1392,9 +1432,14 @@ class KeyboardOverlay(
     override fun onSuggestionClick(text: String, isNew: Boolean) {
         android.util.Log.d("DroidOS_Prediction", "Suggestion clicked: '$text' (isNew=$isNew)")
 
-        // 1. Learn word if it was flagged as New
+// 1. Learn word if it was flagged as New
+        // Pass isSentenceStart so learnWord knows whether to strip auto-capitalization
         if (isNew) {
-            predictionEngine.learnWord(context, text)
+            // Note: We use the CURRENT isSentenceStart state at time of click
+            // If user typed "DroidOS" at sentence start, we strip the D
+            // If user typed "DroidOS" mid-sentence, we keep DroidOS
+            predictionEngine.learnWord(context, text, isSentenceStart)
+            android.util.Log.d("DroidOS_Learn", "Learning new word: '$text' (sentenceStart=$isSentenceStart)")
         }
 
         // 2. Handle Deletion (Key Injection)
@@ -1420,10 +1465,12 @@ class KeyboardOverlay(
         
         // 4. Update State
         lastCommittedSwipeWord = newText
-        currentComposingWord.clear() // Reset manual typing state
+        currentComposingWord.clear()
+        originalCaseWord.clear()
         
         // Clear suggestions immediately since we just committed
         updateSuggestionsWithSync(emptyList()) 
+        android.util.Log.d("DroidOS_Suggest", "Cleared suggestions after suggestion click")
     }
 
 
@@ -1462,6 +1509,82 @@ class KeyboardOverlay(
     // FUNCTION: onSwipeDetected
     // SUMMARY: Handles swipe gesture completion. Runs decoding in background thread.
     //          OPTIMIZED: Reduced logging for better performance.
+    // =================================================================================
+    // =================================================================================
+    // FUNCTION: onSwipeDetectedTimed (Time-Weighted Swipe Handler)
+    // SUMMARY: Receives swipe path WITH timestamps for dwell-based word disambiguation.
+    //          Calls PredictionEngine.decodeSwipeTimed for time-aware scoring.
+    //          This allows users to linger on keys to select less common words.
+    //          Example: Linger on "U" to get "four" instead of "for".
+    // =================================================================================
+    override fun onSwipeDetectedTimed(path: List<TimedPoint>) {
+        if (keyboardView == null || path.size < 3) return
+
+        val keyMap = keyboardView?.getKeyCenters()
+        if (keyMap.isNullOrEmpty()) return
+
+        // Run time-weighted prediction in background
+        Thread {
+            try {
+                val suggestions = predictionEngine.decodeSwipeTimed(path, keyMap)
+                
+                if (suggestions.isEmpty()) {
+                    android.util.Log.d("DroidOS_Swipe", "TIMED DECODE: No suggestions returned")
+                    return@Thread
+                }
+                
+                android.util.Log.d("DroidOS_Swipe", "TIMED DECODE: Got ${suggestions.size} suggestions: ${suggestions.joinToString(", ")}")
+
+                handler.post {
+                    var bestMatch = suggestions[0]
+                    val isCap = isSentenceStart
+
+                    if (isCap) {
+                        bestMatch = bestMatch.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                    }
+
+val displaySuggestions = if (isCap) {
+                        suggestions.map { it.replaceFirstChar { c -> c.titlecase() } }
+                    } else {
+                        suggestions
+                    }.map { word -> 
+                        KeyboardView.Candidate(
+                            text = word, 
+                            isNew = false,
+                            isCustom = predictionEngine.isCustomWord(word)
+                        )
+                    }
+
+                    updateSuggestionsWithSync(displaySuggestions)
+
+                    // Commit text with proper spacing
+                    var textToCommit = bestMatch
+                    if (currentComposingWord.isNotEmpty()) {
+                        textToCommit = " $bestMatch"
+                        currentComposingWord.clear()
+                    }
+                    textToCommit = "$textToCommit "
+
+                    injectText(textToCommit)
+                    lastCommittedSwipeWord = textToCommit
+                    isSentenceStart = false
+                    
+                    // Clear composition state since we just committed a swipe word
+                    currentComposingWord.clear()
+                    originalCaseWord.clear()
+                    // NOTE: Don't clear suggestions here - we want to show alternatives
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("DroidOS_Swipe", "Timed swipe decode error: ${e.message}")
+            }
+        }.start()
+    }
+    // =================================================================================
+    // END BLOCK: onSwipeDetectedTimed
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: onSwipeDetected (Legacy - now just logs, actual work done in Timed version)
     // =================================================================================
     override fun onSwipeDetected(path: List<android.graphics.PointF>) {
         if (keyboardView == null) return
@@ -1549,7 +1672,11 @@ class KeyboardOverlay(
                         }
 
                         // Show ONLY the top prediction (single item list)
-                        val singleSuggestion = listOf(KeyboardView.Candidate(topPrediction, isNew = false))
+val singleSuggestion = listOf(KeyboardView.Candidate(
+                            text = topPrediction, 
+                            isNew = false,
+                            isCustom = predictionEngine.isCustomWord(topPrediction)
+                        ))
                         updateSuggestionsWithSync(singleSuggestion)
                     }
                 }
@@ -1565,46 +1692,74 @@ class KeyboardOverlay(
     // END BLOCK: onSwipeProgress
     // =================================================================================
 
-    // =================================================================================
+
+// =================================================================================
     // FUNCTION: updateSuggestions
     // SUMMARY: Updates the suggestion bar based on current composing word.
-    //          Shows raw input + dictionary suggestions, filtering blocked words.
+    //          
+    // STYLING:
+    //   - isNew=true (RED): Word not in any dictionary, can be added
+    //   - isCustom=true (ITALIC): Word is in user dictionary  
+    //   - Both false (WHITE BOLD): Word is in main dictionary
     // =================================================================================
     private fun updateSuggestions() {
-        val prefix = currentComposingWord.toString()
+        val prefix = currentComposingWord.toString()  // Lowercase for lookup
+        val displayPrefix = originalCaseWord.toString()  // Original case for display
+        
         if (prefix.isEmpty()) {
             updateSuggestionsWithSync(emptyList())
             return
         }
 
-
-        // 1. Get dictionary suggestions (already filtered for blocked words)
-        val suggestions = predictionEngine.getSuggestions(prefix, 3)
+        // Strip apostrophe for dictionary lookup
+        val lookupPrefix = prefix.replace("'", "")
+        
+        // Get dictionary suggestions
+        val suggestions = if (lookupPrefix.isNotEmpty()) {
+            predictionEngine.getSuggestions(lookupPrefix, 3)
+        } else {
+            emptyList()
+        }
+        
         val candidates = ArrayList<KeyboardView.Candidate>()
 
-        // 2. Add Raw Input as first option (Always allow raw input to enable unblocking)
-        // If the word is blocked, it won't be in the dictionary (hasWord=false), so it will show as New (Cyan).
-        // Clicking it will trigger learnWord(), which now unblocks it.
-        val rawExists = predictionEngine.hasWord(prefix)
-        candidates.add(KeyboardView.Candidate(prefix, isNew = !rawExists))
+        // 1. Add Raw Input with ORIGINAL CASE as first option
+        val rawExistsInMain = predictionEngine.hasWord(lookupPrefix) || predictionEngine.hasWord(prefix)
+        val rawIsCustom = predictionEngine.isCustomWord(lookupPrefix) || predictionEngine.isCustomWord(prefix)
+        val rawIsNew = !rawExistsInMain && !rawIsCustom
+        
+        candidates.add(KeyboardView.Candidate(
+            text = displayPrefix, 
+            isNew = rawIsNew,
+            isCustom = rawIsCustom
+        ))
 
-
-        // 3. Add dictionary suggestions (avoiding duplicates)
+// 2. Add dictionary suggestions (avoiding duplicates)
+        // Apply display forms for proper capitalization (DroidOS, iPhone, etc.)
         for (s in suggestions) {
-            // Don't show if it looks exactly like the raw input (ignore case)
-            if (!s.equals(prefix, ignoreCase = true)) {
-                candidates.add(KeyboardView.Candidate(s, isNew = false))
+            val displayForm = predictionEngine.getDisplayForm(s)
+            if (!displayForm.equals(lookupPrefix, ignoreCase = true) && 
+                !displayForm.equals(prefix, ignoreCase = true) &&
+                !displayForm.equals(displayPrefix, ignoreCase = true)) {
+                // Check if this suggestion is a custom word
+                val isCustom = predictionEngine.isCustomWord(s)
+                candidates.add(KeyboardView.Candidate(
+                    text = displayForm,  // Use display form with proper caps
+                    isNew = false,
+                    isCustom = isCustom
+                ))
             }
         }
 
         updateSuggestionsWithSync(candidates.take(3))
+        android.util.Log.d("DroidOS_Suggest", "Updated: ${candidates.map { "${it.text}(new=${it.isNew},custom=${it.isCustom})" }}")
     }
     // =================================================================================
-    // END BLOCK: updateSuggestions
+    // END BLOCK: updateSuggestions with styling flags
     // =================================================================================
-
     private fun resetComposition() {
         currentComposingWord.clear()
+        originalCaseWord.clear()
         updateSuggestionsWithSync(emptyList())
     }
 

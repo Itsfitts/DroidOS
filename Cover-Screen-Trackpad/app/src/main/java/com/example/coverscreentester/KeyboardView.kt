@@ -31,7 +31,21 @@ class KeyboardView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : LinearLayout(context, attrs, defStyleAttr) {
 
-    data class Candidate(val text: String, val isNew: Boolean = false)
+// =================================================================================
+    // DATA CLASS: Candidate
+    // SUMMARY: Represents a word suggestion in the prediction bar.
+    //   - text: The word to display
+    //   - isNew: True if word is NOT in any dictionary (shown in RED, can be added)
+    //   - isCustom: True if word is in USER dictionary (shown in ITALIC)
+    // =================================================================================
+    data class Candidate(
+        val text: String, 
+        val isNew: Boolean = false,
+        val isCustom: Boolean = false
+    )
+    // =================================================================================
+    // END BLOCK: Candidate data class
+    // =================================================================================
 
     // =================================================================================
     // INTERFACE: KeyboardListener
@@ -52,6 +66,15 @@ class KeyboardView @JvmOverloads constructor(
         // NEW: Live swipe preview - called during swipe to show predictions in real-time
         // This enables GBoard-style "predict as you swipe" functionality
         fun onSwipeProgress(path: List<android.graphics.PointF>) {}  // Default empty impl for backwards compat
+        
+        // =======================================================================
+        // NEW: Time-weighted swipe detection for dwell-based disambiguation
+        // Called with TimedPoints so PredictionEngine can detect key lingering
+        // =======================================================================
+        fun onSwipeDetectedTimed(path: List<TimedPoint>) {}  // Default empty for backwards compat
+        // =======================================================================
+        // END BLOCK: Time-weighted swipe detection
+        // =======================================================================
     }
     // =================================================================================
     // END BLOCK: KeyboardListener interface
@@ -210,8 +233,8 @@ class KeyboardView @JvmOverloads constructor(
     private var startTouchY = 0f
     private var swipePointerId = -1 // Track which pointer started the swipe (-1 = none)
 
-    // Store the full path for the decoder
-    private val currentPath = ArrayList<android.graphics.PointF>()
+    // Store the full path for the decoder WITH TIMESTAMPS for dwell detection
+    private val currentPath = ArrayList<TimedPoint>()
     // =================================================================================
     // END BLOCK: GESTURE TYPING STATE
     // =================================================================================
@@ -475,9 +498,9 @@ class KeyboardView @JvmOverloads constructor(
         swipeTrail?.visibility = View.VISIBLE
         swipeTrail?.addPoint(x, y)
 
-        // Start the path collection
+        // Start the path collection with timestamp
         currentPath.clear()
-        currentPath.add(android.graphics.PointF(x, y))
+        currentPath.add(TimedPoint(x, y, System.currentTimeMillis()))
     }
     // =================================================================================
     // END BLOCK: startSwipeFromPosition
@@ -689,7 +712,16 @@ class KeyboardView @JvmOverloads constructor(
 
 
 
-    private fun buildKeyboard() {
+private fun buildKeyboard() {
+        // =======================================================================
+        // SAVE CURRENT CANDIDATES before rebuilding
+        // This preserves the prediction bar when SHIFT/layout changes occur
+        // =======================================================================
+        val savedCandidates = ArrayList(currentCandidates)
+        // =======================================================================
+        // END BLOCK: Save candidates
+        // =======================================================================
+        
         removeAllViews()
 
         // --- 1. SUGGESTION STRIP ---
@@ -809,6 +841,16 @@ class KeyboardView @JvmOverloads constructor(
 
         // Notify listener of layer change for mirror sync
         listener?.onLayerChanged(currentState)
+// =======================================================================
+        // RESTORE SAVED CANDIDATES after rebuilding
+        // This preserves the prediction bar when SHIFT/layout changes occur
+        // =======================================================================
+        if (savedCandidates.isNotEmpty()) {
+            setSuggestions(savedCandidates)
+        }
+        // =======================================================================
+        // END BLOCK: Restore candidates
+        // =======================================================================
     }
 
     private fun createRow(keys: List<String>, rowIndex: Int): LinearLayout {
@@ -979,7 +1021,8 @@ class KeyboardView @JvmOverloads constructor(
                 swipeTrail?.clear()
                 swipeTrail?.addPoint(event.x, event.y)
                 currentPath.clear()
-                currentPath.add(android.graphics.PointF(event.x, event.y))
+                // NEW: Add with timestamp for dwell detection
+                currentPath.add(TimedPoint(event.x, event.y, System.currentTimeMillis()))
             }
 
             android.view.MotionEvent.ACTION_POINTER_DOWN -> {
@@ -1019,15 +1062,16 @@ class KeyboardView @JvmOverloads constructor(
 
                 if (isSwiping) {
                     swipeTrail?.addPoint(currentX, currentY)
-                    // Sample historical points for smoother path
+                    // Sample historical points for smoother path WITH TIMESTAMPS
                     if (event.historySize > 0) {
                         for (h in 0 until event.historySize) {
                             val hx = event.getHistoricalX(trackedIndex, h)
                             val hy = event.getHistoricalY(trackedIndex, h)
-                            currentPath.add(android.graphics.PointF(hx, hy))
+                            val ht = event.getHistoricalEventTime(h)
+                            currentPath.add(TimedPoint(hx, hy, ht))
                         }
                     }
-                    currentPath.add(android.graphics.PointF(currentX, currentY))
+                    currentPath.add(TimedPoint(currentX, currentY, event.eventTime))
 
                     // =======================================================================
                     // LIVE SWIPE PREVIEW
@@ -1038,7 +1082,7 @@ class KeyboardView @JvmOverloads constructor(
                     if (currentPath.size >= SWIPE_PREVIEW_MIN_POINTS &&
                         now - lastSwipePreviewTime > SWIPE_PREVIEW_INTERVAL_MS) {
                         lastSwipePreviewTime = now
-                        listener?.onSwipeProgress(ArrayList(currentPath))
+                        listener?.onSwipeProgress(currentPath.map { it.toPointF() })
                     }
                     // =======================================================================
                     // END BLOCK: LIVE SWIPE PREVIEW
@@ -1063,13 +1107,14 @@ class KeyboardView @JvmOverloads constructor(
 
                     if (isValidSwipe) {
                         // LOG: Swipe passed validation, sending to decoder
-                        android.util.Log.d("DroidOS_Swipe", "DISPATCH: Sending ${currentPath.size} points to onSwipeDetected")
+                        android.util.Log.d("DroidOS_Swipe", "DISPATCH: Sending ${currentPath.size} points to onSwipeDetectedTimed")
 
                         // Check if listener exists
                         if (listener == null) {
                             android.util.Log.e("DroidOS_Swipe", "DISPATCH FAIL: listener is NULL!")
                         } else {
-                            listener?.onSwipeDetected(ArrayList(currentPath))
+                            // NEW: Send timed path for dwell detection
+                            listener?.onSwipeDetectedTimed(ArrayList(currentPath))
                         }
                     } else {
                         android.util.Log.d("DroidOS_Swipe", "DISPATCH SKIP: validateSwipe returned false")
@@ -1813,19 +1858,40 @@ class KeyboardView @JvmOverloads constructor(
 
         val views = listOf(cand1, cand2, cand3)
 
-        for (i in 0 until 3) {
+for (i in 0 until 3) {
             val view = views[i] ?: continue
             if (i < candidates.size) {
                 val item = candidates[i]
                 view.text = item.text
                 view.visibility = View.VISIBLE
-
-
-                // FORCE WHITE TEXT (Fixes Grey/Cyan issue)
-                view.setTextColor(Color.WHITE)
                 view.alpha = 1.0f
-                view.typeface = android.graphics.Typeface.DEFAULT_BOLD
 
+                // =======================================================================
+                // VISUAL STYLING BASED ON WORD TYPE
+                // - RED + BOLD: Word not in any dictionary (isNew=true) - can be added
+                // - WHITE + ITALIC: Word is user-added custom word (isCustom=true)
+                // - WHITE + BOLD: Word is in main dictionary (normal)
+                // =======================================================================
+                when {
+                    item.isNew -> {
+                        // NOT IN DICTIONARY - Red, bold (user can add it)
+                        view.setTextColor(Color.RED)
+                        view.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    }
+                    item.isCustom -> {
+                        // USER DICTIONARY - White, italic
+                        view.setTextColor(Color.WHITE)
+                        view.typeface = android.graphics.Typeface.defaultFromStyle(android.graphics.Typeface.ITALIC)
+                    }
+                    else -> {
+                        // MAIN DICTIONARY - White, bold
+                        view.setTextColor(Color.WHITE)
+                        view.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    }
+                }
+                // =======================================================================
+                // END BLOCK: Visual styling
+                // =======================================================================
 
                 // TOUCH LISTENER: Handle Click vs Drag
                 view.setOnTouchListener { v, event ->

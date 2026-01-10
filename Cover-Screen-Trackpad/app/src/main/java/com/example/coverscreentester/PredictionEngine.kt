@@ -12,6 +12,23 @@ import kotlin.math.min
 import kotlin.math.ln
 import kotlin.math.abs
 
+// =================================================================================
+// DATA CLASS: TimedPoint
+// SUMMARY: A point with timestamp for dwell time analysis in swipe gestures.
+//          Allows the prediction engine to detect when users linger on keys
+//          to disambiguate similar words like "for" vs "four".
+// =================================================================================
+data class TimedPoint(
+    val x: Float,
+    val y: Float,
+    val timestamp: Long  // System.currentTimeMillis() when this point was captured
+) {
+    fun toPointF(): android.graphics.PointF = android.graphics.PointF(x, y)
+}
+// =================================================================================
+// END BLOCK: TimedPoint data class
+// =================================================================================
+
 /**
  * =================================================================================
  * CLASS: PredictionEngine
@@ -42,7 +59,10 @@ class PredictionEngine {
         // Location: 0.85 -> high trust in key hits
         // Direction: 0.5 -> kept low
         // Turn: 1.5 -> SIGNIFICANTLY INCREASED (was 0.9). Sharp corners are now king.
+        // Dwell: 0.6 -> Weight for keys where user lingered longer
         private const val SHAPE_WEIGHT = 0.25f
+        private const val DWELL_TIME_WEIGHT = 0.6f  // NEW: Weight for time-based key scoring
+        private const val DWELL_THRESHOLD_MS = 80L  // Minimum ms to count as "lingering" on a key
         private const val LOCATION_WEIGHT = 0.85f
         private const val DIRECTION_WEIGHT = 0.5f   
         private const val TURN_WEIGHT = 1.5f        
@@ -116,6 +136,16 @@ class PredictionEngine {
     // --- CUSTOM DICTIONARY STORAGE ---
     private val blockedWords = java.util.HashSet<String>()
     private val customWords = java.util.HashSet<String>()
+    // =================================================================================
+    // CUSTOM WORD DISPLAY FORMS
+    // SUMMARY: Maps lowercase lookup key to the display form with proper capitalization.
+    //          E.g., "droidos" -> "DroidOS", "iphone" -> "iPhone"
+    //          This allows swiping "droidos" to output "DroidOS".
+    // =================================================================================
+    private val customWordDisplayForms = HashMap<String, String>()
+    // =================================================================================
+    // END BLOCK: Custom word display forms
+    // =================================================================================
     // Cache for the top 1000 words to make "Hail Mary" pass instant
     private val commonWordsCache = ArrayList<String>()
     // Throttle template failure logging
@@ -252,8 +282,12 @@ class PredictionEngine {
                 val newCustom = java.util.HashSet<String>()
                 var lineCount = 0
 
+
                 val newWordsByFirstLetter = HashMap<Char, ArrayList<String>>()
                 val newWordsByFirstLastLetter = HashMap<String, ArrayList<String>>()
+                // FIX: Declare here so it is accessible in the commit block
+                val newDisplayForms = HashMap<String, String>()
+
 
                 // =================================================================================
                 // LOAD CUSTOM LISTS (User & Blocked)
@@ -271,14 +305,21 @@ class PredictionEngine {
 
                     val userFile = java.io.File(context.filesDir, USER_DICT_FILE)
                     if (userFile.exists()) {
-                        val userLines = userFile.readLines().map { it.trim().lowercase(java.util.Locale.ROOT) }.filter { it.isNotEmpty() }
+                        val userLines = userFile.readLines().map { it.trim() }.filter { it.isNotEmpty() }
                         
                         // FILTER: Check each user word against garbage filter on load
-                        for (w in userLines) {
-                            if (!looksLikeGarbage(w)) {
-                                newCustom.add(w)
+                        // Also build display forms map
+                        for (originalForm in userLines) {
+                            val lookupForm = originalForm.lowercase(java.util.Locale.ROOT)
+                            val trieKey = lookupForm.replace("'", "")
+                            
+                            if (!looksLikeGarbage(trieKey)) {
+                                newCustom.add(lookupForm)
+                                // Store display form mapping
+                                newDisplayForms[lookupForm] = originalForm
+                                newDisplayForms[trieKey] = originalForm
                             } else {
-                                android.util.Log.d("DroidOS_Prediction", "Pruned garbage from user dict: $w")
+                                android.util.Log.d("DroidOS_Prediction", "Pruned garbage from user dict: $originalForm")
                             }
                         }
                         android.util.Log.d("DroidOS_Prediction", "LOAD: User words file found, ${newCustom.size} valid words")
@@ -373,6 +414,11 @@ class PredictionEngine {
                     blockedWords.addAll(newBlocked)
                     customWords.clear()
                     customWords.addAll(newCustom)
+                    
+                    // Load display forms
+                    customWordDisplayForms.clear()
+                    customWordDisplayForms.putAll(newDisplayForms)
+                    customWords.addAll(newCustom)
 
                     templateCache.clear()
 
@@ -401,57 +447,121 @@ class PredictionEngine {
 
 
 
-    /**
-     * Learns a new word: Adds to memory and saves to user_words.txt
-     */
-    fun learnWord(context: Context, word: String) {
+// =================================================================================
+    // FUNCTION: learnWord
+    // SUMMARY: Learns a new word and saves to user_words.txt
+    //          
+    // SMART CAPITALIZATION:
+    //   - If at sentence start: strip first-letter cap, keep internal caps
+    //     E.g., "DroidOS" at start → stored as "droidOS" 
+    //   - If mid-sentence: keep all caps as typed
+    //     E.g., "DroidOS" mid-sentence → stored as "DroidOS"
+    //   - When suggesting, always use the stored display form
+    //
+    // @param isSentenceStart: true if word was typed at beginning of sentence
+    // =================================================================================
+    fun learnWord(context: Context, word: String, isSentenceStart: Boolean = false) {
         if (word.length < 2) return
 
-        // 1. Standardize the word immediately
-        val cleanWord = word.trim().lowercase(java.util.Locale.ROOT)
+        val originalWord = word.trim()
         
+        // =======================================================================
+        // SMART CAPITALIZATION
+        // If at sentence start, the first letter being capital is automatic,
+        // so we should store without that automatic cap to get the "true" form.
+        // E.g., User types "DroidOS" at start → they want "droidOS" normally
+        // But if typed mid-sentence as "DroidOS" → they want "DroidOS" always
+        // =======================================================================
+        val displayForm = if (isSentenceStart && originalWord.isNotEmpty() && originalWord[0].isUpperCase()) {
+            // Strip the automatic sentence-start capitalization
+            originalWord[0].lowercaseChar() + originalWord.substring(1)
+        } else {
+            // Keep as-is (mid-sentence or already lowercase)
+            originalWord
+        }
+        // =======================================================================
+        // END BLOCK: Smart capitalization
+        // =======================================================================
+        
+        val lookupWord = displayForm.lowercase(java.util.Locale.ROOT)
+        val trieKey = lookupWord.replace("'", "")  // For trie lookup
 
-        // FILTER: Don't learn garbage (random letters/typos)
-        if (looksLikeGarbage(cleanWord)) {
-             android.util.Log.d("DroidOS_Prediction", "Ignored garbage input: $cleanWord")
+        // Don't learn garbage
+        if (looksLikeGarbage(trieKey)) {
+             android.util.Log.d("DroidOS_Prediction", "Ignored garbage input: $originalWord")
              return
         }
 
-        // CHANGE: Removed isWordBlocked check to allow unblocking via learnWord
+        // Don't relearn if already known (but allow updating display form)
+        val alreadyKnown = hasWord(trieKey) || hasWord(lookupWord)
         
-        // OPTIMIZATION: Don't relearn if we already know it
-        if (hasWord(cleanWord)) return
-
-
         Thread {
             try {
-                // 2. Update Memory
                 synchronized(this) {
-                    customWords.add(cleanWord)
-                    blockedWords.remove(cleanWord) // Unblock if previously blocked
-                    insert(cleanWord, 0) // Rank 0 = High Priority
+                    customWords.add(lookupWord)
+                    blockedWords.remove(lookupWord)
+                    blockedWords.remove(trieKey)
+                    
+                    // Store the display form for this word
+                    customWordDisplayForms[lookupWord] = displayForm
+                    customWordDisplayForms[trieKey] = displayForm
+                    
+                    // Insert base form (without apostrophe) for swipe matching
+                    if (!alreadyKnown) {
+                        insert(trieKey, 0)
+                        
+                        // Also insert with apostrophe if present
+                        if (lookupWord.contains("'")) {
+                            insert(lookupWord, 0)
+                        }
+                    }
+
+                    // FIX: File I/O moved INSIDE synchronized block to prevent race conditions
+                    val file = java.io.File(context.filesDir, USER_DICT_FILE)
+                    
+                    // If already known, we need to update the file (remove old, add new)
+                    if (alreadyKnown) {
+                        val existingLines = if (file.exists()) file.readLines() else emptyList()
+                        val updatedLines = existingLines.filter { 
+                            it.trim().lowercase(java.util.Locale.ROOT).replace("'", "") != trieKey 
+                        } + displayForm
+                        file.writeText(updatedLines.joinToString("\n") + "\n")
+                        android.util.Log.d("DroidOS_Prediction", "Updated word: '$displayForm' (was in dict, updated display form)")
+                    } else {
+                        file.appendText("$displayForm\n")
+                        android.util.Log.d("DroidOS_Prediction", "Learned word: '$displayForm' (lookup: '$trieKey', sentenceStart=$isSentenceStart)")
+                    }
+
+                    // Safe to call here (it uses synchronized data)
+                    saveSetToFile(context, BLOCKED_DICT_FILE, blockedWords)
                 }
 
-                // 3. Append to File
-                val file = java.io.File(context.filesDir, USER_DICT_FILE)
-                file.appendText("$cleanWord\n")
-
-                // 4. Ensure it's removed from blocked file if needed
-                saveSetToFile(context, BLOCKED_DICT_FILE, blockedWords)
-
-                android.util.Log.d("DroidOS_Prediction", "Learned word: $cleanWord")
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }.start()
     }
-
-
-    /**
-     * Blocks a word: Removes from memory and saves to blocked_words.txt
-     */
+    // =================================================================================
+    // END BLOCK: learnWord with smart capitalization
+    // =================================================================================
 
 // =================================================================================
+    // FUNCTION: getDisplayForm
+    // SUMMARY: Returns the proper display form for a custom word.
+    //          E.g., "droidos" -> "DroidOS", "iphone" -> "iPhone"
+    //          Returns the input unchanged if not a custom word.
+    // =================================================================================
+    fun getDisplayForm(word: String): String {
+        val lookup = word.lowercase(java.util.Locale.ROOT)
+        val lookupNoApostrophe = lookup.replace("'", "")
+        
+        return customWordDisplayForms[lookup] 
+            ?: customWordDisplayForms[lookupNoApostrophe]
+            ?: word
+    }
+    // =================================================================================
+    // END BLOCK: getDisplayForm
+    // =================================================================================
 
     // =================================================================================
     // FUNCTION: saveSetToFile
@@ -460,7 +570,8 @@ class PredictionEngine {
     private fun saveSetToFile(context: Context, filename: String, data: Set<String>) {
         try {
             val file = java.io.File(context.filesDir, filename)
-            val content = data.filter { it.isNotEmpty() }.joinToString("\n")
+            // FIX: Append newline to prevent next write from merging with last word (e.g. can'twon't)
+            val content = data.filter { it.isNotEmpty() }.joinToString("\n") + "\n"
             file.writeText(content)
             android.util.Log.d("DroidOS_Prediction", "SAVEFILE: Wrote ${data.size} items to $filename")
         } catch (e: Exception) {
@@ -480,16 +591,25 @@ class PredictionEngine {
         "txt", "xml", "pdf", "css", "html", "tv", "pc", "ok", "id", "cv", "ad", "ex", "vs", "mr", "dr", "ms"
     )
 
+    // =================================================================================
+    // FUNCTION: looksLikeGarbage
+    // SUMMARY: Filters random letter combinations. Must have vowel or be whitelisted.
+    // UPDATED: Strips apostrophes before checking (don't -> dont has vowel)
+    // =================================================================================
     private fun looksLikeGarbage(word: String): Boolean {
-        if (word.length > 1) {
-            val hasVowel = word.any { "aeiouyAEIOUY".contains(it) }
+        val checkWord = word.replace("'", "")
+        if (checkWord.length > 1) {
+            val hasVowel = checkWord.any { "aeiouyAEIOUY".contains(it) }
             if (!hasVowel) {
-                if (VALID_VOWELLESS.contains(word.lowercase(java.util.Locale.ROOT))) return false
-                return true // No vowel and not whitelisted -> Garbage
+                if (VALID_VOWELLESS.contains(checkWord.lowercase(java.util.Locale.ROOT))) return false
+                return true
             }
         }
         return false
     }
+    // =================================================================================
+    // END BLOCK: looksLikeGarbage
+    // =================================================================================
 
     fun hasWord(word: String): Boolean {
         return wordList.contains(word.lowercase(Locale.ROOT))
@@ -502,11 +622,23 @@ class PredictionEngine {
     fun isWordBlocked(word: String): Boolean {
         return blockedWords.contains(word.lowercase(Locale.ROOT))
     }
-    // =================================================================================
+// =================================================================================
     // END BLOCK: isWordBlocked
     // =================================================================================
 
     // =================================================================================
+    // FUNCTION: isCustomWord
+    // SUMMARY: Checks if a word is in the user's custom dictionary.
+    //          Used to style user-added words differently (italic) in prediction bar.
+    // =================================================================================
+    fun isCustomWord(word: String): Boolean {
+        val lower = word.lowercase(Locale.ROOT)
+        val withoutApostrophe = lower.replace("'", "")
+        return customWords.contains(lower) || customWords.contains(withoutApostrophe)
+    }
+    // =================================================================================
+    // END BLOCK: isCustomWord
+    // =================================================================================    // =================================================================================
     // FUNCTION: insert
     // SUMMARY: Inserts a word into the Trie and the first/last letter index.
     // =================================================================================
@@ -924,14 +1056,451 @@ class PredictionEngine {
                 if (word.length >= 6) userBoost *= 1.15f
 
 
+
                 val finalScore = (integrationScore * (1.0f - 0.5f * freqBonus)) / userBoost
                 Pair(word, finalScore)
             }
         
-        return scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
+        // FIX: Apply getDisplayForm to ensure capitalized words (e.g. Katsuya) are returned correctly
+        val results = scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
+        return results.map { getDisplayForm(it) }
     }
+
     // =================================================================================
     // END BLOCK: Boost Calculation (and decodeSwipe)
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: decodeSwipeTimed (Time-Weighted Swipe Decoding)
+    // SUMMARY: Enhanced version of decodeSwipe that uses timestamp data to detect
+    //          when users linger on specific keys. This allows disambiguation of
+    //          similar words like "for" vs "four" - lingering on "u" boosts "four".
+    //          
+    // HOW IT WORKS:
+    //   1. Converts TimedPoints to regular path for geometric analysis
+    //   2. Calculates dwell time on each key the path crosses
+    //   3. Keys with longer dwell times get boosted in scoring
+    //   4. Final score combines geometric + frequency + dwell time weights
+    // =================================================================================
+    fun decodeSwipeTimed(timedPath: List<TimedPoint>, keyMap: Map<String, PointF>): List<String> {
+        if (timedPath.size < 3 || keyMap.isEmpty()) return emptyList()
+        
+        // Convert to regular PointF path for existing geometric analysis
+        val swipePath = timedPath.map { it.toPointF() }
+        
+        // Calculate dwell times per key
+        val keyDwellTimes = calculateKeyDwellTimes(timedPath, keyMap)
+        
+        // Debug log dwell times
+        if (keyDwellTimes.isNotEmpty()) {
+            val dwellDebug = keyDwellTimes.entries
+                .filter { it.value > DWELL_THRESHOLD_MS }
+                .sortedByDescending { it.value }
+                .take(5)
+                .joinToString(", ") { "${it.key}:${it.value}ms" }
+            if (dwellDebug.isNotEmpty()) {
+                android.util.Log.d("DroidOS_Dwell", "Key dwell times: $dwellDebug")
+            }
+        }
+        
+        // Run normal decoding with dwell boost
+        return decodeSwipeWithDwell(swipePath, keyMap, keyDwellTimes)
+    }
+    // =================================================================================
+    // END BLOCK: decodeSwipeTimed
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: calculateKeyDwellTimes
+    // SUMMARY: Analyzes a timed swipe path to calculate how long the user spent
+    //          near each key. Returns a map of key -> total milliseconds.
+    //          Used to boost keys where user intentionally lingered.
+    // =================================================================================
+    private fun calculateKeyDwellTimes(
+        timedPath: List<TimedPoint>, 
+        keyMap: Map<String, PointF>
+    ): Map<String, Long> {
+        val dwellTimes = HashMap<String, Long>()
+        if (timedPath.size < 2) return dwellTimes
+        
+        val KEY_PROXIMITY_RADIUS = 50f  // Pixels - consider "on key" if within this radius
+        
+        for (i in 1 until timedPath.size) {
+            val prev = timedPath[i - 1]
+            val curr = timedPath[i]
+            val timeDelta = curr.timestamp - prev.timestamp
+            
+            // Skip if timestamp jump is too large (likely a pause/resume)
+            if (timeDelta > 500) continue
+            
+            // Find which key this point is closest to
+            val point = PointF(curr.x, curr.y)
+            var closestKey: String? = null
+            var closestDist = Float.MAX_VALUE
+            
+            for ((key, center) in keyMap) {
+                val dist = hypot(point.x - center.x, point.y - center.y)
+                if (dist < closestDist && dist < KEY_PROXIMITY_RADIUS) {
+                    closestDist = dist
+                    closestKey = key
+                }
+            }
+            
+            // Add time spent near this key
+            if (closestKey != null) {
+                dwellTimes[closestKey] = (dwellTimes[closestKey] ?: 0L) + timeDelta
+            }
+        }
+        
+        return dwellTimes
+    }
+    // =================================================================================
+    // END BLOCK: calculateKeyDwellTimes
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: decodeSwipeWithDwell
+    // SUMMARY: Modified version of decodeSwipe that incorporates dwell time scoring.
+    //          Words containing keys with high dwell times get boosted.
+    //          This is the core logic that makes "lingering on U" select "four" over "for".
+    // =================================================================================
+    private fun decodeSwipeWithDwell(
+        swipePath: List<PointF>, 
+        keyMap: Map<String, PointF>,
+        keyDwellTimes: Map<String, Long>
+    ): List<String> {
+        if (swipePath.size < 3 || keyMap.isEmpty()) return emptyList()
+        if (wordList.isEmpty()) {
+            loadDefaults()
+            return emptyList()
+        }
+
+        val keyMapHash = keyMap.hashCode()
+        if (keyMapHash != lastKeyMapHash) {
+            templateCache.clear()
+            lastKeyMapHash = keyMapHash
+        }
+
+        val inputLength = getPathLength(swipePath)
+        if (inputLength < 10f) return emptyList()
+
+        // =======================================================================
+        // DWELL DETECTION (Conservative - for to/too, as/ass)
+        // =======================================================================
+        var dwellScore = 0f
+        if (swipePath.size > 12) {
+            val tailSize = maxOf(12, swipePath.size / 4)
+            val tailStart = maxOf(0, swipePath.size - tailSize)
+            val tail = swipePath.subList(tailStart, swipePath.size)
+            
+            var tailLength = 0f
+            for (i in 1 until tail.size) {
+                tailLength += hypot(tail[i].x - tail[i-1].x, tail[i].y - tail[i-1].y)
+            }
+            
+            val avgMovementPerPoint = tailLength / tail.size
+            dwellScore = when {
+                avgMovementPerPoint < 2f -> 1.0f
+                avgMovementPerPoint < 4f -> 0.6f
+                avgMovementPerPoint < 7f -> 0.2f
+                else -> 0f
+            }
+        }
+        val isDwellingAtEnd = dwellScore >= 0.6f
+        // =======================================================================
+        // END DWELL DETECTION
+        // =======================================================================
+
+        val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
+        val normalizedInput = normalizePath(sampledInput)
+        val inputDirections = calculateDirectionVectors(sampledInput)
+
+        val inputTurns = detectTurns(inputDirections)
+        val pathKeys = extractPathKeys(sampledInput, keyMap, 8)
+
+        val startPoint = sampledInput.first()
+        val endPoint = sampledInput.last()
+        val startKey = findClosestKey(startPoint, keyMap)
+        val endKey = findClosestKey(endPoint, keyMap)
+        
+        // =======================================================================
+        // CANDIDATE COLLECTION (same as original)
+        // =======================================================================
+        val candidates = HashSet<String>()
+        
+        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f)
+        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f)
+        
+        for (s in nearbyStart) {
+            for (e in nearbyEnd) {
+                wordsByFirstLastLetter["${s}${e}"]?.let { candidates.addAll(it) }
+            }
+        }
+        
+        if (startKey != null) {
+            wordsByFirstLetter[startKey.first()]?.let { words ->
+                candidates.addAll(words.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(25))
+            }
+        }
+
+        if (pathKeys.size >= 2) {
+            val secondKey = pathKeys.getOrNull(1)?.firstOrNull()?.lowercaseChar()
+            if (secondKey != null && startKey != null) {
+                wordsByFirstLetter[startKey.first()]?.let { words ->
+                    val matchingWords = words.filter { word ->
+                        word.length >= 2 && word.drop(1).contains(secondKey)
+                    }.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(150)
+                    candidates.addAll(matchingWords)
+                }
+            }
+            
+            val thirdKey = pathKeys.getOrNull(2)?.firstOrNull()?.lowercaseChar()
+            if (thirdKey != null && startKey != null && thirdKey != secondKey) {
+                wordsByFirstLetter[startKey.first()]?.let { words ->
+                    val matchingWords = words.filter { word ->
+                        word.length >= 3 && word.drop(1).contains(thirdKey)
+                    }.sortedByDescending { userFrequencyMap[it] ?: 0 }.take(150)
+                    candidates.addAll(matchingWords)
+                }
+            }
+            
+            if (pathKeys.size >= 3 && startKey != null) {
+                wordsByFirstLetter[startKey.first()]?.let { words ->
+                    val requiredKeys = pathKeys.drop(1).map { it.firstOrNull()?.lowercaseChar() }.filterNotNull()
+                    val strictMatches = words.filter { word ->
+                        var lastIdx = 0
+                        var matches = true
+                        for (rk in requiredKeys) {
+                            val idx = word.indexOf(rk, lastIdx)
+                            if (idx == -1) { 
+                                matches = false; break 
+                            }
+                            lastIdx = idx + 1
+                        }
+                        matches
+                    }.take(50)
+                    
+                    if (strictMatches.isNotEmpty()) {
+                        candidates.addAll(strictMatches)
+                    }
+                }
+            }
+        }
+
+        synchronized(userFrequencyMap) {
+            candidates.addAll(userFrequencyMap.entries
+                .sortedByDescending { it.value }
+                .take(30)
+                .map { it.key })
+        }
+        // =======================================================================
+        // END CANDIDATE COLLECTION
+        // =======================================================================
+
+        // =======================================================================
+        // SCORING WITH DWELL TIME BOOST
+        // =======================================================================
+        val scored = candidates
+            .filter { !isWordBlocked(it) && it.length >= MIN_WORD_LENGTH }
+            .sortedWith(compareByDescending<String> { userFrequencyMap[it] ?: 0 }.thenBy { getWordRank(it) })
+            .take(400)
+            .mapNotNull { word ->
+                val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
+                
+                val tLen = getPathLength(template.rawPoints)
+                val ratio = tLen / inputLength
+                
+                val maxRatio = if (inputLength < 150f) 1.5f else 5.0f
+                if (ratio > maxRatio || ratio < 0.4f) return@mapNotNull null
+
+                if (template.sampledPoints == null) {
+                    template.sampledPoints = samplePath(template.rawPoints, SAMPLE_POINTS)
+                    template.normalizedPoints = normalizePath(template.sampledPoints!!)
+                    template.directionVectors = calculateDirectionVectors(template.sampledPoints!!)
+                }
+                
+                val shapeScore = calculateShapeScore(normalizedInput, template.normalizedPoints!!)
+                val locScore = calculateLocationScore(sampledInput, template.sampledPoints!!)
+                val dirScore = calculateDirectionScore(inputDirections, template.directionVectors!!)
+
+                val templateTurns = detectTurns(template.directionVectors!!)
+                val turnScore = calculateTurnScore(inputTurns, templateTurns)
+                val pathKeyScore = calculatePathKeyScore(pathKeys, word)
+
+                // =======================================================================
+                // NEW: DWELL TIME SCORING
+                // Calculate how much the user's dwell times match this word's letters.
+                // If user lingered on "U", words containing "U" get boosted.
+                // =======================================================================
+                val dwellBoost = calculateDwellBoost(word, keyDwellTimes)
+                // =======================================================================
+                // END DWELL TIME SCORING
+                // =======================================================================
+
+                val integrationScore = (shapeScore * SHAPE_WEIGHT) +
+                                       (locScore * LOCATION_WEIGHT) +
+                                       (dirScore * DIRECTION_WEIGHT) +
+                                       (turnScore * TURN_WEIGHT) +
+                                       (pathKeyScore * 0.8f)
+                
+                val rank = template.rank
+                val freqBonus = 1.0f / (1.0f + 0.15f * ln((rank + 1).toFloat()))
+                
+                var userBoost = 1.0f
+                
+                val hasEndDouble = word.length >= 3 && 
+                    word.last().lowercaseChar() == word[word.length - 2].lowercaseChar()
+                
+                if (hasEndDouble && isDwellingAtEnd) {
+                    userBoost *= (1.10f + dwellScore * 0.15f)
+                }
+                
+                if (startKey != null && word.startsWith(startKey, ignoreCase = true)) userBoost *= 1.15f
+                if (endKey != null && word.endsWith(endKey, ignoreCase = true)) userBoost *= 1.15f
+                if (word.length >= 6) userBoost *= 1.15f
+
+                // =======================================================================
+                // APOSTROPHE VARIANT BOOST
+                // If user has a custom word with apostrophe (don't) and we're matching
+                // the base form (dont), boost the apostrophe version significantly.
+                // This makes swiping "dont" return "don't" if learned.
+                // =======================================================================
+                val wordWithApostrophe = findApostropheVariant(word)
+                if (wordWithApostrophe != null) {
+                    userBoost *= 1.5f  // Strong boost for apostrophe variants
+                    android.util.Log.d("DroidOS_Apostrophe", "Boosting '$word' -> '$wordWithApostrophe'")
+                }
+                // =======================================================================
+                // END BLOCK: APOSTROPHE VARIANT BOOST
+                // =======================================================================
+
+
+                // Apply dwell boost - words matching user's lingered keys score better
+                userBoost *= dwellBoost
+
+                val finalScore = (integrationScore * (1.0f - 0.5f * freqBonus)) / userBoost
+                Pair(word, finalScore)
+            }
+        
+        // =======================================================================
+        // POST-PROCESS: Apply display forms and apostrophe variants
+        // =======================================================================
+        val results = scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
+        
+        return results.map { word ->
+            val apostropheVariant = findApostropheVariant(word)
+            val base = apostropheVariant ?: word
+            // FIX: Apply display form to ensure proper capitalization (Katsuya, iPhone, etc.)
+            getDisplayForm(base)
+        }
+    }
+
+    // =================================================================================
+    // END BLOCK: decodeSwipeWithDwell
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: calculateDwellBoost
+    // SUMMARY: Calculates a boost factor for a word based on how well it matches
+    //          the user's key dwell times. Words containing keys the user lingered
+    //          on get a higher boost (lower score = better in this system, so we
+    //          return values > 1.0 to boost, < 1.0 to penalize).
+    //          
+    // EXAMPLE: User types "for" path but lingers on "U" for 150ms
+    //          - "for" has no U -> dwellBoost = 1.0 (neutral)
+    //          - "four" has U -> dwellBoost = 1.2 (boosted, wins!)
+    // =================================================================================
+    private fun calculateDwellBoost(word: String, keyDwellTimes: Map<String, Long>): Float {
+        if (keyDwellTimes.isEmpty()) return 1.0f
+        
+        var boost = 1.0f
+        val wordLower = word.lowercase()
+        
+        // Find keys with significant dwell time
+        val significantDwells = keyDwellTimes.filter { it.value > DWELL_THRESHOLD_MS }
+        
+        for ((key, dwellMs) in significantDwells) {
+            val keyChar = key.lowercase().firstOrNull() ?: continue
+            
+            // Calculate boost based on dwell time
+            // 100ms = small boost (1.05), 200ms = medium (1.15), 300ms+ = strong (1.25)
+            val dwellFactor = when {
+                dwellMs > 300 -> 1.25f
+                dwellMs > 200 -> 1.15f
+                dwellMs > 150 -> 1.10f
+                dwellMs > 100 -> 1.05f
+                else -> 1.02f
+            }
+            
+            if (wordLower.contains(keyChar)) {
+                // Word contains this lingered-on key - BOOST it
+                boost *= dwellFactor
+                android.util.Log.d("DroidOS_Dwell", "BOOST '$word': contains '$keyChar' (${dwellMs}ms) -> boost $dwellFactor")
+            } else {
+                // Word does NOT contain this lingered-on key - slight penalty
+                // This helps "four" beat "for" when user lingered on "u"
+                val penalty = 1.0f / (dwellFactor * 0.5f + 0.5f)  // Gentler penalty
+                boost *= penalty
+                android.util.Log.d("DroidOS_Dwell", "PENALTY '$word': missing '$keyChar' (${dwellMs}ms) -> penalty $penalty")
+            }
+        }
+        
+        return boost.coerceIn(0.5f, 2.0f)  // Clamp to reasonable range
+    }
+    // =================================================================================
+    // END BLOCK: calculateDwellBoost
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: findApostropheVariant
+    // SUMMARY: Checks if a user-learned word with apostrophe exists for this base word.
+    //          E.g., "dont" -> "don't", "wont" -> "won't", "im" -> "i'm"
+    //          Returns the apostrophe variant if found in customWords, null otherwise.
+    // =================================================================================
+    private fun findApostropheVariant(baseWord: String): String? {
+        val lower = baseWord.lowercase(java.util.Locale.ROOT)
+        
+        // Common contraction patterns
+        val patterns = listOf(
+            // n't contractions
+            Pair("nt$", "n't"),      // dont -> don't, wont -> won't, cant -> can't
+            // 'm contractions  
+            Pair("^im$", "i'm"),     // im -> i'm
+            // 'll contractions
+            Pair("ll$", "'ll"),      // well could match, so be careful
+            // 're contractions
+            Pair("re$", "'re"),      // youre -> you're, were -> we're
+            // 've contractions
+            Pair("ve$", "'ve"),      // wouldve -> would've
+            // 's contractions
+            Pair("s$", "'s"),        // its -> it's, thats -> that's
+        )
+        
+        // Check common contractions first
+        for ((pattern, replacement) in patterns) {
+            val regex = Regex(pattern)
+            if (regex.containsMatchIn(lower)) {
+                val variant = lower.replace(regex, replacement)
+                if (customWords.contains(variant)) {
+                    return variant
+                }
+            }
+        }
+        
+        // Also check if any custom word without apostrophe matches this word
+        for (customWord in customWords) {
+            if (customWord.contains("'")) {
+                val withoutApostrophe = customWord.replace("'", "")
+                if (withoutApostrophe == lower) {
+                    return customWord
+                }
+            }
+        }
+        
+        return null
+    }
+    // =================================================================================
+    // END BLOCK: calculateDwellBoost
     // =================================================================================
 
     // =================================================================================
@@ -1041,13 +1610,26 @@ class PredictionEngine {
                 Pair(word, finalScore)
             }
 
-        return scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
+// =======================================================================
+        // POST-PROCESS: Apply display forms and apostrophe variants
+        // 1. First check for apostrophe variant (cant -> can't)
+        // 2. Then apply display form for proper capitalization (droidos -> DroidOS)
+        // =======================================================================
+        val results = scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
+        
+        return results.map { word ->
+            val withApostrophe = findApostropheVariant(word)
+            val baseWord = withApostrophe ?: word
+            // Apply display form for custom words (preserves DroidOS, iPhone, etc.)
+            getDisplayForm(baseWord)
+        }
+        // =======================================================================
+        // END BLOCK: Display form application
+        // =======================================================================
     }
     // =================================================================================
-    // END BLOCK: decodeSwipePreview
-    // =================================================================================
-
-    // =================================================================================
+    // END BLOCK: decodeSwipeWithDwellPreview
+    // =================================================================================    // =================================================================================
     // FUNCTION: findClosestKey
     // SUMMARY: Finds the single closest key to a point. Fast O(n) where n = key count.
     // =================================================================================
@@ -1784,10 +2366,12 @@ class PredictionEngine {
                         userFrequencyMap.remove(cleanWord)
                     }
                     templateCache.remove(cleanWord)
+                    
+                    // FIX: Save files inside synchronized block to prevent ConcurrentModification and race conditions
+                    saveSetToFile(context, BLOCKED_DICT_FILE, blockedWords)
+                    saveSetToFile(context, USER_DICT_FILE, customWords)
                 }
-
-                saveSetToFile(context, BLOCKED_DICT_FILE, blockedWords)
-                saveSetToFile(context, USER_DICT_FILE, customWords)
+                
                 saveUserStats(context)
 
                 android.util.Log.d("DroidOS_Prediction", "BLOCKED: '$cleanWord'")
