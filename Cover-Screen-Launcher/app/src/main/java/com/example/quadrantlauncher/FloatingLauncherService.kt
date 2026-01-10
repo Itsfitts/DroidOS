@@ -623,7 +623,30 @@ class FloatingLauncherService : AccessibilityService() {
         return START_NOT_STICKY
     }
     
-    private fun loadDisplaySettings(displayId: Int) { selectedResolutionIndex = AppPreferences.getDisplayResolution(this, displayId); currentDpiSetting = AppPreferences.getDisplayDpi(this, displayId) }
+
+    private fun loadDisplaySettings(displayId: Int) { 
+        selectedResolutionIndex = AppPreferences.getDisplayResolution(this, displayId)
+        
+        // [FIX] On fresh install, grab the CURRENT system DPI instead of defaulting to -1 (Reset).
+        // This prevents the "everything got huge" issue where "reset" reverts to a factory default
+        // that is different from what the user was actually using.
+        val savedDpi = AppPreferences.getDisplayDpi(this, displayId)
+        
+        if (savedDpi == -1) {
+            val currentSystemDpi = displayContext?.resources?.configuration?.densityDpi ?: 0
+            if (currentSystemDpi > 0) {
+                currentDpiSetting = currentSystemDpi
+                // Save it immediately so it becomes the baseline preference
+                AppPreferences.saveDisplayDpi(this, displayId, currentDpiSetting)
+                Log.d(TAG, "Initialized DPI from System: $currentDpiSetting")
+            } else {
+                currentDpiSetting = -1
+            }
+        } else {
+            currentDpiSetting = savedDpi
+        }
+    }
+
 
     override fun onDestroy() {
         super.onDestroy()
@@ -1984,7 +2007,9 @@ class FloatingLauncherService : AccessibilityService() {
     inner class RofiAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         inner class AppHolder(v: View) : RecyclerView.ViewHolder(v) { val icon: ImageView = v.findViewById(R.id.rofi_app_icon); val text: TextView = v.findViewById(R.id.rofi_app_text); val star: ImageView = v.findViewById(R.id.rofi_app_star) }
         inner class LayoutHolder(v: View) : RecyclerView.ViewHolder(v) { val nameInput: EditText = v.findViewById(R.id.layout_name); val btnSave: ImageView = v.findViewById(R.id.btn_save_profile); val btnExtinguish: ImageView = v.findViewById(R.id.btn_extinguish_item) }
-        inner class DpiHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_dpi_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_dpi_plus); val input: EditText = v.findViewById(R.id.input_dpi_value) }
+
+        inner class DpiHolder(v: View) : RecyclerView.ViewHolder(v) { val slider: android.widget.SeekBar = v.findViewById(R.id.sb_dpi_slider); val input: EditText = v.findViewById(R.id.input_dpi_value) }
+
         inner class FontSizeHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_font_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_font_plus); val textVal: TextView = v.findViewById(R.id.text_font_value) }
         inner class HeightHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_height_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_height_plus); val textVal: TextView = v.findViewById(R.id.text_height_value) }
         inner class WidthHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_width_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_width_plus); val textVal: TextView = v.findViewById(R.id.text_width_value) }
@@ -2042,9 +2067,67 @@ class FloatingLauncherService : AccessibilityService() {
                 holder.inputW.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }; holder.inputH.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }
             }
             else if (holder is IconSettingHolder && item is IconOption) { try { val uriStr = AppPreferences.getIconUri(holder.itemView.context); if (uriStr != null) { val uri = Uri.parse(uriStr); val input = contentResolver.openInputStream(uri); val bitmap = BitmapFactory.decodeStream(input); input?.close(); holder.preview.setImageBitmap(bitmap) } else { holder.preview.setImageResource(R.drawable.ic_launcher_bubble) } } catch(e: Exception) { holder.preview.setImageResource(R.drawable.ic_launcher_bubble) }; holder.itemView.setOnClickListener { pickIcon() } }
+
             else if (holder is DpiHolder && item is DpiOption) { 
-                holder.input.setText(item.currentDpi.toString()); holder.input.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { val valInt = v.text.toString().toIntOrNull(); if (valInt != null) { selectDpi(valInt); safeToast("DPI set to $valInt") }; dismissKeyboardAndRestore(); true } else false }; holder.input.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus); if (!hasFocus) { val valInt = holder.input.text.toString().toIntOrNull(); if (valInt != null && valInt != item.currentDpi) { selectDpi(valInt) } } }; holder.btnMinus.setOnClickListener { val v = holder.input.text.toString().toIntOrNull() ?: 160; val newVal = (v - 5).coerceAtLeast(50); holder.input.setText(newVal.toString()); selectDpi(newVal) }; holder.btnPlus.setOnClickListener { val v = holder.input.text.toString().toIntOrNull() ?: 160; val newVal = (v + 5).coerceAtMost(600); holder.input.setText(newVal.toString()); selectDpi(newVal) } 
+                // Set initial values
+                val safeDpi = if (item.currentDpi > 0) item.currentDpi else 0
+                holder.input.setText(safeDpi.toString())
+                holder.slider.progress = safeDpi
+
+                // Slider Listener
+                holder.slider.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                        if (fromUser) {
+                            // Snap to 5
+                            val snapped = (progress / 5) * 5
+                            val finalDpi = snapped.coerceAtLeast(72) // Minimum safe DPI
+                            
+                            if (holder.input.text.toString() != finalDpi.toString()) {
+                                holder.input.setText(finalDpi.toString())
+                                holder.input.setSelection(holder.input.text.length)
+                            }
+                            // Debounce actual execution slightly if needed, or run direct
+                            // For DPI, usually better to wait for "StopTracking", but "Live" is requested usually
+                        }
+                    }
+                    override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
+                        // Apply DPI only when user lets go to avoid spamming the system
+                        val valInt = holder.input.text.toString().toIntOrNull()
+                        if (valInt != null) selectDpi(valInt)
+                    }
+                })
+
+                // Input Listener
+                holder.input.setOnEditorActionListener { v, actionId, _ -> 
+                    if (actionId == EditorInfo.IME_ACTION_DONE) { 
+                        val valInt = v.text.toString().toIntOrNull()
+                        if (valInt != null) { 
+                            holder.slider.progress = valInt
+                            selectDpi(valInt)
+                            safeToast("DPI set to $valInt") 
+                        }
+                        dismissKeyboardAndRestore()
+                        true 
+                    } else false 
+                }
+                
+                holder.input.addTextChangedListener(object : TextWatcher {
+                    override fun afterTextChanged(s: Editable?) {
+                        val valInt = s.toString().toIntOrNull()
+                        if (valInt != null && holder.slider.progress != valInt) {
+                            holder.slider.progress = valInt
+                        }
+                    }
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                })
+
+                holder.input.setOnFocusChangeListener { _, hasFocus -> 
+                    if (autoResizeEnabled) updateDrawerHeight(hasFocus)
+                }
             }
+
             else if (holder is FontSizeHolder && item is FontSizeOption) { holder.textVal.text = item.currentSize.toInt().toString(); holder.btnMinus.setOnClickListener { changeFontSize(item.currentSize - 1) }; holder.btnPlus.setOnClickListener { changeFontSize(item.currentSize + 1) } }
             else if (holder is HeightHolder && item is HeightOption) { holder.textVal.text = item.currentPercent.toString(); holder.btnMinus.setOnClickListener { changeDrawerHeight(-5) }; holder.btnPlus.setOnClickListener { changeDrawerHeight(5) } }
             else if (holder is WidthHolder && item is WidthOption) { holder.textVal.text = item.currentPercent.toString(); holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }; holder.btnPlus.setOnClickListener { changeDrawerWidth(5) } }

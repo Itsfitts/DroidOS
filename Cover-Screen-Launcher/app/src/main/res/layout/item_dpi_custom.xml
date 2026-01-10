@@ -15,35 +15,27 @@
         android:textSize="14sp"
         android:paddingEnd="8dp"/>
 
-    <EditText
-        android:id="@+id/input_dpi_value"
+    <SeekBar
+        android:id="@+id/sb_dpi_slider"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:max="900"
+        android:progress="400"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"/>
+
+    <EditText
+        android:id="@+id/input_dpi_value"
+        android:layout_width="60dp"
+        android:layout_height="wrap_content"
         android:inputType="number"
         android:maxLength="3"
-        android:text="120"
+        android:text="400"
+        android:gravity="center"
         android:textColor="#FFFFFF"
-        android:textSize="18sp"
+        android:textSize="16sp"
         android:imeOptions="actionDone"
         android:background="@null"/>
-
-    <ImageView
-        android:id="@+id/btn_dpi_minus"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:padding="10dp"
-        android:src="@android:drawable/ic_input_delete"
-        android:tint="#FF5555"
-        android:background="?attr/selectableItemBackgroundBorderless"/>
-
-    <ImageView
-        android:id="@+id/btn_dpi_plus"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:padding="10dp"
-        android:src="@android:drawable/ic_input_add"
-        android:tint="#3DDC84"
-        android:background="?attr/selectableItemBackgroundBorderless"/>
 
 </LinearLayout>
