@@ -392,59 +392,97 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     handler.post { showToast("Keyboard Blocked") }
                     
                 } else {
-                    // --- UNBLOCKING ---
+                    // =================================================================================
+                    // UNBLOCKING / KEYBOARD RESTORATION
+                    // SUMMARY: Restores the user's preferred keyboard when switching to Main Screen.
+                    //          FIX: Added initial delay and pre-flight checks to prevent Samsung's
+                    //          aggressive fallback from overriding our restore command.
+                    //          
+                    //          Key insights:
+                    //          1. Samsung's IME manager resets to Samsung Keyboard if it detects
+                    //             the previous IME was disabled/crashed.
+                    //          2. We NEVER disable NullInputMethodService to avoid triggering this.
+                    //          3. We use both 'settings put' AND 'ime set' for redundancy.
+                    //          4. We wait for Android to stabilize before attempting restoration.
+                    // =================================================================================
+                    
+                    // STEP 0: Initial stabilization delay
+                    // Give Android time to process the display change and stop any pending IME operations.
+                    Thread.sleep(300)
+                    
                     shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
 
-                    // 1. Get Saved Preference (Target)
+                    // STEP 1: Get Saved Preference (Target)
                     val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
                     var targetIme = prefs.getString("user_preferred_ime", null)
+                    
+                    android.util.Log.i(TAG, "Keyboard Restore: Saved preference is '$targetIme'")
 
-                    // 2. Validate Target
+                    // STEP 2: Validate Target exists in enabled IME list
                     val enabledImes = shellService?.runCommand("ime list -s") ?: ""
                     if (!targetIme.isNullOrEmpty() && !enabledImes.contains(targetIme)) {
+                        android.util.Log.w(TAG, "Saved IME '$targetIme' not in enabled list. Resetting.")
                         targetIme = null
                     }
 
-                    // 3. Fallback Logic
+                    // STEP 3: Fallback Logic - prefer Gboard over Samsung
                     if (targetIme.isNullOrEmpty()) {
-                         targetIme = enabledImes.lines().find { 
-                            it.contains("honeyboard") || it.contains("com.sec.android.inputmethod") 
-                        } ?: enabledImes.lines().find { 
+                        // Priority: Gboard first, then Samsung as fallback
+                        targetIme = enabledImes.lines().find { 
                             it.contains("com.google.android.inputmethod.latin") 
+                        } ?: enabledImes.lines().find { 
+                            it.contains("honeyboard") || it.contains("com.sec.android.inputmethod") 
                         }
+                        android.util.Log.i(TAG, "Using fallback IME: '$targetIme'")
                     }
 
                     if (!targetIme.isNullOrEmpty()) {
-                        android.util.Log.i(TAG, "Restoring to: $targetIme")
+                        android.util.Log.i(TAG, "Restoring keyboard to: $targetIme")
                         
-                        // [FIX] AGGRESSIVE RESTORE LOOP
-                        // 1. NEVER disable the Null Keyboard (this triggers System Panic -> Samsung Default).
-                        // 2. Use 'settings put' AND 'ime set' to force the database directly.
+                        // AGGRESSIVE RESTORE LOOP
+                        // Key points:
+                        // 1. NEVER disable NullInputMethodService (triggers Samsung panic reset)
+                        // 2. Use BOTH 'settings put' AND 'ime set' for redundancy
+                        // 3. Pre-enable the target IME to ensure it's available
+                        // 4. Monitor for success and early-exit
                         
-                        for (i in 1..8) {
+                        // Pre-enable to ensure IME is ready
+                        shellService?.runCommand("ime enable $targetIme")
+                        Thread.sleep(100)
+                        
+                        for (i in 1..10) {
                             val current = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
                             
                             if (current != targetIme) {
-                                android.util.Log.i(TAG, "Attempt $i: System is '$current'. Forcing '$targetIme'...")
+                                android.util.Log.i(TAG, "Restore attempt $i: System='$current', Target='$targetIme'")
                                 
-                                // FORCE ENABLE
-                                shellService?.runCommand("ime enable $targetIme")
-                                
-                                // FORCE SET (Database Direct + IME Manager)
+                                // Force set via multiple methods for reliability
                                 shellService?.runCommand("settings put secure default_input_method $targetIme")
                                 shellService?.runCommand("ime set $targetIme")
                                 
+                                // Shorter delay between attempts for faster recovery
+                                Thread.sleep(300)
                             } else {
-                                android.util.Log.i(TAG, "Attempt $i: Success. Target is active.")
-                                // Continue monitoring for a few loops to ensure it doesn't revert
-                                if (i > 4) break 
+                                android.util.Log.i(TAG, "Restore attempt $i: SUCCESS! Target IME is active.")
+                                // Verify stability - continue monitoring for 2 more cycles
+                                if (i > 3) {
+                                    android.util.Log.i(TAG, "Keyboard restoration confirmed stable.")
+                                    break
+                                }
+                                Thread.sleep(300)
                             }
-                            
-                            Thread.sleep(500)
                         }
                         
-                        handler.post { showToast("Restored Keyboard") }
+                        // Final verification
+                        val finalIme = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
+                        if (finalIme == targetIme) {
+                            handler.post { showToast("Keyboard Restored") }
+                        } else {
+                            android.util.Log.e(TAG, "Keyboard restoration FAILED. Final state: $finalIme")
+                            handler.post { showToast("Keyboard restore failed") }
+                        }
                     } else {
+                        android.util.Log.w(TAG, "No target IME found. Showing picker.")
                         handler.post { 
                             showToast("Select Default Keyboard")
                             try {
@@ -453,6 +491,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                             } catch(e: Exception){}
                         }
                     }
+                    // =================================================================================
+                    // END BLOCK: UNBLOCKING / KEYBOARD RESTORATION
+                    // =================================================================================
                 }
             } catch (e: Exception) {
                 handler.post { showToast("Error: ${e.message}") }
@@ -1499,11 +1540,35 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             enforceZOrder()
             showToast("Trackpad active on Display $displayId")
 
-            // [FIX] Only block keyboard if we are NOT on the Main Display (0).
-            // Blocking on Main Screen causes conflicts when trying to restore Gboard.
-            if (prefs.prefBlockSoftKeyboard && displayId != 0) {
-                triggerAggressiveBlocking()
+            // =================================================================================
+            // KEYBOARD BLOCKING/RESTORATION LOGIC FOR DISPLAY SWITCH
+            // SUMMARY: When moving to Main Screen (0), actively restore the user's preferred
+            //          keyboard. When moving to Cover Screen (1+), apply blocking if enabled.
+            //          This fixes the issue where Samsung Keyboard was forced on unfold.
+            // =================================================================================
+            if (displayId == 0) {
+                // MAIN SCREEN: Actively restore keyboard
+                // 1. Reset Accessibility show mode to AUTO (allow system keyboards)
+                if (Build.VERSION.SDK_INT >= 24) {
+                    try {
+                        softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO
+                    } catch (e: Exception) {}
+                }
+                
+                // 2. If blocking was enabled, restore the user's preferred keyboard
+                if (prefs.prefBlockSoftKeyboard) {
+                    android.util.Log.i(TAG, "Main Screen: Triggering keyboard restoration")
+                    setSoftKeyboardBlocking(false)
+                }
+            } else {
+                // COVER SCREEN: Apply blocking if preference is enabled
+                if (prefs.prefBlockSoftKeyboard) {
+                    triggerAggressiveBlocking()
+                }
             }
+            // =================================================================================
+            // END BLOCK: KEYBOARD BLOCKING/RESTORATION LOGIC FOR DISPLAY SWITCH
+            // =================================================================================
 
             android.util.Log.d("OverlayService", "setupUI completed successfully on Display $displayId")
 
@@ -3857,18 +3922,37 @@ if (isResize) {
             val isDebounced = (System.currentTimeMillis() - lastManualSwitchTime > 5000)
             
             if (display != null && isDebounced) {
+                // =================================================================================
                 // CASE A: Phone Opened (Display 0 turned ON) -> Move to Main (0)
+                // SUMMARY: When user unfolds the phone, switch UI to main screen and restore
+                //          the user's preferred keyboard. The keyboard restoration is done BEFORE
+                //          setupUI to give Android time to process the IME change.
+                // =================================================================================
                 if (display.state == Display.STATE_ON && currentDisplayId != 0) {
                     handler.postDelayed({
                         try {
                             if (System.currentTimeMillis() - lastManualSwitchTime > 5000) {
+                                // STEP 1: Pre-restore keyboard BEFORE UI rebuild
+                                // This gives Android time to process the IME change before
+                                // any text fields get focus on the main screen.
+                                if (prefs.prefBlockSoftKeyboard) {
+                                    if (Build.VERSION.SDK_INT >= 24) {
+                                        try {
+                                            softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO
+                                        } catch (e: Exception) {}
+                                    }
+                                }
+                                
+                                // STEP 2: Rebuild UI on main screen
                                 setupUI(0)
                                 resetBubblePosition()
-                                // showToast("Phone Opened: Moved to Main Screen") // Removed debug toast
                             }
                         } catch(e: Exception) {}
                     }, 500)
                 }
+                // =================================================================================
+                // END BLOCK: CASE A - Phone Opened
+                // =================================================================================
 
                 // CASE B: Phone Closed (Display 0 turned OFF/DOZE) -> Move to Cover (1)
                 else if (display.state != Display.STATE_ON && currentDisplayId == 0) {
