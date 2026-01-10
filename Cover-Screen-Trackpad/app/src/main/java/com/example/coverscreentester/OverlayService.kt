@@ -364,6 +364,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 // =================================================================================
 
 
+
+
+
     private fun setSoftKeyboardBlocking(enabled: Boolean) {
         if (shellService == null) return
 
@@ -385,24 +388,26 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     shellService?.runCommand("ime enable $myImeId")
                     shellService?.runCommand("ime set $myImeId")
                     shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
+                    
                     handler.post { showToast("Keyboard Blocked") }
+                    
                 } else {
                     // --- UNBLOCKING ---
                     shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
 
-                    // 1. Get Saved Preference
+                    // 1. Get Saved Preference (Target)
                     val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
                     var targetIme = prefs.getString("user_preferred_ime", null)
 
-                    // 2. Validate: Is it still installed?
+                    // 2. Validate Target
                     val enabledImes = shellService?.runCommand("ime list -s") ?: ""
                     if (!targetIme.isNullOrEmpty() && !enabledImes.contains(targetIme)) {
                         targetIme = null
                     }
 
-                    // 3. Fallback: Try to find Samsung or Gboard if preference missing
+                    // 3. Fallback Logic
                     if (targetIme.isNullOrEmpty()) {
-                        targetIme = enabledImes.lines().find { 
+                         targetIme = enabledImes.lines().find { 
                             it.contains("honeyboard") || it.contains("com.sec.android.inputmethod") 
                         } ?: enabledImes.lines().find { 
                             it.contains("com.google.android.inputmethod.latin") 
@@ -411,8 +416,33 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
                     if (!targetIme.isNullOrEmpty()) {
                         android.util.Log.i(TAG, "Restoring to: $targetIme")
-                        shellService?.runCommand("ime set $targetIme")
-                        shellService?.runCommand("ime disable $myImeId")
+                        
+                        // [FIX] AGGRESSIVE RESTORE LOOP
+                        // 1. NEVER disable the Null Keyboard (this triggers System Panic -> Samsung Default).
+                        // 2. Use 'settings put' AND 'ime set' to force the database directly.
+                        
+                        for (i in 1..8) {
+                            val current = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
+                            
+                            if (current != targetIme) {
+                                android.util.Log.i(TAG, "Attempt $i: System is '$current'. Forcing '$targetIme'...")
+                                
+                                // FORCE ENABLE
+                                shellService?.runCommand("ime enable $targetIme")
+                                
+                                // FORCE SET (Database Direct + IME Manager)
+                                shellService?.runCommand("settings put secure default_input_method $targetIme")
+                                shellService?.runCommand("ime set $targetIme")
+                                
+                            } else {
+                                android.util.Log.i(TAG, "Attempt $i: Success. Target is active.")
+                                // Continue monitoring for a few loops to ensure it doesn't revert
+                                if (i > 4) break 
+                            }
+                            
+                            Thread.sleep(500)
+                        }
+                        
                         handler.post { showToast("Restored Keyboard") }
                     } else {
                         handler.post { 
@@ -429,6 +459,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             }
         }.start()
     }
+
+
+
 
 
 
@@ -1462,12 +1495,18 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             setupBubble(accessContext)
             setupCursor(accessContext)
 
+
             enforceZOrder()
             showToast("Trackpad active on Display $displayId")
 
-            if (prefs.prefBlockSoftKeyboard) triggerAggressiveBlocking()
+            // [FIX] Only block keyboard if we are NOT on the Main Display (0).
+            // Blocking on Main Screen causes conflicts when trying to restore Gboard.
+            if (prefs.prefBlockSoftKeyboard && displayId != 0) {
+                triggerAggressiveBlocking()
+            }
 
             android.util.Log.d("OverlayService", "setupUI completed successfully on Display $displayId")
+
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to setup UI on display $displayId", e)

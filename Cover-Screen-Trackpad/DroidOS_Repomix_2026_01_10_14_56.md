@@ -5767,17 +5767,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
 
 
+
     private fun setSoftKeyboardBlocking(enabled: Boolean) {
-        if (shellService == null) {
-            showToast("Shizuku required for Keyboard Blocking")
-            return
-        }
+        if (shellService == null) return
 
         Thread {
             try {
-                // 1. Find correct ID dynamically for OUR Null Keyboard
-                val listOutput = shellService?.runCommand("ime list -a -s") ?: ""
-                val myImeId = listOutput.lines().firstOrNull { 
+                // 1. Find correct ID for OUR Null Keyboard
+                val allImes = shellService?.runCommand("ime list -a -s") ?: ""
+                val myImeId = allImes.lines().firstOrNull { 
                     it.contains(packageName) && it.contains("NullInputMethodService") 
                 }?.trim()
 
@@ -5787,37 +5785,85 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 }
 
                 if (enabled) {
-                    // --- BLOCKING (Switch to Null Keyboard) ---
-                    
-                    // 1. Enable our Null Keyboard
+                    // --- BLOCKING ---
                     shellService?.runCommand("ime enable $myImeId")
-                    
-                    // 2. Set it as active
                     shellService?.runCommand("ime set $myImeId")
-                    
-                    // 3. Ensure OS doesn't try to show popups
                     shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 0")
                     
                     handler.post { showToast("Keyboard Blocked") }
                     
                 } else {
-                    // --- UNBLOCKING (Force System Fallback) ---
-                    
-                    // 1. Reset settings
+                    // --- UNBLOCKING ---
                     shellService?.runCommand("settings put secure show_ime_with_hard_keyboard 1")
-                    
-                    // 2. DISABLE our Null Keyboard
-                    // This forces Android to immediately switch back to the User's System Default
-                    // (Samsung, Gboard, etc.) because the active one (Null) is no longer valid.
-                    shellService?.runCommand("ime disable $myImeId")
-                    
-                    handler.post { showToast("Keyboard Restored") }
+
+                    // 1. Get Saved Preference (Target)
+                    val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+                    var targetIme = prefs.getString("user_preferred_ime", null)
+
+                    // 2. Validate Target
+                    val enabledImes = shellService?.runCommand("ime list -s") ?: ""
+                    if (!targetIme.isNullOrEmpty() && !enabledImes.contains(targetIme)) {
+                        targetIme = null
+                    }
+
+                    // 3. Fallback Logic
+                    if (targetIme.isNullOrEmpty()) {
+                         targetIme = enabledImes.lines().find { 
+                            it.contains("honeyboard") || it.contains("com.sec.android.inputmethod") 
+                        } ?: enabledImes.lines().find { 
+                            it.contains("com.google.android.inputmethod.latin") 
+                        }
+                    }
+
+                    if (!targetIme.isNullOrEmpty()) {
+                        android.util.Log.i(TAG, "Restoring to: $targetIme")
+                        
+                        // [FIX] AGGRESSIVE RESTORE LOOP
+                        // 1. NEVER disable the Null Keyboard (this triggers System Panic -> Samsung Default).
+                        // 2. Use 'settings put' AND 'ime set' to force the database directly.
+                        
+                        for (i in 1..8) {
+                            val current = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
+                            
+                            if (current != targetIme) {
+                                android.util.Log.i(TAG, "Attempt $i: System is '$current'. Forcing '$targetIme'...")
+                                
+                                // FORCE ENABLE
+                                shellService?.runCommand("ime enable $targetIme")
+                                
+                                // FORCE SET (Database Direct + IME Manager)
+                                shellService?.runCommand("settings put secure default_input_method $targetIme")
+                                shellService?.runCommand("ime set $targetIme")
+                                
+                            } else {
+                                android.util.Log.i(TAG, "Attempt $i: Success. Target is active.")
+                                // Continue monitoring for a few loops to ensure it doesn't revert
+                                if (i > 4) break 
+                            }
+                            
+                            Thread.sleep(500)
+                        }
+                        
+                        handler.post { showToast("Restored Keyboard") }
+                    } else {
+                        handler.post { 
+                            showToast("Select Default Keyboard")
+                            try {
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                                imm.showInputMethodPicker()
+                            } catch(e: Exception){}
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 handler.post { showToast("Error: ${e.message}") }
             }
         }.start()
     }
+
+
+
+
 
 
 
@@ -6436,6 +6482,37 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // END BLOCK: VIRTUAL DISPLAY KEEP-ALIVE PowerManager Init
         // =================================================================================
 
+
+
+        // [FIX] Robust Observer: Watch for Default Keyboard Changes
+        contentResolver.registerContentObserver(
+            android.provider.Settings.Secure.getUriFor("default_input_method"),
+            false,
+            object : android.database.ContentObserver(handler) {
+                override fun onChange(selfChange: Boolean) {
+                    val current = android.provider.Settings.Secure.getString(contentResolver, "default_input_method") ?: ""
+                    
+                    // Only save if it is a REAL keyboard (not our blocker)
+                    if (current.isNotEmpty() && !current.contains("NullInputMethodService")) {
+                        getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+                            .edit()
+                            .putString("user_preferred_ime", current)
+                            .apply()
+                            
+                        android.util.Log.i(TAG, "User Preference CAPTURED: $current")
+                        
+                        // 1. Show Toast Feedback
+                        val name = if (current.contains("google")) "Gboard" else if (current.contains("sec")) "Samsung" else "Keyboard"
+                        handler.post { showToast("Saved: $name") }
+
+
+                        // 2. [FIXED] Refresh Menu Immediately using correct variable name
+                        handler.post { menuManager?.refresh() }
+
+                    }
+                }
+            }
+        )
                     loadPrefs()
                     val filter = IntentFilter().apply { 
                         // Internal short commands
@@ -6819,12 +6896,18 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             setupBubble(accessContext)
             setupCursor(accessContext)
 
+
             enforceZOrder()
             showToast("Trackpad active on Display $displayId")
 
-            if (prefs.prefBlockSoftKeyboard) triggerAggressiveBlocking()
+            // [FIX] Only block keyboard if we are NOT on the Main Display (0).
+            // Blocking on Main Screen causes conflicts when trying to restore Gboard.
+            if (prefs.prefBlockSoftKeyboard && displayId != 0) {
+                triggerAggressiveBlocking()
+            }
 
             android.util.Log.d("OverlayService", "setupUI completed successfully on Display $displayId")
+
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to setup UI on display $displayId", e)
@@ -12814,6 +12897,15 @@ class TrackpadMenuManager(
         } catch (e: Exception) { }
     }
 
+
+    // [FIXED] Refresh the current tab to update UI text (e.g. "Restore Target: Gboard")
+    fun refresh() {
+        if (drawerView != null) {
+            // Reload the currently open tab to refresh item text
+            loadTab(currentTab)
+        }
+    }
+
     fun toggle() {
         if (isVisible) hide() else show()
     }
@@ -13290,6 +13382,30 @@ class TrackpadMenuManager(
         
         list.add(TrackpadMenuAdapter.MenuItem("KEYBOARD SETTINGS", 0, TrackpadMenuAdapter.Type.HEADER))
         
+
+        // [NEW] Set Restore Keyboard Preference (With Visual Feedback)
+        val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+        val savedIme = prefs.getString("user_preferred_ime", null)
+        
+        // Determine display name
+        val imeName = when {
+            savedIme == null -> "None (Tap to Select)"
+            savedIme.contains("google") -> "Gboard"
+            savedIme.contains("sec") || savedIme.contains("honeyboard") -> "Samsung Keyboard"
+            savedIme.contains("swiftkey") -> "SwiftKey"
+            else -> "Custom Keyboard"
+        }
+
+        list.add(TrackpadMenuAdapter.MenuItem("Restore Target: $imeName", android.R.drawable.ic_menu_save, TrackpadMenuAdapter.Type.ACTION) {
+            try {
+                // Open System Picker so OverlayService can capture the user's choice
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                imm.showInputMethodPicker()
+                android.widget.Toast.makeText(context, "Select the keyboard DroidOS should restore to.", android.widget.Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        })
         // NEW: Launch Proxy Activity for Picker
         list.add(TrackpadMenuAdapter.MenuItem("Keyboard Picker (Null KB to block default)", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
             service.forceSystemKeyboardVisible()
