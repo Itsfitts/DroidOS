@@ -144,7 +144,9 @@ class FloatingLauncherService : AccessibilityService() {
     private val EXECUTE_DEBOUNCE_MS = 2000L  // 2 second minimum between executions
     // === EXECUTION DEBOUNCE - END ===
 
+    private var manualRefreshRateSet = false // [NEW] Prevents auto-force from overwriting user choice
 
+    private var activeRefreshRateLabel: String? = null // [NEW] Track active software limit
     // =================================================================================
     // DISPLAY LISTENER
     // SUMMARY: Monitors display state changes to handle fold/unfold events on foldable devices.
@@ -693,6 +695,7 @@ class FloatingLauncherService : AccessibilityService() {
                 currentDpiSetting = currentSystemDpi
                 // Save it immediately so it becomes the baseline preference
                 AppPreferences.saveDisplayDpi(this, displayId, currentDpiSetting)
+
                 Log.d(TAG, "Initialized DPI from System: $currentDpiSetting")
             } else {
                 currentDpiSetting = -1
@@ -701,9 +704,10 @@ class FloatingLauncherService : AccessibilityService() {
             currentDpiSetting = savedDpi
         }
 
-        // [NEW] Check for High Refresh Rate (120Hz) on AR Glasses
-        checkAndForceHighRefreshRate(displayId)
+        // [REMOVED] Auto-force disabled to prevent getting stuck on 120Hz
+        // checkAndForceHighRefreshRate(displayId)
     }
+
 
     // =================================================================================
     // REFRESH RATE MANAGER
@@ -711,12 +715,13 @@ class FloatingLauncherService : AccessibilityService() {
     //          it attempts to force it via Window Attributes (for this app) and Shell (System-wide).
     // =================================================================================
 
+
     // =================================================================================
     // REFRESH RATE MANAGER
-    // SUMMARY: Scans for >60Hz modes and forces them silently.
     // =================================================================================
     private fun checkAndForceHighRefreshRate(displayId: Int) {
         if (displayId == 0) return 
+        if (manualRefreshRateSet) return // [FIX] Don't override user's manual setting
 
         try {
             val display = displayManager?.getDisplay(displayId) ?: return
@@ -732,8 +737,9 @@ class FloatingLauncherService : AccessibilityService() {
                 }
             }
 
+            // Only auto-force if we found a high refresh rate (>60)
             if (maxRate > 60f) {
-                Log.i(TAG, "Force $maxRate Hz (Mode $bestModeId) on Display $displayId")
+                Log.i(TAG, "Auto-Force $maxRate Hz (Mode $bestModeId)")
 
                 uiHandler.post {
                     try {
@@ -756,9 +762,6 @@ class FloatingLauncherService : AccessibilityService() {
         }
     }
 
-    // =================================================================================
-    // END BLOCK: REFRESH RATE MANAGER
-    // =================================================================================
 
 
 
@@ -1734,8 +1737,19 @@ class FloatingLauncherService : AccessibilityService() {
 
     private fun selectLayout(opt: LayoutOption) { dismissKeyboardAndRestore(); selectedLayoutType = opt.type; activeCustomRects = opt.customRects; if (opt.type == LAYOUT_CUSTOM_DYNAMIC) { activeCustomLayoutName = opt.name; AppPreferences.saveLastCustomLayoutName(this, opt.name) } else { activeCustomLayoutName = null; AppPreferences.saveLastCustomLayoutName(this, null) }; AppPreferences.saveLastLayout(this, opt.type); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() }
     private fun saveCurrentAsCustom() { Thread { try { val rawLayouts = shellService!!.getWindowLayouts(currentDisplayId); if (rawLayouts.isEmpty()) { safeToast("Found 0 active app windows"); return@Thread }; val rectStrings = mutableListOf<String>(); for (line in rawLayouts) { val parts = line.split("|"); if (parts.size == 2) { rectStrings.add(parts[1]) } }; if (rectStrings.isEmpty()) { safeToast("Found 0 valid frames"); return@Thread }; val count = rectStrings.size; var baseName = "$count Apps - Custom"; val existingNames = AppPreferences.getCustomLayoutNames(this); var counter = 1; var finalName = "$baseName $counter"; while (existingNames.contains(finalName)) { counter++; finalName = "$baseName $counter" }; AppPreferences.saveCustomLayout(this, finalName, rectStrings.joinToString("|")); safeToast("Saved: $finalName"); uiHandler.post { switchMode(MODE_LAYOUTS) } } catch (e: Exception) { Log.e(TAG, "Failed to save custom layout", e); safeToast("Error saving: ${e.message}") } }.start() }
+
+
+
     private fun applyRefreshRate(targetRate: Float) {
+        manualRefreshRateSet = true 
         safeToast("Applying ${targetRate.toInt()}Hz...")
+        
+        // [FIX] Verify Shizuku before running
+        if (shellService == null) {
+            safeToast("Error: Shizuku Disconnected! Cannot change rate.")
+            return
+        }
+        
         Thread {
             try {
                 val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
@@ -1743,18 +1757,15 @@ class FloatingLauncherService : AccessibilityService() {
                 val modes = display?.supportedModes ?: emptyArray()
                 
                 var bestModeId = -1
-                var bestDiff = Float.MAX_VALUE
-                
                 for (mode in modes) {
-                    val diff = Math.abs(mode.refreshRate - targetRate)
-                    if (diff < bestDiff) {
-                        bestDiff = diff
+                    if (Math.abs(mode.refreshRate - targetRate) < 1.0f) {
                         bestModeId = mode.modeId
+                        break
                     }
                 }
                 
+                // 1. Hardware Force (Only if exact HW match exists)
                 if (bestModeId != -1) {
-                    // 1. Force via Window Attributes
                     uiHandler.post {
                         try {
                             if (bubbleView != null) {
@@ -1764,28 +1775,41 @@ class FloatingLauncherService : AccessibilityService() {
                             }
                         } catch(e: Exception) {}
                     }
-                    
-                    // 2. Force via Shell
+                }
+
+                // 2. System Force (Software Throttle)
+                // This forces Android to skip frames to match the target, even if HW is 120Hz
+                shellService?.runCommand("settings put system peak_refresh_rate $targetRate")
+                shellService?.runCommand("settings put system min_refresh_rate $targetRate")
+                shellService?.runCommand("settings put system user_refresh_rate $targetRate")
+                
+                if (bestModeId != -1) {
                     val mode = modes.find { it.modeId == bestModeId }
-                    if (mode != null && shellService != null) {
+                    if (mode != null) {
                         val cmd = "cmd display set-user-preferred-display-mode $currentDisplayId ${mode.physicalWidth} ${mode.physicalHeight} ${mode.refreshRate}"
                         shellService?.runCommand(cmd)
-                        shellService?.runCommand("settings put system peak_refresh_rate $targetRate")
-                        shellService?.runCommand("settings put system min_refresh_rate $targetRate")
                     }
                 }
                 
-                // 3. Update UI
+                // 3. Update UI Label
+                val rateInt = targetRate.toInt()
+                activeRefreshRateLabel = "Limit: ${rateInt}Hz" // [NEW] Set label for UI
+                
                 Thread.sleep(600)
                 uiHandler.post { 
                     switchMode(MODE_REFRESH)
-                    safeToast("Refreshed: ${targetRate.toInt()}Hz")
+                    safeToast("Software Limit Set: ${rateInt}Hz")
                 }
+                
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to set refresh rate", e)
+                uiHandler.post { safeToast("Error: ${e.message}") }
             }
         }.start()
     }
+
+
+
 
     private fun applyResolution(opt: ResolutionOption) { dismissKeyboardAndRestore(); if (opt.index != -1) { selectedResolutionIndex = opt.index; AppPreferences.saveDisplayResolution(this, currentDisplayId, opt.index) }; drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode && opt.index != -1) { Thread { val resCmd = getResolutionCommand(selectedResolutionIndex); shellService?.runCommand(resCmd); Thread.sleep(1500); uiHandler.post { applyLayoutImmediate() } }.start() } }
     private fun selectDpi(value: Int) { currentDpiSetting = if (value == -1) -1 else value.coerceIn(50, 600); AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting); Thread { try { if (currentDpiSetting == -1) { shellService?.runCommand("wm density reset -d $currentDisplayId") } else { val dpiCmd = "wm density $currentDpiSetting -d $currentDisplayId"; shellService?.runCommand(dpiCmd) } } catch(e: Exception) { e.printStackTrace() } }.start() }
@@ -2038,6 +2062,7 @@ class FloatingLauncherService : AccessibilityService() {
             MODE_RESOLUTION -> {
                 searchBar.hint = "Select Resolution"; displayList.add(CustomResInputOption); val savedResNames = AppPreferences.getCustomResolutionNames(this).sorted(); for (name in savedResNames) { val value = AppPreferences.getCustomResolutionValue(this, name) ?: continue; displayList.add(ResolutionOption(name, "wm size  -d $currentDisplayId", 100 + savedResNames.indexOf(name))) }; displayList.add(ResolutionOption("Default (Reset)", "wm size reset -d $currentDisplayId", 0)); displayList.add(ResolutionOption("1:1 Square (1422x1500)", "wm size 1422x1500 -d $currentDisplayId", 1)); displayList.add(ResolutionOption("16:9 Landscape (1920x1080)", "wm size 1920x1080 -d $currentDisplayId", 2)); displayList.add(ResolutionOption("32:9 Ultrawide (3840x1080)", "wm size 3840x1080 -d $currentDisplayId", 3))
             }
+
             MODE_REFRESH -> {
                 searchBar.hint = "Refresh Rate"
                 // 1. Get Current Rate
@@ -2046,8 +2071,16 @@ class FloatingLauncherService : AccessibilityService() {
                 val currentRate = display?.refreshRate ?: 60f
                 val roundedRate = String.format("%.1f", currentRate)
                 
-                // 2. Add Header
-                displayList.add(RefreshHeaderOption("Current: ${roundedRate}Hz"))
+
+                // 2. Add Header (Show Software Limit if active)
+                val headerText = if (activeRefreshRateLabel != null) {
+                    "HW: ${roundedRate}Hz | $activeRefreshRateLabel"
+                } else {
+                    "Current: ${roundedRate}Hz"
+                }
+                displayList.add(RefreshHeaderOption(headerText))
+
+
                 
                 // 3. Add Options
                 val rates = listOf(30f, 60f, 90f, 120f)
