@@ -1452,60 +1452,144 @@ class KeyboardOverlay(
 
 
     // =================================================================================
+    // =================================================================================
     // FUNCTION: onSuggestionClick
     // SUMMARY: Handles when user taps a word in the prediction bar.
-    //          SCENARIO 1: Swipe Correction (Replaces last committed word)
-    //          SCENARIO 2: Manual Typing (Replaces current composing characters)
+    //          Uses Gboard-style "completion" approach - instead of delete-all + retype,
+    //          we calculate what's already typed correctly and only append the suffix.
+    //          This avoids race conditions with Null Keyboard's async broadcast system.
+    //
+    //          SCENARIO 1: Swipe Correction - must delete previous swipe word, then type new
+    //          SCENARIO 2: Manual Typing Completion - just append remaining suffix (no delete!)
+    //          SCENARIO 3: Manual Typing with typo - delete only the mismatched portion
     // =================================================================================
     override fun onSuggestionClick(text: String, isNew: Boolean) {
-        android.util.Log.d("DroidOS_Prediction", "Suggestion clicked: '$text' (isNew=$isNew)")
+        android.util.Log.d("DroidOS_Prediction", "=== SUGGESTION CLICK START ===")
+        android.util.Log.d("DroidOS_Prediction", "Clicked word: '$text' (isNew=$isNew)")
+        android.util.Log.d("DroidOS_Prediction", "currentComposingWord: '${currentComposingWord}'")
+        android.util.Log.d("DroidOS_Prediction", "lastCommittedSwipeWord: '$lastCommittedSwipeWord'")
 
-// 1. Learn word if it was flagged as New
-        // Pass isSentenceStart so learnWord knows whether to strip auto-capitalization
+        // 1. Learn word if it was flagged as New
         if (isNew) {
-            // Note: We use the CURRENT isSentenceStart state at time of click
-            // If user typed "DroidOS" at sentence start, we strip the D
-            // If user typed "DroidOS" mid-sentence, we keep DroidOS
             predictionEngine.learnWord(context, text, isSentenceStart)
             android.util.Log.d("DroidOS_Learn", "Learning new word: '$text' (sentenceStart=$isSentenceStart)")
         }
 
-        // 2. Handle Deletion (Key Injection)
+        // 2. Handle based on scenario
         if (!lastCommittedSwipeWord.isNullOrEmpty()) {
+            // =====================================================================
             // SCENARIO 1: Correcting a previously swiped word
-            // We must delete the full word + the space we added
+            // =====================================================================
+            // We MUST delete the full swipe word because swipe doesn't leave
+            // composing text - it commits directly. Use bulk delete for efficiency.
             val deleteCount = lastCommittedSwipeWord!!.length
-            for (i in 0 until deleteCount) {
-                injectKey(KeyEvent.KEYCODE_DEL, 0)
-            }
+            android.util.Log.d("DroidOS_Prediction", "SCENARIO 1: Swipe correction, deleting $deleteCount chars")
+            
+            (context as? OverlayService)?.injectBulkDelete(deleteCount)
+            
+            // Small delay to let delete complete before inserting
+            // This is necessary because bulk delete is async via broadcast
+            Handler(Looper.getMainLooper()).postDelayed({
+                val newText = "$text "
+                injectText(newText)
+                
+                // Update state
+                lastCommittedSwipeWord = newText
+                currentComposingWord.clear()
+                originalCaseWord.clear()
+                updateSuggestionsWithSync(emptyList())
+                android.util.Log.d("DroidOS_Prediction", "Swipe correction complete: '$newText'")
+            }, 50) // 50ms delay for delete to process
+            
         } else if (currentComposingWord.isNotEmpty()) {
-            // SCENARIO 2: Completing a manually typed word (e.g. "partia" -> "partially")
-            // We delete the characters typed so far
-            val deleteCount = currentComposingWord.length
-            for (i in 0 until deleteCount) {
-                injectKey(KeyEvent.KEYCODE_DEL, 0)
+            // =====================================================================
+            // SCENARIO 2 & 3: Manual Typing - Use Gboard-style completion
+            // =====================================================================
+            // Instead of delete-all + retype, calculate the suffix we need to append
+            
+            val typed = currentComposingWord.toString().lowercase()
+            val target = text.lowercase()
+            
+            android.util.Log.d("DroidOS_Prediction", "Typed: '$typed', Target: '$target'")
+            
+            // Find how many characters at the start match
+            var matchLength = 0
+            for (i in typed.indices) {
+                if (i < target.length && typed[i] == target[i]) {
+                    matchLength++
+                } else {
+                    break // First mismatch found
+                }
             }
+            
+            android.util.Log.d("DroidOS_Prediction", "Match length: $matchLength out of ${typed.length} typed")
+            
+            // Calculate what to delete (typos) and what to append (completion)
+            val charsToDelete = typed.length - matchLength
+            val suffixToAppend = if (matchLength < text.length) {
+                text.substring(matchLength)
+            } else {
+                ""
+            }
+            
+            android.util.Log.d("DroidOS_Prediction", "Will delete $charsToDelete chars, append: '$suffixToAppend'")
+            
+            if (charsToDelete > 0) {
+                // SCENARIO 3: There's a typo - delete mismatched portion first
+                (context as? OverlayService)?.injectBulkDelete(charsToDelete)
+                
+                // Delay before appending to let delete complete
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val appendText = "$suffixToAppend "
+                    if (appendText.length > 1) { // More than just space
+                        injectText(appendText)
+                    } else {
+                        // Just space
+                        injectText(" ")
+                    }
+                    
+                    // Update state
+                    lastCommittedSwipeWord = "$text "
+                    currentComposingWord.clear()
+                    originalCaseWord.clear()
+                    updateSuggestionsWithSync(emptyList())
+                    android.util.Log.d("DroidOS_Prediction", "Typo correction complete, appended: '$appendText'")
+                }, 50) // 50ms delay
+                
+            } else {
+                // SCENARIO 2: Pure completion - NO DELETE NEEDED!
+                // This is the common case and is race-condition-free
+                val appendText = "$suffixToAppend "
+                injectText(appendText)
+                
+                // Update state immediately (no async delete to wait for)
+                lastCommittedSwipeWord = "$text "
+                currentComposingWord.clear()
+                originalCaseWord.clear()
+                updateSuggestionsWithSync(emptyList())
+                android.util.Log.d("DroidOS_Prediction", "Pure completion: appended '$appendText'")
+            }
+            
+        } else {
+            // =====================================================================
+            // SCENARIO 4: No composing word (edge case - just insert the word)
+            // =====================================================================
+            android.util.Log.d("DroidOS_Prediction", "SCENARIO 4: No composing word, inserting full word")
+            val newText = "$text "
+            injectText(newText)
+            lastCommittedSwipeWord = newText
+            updateSuggestionsWithSync(emptyList())
         }
-
-        // 3. Insert new word (always add space for flow)
-        val newText = "$text "
-        injectText(newText)
         
-        // 4. Update State
-        lastCommittedSwipeWord = newText
-        currentComposingWord.clear()
-        originalCaseWord.clear()
-        
-        // Clear suggestions immediately since we just committed
-        updateSuggestionsWithSync(emptyList()) 
-        android.util.Log.d("DroidOS_Suggest", "Cleared suggestions after suggestion click")
+        android.util.Log.d("DroidOS_Prediction", "=== SUGGESTION CLICK END ===")
     }
-
-
     // =================================================================================
-    // END BLOCK: onSuggestionClick with reliable replacement
+    // END BLOCK: onSuggestionClick - Gboard-style completion approach
+    // This implementation avoids delete race conditions by:
+    // 1. For swipe corrections: uses bulk delete with small delay before insert
+    // 2. For typing completion: only appends the suffix (no delete at all!)
+    // 3. For typos: deletes only the mismatched portion, then appends
     // =================================================================================
-
     // =================================================================================
     // FUNCTION: onSuggestionDropped
     // SUMMARY: Called when user drags a suggestion to backspace to delete/block it.
