@@ -1739,14 +1739,19 @@ class FloatingLauncherService : AccessibilityService() {
     private fun saveCurrentAsCustom() { Thread { try { val rawLayouts = shellService!!.getWindowLayouts(currentDisplayId); if (rawLayouts.isEmpty()) { safeToast("Found 0 active app windows"); return@Thread }; val rectStrings = mutableListOf<String>(); for (line in rawLayouts) { val parts = line.split("|"); if (parts.size == 2) { rectStrings.add(parts[1]) } }; if (rectStrings.isEmpty()) { safeToast("Found 0 valid frames"); return@Thread }; val count = rectStrings.size; var baseName = "$count Apps - Custom"; val existingNames = AppPreferences.getCustomLayoutNames(this); var counter = 1; var finalName = "$baseName $counter"; while (existingNames.contains(finalName)) { counter++; finalName = "$baseName $counter" }; AppPreferences.saveCustomLayout(this, finalName, rectStrings.joinToString("|")); safeToast("Saved: $finalName"); uiHandler.post { switchMode(MODE_LAYOUTS) } } catch (e: Exception) { Log.e(TAG, "Failed to save custom layout", e); safeToast("Error saving: ${e.message}") } }.start() }
 
 
-
+// =================================================================================
+    // FUNCTION: applyRefreshRate
+    // SUMMARY: Forces a refresh rate. If hardware doesn't support the rate (e.g. 60Hz 
+    //          on 120Hz glasses), attempts multiple software throttling methods.
+    //          For displays with only 120Hz (like XReal), uses frame rate throttling
+    //          via SurfaceFlinger which limits app rendering (frames duplicate on HW).
+    // =================================================================================
     private fun applyRefreshRate(targetRate: Float) {
         manualRefreshRateSet = true 
         safeToast("Applying ${targetRate.toInt()}Hz...")
         
-        // [FIX] Verify Shizuku before running
         if (shellService == null) {
-            safeToast("Error: Shizuku Disconnected! Cannot change rate.")
+            safeToast("Error: Shizuku Disconnected!")
             return
         }
         
@@ -1755,17 +1760,37 @@ class FloatingLauncherService : AccessibilityService() {
                 val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
                 val display = dm.getDisplay(currentDisplayId)
                 val modes = display?.supportedModes ?: emptyArray()
+                val currentMode = display?.mode
                 
+                // Log available modes for debugging
+                Log.d(TAG, "=== REFRESH RATE DEBUG ===")
+                Log.d(TAG, "Target rate: $targetRate Hz")
+                Log.d(TAG, "Display $currentDisplayId has ${modes.size} mode(s):")
+                modes.forEach { mode ->
+                    Log.d(TAG, "  Mode ${mode.modeId}: ${mode.physicalWidth}x${mode.physicalHeight} @ ${mode.refreshRate}Hz")
+                }
+                
+                // Check if hardware supports target rate
                 var bestModeId = -1
+                var hasHardwareSupport = false
                 for (mode in modes) {
                     if (Math.abs(mode.refreshRate - targetRate) < 1.0f) {
                         bestModeId = mode.modeId
+                        hasHardwareSupport = true
                         break
                     }
                 }
                 
-                // 1. Hardware Force (Only if exact HW match exists)
-                if (bestModeId != -1) {
+                val width = currentMode?.physicalWidth ?: 1920
+                val height = currentMode?.physicalHeight ?: 1080
+                val rateStr = String.format("%.1f", targetRate)
+                val rateInt = targetRate.toInt()
+                
+                if (hasHardwareSupport) {
+                    // === METHOD A: Hardware mode exists - use standard approach ===
+                    Log.d(TAG, "Hardware supports ${targetRate}Hz (Mode $bestModeId)")
+                    
+                    // 1. App-Level Window Override
                     uiHandler.post {
                         try {
                             if (bubbleView != null) {
@@ -1773,32 +1798,78 @@ class FloatingLauncherService : AccessibilityService() {
                                 val wm = attachedWindowManager ?: windowManager
                                 wm.updateViewLayout(bubbleView, bubbleParams)
                             }
-                        } catch(e: Exception) {}
+                        } catch(e: Exception) {
+                            Log.e(TAG, "Window mode override failed", e)
+                        }
                     }
+                    
+                    // 2. System settings
+                    shellService?.runCommand("settings put system peak_refresh_rate $rateStr")
+                    shellService?.runCommand("settings put system min_refresh_rate $rateStr")
+                    
+                    // 3. Force display mode
+                    val forceCmd = "cmd display set-user-preferred-display-mode $currentDisplayId $width $height $targetRate"
+                    shellService?.runCommand(forceCmd)
+                    Log.d(TAG, "Applied HW mode: $forceCmd")
+                    
+                    activeRefreshRateLabel = "${rateInt}Hz"
+                    
+                } else {
+                    // === METHOD B: No hardware support - use software throttling ===
+                    Log.w(TAG, "Hardware does NOT support ${targetRate}Hz - using software throttling")
+                    
+                    // Method B1: SurfaceFlinger frame rate override for the display
+                    // This tells SF to throttle frame composition for this display
+                    val sfThrottleCmd = "service call SurfaceFlinger 1035 i32 $currentDisplayId f $targetRate"
+                    val sfResult = shellService?.runCommand(sfThrottleCmd)
+                    Log.d(TAG, "SF throttle result: $sfResult")
+                    
+                    // Method B2: Set frame rate policy via display service
+                    // This affects the render frame rate policy
+                    val policyCmd = "cmd display set-match-content-frame-rate-pref 1"
+                    shellService?.runCommand(policyCmd)
+                    
+                    // Method B3: Use render frame rate limit via SurfaceFlinger properties
+                    // Note: These may require root or special permissions
+                    shellService?.runCommand("service call SurfaceFlinger 1008 i32 ${rateInt}")
+                    
+                    // Method B4: Set the desired display mode specs with clamped range
+                    // This requests SF to limit the render rate even if HW is higher
+                    val specCmd = "cmd display set-desired-display-mode-specs $currentDisplayId -p $targetRate $targetRate -r $targetRate $targetRate"
+                    val specResult = shellService?.runCommand(specCmd)
+                    Log.d(TAG, "Mode specs result: $specResult")
+                    
+                    // Method B5: Try forcing the base/peak refresh for this display specifically
+                    shellService?.runCommand("settings put system min_refresh_rate_$currentDisplayId $rateStr")
+                    shellService?.runCommand("settings put system peak_refresh_rate_$currentDisplayId $rateStr")
+                    
+                    // Method B6: Global settings (may not affect external displays but worth trying)
+                    shellService?.runCommand("settings put system peak_refresh_rate $rateStr")
+                    shellService?.runCommand("settings put system min_refresh_rate $rateStr")
+                    
+                    // Method B7: Attempt user-preferred mode anyway (sometimes kicks SF into action)
+                    val forceCmd = "cmd display set-user-preferred-display-mode $currentDisplayId $width $height $targetRate"
+                    shellService?.runCommand(forceCmd)
+                    
+                    activeRefreshRateLabel = "Limit: ${rateInt}Hz (SW)"
+                    
+                    Log.i(TAG, "Software throttle applied - display still at HW rate but rendering limited")
                 }
-
-                // 2. System Force (Software Throttle)
-                // This forces Android to skip frames to match the target, even if HW is 120Hz
-                shellService?.runCommand("settings put system peak_refresh_rate $targetRate")
-                shellService?.runCommand("settings put system min_refresh_rate $targetRate")
-                shellService?.runCommand("settings put system user_refresh_rate $targetRate")
                 
-                if (bestModeId != -1) {
-                    val mode = modes.find { it.modeId == bestModeId }
-                    if (mode != null) {
-                        val cmd = "cmd display set-user-preferred-display-mode $currentDisplayId ${mode.physicalWidth} ${mode.physicalHeight} ${mode.refreshRate}"
-                        shellService?.runCommand(cmd)
-                    }
-                }
+                Thread.sleep(800)
                 
-                // 3. Update UI Label
-                val rateInt = targetRate.toInt()
-                activeRefreshRateLabel = "Limit: ${rateInt}Hz" // [NEW] Set label for UI
+                // Re-query to see what actually happened
+                val newDisplay = dm.getDisplay(currentDisplayId)
+                val actualRate = newDisplay?.refreshRate ?: 0f
+                Log.d(TAG, "Post-apply rate: $actualRate Hz")
                 
-                Thread.sleep(600)
                 uiHandler.post { 
                     switchMode(MODE_REFRESH)
-                    safeToast("Software Limit Set: ${rateInt}Hz")
+                    if (hasHardwareSupport) {
+                        safeToast("Applied: ${rateInt}Hz")
+                    } else {
+                        safeToast("SW Limit: ${rateInt}Hz (HW: ${actualRate.toInt()}Hz)")
+                    }
                 }
                 
             } catch (e: Exception) {
@@ -1807,6 +1878,9 @@ class FloatingLauncherService : AccessibilityService() {
             }
         }.start()
     }
+    // =================================================================================
+    // END BLOCK: applyRefreshRate
+    // =================================================================================
 
 
 
@@ -2063,33 +2137,82 @@ class FloatingLauncherService : AccessibilityService() {
                 searchBar.hint = "Select Resolution"; displayList.add(CustomResInputOption); val savedResNames = AppPreferences.getCustomResolutionNames(this).sorted(); for (name in savedResNames) { val value = AppPreferences.getCustomResolutionValue(this, name) ?: continue; displayList.add(ResolutionOption(name, "wm size  -d $currentDisplayId", 100 + savedResNames.indexOf(name))) }; displayList.add(ResolutionOption("Default (Reset)", "wm size reset -d $currentDisplayId", 0)); displayList.add(ResolutionOption("1:1 Square (1422x1500)", "wm size 1422x1500 -d $currentDisplayId", 1)); displayList.add(ResolutionOption("16:9 Landscape (1920x1080)", "wm size 1920x1080 -d $currentDisplayId", 2)); displayList.add(ResolutionOption("32:9 Ultrawide (3840x1080)", "wm size 3840x1080 -d $currentDisplayId", 3))
             }
 
+// =================================================================================
+            // MODE_REFRESH UI BUILDER
+            // SUMMARY: Builds the refresh rate selection menu. Queries hardware for supported
+            //          modes and marks unavailable rates as greyed out with "(N/A)" suffix.
+            //          Single-mode displays (like XReal) show clear "Only XXHz" messaging.
+            // =================================================================================
             MODE_REFRESH -> {
                 searchBar.hint = "Refresh Rate"
-                // 1. Get Current Rate
+                
+                // 1. Get display info and supported modes
                 val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
                 val display = dm.getDisplay(currentDisplayId)
+                val modes = display?.supportedModes ?: emptyArray()
                 val currentRate = display?.refreshRate ?: 60f
-                val roundedRate = String.format("%.1f", currentRate)
+                val roundedRate = String.format("%.0f", currentRate)
                 
-
-                // 2. Add Header (Show Software Limit if active)
-                val headerText = if (activeRefreshRateLabel != null) {
-                    "HW: ${roundedRate}Hz | $activeRefreshRateLabel"
-                } else {
-                    "Current: ${roundedRate}Hz"
+                // 2. Build set of hardware-supported rates (within 1Hz tolerance)
+                val supportedRates = mutableSetOf<Int>()
+                modes.forEach { mode ->
+                    supportedRates.add(Math.round(mode.refreshRate).toInt())
+                }
+                
+                Log.d(TAG, "Display $currentDisplayId supported rates: $supportedRates")
+                
+                // 3. Build header text based on available modes
+                val headerText = when {
+                    supportedRates.size == 1 -> {
+                        // Single mode display (like XReal glasses)
+                        val onlyRate = supportedRates.first()
+                        if (activeRefreshRateLabel != null) {
+                            "Fixed: ${onlyRate}Hz | $activeRefreshRateLabel"
+                        } else {
+                            "⚠️ Display only supports ${onlyRate}Hz"
+                        }
+                    }
+                    activeRefreshRateLabel != null -> {
+                        "HW: ${roundedRate}Hz | $activeRefreshRateLabel"
+                    }
+                    else -> {
+                        "Current: ${roundedRate}Hz (${supportedRates.size} modes)"
+                    }
                 }
                 displayList.add(RefreshHeaderOption(headerText))
-
-
                 
-                // 3. Add Options
+                // 4. Add rate options with availability status
                 val rates = listOf(30f, 60f, 90f, 120f)
                 for (rate in rates) {
-                    val label = "${rate.toInt()}Hz"
-                    val isSelected = (Math.abs(currentRate - rate) < 1.0)
-                    displayList.add(RefreshItemOption(label, rate, isSelected))
+                    val rateInt = rate.toInt()
+                    val isHardwareSupported = supportedRates.any { Math.abs(it - rateInt) <= 1 }
+                    val isCurrentlyActive = Math.abs(currentRate - rate) < 1.0f
+                    
+                    // Build label with availability indicator
+                    val label = if (isHardwareSupported) {
+                        "${rateInt}Hz"
+                    } else {
+                        "${rateInt}Hz (N/A)"
+                    }
+                    
+                    displayList.add(RefreshItemOption(
+                        label = label,
+                        targetRate = rate,
+                        isSelected = isCurrentlyActive,
+                        isAvailable = isHardwareSupported
+                    ))
+                }
+                
+                // 5. If only one mode, add info item explaining the limitation
+                if (supportedRates.size == 1) {
+                    displayList.add(ActionOption("ℹ️ Hardware Limitation") {
+                        safeToast("This display only supports ${supportedRates.first()}Hz. Software limiting not possible.")
+                    })
                 }
             }
+            // =================================================================================
+            // END MODE_REFRESH UI BUILDER  
+            // =================================================================================
             MODE_DPI -> { searchBar.hint = "Adjust Density (DPI)"; displayList.add(ActionOption("Reset Density (Default)") { selectDpi(-1) }); var savedDpi = currentDpiSetting; if (savedDpi <= 0) { savedDpi = displayContext?.resources?.configuration?.densityDpi ?: 160 }; displayList.add(DpiOption(savedDpi)) }
             MODE_BLACKLIST -> { searchBar.hint = "Blacklisted Apps"; loadBlacklistedApps(); executeBtn.visibility = View.GONE }
             MODE_PROFILES -> { searchBar.hint = "Enter Profile Name..."; displayList.add(ProfileOption("Save Current as New", true, 0,0,0, emptyList())); val profileNames = AppPreferences.getProfileNames(this).sorted(); for (pName in profileNames) { val data = AppPreferences.getProfileData(this, pName); if (data != null) { try { val parts = data.split("|"); val lay = parts[0].toInt(); val res = parts[1].toInt(); val d = parts[2].toInt(); val pkgs = parts[3].split(",").filter { it.isNotEmpty() }; displayList.add(ProfileOption(pName, false, lay, res, d, pkgs)) } catch(e: Exception) {} } } }
@@ -2162,7 +2285,20 @@ class FloatingLauncherService : AccessibilityService() {
 
     object CustomResInputOption
     data class RefreshHeaderOption(val text: String)
-    data class RefreshItemOption(val label: String, val targetRate: Float, val isSelected: Boolean)
+    // =================================================================================
+    // DATA CLASS: RefreshItemOption
+    // SUMMARY: Represents a refresh rate option in the menu. isAvailable indicates
+    //          if the hardware supports this rate. Unavailable rates are greyed out.
+    // =================================================================================
+    data class RefreshItemOption(
+        val label: String, 
+        val targetRate: Float, 
+        val isSelected: Boolean,
+        val isAvailable: Boolean = true  // NEW: false if hardware doesn't support this rate
+    )
+    // =================================================================================
+    // END DATA CLASS: RefreshItemOption
+    // =================================================================================ata class RefreshItemOption(val label: String, val targetRate: Float, val isSelected: Boolean)
     data class LayoutOption(val name: String, val type: Int, val isCustomSaved: Boolean = false, val customRects: List<Rect>? = null)
     data class ResolutionOption(val name: String, val command: String, val index: Int)
     data class DpiOption(val currentDpi: Int)
@@ -2306,26 +2442,50 @@ class FloatingLauncherService : AccessibilityService() {
                 holder.btnSave.visibility = View.GONE
                 holder.btnExtinguish.visibility = View.GONE
             }
+// =================================================================================
+            // REFRESH ITEM OPTION BINDING
+            // SUMMARY: Binds refresh rate options. Available rates show white text and are
+            //          clickable. Unavailable rates are greyed out and show explanation toast.
+            // =================================================================================
             else if (holder is ActionHolder && item is RefreshItemOption) {
                 holder.nameInput.setText(item.label)
                 holder.nameInput.isEnabled = false
-                holder.nameInput.setTextColor(Color.WHITE)
                 holder.btnSave.visibility = View.GONE
                 holder.btnExtinguish.visibility = View.GONE
                 
-                if (item.isSelected) {
-                    holder.itemView.setBackgroundResource(R.drawable.bg_item_active)
-                    holder.nameInput.setTypeface(null, android.graphics.Typeface.BOLD)
+                if (item.isAvailable) {
+                    // Available rate - normal styling
+                    if (item.isSelected) {
+                        holder.itemView.setBackgroundResource(R.drawable.bg_item_active)
+                        holder.nameInput.setTextColor(Color.WHITE)
+                        holder.nameInput.setTypeface(null, android.graphics.Typeface.BOLD)
+                    } else {
+                        holder.itemView.setBackgroundResource(R.drawable.bg_item_press)
+                        holder.nameInput.setTextColor(Color.WHITE)
+                        holder.nameInput.setTypeface(null, android.graphics.Typeface.NORMAL)
+                    }
+                    
+                    holder.itemView.alpha = 1.0f
+                    holder.itemView.setOnClickListener {
+                        dismissKeyboardAndRestore()
+                        applyRefreshRate(item.targetRate)
+                    }
                 } else {
+                    // Unavailable rate - greyed out styling
                     holder.itemView.setBackgroundResource(R.drawable.bg_item_press)
-                    holder.nameInput.setTypeface(null, android.graphics.Typeface.NORMAL)
-                }
-                
-                holder.itemView.setOnClickListener {
-                    dismissKeyboardAndRestore()
-                    applyRefreshRate(item.targetRate)
+                    holder.nameInput.setTextColor(Color.GRAY)
+                    holder.nameInput.setTypeface(null, android.graphics.Typeface.ITALIC)
+                    holder.itemView.alpha = 0.5f
+                    
+                    holder.itemView.setOnClickListener {
+                        dismissKeyboardAndRestore()
+                        safeToast("${item.targetRate.toInt()}Hz not supported by this display")
+                    }
                 }
             }
+            // =================================================================================
+            // END REFRESH ITEM OPTION BINDING
+            // =================================================================================
             else if (holder is CustomResInputHolder) {
                 holder.btnSave.setOnClickListener { val wStr = holder.inputW.text.toString().trim(); val hStr = holder.inputH.text.toString().trim(); if (wStr.isNotEmpty() && hStr.isNotEmpty()) { val w = wStr.toIntOrNull(); val h = hStr.toIntOrNull(); if (w != null && h != null && w > 0 && h > 0) { val gcdVal = calculateGCD(w, h); val wRatio = w / gcdVal; val hRatio = h / gcdVal; val resString = "${w}x${h}"; val name = "$wRatio:$hRatio Custom ($resString)"; AppPreferences.saveCustomResolution(holder.itemView.context, name, resString); safeToast("Added $name"); dismissKeyboardAndRestore(); switchMode(MODE_RESOLUTION) } else { safeToast("Invalid numbers") } } else { safeToast("Input W and H") } }
                 holder.inputW.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }; holder.inputH.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }
