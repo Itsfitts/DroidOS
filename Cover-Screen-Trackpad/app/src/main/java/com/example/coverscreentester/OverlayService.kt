@@ -659,29 +659,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        // [FIX] MAIN SCREEN GUARD
-        // If interaction is on the Main Display (0), we must ensure the keyboard works.
-        // This overrides any blocking preferences intended for the Cover Screen.
-        // Use windowId != -1 to ensure it's a real UI event.
-        if (event.displayId == Display.DEFAULT_DISPLAY && event.windowId != -1) {
-            
-            // 1. Unlock Accessibility Soft Keyboard Mode (if it was hidden)
-            if (Build.VERSION.SDK_INT >= 24) {
-                try {
-                    if (softKeyboardController.showMode == AccessibilityService.SHOW_MODE_HIDDEN) {
-                        softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO
-                    }
-                } catch (e: Exception) {}
-            }
 
-            // 2. Restore System IME (if blocking preference is on, we temporarily disable it for Main Screen)
-            if (prefs.prefBlockSoftKeyboard) {
-                ensureSystemKeyboardRestored()
-            }
-            
-            // CRITICAL: Stop processing. Do NOT run blocking logic for Main Screen events.
-            return
-        }
+        // [MODIFIED] MAIN SCREEN GUARD REMOVED
+        // We now allow blocking logic to run on the Main Screen if configured.
+
 
         // [FIX 2] Standard Multi-Display Filter
         // Ignore events from displays we aren't managing (unless it was Main Screen handled above)
@@ -1808,29 +1789,23 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             android.util.Log.w(TAG, "│  ├─ current IME: $preCurrentIme")
             android.util.Log.w(TAG, "│  └─ showMode: $preShowMode")
             
+
             if (displayId == 0) {
-                android.util.Log.w(TAG, "├─ ACTION: MAIN SCREEN - Ensuring keyboards can appear")
-                
-                // Ensure showMode is AUTO so system keyboards can display
-                if (Build.VERSION.SDK_INT >= 24) {
-                    try {
-                        val oldMode = softKeyboardController.showMode
-                        softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO
-                        val newMode = softKeyboardController.showMode
-                        android.util.Log.w(TAG, "│  ├─ showMode changed: $oldMode -> $newMode")
-                    } catch (e: Exception) {
-                        android.util.Log.e(TAG, "│  ├─ showMode change FAILED: ${e.message}")
-                    }
-                }
-                
-                // If blocking was enabled, restore from NullKeyboard
+                android.util.Log.w(TAG, "├─ ACTION: MAIN SCREEN - Checking Blocking Prefs")
+
+                // ALLOW Null Keyboard on Main Screen if preference is set
                 if (prefs.prefBlockSoftKeyboard) {
-                    android.util.Log.w(TAG, "│  └─ Blocking was enabled, calling setSoftKeyboardBlocking(false)")
-                    setSoftKeyboardBlocking(false)
+                     android.util.Log.w(TAG, "│  └─ Blocking enabled on Main Screen: enforcing Null Keyboard")
+                     setSoftKeyboardBlocking(true)
                 } else {
-                    android.util.Log.w(TAG, "│  └─ Blocking NOT enabled (Content Observer will handle Samsung)")
+                     android.util.Log.w(TAG, "│  └─ Blocking NOT enabled")
+                     // Ensure showMode is AUTO if not blocking
+                     if (Build.VERSION.SDK_INT >= 24) {
+                        try { softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO } catch (e: Exception) {}
+                     }
                 }
             } else {
+
                 android.util.Log.w(TAG, "├─ ACTION: COVER SCREEN - Checking if blocking needed")
                 if (prefs.prefBlockSoftKeyboard) {
                     android.util.Log.w(TAG, "│  └─ Blocking enabled, calling triggerAggressiveBlocking()")
