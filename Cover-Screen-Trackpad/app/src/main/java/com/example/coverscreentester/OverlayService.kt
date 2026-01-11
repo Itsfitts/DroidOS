@@ -438,6 +438,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         var targetIme = sharedPrefs.getString("user_preferred_ime", null)
                         android.util.Log.w(TAG, "├─ Saved preference: ${targetIme ?: "NULL"}")
                         
+                        // =================================================================================
+                        // NULLKEYBOARD PREFERENCE CHECK
+                        // If user's preference IS NullKeyboard, don't restore away from it
+                        // =================================================================================
+                        if (targetIme != null && targetIme.contains("NullInputMethodService")) {
+                            android.util.Log.w(TAG, "├─ User preference is NullKB - not restoring away from it")
+                            isKeyboardRestoreInProgress = false
+                            android.util.Log.w(TAG, "└─ KEYBOARD RESTORATION SKIPPED (NullKB is preference)")
+                            return@Thread
+                        }
+                        // =================================================================================
+                        // END BLOCK: NULLKEYBOARD PREFERENCE CHECK
+                        // =================================================================================
+                        
                         // STEP 3: Get enabled IMEs and find Gboard
                         val enabledImes = shellService?.runCommand("ime list -s") ?: ""
                         val gboardId = enabledImes.lines().find { 
@@ -588,6 +602,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private var lastMainCheck = 0L
     private var lastCoverCheck = 0L
 
+    // =================================================================================
+    // FUNCTION: ensureSystemKeyboardRestored
+    // SUMMARY: Called when on Main Screen with blocking ENABLED. Restores user's
+    //          preferred keyboard FROM NullKeyboard. But if NullKeyboard IS the user's
+    //          saved preference (blocking OFF scenario), we don't restore away from it.
+    // =================================================================================
     private fun ensureSystemKeyboardRestored() {
         // Throttle: Check max once every 2 seconds
         if (System.currentTimeMillis() - lastMainCheck < 2000) return
@@ -598,12 +618,26 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 // Check if Null Keyboard is currently active
                 val current = shellService?.runCommand("settings get secure default_input_method") ?: ""
                 if (current.contains(packageName) && current.contains("NullInputMethodService")) {
+                    
+                    // NEW: Check if NullKeyboard is the user's PREFERRED keyboard
+                    val savedPref = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+                        .getString("user_preferred_ime", null)
+                    
+                    if (savedPref != null && savedPref.contains("NullInputMethodService")) {
+                        // User wants NullKeyboard - don't restore away from it
+                        android.util.Log.d(TAG, "ensureSystemKeyboardRestored: NullKB is user preference, keeping it")
+                        return@Thread
+                    }
+                    
                     android.util.Log.i(TAG, "Main Screen Detected: Restoring System Keyboard...")
                     handler.post { setSoftKeyboardBlocking(false) }
                 }
             } catch(e: Exception) {}
         }.start()
     }
+    // =================================================================================
+    // END BLOCK: ensureSystemKeyboardRestored
+    // =================================================================================
 
 
 
@@ -624,8 +658,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }.start()
     }
 
-    // [NEW] GBOARD GUARDIAN
-    // When DroidOS blocking is OFF, we make sure Samsung doesn't force its own keyboard.
+    // =================================================================================
+    // FUNCTION: ensureCoverKeyboardEnforced (GBOARD GUARDIAN)
+    // SUMMARY: When DroidOS blocking is OFF, ensure user's preferred keyboard stays active.
+    //          This fights Samsung's forced keyboard takeover.
+    //          FIXED: If NullKeyboard is currently active, do NOT try to change it.
+    //          The user may have intentionally set NullKeyboard as their default.
+    // =================================================================================
     private fun ensureCoverKeyboardEnforced() {
         // Throttle: Check max once every 2 seconds to save battery
         if (System.currentTimeMillis() - lastCoverCheck < 2000) return
@@ -633,23 +672,42 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         Thread {
             try {
-                // 1. Get User's Preferred Keyboard (e.g., Gboard)
-                val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-                val targetIme = prefs.getString("user_preferred_ime", null) ?: return@Thread
-
-                // 2. Check what is currently active
+                // 1. Check what is currently active
                 val current = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
                 
-                // 3. If System reverted to Samsung (or anything that isn't our target), Force it back
-                if (current != targetIme && !current.contains("NullInputMethodService")) {
-                    android.util.Log.i(TAG, "Samsung Restriction Detected! Forcing $targetIme...")
-                    
-                    // Trigger the same forceful restore logic we used for the main screen
+                // 2. If NullKeyboard is active, DO NOT interfere
+                // User may have intentionally set it as their default keyboard
+                if (current.contains("NullInputMethodService")) {
+                    android.util.Log.d(TAG, "ensureCoverKeyboardEnforced: NullKB active, not interfering")
+                    return@Thread
+                }
+                
+                // 3. Get User's Preferred Keyboard
+                val sharedPrefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+                val targetIme = sharedPrefs.getString("user_preferred_ime", null) ?: return@Thread
+                
+                // 4. If target is NullKeyboard, don't fight - it should already be handled
+                if (targetIme.contains("NullInputMethodService")) {
+                    return@Thread
+                }
+                
+                // 5. If current matches target, nothing to do
+                if (current == targetIme) {
+                    return@Thread
+                }
+                
+                // 6. Only fight if Samsung took over (not if user switched to something else)
+                val isSamsung = current.contains("honeyboard") || current.contains("com.sec.android.inputmethod")
+                if (isSamsung) {
+                    android.util.Log.i(TAG, "ensureCoverKeyboardEnforced: Samsung detected, forcing $targetIme...")
                     handler.post { setSoftKeyboardBlocking(false) }
                 }
             } catch(e: Exception) {}
         }.start()
     }
+    // =================================================================================
+    // END BLOCK: ensureCoverKeyboardEnforced
+    // =================================================================================
 
     // =================================================================================
     // FUNCTION: onAccessibilityEvent
@@ -1229,21 +1287,29 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     
                     android.util.Log.d(TAG, "IME Observer: '$lastObservedIme' -> '$current' (display=$currentDisplayId)")
                     
-                    // Skip if empty or our blocker
-                    if (current.isEmpty() || current.contains("NullInputMethodService")) {
+                    // =================================================================================
+                    // SKIP EMPTY ONLY - Allow NullKeyboard through so it can be saved as preference
+                    // =================================================================================
+                    if (current.isEmpty()) {
                         lastObservedIme = current
                         return
                     }
                     
+                    val isNullKeyboard = current.contains("NullInputMethodService")
                     val isSamsung = current.contains("honeyboard") || current.contains("com.sec.android.inputmethod")
                     val wasGboard = lastObservedIme.contains("com.google.android.inputmethod.latin")
+                    val wasNullKeyboard = lastObservedIme.contains("NullInputMethodService")
                     val isOnMainScreen = currentDisplayId == 0
+                    // =================================================================================
+                    // END BLOCK: SKIP EMPTY ONLY
+                    // =================================================================================
                     
                     // =================================================================================
                     // SAMSUNG TAKEOVER DETECTION
                     // If Samsung just took over FROM Gboard while on Main Screen, fight back NOW!
+                    // Skip if we came from NullKeyboard (handled separately below)
                     // =================================================================================
-                    if (isSamsung && wasGboard && isOnMainScreen) {
+                    if (isSamsung && wasGboard && isOnMainScreen && !wasNullKeyboard) {
                         val now = System.currentTimeMillis()
                         // Throttle: Don't fight more than once per second
                         if (now - lastFightTime > 1000) {
@@ -1305,17 +1371,77 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     // END BLOCK: SAMSUNG TAKEOVER DETECTION
                     // =================================================================================
                     
-                    // Save preference logic (only save non-Samsung keyboards chosen by user)
-                    val wasFromNull = lastObservedIme.contains("NullInputMethodService")
+                    // =================================================================================
+                    // SAMSUNG TAKEOVER FROM NULLKEYBOARD
+                    // If Samsung took over from NullKeyboard, restore NullKeyboard (not Gboard)
+                    // Only when blocking is OFF (user intentionally wants NullKB)
+                    // =================================================================================
+                    if (isSamsung && wasNullKeyboard && !prefs.prefBlockSoftKeyboard) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastFightTime > 1000) {
+                            lastFightTime = now
+                            android.util.Log.w(TAG, "IME Observer: Samsung took over from NullKB! Restoring NullKB...")
+                            
+                            Thread {
+                                try {
+                                    val nullKbId = "$packageName/com.example.coverscreentester.NullInputMethodService"
+                                    val samsungId = current
+                                    
+                                    android.util.Log.w(TAG, "┌─ NULLKB RESTORATION ─┐")
+                                    
+                                    // 1. Disable Samsung
+                                    shellService?.runCommand("ime disable $samsungId")
+                                    android.util.Log.w(TAG, "├─ Samsung disabled")
+                                    
+                                    // 2. Enable and set NullKeyboard
+                                    shellService?.runCommand("ime enable $nullKbId")
+                                    shellService?.runCommand("settings put secure default_input_method $nullKbId")
+                                    shellService?.runCommand("ime set $nullKbId")
+                                    android.util.Log.w(TAG, "├─ NullKB set")
+                                    
+                                    // 3. Wait for stability (past Samsung protection window)
+                                    Thread.sleep(3000)
+                                    
+                                    // 4. Re-enable Samsung
+                                    shellService?.runCommand("ime enable $samsungId")
+                                    android.util.Log.w(TAG, "├─ Samsung re-enabled")
+                                    
+                                    // 5. Verify
+                                    Thread.sleep(500)
+                                    val finalIme = shellService?.runCommand("settings get secure default_input_method")?.trim() ?: ""
+                                    val success = finalIme.contains("NullInputMethodService")
+                                    android.util.Log.w(TAG, "├─ Final: $finalIme")
+                                    android.util.Log.w(TAG, "└─ Success: $success")
+                                    
+                                } catch (e: Exception) {
+                                    android.util.Log.e(TAG, "NullKB restore error: ${e.message}")
+                                }
+                            }.start()
+                        }
+                    }
+                    // =================================================================================
+                    // END BLOCK: SAMSUNG TAKEOVER FROM NULLKEYBOARD
+                    // =================================================================================
                     
+                    // =================================================================================
+                    // SAVE PREFERENCE LOGIC
+                    // Save user's keyboard choice. Allow NullKeyboard when blocking is OFF.
+                    //          Skip Samsung (auto-fallback). Skip if not on main screen.
+                    // =================================================================================
                     val shouldSave = when {
                         isSamsung -> {
                             android.util.Log.d(TAG, "IME Observer: SKIPPING Samsung save")
                             false
                         }
-                        wasFromNull -> {
-                            android.util.Log.d(TAG, "IME Observer: SKIPPING save (came from Null)")
+                        isNullKeyboard && prefs.prefBlockSoftKeyboard -> {
+                            // Blocking is ON - NullKB was set by our blocking, not user choice
+                            android.util.Log.d(TAG, "IME Observer: SKIPPING NullKB save (blocking ON)")
                             false
+                        }
+                        isNullKeyboard && !prefs.prefBlockSoftKeyboard -> {
+                            // Blocking is OFF - User intentionally selected NullKeyboard
+                            android.util.Log.i(TAG, "IME Observer: SAVING NullKB as user preference (blocking OFF)")
+                            true
                         }
                         !isOnMainScreen -> {
                             android.util.Log.d(TAG, "IME Observer: SKIPPING save (not on main screen)")
@@ -1323,6 +1449,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         }
                         else -> true
                     }
+                    // =================================================================================
+                    // END BLOCK: SAVE PREFERENCE LOGIC
+                    // =================================================================================
                     
                     if (shouldSave) {
                         getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
@@ -1334,7 +1463,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         
                         val name = when {
                             current.contains("google.android.inputmethod.latin") -> "Gboard"
-                            else -> "Keyboard"
+                            current.contains("NullInputMethodService") -> "Null Keyboard"
+                            current.contains("honeyboard") -> "Samsung"
+                            current.contains("juloo.keyboard2") -> "Unexpected KB"
+                            else -> "Custom Keyboard"
                         }
                         handler.post { showToast("Saved: $name") }
                         handler.post { menuManager?.refresh() }
