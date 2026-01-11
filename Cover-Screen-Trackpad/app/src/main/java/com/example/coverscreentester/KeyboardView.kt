@@ -1455,10 +1455,31 @@ private fun buildKeyboard() {
 
 
 
-    private fun findKeyView(targetX: Float, targetY: Float): View? {
-        return findKeyRecursively(this, targetX, targetY)
-    }
 
+    // =================================================================================
+    // FUNCTION: findKeyView
+    // SUMMARY: Finds the key at the given coordinates. First tries exact hit detection,
+    //          then falls back to nearest-key detection to eliminate input gaps.
+    //          This ensures taps between keys still register on the closest key.
+    // =================================================================================
+    private fun findKeyView(targetX: Float, targetY: Float): View? {
+        // First, try exact hit detection (touch is within key bounds)
+        val exactMatch = findKeyRecursively(this, targetX, targetY)
+        if (exactMatch != null) return exactMatch
+        
+        // No exact match - find the nearest key within threshold
+        // This eliminates "dead zones" between keys
+        return findNearestKey(targetX, targetY)
+    }
+    // =================================================================================
+    // END BLOCK: findKeyView
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: findKeyRecursively
+    // SUMMARY: Recursively searches for a key view at the exact coordinates.
+    //          Returns null if touch is in a gap between keys.
+    // =================================================================================
     private fun findKeyRecursively(parent: ViewGroup, targetX: Float, targetY: Float): View? {
         for (i in 0 until parent.childCount) {
             val child = parent.getChildAt(i)
@@ -1472,6 +1493,93 @@ private fun buildKeyboard() {
         }
         return null
     }
+    // =================================================================================
+    // END BLOCK: findKeyRecursively
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: findNearestKey
+    // SUMMARY: Finds the closest key to the touch point when the touch falls in a gap.
+    //          Uses center-to-point distance calculation. Returns null if no key is
+    //          within the maximum threshold (prevents edge-of-keyboard false triggers).
+    //
+    //          MAX_GAP_THRESHOLD: Maximum distance from key center to consider.
+    //          Set to ~20dp to cover typical key gaps without triggering from far away.
+    // =================================================================================
+    private fun findNearestKey(targetX: Float, targetY: Float): View? {
+        // Maximum distance threshold in pixels (~20dp covers gaps but not wild misses)
+        val maxThresholdPx = dpToPx(20).toFloat()
+        
+        var nearestKey: View? = null
+        var nearestDistance = Float.MAX_VALUE
+        
+        // Collect all key views and their bounds
+        collectKeysWithDistance(this, targetX, targetY, 0f, 0f) { keyView, distance ->
+            if (distance < nearestDistance && distance < maxThresholdPx) {
+                nearestDistance = distance
+                nearestKey = keyView
+            }
+        }
+        
+        return nearestKey
+    }
+    // =================================================================================
+    // END BLOCK: findNearestKey
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: collectKeysWithDistance
+    // SUMMARY: Recursively traverses the view hierarchy, calculating the distance
+    //          from the touch point to the center of each key view.
+    //          Calls the provided callback for each key found with its distance.
+    //
+    // PARAMETERS:
+    //   - parent: The ViewGroup to search within
+    //   - targetX, targetY: Touch coordinates (relative to this KeyboardView)
+    //   - offsetX, offsetY: Accumulated offset from parent containers
+    //   - onKeyFound: Callback invoked for each key with (view, distance)
+    // =================================================================================
+    private fun collectKeysWithDistance(
+        parent: ViewGroup, 
+        targetX: Float, 
+        targetY: Float,
+        offsetX: Float,
+        offsetY: Float,
+        onKeyFound: (View, Float) -> Unit
+    ) {
+        for (i in 0 until parent.childCount) {
+            val child = parent.getChildAt(i)
+            if (child.visibility != View.VISIBLE) continue
+            
+            // Calculate child's absolute position within KeyboardView
+            val childAbsX = offsetX + child.x
+            val childAbsY = offsetY + child.y
+            
+            if (child.tag != null) {
+                // This is a key - calculate distance from touch to key center
+                val keyCenterX = childAbsX + child.width / 2f
+                val keyCenterY = childAbsY + child.height / 2f
+                
+                val dx = targetX - keyCenterX
+                val dy = targetY - keyCenterY
+                val distance = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+                
+                onKeyFound(child, distance)
+            } else if (child is ViewGroup) {
+                // Recurse into child container (rows, etc.)
+                collectKeysWithDistance(child, targetX, targetY, childAbsX, childAbsY, onKeyFound)
+            }
+        }
+    }
+    // =================================================================================
+    // END BLOCK: collectKeysWithDistance
+    // This approach ensures:
+    // 1. Exact touches still work as before (fast path)
+    // 2. Gap touches find the nearest key (eliminates dead zones)
+    // 3. Edge-of-keyboard touches don't trigger random keys (threshold limit)
+    // 4. Works for both tap and swipe input methods
+    // =================================================================================
+
 
 // =================================================================================
     // FUNCTION: onKeyDown
