@@ -1,3 +1,468 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+# File Summary
+
+## Purpose
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+## File Format
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  a. A header with the file path (## File: path/to/file)
+  b. The full contents of the file in a code block
+
+## Usage Guidelines
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+## Notes
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: **/.gradle/**, **/build/**, **/.idea/**, **/*.iml, **/local.properties, **/**logcat**, **/build_log.txt, **/*.png, **/*.webp, **/**dictionary.txt, **/*.jar, **/*.aar, **/captures/**, **/*Repomix*.md
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+
+# Directory Structure
+```
+AppPreferences.kt
+FloatingLauncherService.kt
+IconPickerActivity.kt
+MainActivity.kt
+MenuActivity.kt
+PermissionActivity.kt
+QuadrantActivity.kt
+ShellUserService.kt
+ShizukuBinder.java
+ShizukuHelper.kt
+SplitActivity.kt
+TriSplitActivity.kt
+```
+
+# Files
+
+## File: AppPreferences.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.content.Context
+
+object AppPreferences {
+
+    private const val PREFS_NAME = "AppLauncherPrefs"
+    private const val KEY_FAVORITES = "KEY_FAVORITES"
+    private const val KEY_LAST_LAYOUT = "KEY_LAST_LAYOUT"
+    private const val KEY_LAST_CUSTOM_LAYOUT_NAME = "KEY_LAST_CUSTOM_LAYOUT_NAME"
+    private const val KEY_PROFILES = "KEY_PROFILES"
+    private const val KEY_CUSTOM_LAYOUTS = "KEY_CUSTOM_LAYOUTS"
+    private const val KEY_FONT_SIZE = "KEY_FONT_SIZE"
+    private const val KEY_ICON_URI = "KEY_ICON_URI"
+    
+    // Settings
+    private const val KEY_KILL_ON_EXECUTE = "KEY_KILL_ON_EXECUTE"
+    private const val KEY_TARGET_DISPLAY_INDEX = "KEY_TARGET_DISPLAY_INDEX"
+    private const val KEY_IS_INSTANT_MODE = "KEY_IS_INSTANT_MODE"
+    private const val KEY_LAST_QUEUE = "KEY_LAST_QUEUE"
+    private const val KEY_SHOW_SHIZUKU_WARNING = "KEY_SHOW_SHIZUKU_WARNING"
+    private const val KEY_REORDER_TIMEOUT = "KEY_REORDER_TIMEOUT"
+    private const val KEY_USE_ALT_SCREEN_OFF = "KEY_USE_ALT_SCREEN_OFF" // New
+    private const val KEY_AUTO_RESTART_TRACKPAD = "KEY_AUTO_RESTART_TRACKPAD"
+
+    // === BLACKLIST STORAGE - START ===
+    // Stores blacklisted apps using "packageName:activityName" format
+    // This allows us to blacklist "com.google.android.googlequicksearchbox:.SearchActivity"
+    // while keeping "com.google.android.googlequicksearchbox:robin.main.MainActivity" (Gemini) available
+    private const val KEY_BLACKLIST = "KEY_BLACKLIST"
+    // === BLACKLIST STORAGE - END ===
+
+    // Reorder Methods
+    private const val KEY_REORDER_METHOD_DRAG = "KEY_REORDER_METHOD_DRAG"
+    private const val KEY_REORDER_METHOD_TAP = "KEY_REORDER_METHOD_TAP"
+    private const val KEY_REORDER_METHOD_SCROLL = "KEY_REORDER_METHOD_SCROLL"
+    
+    // Drawer Geometry
+    private const val KEY_DRAWER_HEIGHT = "KEY_DRAWER_HEIGHT"
+    private const val KEY_DRAWER_WIDTH = "KEY_DRAWER_WIDTH"
+    private const val KEY_AUTO_RESIZE_KEYBOARD = "KEY_AUTO_RESIZE_KEYBOARD"
+    
+    // Custom Resolutions
+    private const val KEY_CUSTOM_RESOLUTION_NAMES = "KEY_CUSTOM_RESOLUTION_NAMES"
+
+    private fun getPrefs(context: Context) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    fun savePackage(context: Context, key: String, packageName: String) {
+        getPrefs(context).edit().putString(key, packageName).apply()
+    }
+
+    fun loadPackage(context: Context, key: String): String? {
+        return getPrefs(context).getString(key, null)
+    }
+
+    fun getSimpleName(pkg: String?): String {
+        if (pkg == null) return "Select App"
+        val name = pkg.substringAfterLast('.')
+        return if (name.isNotEmpty()) name else pkg
+    }
+
+    fun getFavorites(context: Context): MutableSet<String> {
+        return getPrefs(context).getStringSet(KEY_FAVORITES, mutableSetOf()) ?: mutableSetOf()
+    }
+
+    fun isFavorite(context: Context, packageName: String): Boolean {
+        return getFavorites(context).contains(packageName)
+    }
+
+    fun toggleFavorite(context: Context, packageName: String): Boolean {
+        val favorites = getFavorites(context)
+        val newSet = HashSet(favorites)
+        val isAdded: Boolean
+        if (newSet.contains(packageName)) {
+            newSet.remove(packageName)
+            isAdded = false
+        } else {
+            newSet.add(packageName)
+            isAdded = true
+        }
+        getPrefs(context).edit().putStringSet(KEY_FAVORITES, newSet).apply()
+        return isAdded
+    }
+    
+    // --- GLOBAL LAYOUT PREFS ---
+    fun saveLastLayout(context: Context, layoutId: Int) {
+        getPrefs(context).edit().putInt(KEY_LAST_LAYOUT, layoutId).apply()
+    }
+
+    fun getLastLayout(context: Context): Int {
+        return getPrefs(context).getInt(KEY_LAST_LAYOUT, 2)
+    }
+    
+    fun saveLastCustomLayoutName(context: Context, name: String?) {
+        getPrefs(context).edit().putString(KEY_LAST_CUSTOM_LAYOUT_NAME, name).apply()
+    }
+
+    fun getLastCustomLayoutName(context: Context): String? {
+        return getPrefs(context).getString(KEY_LAST_CUSTOM_LAYOUT_NAME, null)
+    }
+
+    // --- PER-DISPLAY SETTINGS ---
+    
+    fun saveDisplayResolution(context: Context, displayId: Int, resIndex: Int) {
+        getPrefs(context).edit().putInt("RES_D$displayId", resIndex).apply()
+    }
+
+    fun getDisplayResolution(context: Context, displayId: Int): Int {
+        return getPrefs(context).getInt("RES_D$displayId", 0)
+    }
+
+    fun saveDisplayDpi(context: Context, displayId: Int, dpi: Int) {
+        getPrefs(context).edit().putInt("DPI_D$displayId", dpi).apply()
+    }
+
+    fun getDisplayDpi(context: Context, displayId: Int): Int {
+        return getPrefs(context).getInt("DPI_D$displayId", -1)
+    }
+
+    // --- PROFILES ---
+    fun getProfileNames(context: Context): MutableSet<String> {
+        return getPrefs(context).getStringSet(KEY_PROFILES, mutableSetOf()) ?: mutableSetOf()
+    }
+
+    fun saveProfile(context: Context, name: String, layout: Int, resIndex: Int, dpi: Int, apps: List<String>) {
+        val names = getProfileNames(context)
+        val newNames = HashSet(names)
+        newNames.add(name)
+        getPrefs(context).edit().putStringSet(KEY_PROFILES, newNames).apply()
+        val appString = apps.joinToString(",")
+        val data = "$layout|$resIndex|$dpi|$appString"
+        getPrefs(context).edit().putString("PROFILE_$name", data).apply()
+    }
+
+    fun getProfileData(context: Context, name: String): String? {
+        return getPrefs(context).getString("PROFILE_$name", null)
+    }
+
+    fun deleteProfile(context: Context, name: String) {
+        val names = getProfileNames(context)
+        val newNames = HashSet(names)
+        newNames.remove(name)
+        getPrefs(context).edit().putStringSet(KEY_PROFILES, newNames).remove("PROFILE_$name").apply()
+    }
+
+    fun renameProfile(context: Context, oldName: String, newName: String): Boolean {
+        if (oldName == newName) return false
+        if (newName.isEmpty()) return false
+        val names = getProfileNames(context)
+        if (!names.contains(oldName)) return false
+        val data = getProfileData(context, oldName) ?: return false
+        val newNames = HashSet(names)
+        newNames.remove(oldName)
+        newNames.add(newName)
+        getPrefs(context).edit().putStringSet(KEY_PROFILES, newNames).apply()
+        getPrefs(context).edit().putString("PROFILE_$newName", data).remove("PROFILE_$oldName").apply()
+        return true
+    }
+
+    // --- CUSTOM LAYOUTS ---
+    fun getCustomLayoutNames(context: Context): MutableSet<String> {
+        return getPrefs(context).getStringSet(KEY_CUSTOM_LAYOUTS, mutableSetOf()) ?: mutableSetOf()
+    }
+
+    fun saveCustomLayout(context: Context, name: String, rectsData: String) {
+        val names = getCustomLayoutNames(context)
+        val newNames = HashSet(names)
+        newNames.add(name)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_LAYOUTS, newNames).apply()
+        getPrefs(context).edit().putString("LAYOUT_$name", rectsData).apply()
+    }
+
+    fun getCustomLayoutData(context: Context, name: String): String? {
+        return getPrefs(context).getString("LAYOUT_$name", null)
+    }
+    
+    fun deleteCustomLayout(context: Context, name: String) {
+        val names = getCustomLayoutNames(context)
+        val newNames = HashSet(names)
+        newNames.remove(name)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_LAYOUTS, newNames).remove("LAYOUT_$name").apply()
+    }
+    
+    fun renameCustomLayout(context: Context, oldName: String, newName: String): Boolean {
+        if (oldName == newName) return false
+        if (newName.isEmpty()) return false
+        val names = getCustomLayoutNames(context)
+        if (!names.contains(oldName)) return false
+        val data = getCustomLayoutData(context, oldName) ?: return false
+        val newNames = HashSet(names)
+        newNames.remove(oldName)
+        newNames.add(newName)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_LAYOUTS, newNames).apply()
+        getPrefs(context).edit().putString("LAYOUT_$newName", data).remove("LAYOUT_$oldName").apply()
+        return true
+    }
+    
+    // --- CUSTOM RESOLUTIONS ---
+    fun getCustomResolutionNames(context: Context): MutableSet<String> {
+        return getPrefs(context).getStringSet(KEY_CUSTOM_RESOLUTION_NAMES, mutableSetOf()) ?: mutableSetOf()
+    }
+
+    fun saveCustomResolution(context: Context, name: String, value: String) {
+        val names = getCustomResolutionNames(context)
+        val newNames = HashSet(names)
+        newNames.add(name)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_RESOLUTION_NAMES, newNames).apply()
+        getPrefs(context).edit().putString("RES_$name", value).apply()
+    }
+    
+    fun getCustomResolutionValue(context: Context, name: String): String? {
+        return getPrefs(context).getString("RES_$name", null)
+    }
+
+    fun deleteCustomResolution(context: Context, name: String) {
+        val names = getCustomResolutionNames(context)
+        val newNames = HashSet(names)
+        newNames.remove(name)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_RESOLUTION_NAMES, newNames).remove("RES_$name").apply()
+    }
+    
+    fun renameCustomResolution(context: Context, oldName: String, newName: String): Boolean {
+        if (oldName == newName) return false
+        if (newName.isEmpty()) return false
+        val names = getCustomResolutionNames(context)
+        if (!names.contains(oldName)) return false
+        val data = getCustomResolutionValue(context, oldName) ?: return false
+        val newNames = HashSet(names)
+        newNames.remove(oldName)
+        newNames.add(newName)
+        getPrefs(context).edit().putStringSet(KEY_CUSTOM_RESOLUTION_NAMES, newNames).apply()
+        getPrefs(context).edit().putString("RES_$newName", data).remove("RES_$oldName").apply()
+        return true
+    }
+
+    // --- FONT SIZE & ICONS & DRAWER ---
+    fun saveFontSize(context: Context, size: Float) {
+        getPrefs(context).edit().putFloat(KEY_FONT_SIZE, size).apply()
+    }
+
+    fun getFontSize(context: Context): Float {
+        return getPrefs(context).getFloat(KEY_FONT_SIZE, 16f)
+    }
+
+    fun saveIconUri(context: Context, uri: String) {
+        getPrefs(context).edit().putString(KEY_ICON_URI, uri).apply()
+    }
+
+    fun getIconUri(context: Context): String? {
+        return getPrefs(context).getString(KEY_ICON_URI, null)
+    }
+    
+    fun setDrawerHeightPercent(context: Context, percent: Int) {
+        getPrefs(context).edit().putInt(KEY_DRAWER_HEIGHT, percent).apply()
+    }
+    
+    fun getDrawerHeightPercent(context: Context): Int {
+        return getPrefs(context).getInt(KEY_DRAWER_HEIGHT, 70)
+    }
+    
+    fun setDrawerWidthPercent(context: Context, percent: Int) {
+        getPrefs(context).edit().putInt(KEY_DRAWER_WIDTH, percent).apply()
+    }
+    
+    fun getDrawerWidthPercent(context: Context): Int {
+        return getPrefs(context).getInt(KEY_DRAWER_WIDTH, 90)
+    }
+    
+    fun setAutoResizeKeyboard(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_AUTO_RESIZE_KEYBOARD, enable).apply()
+    }
+    
+    fun getAutoResizeKeyboard(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_AUTO_RESIZE_KEYBOARD, true)
+    }
+
+    // --- SETTINGS ---
+    fun setKillOnExecute(context: Context, kill: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_KILL_ON_EXECUTE, kill).apply()
+    }
+
+    fun getKillOnExecute(context: Context): Boolean {
+        // Default is FALSE for Kill On Execute
+        return getPrefs(context).getBoolean(KEY_KILL_ON_EXECUTE, false)
+    }
+
+    fun setAutoRestartTrackpad(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_AUTO_RESTART_TRACKPAD, enable).apply()
+    }
+
+    fun getAutoRestartTrackpad(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_AUTO_RESTART_TRACKPAD, false) // Default Off
+    }
+
+    fun setTargetDisplayIndex(context: Context, index: Int) {
+        getPrefs(context).edit().putInt(KEY_TARGET_DISPLAY_INDEX, index).apply()
+    }
+
+    fun getTargetDisplayIndex(context: Context): Int {
+        return getPrefs(context).getInt(KEY_TARGET_DISPLAY_INDEX, 1)
+    }
+
+    fun setInstantMode(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_IS_INSTANT_MODE, enable).apply()
+    }
+
+    fun getInstantMode(context: Context): Boolean {
+        // Default is TRUE for Instant Mode
+        return getPrefs(context).getBoolean(KEY_IS_INSTANT_MODE, true)
+    }
+    
+    fun saveLastQueue(context: Context, apps: List<String>) {
+        val str = apps.joinToString(",")
+        getPrefs(context).edit().putString(KEY_LAST_QUEUE, str).apply()
+    }
+    
+    fun getLastQueue(context: Context): List<String> {
+        val str = getPrefs(context).getString(KEY_LAST_QUEUE, "") ?: ""
+        if (str.isEmpty()) return emptyList()
+        return str.split(",").filter { it.isNotEmpty() }
+    }
+    
+    fun setShowShizukuWarning(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_SHOW_SHIZUKU_WARNING, enable).apply()
+    }
+
+    fun getShowShizukuWarning(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_SHOW_SHIZUKU_WARNING, true)
+    }
+    
+    fun setUseAltScreenOff(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_USE_ALT_SCREEN_OFF, enable).apply()
+    }
+
+    fun getUseAltScreenOff(context: Context): Boolean {
+        // Default false (use standard SurfaceControl method)
+        return getPrefs(context).getBoolean(KEY_USE_ALT_SCREEN_OFF, false)
+    }
+    
+    // --- REORDER PREFERENCES ---
+    fun setReorderTimeout(context: Context, seconds: Int) {
+        getPrefs(context).edit().putInt(KEY_REORDER_TIMEOUT, seconds).apply()
+    }
+    
+    fun getReorderTimeout(context: Context): Int {
+        return getPrefs(context).getInt(KEY_REORDER_TIMEOUT, 2) // Default 2 seconds
+    }
+    
+    fun setReorderDrag(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_REORDER_METHOD_DRAG, enable).apply()
+    }
+    
+    fun getReorderDrag(context: Context): Boolean {
+        // CHANGED: Default to FALSE so Tap works out of box
+        return getPrefs(context).getBoolean(KEY_REORDER_METHOD_DRAG, false)
+    }
+    
+    fun setReorderTap(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_REORDER_METHOD_TAP, enable).apply()
+    }
+    
+    fun getReorderTap(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_REORDER_METHOD_TAP, true) // Default Enabled
+    }
+    
+    fun setReorderScroll(context: Context, enable: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_REORDER_METHOD_SCROLL, enable).apply()
+    }
+    
+    fun getReorderScroll(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_REORDER_METHOD_SCROLL, true) // Default Enabled
+    }
+
+    // === BLACKLIST METHODS - START ===
+    fun getBlacklist(context: Context): Set<String> {
+        return getPrefs(context).getStringSet(KEY_BLACKLIST, emptySet()) ?: emptySet()
+    }
+
+    fun isBlacklisted(context: Context, identifier: String): Boolean {
+        return getBlacklist(context).contains(identifier)
+    }
+
+    fun addToBlacklist(context: Context, identifier: String) {
+        val current = getBlacklist(context).toMutableSet()
+        current.add(identifier)
+        getPrefs(context).edit().putStringSet(KEY_BLACKLIST, current).apply()
+    }
+
+    fun removeFromBlacklist(context: Context, identifier: String) {
+        val current = getBlacklist(context).toMutableSet()
+        current.remove(identifier)
+        getPrefs(context).edit().putStringSet(KEY_BLACKLIST, current).apply()
+    }
+
+    fun toggleBlacklist(context: Context, identifier: String): Boolean {
+        return if (isBlacklisted(context, identifier)) {
+            removeFromBlacklist(context, identifier)
+            false
+        } else {
+            addToBlacklist(context, identifier)
+            true
+        }
+    }
+    // === BLACKLIST METHODS - END ===
+}
+```
+
+## File: FloatingLauncherService.kt
+```kotlin
 package com.example.quadrantlauncher
 
 import android.accessibilityservice.AccessibilityService
@@ -155,10 +620,6 @@ class FloatingLauncherService : AccessibilityService() {
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {}
         override fun onDisplayRemoved(displayId: Int) {
-            // If a virtual display (ID >= 2) is removed, release wake lock
-            if (displayId >= 2) {
-                setKeepScreenOn(false)
-            }
             if (displayId == currentDisplayId) {
                 // If current display disconnects (e.g. glasses), revert to Default
                 performDisplayChange(Display.DEFAULT_DISPLAY)
@@ -299,13 +760,15 @@ class FloatingLauncherService : AccessibilityService() {
                 if (isScreenOffState) {
                     wakeUp()
                 }
-} else if (action == ACTION_TOGGLE_VIRTUAL) {
+            } else if (action == ACTION_TOGGLE_VIRTUAL) {
                 toggleVirtualDisplay()
-            } else if (action == "KEEP_SCREEN_ON" || action == "${packageName}.KEEP_SCREEN_ON") {
-                val enable = intent?.getBooleanExtra("ENABLE", true) ?: true
+            }
+            "KEEP_SCREEN_ON", "${packageName}.KEEP_SCREEN_ON" -> {
+                val enable = intent.getBooleanExtra("ENABLE", true)
                 setKeepScreenOn(enable)
                 safeToast(if (enable) "Screen: Always On" else "Screen: Normal Timeout")
             }
+
         }
     }
     // === SWIPE CALLBACK - START ===
@@ -1419,7 +1882,6 @@ class FloatingLauncherService : AccessibilityService() {
             
             if (virtualDisplay != null) {
                 targetId = virtualDisplay.displayId
-                setKeepScreenOn(true)  // Keep screen on when switching TO virtual display
             } else {
                 // Fallback: If no virtual display exists, just toggle normally so button works
                 targetId = if (actualCurrentId == 0) 1 else 0
@@ -2193,3 +2655,2033 @@ class FloatingLauncherService : AccessibilityService() {
         override fun getItemCount() = displayList.size
     }
 }
+```
+
+## File: IconPickerActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.app.Activity
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+
+class IconPickerActivity : ComponentActivity() {
+
+    private val pickImage = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                // Persist permission so we can read this after reboot
+                contentResolver.takePersistableUriPermission(
+                    uri, 
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                AppPreferences.saveIconUri(this, uri.toString())
+                
+                // Notify Service to update
+                sendBroadcast(Intent("com.example.quadrantlauncher.UPDATE_ICON"))
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        finish()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Invisible activity
+        
+        try {
+            pickImage.launch(arrayOf("image/*"))
+        } catch (e: Exception) {
+            finish()
+        }
+    }
+}
+```
+
+## File: MainActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.util.Log
+import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import rikka.shizuku.Shizuku
+
+class MainActivity : AppCompatActivity() {
+
+    companion object {
+        const val SELECTED_APP_PACKAGE = "com.example.quadrantlauncher.SELECTED_APP_PACKAGE"
+    }
+
+    // === APP INFO DATA CLASS - START ===
+    // Represents an installed app with package name, activity class, and state info
+    // getIdentifier() returns a unique string for app identification including className when needed
+    data class AppInfo(
+        val label: String,
+        val packageName: String,
+        val className: String? = null,
+        var isFavorite: Boolean = false,
+        var isMinimized: Boolean = false
+    ) {
+        // Returns unique identifier for the app
+        fun getIdentifier(): String {
+            return if (!className.isNullOrEmpty() && packageName == "com.google.android.googlequicksearchbox") {
+                if (className.lowercase().contains("assistant") || className.lowercase().contains("gemini")) {
+                    "$packageName:gemini"
+                } else {
+                    packageName
+                }
+            } else {
+                packageName
+            }
+        }
+        
+        // === GET BASE PACKAGE - START ===
+        // Returns the base package name without any suffix
+        // Use this for shell commands that need the actual Android package name
+        fun getBasePackage(): String {
+            return if (packageName.contains(":")) {
+                packageName.substringBefore(":")
+            } else {
+                packageName
+            }
+        }
+        // === GET BASE PACKAGE - END ===
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is AppInfo) return false
+            return packageName == other.packageName && className == other.className && label == other.label
+        }
+
+        override fun hashCode(): Int {
+            var result = packageName.hashCode()
+            result = 31 * result + (className?.hashCode() ?: 0)
+            result = 31 * result + label.hashCode()
+            return result
+        }
+    }
+    // === APP INFO DATA CLASS - END ===
+
+    /* * FUNCTION: onCreate
+     * SUMMARY: Detects the display ID where the app icon was clicked and
+     * passes it to the service to ensure the bubble follows the user.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Redirect to PermissionActivity if essential permissions are missing
+        if (!hasAllPermissions()) {
+            val intent = Intent(this, PermissionActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        // Determine which display this activity is running on
+        val displayId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            this.display?.displayId ?: 0
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.displayId
+        }
+
+        Log.d("DroidOS_Main", "Launched on Display $displayId")
+
+        // Start service and pass the current display ID to recall the bubble
+        val serviceIntent = Intent(this, FloatingLauncherService::class.java)
+        serviceIntent.putExtra("DISPLAY_ID", displayId)
+        startService(serviceIntent)
+
+        // Finish immediately so the launcher remains a service-only overlay
+        finish()
+    }
+
+    private fun hasAllPermissions(): Boolean {
+        // 1. Overlay
+        if (!Settings.canDrawOverlays(this)) return false
+
+        // 2. Shizuku
+        val shizukuGranted = try {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
+        if (!shizukuGranted) return false
+
+        // 3. Accessibility
+        if (!isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)) return false
+
+        // 4. Notifications removed (Not strictly required for service to run)
+
+        return true
+    }
+
+    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (enabledService in enabledServices) {
+            val serviceInfo = enabledService.resolveInfo.serviceInfo
+            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
+                return true
+            }
+        }
+        return false
+    }
+}
+```
+
+## File: MenuActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Color
+import android.os.Bundle
+import android.view.Gravity
+import android.widget.Button
+import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import rikka.shizuku.Shizuku
+
+class MenuActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // --- NEW: PERMISSION CHECK LANDING PAGE LOGIC ---
+        if (!hasRequiredPermissions()) {
+            val intent = Intent(this, PermissionActivity::class.java)
+            startActivity(intent)
+            finish() // Close MenuActivity so user can't go back without perms
+            return
+        }
+        // ------------------------------------------------
+
+        // 1. Shizuku Permission Check (Existing logic can remain or be removed as double-check)
+        checkShizukuPermission() 
+
+        // 2. Main Layout Container (Dark Theme)
+        val mainLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+            setPadding(40, 60, 40, 40)
+            setBackgroundColor(Color.parseColor("#1E1E1E")) // Dark Background
+            gravity = Gravity.TOP
+        }
+
+        // --- TITLE HEADER ---
+        val headerText = TextView(this).apply {
+            text = "CoverScreen Launcher"
+            textSize = 22f
+            setTextColor(Color.LTGRAY)
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+                bottomMargin = 50
+            }
+        }
+        mainLayout.addView(headerText)
+
+        // --- PROFILE ROW (Horizontal: Text + Save Icon) ---
+        val profileRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+                bottomMargin = 60
+            }
+            gravity = Gravity.CENTER_VERTICAL
+            // Add a subtle background to the row to make it distinct
+            setBackgroundColor(Color.parseColor("#2D2D2D"))
+            setPadding(20, 20, 20, 20)
+        }
+
+        // Profile Text (Left side)
+        val profileText = TextView(this).apply {
+            text = "Current: Default" 
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            // Weight 1 pushes the icon to the far right. 
+            // Change to 0 and WRAP_CONTENT if you want icon immediately next to text.
+            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) 
+        }
+
+        // Save Icon (Right side)
+        val saveBtn = ImageButton(this).apply {
+            setImageResource(android.R.drawable.ic_menu_save)
+            setBackgroundColor(Color.TRANSPARENT) // Transparent bg
+            setColorFilter(Color.CYAN) // Cyan tint to make it pop
+            setPadding(20, 0, 0, 0)
+            setOnClickListener {
+                Toast.makeText(this@MenuActivity, "Profile Saved (Placeholder)", Toast.LENGTH_SHORT).show()
+                // TODO: Connect to AppPreferences.saveProfile logic
+            }
+        }
+
+        profileRow.addView(profileText)
+        profileRow.addView(saveBtn)
+        mainLayout.addView(profileRow)
+
+        // --- LAUNCHER BUTTONS ---
+        
+        // Button 1: 4-Quadrant
+        val btnQuad = Button(this).apply {
+            text = "Launch 4-Quadrant"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#444444"))
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+                bottomMargin = 30
+            }
+            setOnClickListener {
+                launchActivity(QuadrantActivity::class.java)
+            }
+        }
+
+        // Button 2: Split-Screen
+        val btnSplit = Button(this).apply {
+            text = "Launch Split-Screen"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#444444"))
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+            setOnClickListener {
+                launchActivity(TriSplitActivity::class.java)
+            }
+        }
+
+        mainLayout.addView(btnQuad)
+        mainLayout.addView(btnSplit)
+
+        setContentView(mainLayout)
+    }
+
+    // Helper function to check all required permissions
+    private fun hasRequiredPermissions(): Boolean {
+        val hasOverlay = android.provider.Settings.canDrawOverlays(this)
+        val hasShizuku = try { 
+            rikka.shizuku.Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED 
+        } catch(e: Exception) { false }
+        
+        val hasNotif = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else true
+
+        return hasOverlay && hasShizuku && hasNotif
+    }
+
+    private fun checkShizukuPermission() {
+        if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
+            // Shizuku not running
+        } else if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Shizuku.requestPermission(0)
+            Shizuku.addRequestPermissionResultListener(this)
+        }
+    }
+
+    private fun launchActivity(cls: Class<*>) {
+        try {
+            val intent = Intent(this, cls)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
+        if (grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Shizuku Granted", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Shizuku.removeRequestPermissionResultListener(this)
+    }
+}
+```
+
+## File: PermissionActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.net.Uri
+import android.os.Bundle
+import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import rikka.shizuku.Shizuku
+
+class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener {
+
+    private lateinit var btnGrantOverlay: LinearLayout
+    private lateinit var btnGrantRestricted: LinearLayout  // NEW: App Info button
+    private lateinit var btnGrantShizuku: LinearLayout
+    private lateinit var btnGrantAccessibility: LinearLayout
+    
+    private lateinit var iconOverlay: ImageView
+    private lateinit var iconRestricted: ImageView  // NEW: Restricted settings icon
+    private lateinit var iconShizuku: ImageView
+    private lateinit var iconAccessibility: ImageView
+    
+    private lateinit var btnContinue: Button
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_permissions)
+
+        // Bind Views
+        btnGrantOverlay = findViewById(R.id.btn_perm_overlay)
+        btnGrantRestricted = findViewById(R.id.btn_perm_restricted)  // NEW
+        btnGrantShizuku = findViewById(R.id.btn_perm_shizuku)
+        btnGrantAccessibility = findViewById(R.id.btn_perm_accessibility)
+        
+        iconOverlay = findViewById(R.id.icon_status_overlay)
+        iconRestricted = findViewById(R.id.icon_status_restricted)  // NEW
+        iconShizuku = findViewById(R.id.icon_status_shizuku)
+        iconAccessibility = findViewById(R.id.icon_status_accessibility)
+        
+        btnContinue = findViewById(R.id.btn_continue)
+
+        // --- 1. OVERLAY PERMISSION ---
+        btnGrantOverlay.setOnClickListener {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            startActivityForResult(intent, 101)
+        }
+
+        // =======================================================================
+        // BUTTON: App Info / Restricted Settings
+        // SUMMARY: Opens the App Info page where the user can tap the 3-dot
+        //          hamburger menu (top right) and select "Allow Restricted Settings".
+        //          This is required on Android 13+ for sideloaded APKs to enable
+        //          accessibility services.
+        // =======================================================================
+        btnGrantRestricted.setOnClickListener {
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                intent.data = Uri.parse("package:$packageName")
+                startActivity(intent)
+                Toast.makeText(
+                    this,
+                    "Tap ⋮ menu (top right) → 'Allow Restricted Settings'",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Could not open App Info", Toast.LENGTH_SHORT).show()
+            }
+        }
+        // =======================================================================
+        // END BUTTON: App Info / Restricted Settings
+        // =======================================================================
+
+        // --- 2. SHIZUKU PERMISSION ---
+        btnGrantShizuku.setOnClickListener {
+            try {
+                if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+                    Shizuku.requestPermission(0)
+                } else {
+                    Toast.makeText(this, "Shizuku already granted", Toast.LENGTH_SHORT).show()
+                    refreshUI()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Shizuku not running. Please start Shizuku first.", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        // --- 3. ACCESSIBILITY PERMISSION (With Disclosure) ---
+        btnGrantAccessibility.setOnClickListener {
+            showAccessibilityDisclosure()
+        }
+
+        btnContinue.setOnClickListener {
+            if (hasAllPermissions()) {
+                startActivity(Intent(this, MenuActivity::class.java))
+                finish()
+            }
+        }
+
+        Shizuku.addRequestPermissionResultListener(this)
+    }
+
+    private fun showAccessibilityDisclosure() {
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Accessibility Service Required")
+            .setMessage("This app uses the Accessibility Service API to display floating windows and perform global actions (like Home/Back) on top of other apps.\n\n" +
+                        "No data is collected, stored, or shared. This permission is strictly used for the launcher functionality.")
+            .setPositiveButton("Agree & Grant") { _, _ ->
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                startActivity(intent)
+                Toast.makeText(this, "Find 'Quadrant Launcher' and enable it", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Not Now", null)
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume() 
+        refreshUI()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy() 
+        Shizuku.removeRequestPermissionResultListener(this)
+    }
+
+    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
+        refreshUI()
+    }
+
+    private fun refreshUI() {
+        val hasOverlay = Settings.canDrawOverlays(this)
+        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
+        val hasAccessibility = isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)
+        
+        updateItem(btnGrantOverlay, iconOverlay, hasOverlay)
+        updateItem(btnGrantShizuku, iconShizuku, hasShizuku)
+        updateItem(btnGrantAccessibility, iconAccessibility, hasAccessibility)
+
+        if (hasOverlay && hasShizuku && hasAccessibility) {
+            btnContinue.isEnabled = true
+            btnContinue.alpha = 1.0f
+            btnContinue.text = "Start Launcher"
+        } else {
+            btnContinue.isEnabled = false
+            btnContinue.alpha = 0.5f
+            btnContinue.text = "Grant Permissions to Continue"
+        }
+    }
+
+    private fun updateItem(container: LinearLayout, icon: ImageView, granted: Boolean) {
+        if (granted) {
+            icon.setImageResource(android.R.drawable.checkbox_on_background)
+            icon.setColorFilter(Color.GREEN)
+            container.isClickable = false
+            container.alpha = 0.6f
+        } else {
+            icon.setImageResource(android.R.drawable.checkbox_off_background)
+            icon.setColorFilter(Color.RED)
+            container.isClickable = true
+            container.alpha = 1.0f
+        }
+    }
+
+    private fun hasAllPermissions(): Boolean {
+        val hasOverlay = Settings.canDrawOverlays(this)
+        val hasShizuku = try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch(e: Exception) { false }
+        val hasAccessibility = isAccessibilityServiceEnabled(this, FloatingLauncherService::class.java)
+        return hasOverlay && hasShizuku && hasAccessibility
+    }
+
+    private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (enabledService in enabledServices) {
+            val serviceInfo = enabledService.resolveInfo.serviceInfo
+            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
+                return true
+            }
+        }
+        return false
+    }
+}
+```
+
+## File: QuadrantActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.app.Activity
+import android.app.ActivityOptions
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Rect
+import android.os.Bundle
+import android.util.Log
+import android.widget.Button
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import rikka.shizuku.Shizuku
+
+class QuadrantActivity : AppCompatActivity() {
+
+    companion object {
+        const val Q1_KEY = "Q1_PACKAGE"
+        const val Q2_KEY = "Q2_PACKAGE"
+        const val Q3_KEY = "Q3_PACKAGE"
+        const val Q4_KEY = "Q4_PACKAGE"
+    }
+
+    private var q1Package: String? = null
+    private var q2Package: String? = null
+    private var q3Package: String? = null
+    private var q4Package: String? = null
+
+    private lateinit var q1Button: Button
+    private lateinit var q2Button: Button
+    private lateinit var q3Button: Button
+    private lateinit var q4Button: Button
+    private lateinit var launchButton: Button
+
+    private var currentQuadrant = -1
+    private var hasShizukuPermission = false
+
+    private val REQUEST_PERMISSION_RESULT_LISTENER =
+        Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+            if (requestCode == ShizukuHelper.SHIZUKU_PERMISSION_REQUEST_CODE) {
+                hasShizukuPermission = grantResult == PackageManager.PERMISSION_GRANTED
+                checkShizukuPermission() // Update status
+            }
+        }
+
+    private val appSelectLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val packageName = result.data?.getStringExtra(MainActivity.SELECTED_APP_PACKAGE)
+            if (packageName != null) {
+                val simple = AppPreferences.getSimpleName(packageName)
+                when (currentQuadrant) {
+                    1 -> {
+                        q1Package = packageName
+                        q1Button.text = "Q1: $simple"
+                        AppPreferences.savePackage(this, Q1_KEY, packageName)
+                    }
+                    2 -> {
+                        q2Package = packageName
+                        q2Button.text = "Q2: $simple"
+                        AppPreferences.savePackage(this, Q2_KEY, packageName)
+                    }
+                    3 -> {
+                        q3Package = packageName
+                        q3Button.text = "Q3: $simple"
+                        AppPreferences.savePackage(this, Q3_KEY, packageName)
+                    }
+                    4 -> {
+                        q4Package = packageName
+                        q4Button.text = "Q4: $simple"
+                        AppPreferences.savePackage(this, Q4_KEY, packageName)
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Shizuku.addRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER)
+        setContentView(R.layout.activity_quadrant)
+
+        q1Button = findViewById(R.id.q1_button)
+        q2Button = findViewById(R.id.q2_button)
+        q3Button = findViewById(R.id.q3_button)
+        q4Button = findViewById(R.id.q4_button)
+        launchButton = findViewById(R.id.launch_button)
+
+        loadSavedApps()
+
+        q1Button.setOnClickListener { currentQuadrant = 1; launchAppPicker() }
+        q2Button.setOnClickListener { currentQuadrant = 2; launchAppPicker() }
+        q3Button.setOnClickListener { currentQuadrant = 3; launchAppPicker() }
+        q4Button.setOnClickListener { currentQuadrant = 4; launchAppPicker() }
+
+        launchButton.setOnClickListener {
+            if (q1Package != null && q2Package != null &&
+                q3Package != null && q4Package != null) {
+                launchQuadrantApps()
+            } else {
+                Toast.makeText(this, "Select all 4 apps.", Toast.LENGTH_SHORT).show()
+            }
+        }
+        checkShizukuPermission()
+    }
+
+    private fun loadSavedApps() {
+        q1Package = AppPreferences.loadPackage(this, Q1_KEY)
+        q1Button.text = "Q1: ${AppPreferences.getSimpleName(q1Package)}"
+        q2Package = AppPreferences.loadPackage(this, Q2_KEY)
+        q2Button.text = "Q2: ${AppPreferences.getSimpleName(q2Package)}"
+        q3Package = AppPreferences.loadPackage(this, Q3_KEY)
+        q3Button.text = "Q3: ${AppPreferences.getSimpleName(q3Package)}"
+        q4Package = AppPreferences.loadPackage(this, Q4_KEY)
+        q4Button.text = "Q4: ${AppPreferences.getSimpleName(q4Package)}"
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Shizuku.removeRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER)
+    }
+
+    private fun checkShizukuPermission() {
+        if (ShizukuHelper.isShizukuAvailable()) {
+            if (ShizukuHelper.hasPermission()) {
+                hasShizukuPermission = true
+            } else {
+                ShizukuHelper.requestPermission()
+            }
+        }
+    }
+
+    private fun launchAppPicker() {
+        appSelectLauncher.launch(Intent(this, MainActivity::class.java))
+    }
+
+    private fun launchQuadrantApps() {
+        val metrics = windowManager.maximumWindowMetrics
+        val w = metrics.bounds.width()
+        val h = metrics.bounds.height()
+
+        val q1 = Rect(0, 0, w / 2, h / 2)
+        val q2 = Rect(w / 2, 0, w, h / 2)
+        val q3 = Rect(0, h / 2, w / 2, h)
+        val q4 = Rect(w / 2, h / 2, w, h)
+
+        // Kill all first (Synchronously wait for shell command)
+        if (hasShizukuPermission) {
+            // Launch in background thread to avoid freezing UI if kill takes time
+            Thread {
+                ShizukuHelper.killApp(q1Package!!)
+                ShizukuHelper.killApp(q2Package!!)
+                ShizukuHelper.killApp(q3Package!!)
+                ShizukuHelper.killApp(q4Package!!)
+                
+                // IMPORTANT: Wait for OS to clean up windows
+                try { Thread.sleep(400) } catch (e: InterruptedException) {}
+
+                // Back to UI thread to launch
+                runOnUiThread {
+                    launchAppIntent(q1Package!!, q1)
+                    launchAppIntent(q2Package!!, q2)
+                    launchAppIntent(q3Package!!, q3)
+                    launchAppIntent(q4Package!!, q4)
+                }
+            }.start()
+        } else {
+            // Fallback (wont work well for moving windows)
+            launchAppIntent(q1Package!!, q1)
+            launchAppIntent(q2Package!!, q2)
+            launchAppIntent(q3Package!!, q3)
+            launchAppIntent(q4Package!!, q4)
+        }
+    }
+
+    private fun launchAppIntent(packageName: String, bounds: Rect) {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            if (intent == null) return
+
+            // CLEAR_TOP helps reset the task state
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            
+            val options = ActivityOptions.makeBasic().setLaunchBounds(bounds)
+            startActivity(intent, options.toBundle())
+        } catch (e: Exception) {
+            Log.e("Quadrant", "Launch failed for $packageName", e)
+        }
+    }
+}
+```
+
+## File: ShellUserService.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.content.ContentResolver
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Binder
+import android.os.IBinder
+import android.provider.Settings
+import android.util.Log
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.util.ArrayList
+import java.util.regex.Pattern
+import android.os.Build
+
+class ShellUserService : IShellService.Stub() {
+
+    private val TAG = "ShellUserService"
+
+    companion object {
+        const val POWER_MODE_OFF = 0
+        const val POWER_MODE_NORMAL = 2
+
+        @Volatile private var displayControlClass: Class<*>? = null
+        @Volatile private var displayControlClassLoaded = false
+    }
+
+    // === GEMINI TASK CACHE - START ===
+    // Cache for Gemini task ID since it trampolines and becomes invisible
+    // The BardEntryPointActivity creates a task, then immediately redirects to Google QSB
+    // After trampoline, the original task disappears from am stack list
+    // We cache the exact task ID when found and reuse it for subsequent repositions
+    private var cachedGeminiTaskId: Int = -1
+    private var cachedGeminiTaskTime: Long = 0
+    private val GEMINI_CACHE_VALIDITY_MS = 30000L  // Cache valid for 30 seconds
+    // === GEMINI TASK CACHE - END ===
+
+    private val surfaceControlClass: Class<*> by lazy {
+        Class.forName("android.view.SurfaceControl")
+    }
+
+    private fun getDisplayControlClass(): Class<*>? {
+        if (displayControlClassLoaded && displayControlClass != null) return displayControlClass
+        
+        return try {
+            val classLoaderFactoryClass = Class.forName("com.android.internal.os.ClassLoaderFactory")
+            val createClassLoaderMethod = classLoaderFactoryClass.getDeclaredMethod(
+                "createClassLoader",
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                ClassLoader::class.java,
+                Int::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                String::class.java
+            )
+            val classLoader = createClassLoaderMethod.invoke(
+                null, "/system/framework/services.jar", null, null,
+                ClassLoader.getSystemClassLoader(), 0, true, null
+            ) as ClassLoader
+
+            val loadedClass = classLoader.loadClass("com.android.server.display.DisplayControl").also {
+                val loadMethod = Runtime::class.java.getDeclaredMethod(
+                    "loadLibrary0",
+                    Class::class.java,
+                    String::class.java
+                )
+                loadMethod.isAccessible = true
+                loadMethod.invoke(Runtime.getRuntime(), it, "android_servers")
+            }
+            
+            displayControlClass = loadedClass
+            displayControlClassLoaded = true
+            loadedClass
+        } catch (e: Exception) {
+            Log.w(TAG, "DisplayControl not available", e)
+            null
+        }
+    }
+
+    private fun getAllPhysicalDisplayTokens(): List<IBinder> {
+        val tokens = ArrayList<IBinder>()
+        try {
+            val physicalIds: LongArray = if (Build.VERSION.SDK_INT >= 34) {
+                val controlClass = getDisplayControlClass()
+                if (controlClass != null) {
+                    controlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                } else {
+                     try {
+                        surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+                     } catch (e: Exception) { LongArray(0) }
+                }
+            } else {
+                surfaceControlClass.getMethod("getPhysicalDisplayIds").invoke(null) as LongArray
+            }
+
+            if (physicalIds.isEmpty()) {
+                getSurfaceControlInternalToken()?.let { tokens.add(it) }
+                return tokens
+            }
+
+            for (id in physicalIds) {
+                try {
+                    val token: IBinder? = if (Build.VERSION.SDK_INT >= 34) {
+                        val controlClass = getDisplayControlClass()
+                        if (controlClass != null) {
+                             controlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        } else {
+                            surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                                .invoke(null, id) as? IBinder
+                        }
+                    } else {
+                        surfaceControlClass.getMethod("getPhysicalDisplayToken", Long::class.javaPrimitiveType)
+                            .invoke(null, id) as? IBinder
+                    }
+                    
+                    if (token != null) tokens.add(token)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to get token for physical ID $id", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Critical failure getting display tokens", e)
+        }
+        return tokens
+    }
+
+    private fun getSurfaceControlInternalToken(): IBinder? {
+        return try {
+            if (Build.VERSION.SDK_INT < 29) {
+                surfaceControlClass.getMethod("getBuiltInDisplay", Int::class.java).invoke(null, 0) as IBinder
+            } else {
+                surfaceControlClass.getMethod("getInternalDisplayToken").invoke(null) as IBinder
+            }
+        } catch (e: Exception) { null }
+    }
+
+    private fun setPowerModeOnToken(token: IBinder, mode: Int) {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayPowerMode",
+                IBinder::class.java,
+                Int::class.javaPrimitiveType
+            )
+            method.invoke(null, token, mode)
+        } catch (e: Exception) {
+            Log.e(TAG, "setDisplayPowerMode failed for token $token", e)
+        }
+    }
+
+    private fun setDisplayBrightnessOnToken(token: IBinder, brightness: Float): Boolean {
+        try {
+            val method = surfaceControlClass.getMethod(
+                "setDisplayBrightness",
+                IBinder::class.java,
+                Float::class.javaPrimitiveType
+            )
+            method.invoke(null, token, brightness)
+            return true
+        } catch (e: Exception) {
+             try {
+                val method = surfaceControlClass.getMethod(
+                    "setDisplayBrightness",
+                    IBinder::class.java,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType
+                )
+                method.invoke(null, token, brightness, brightness, brightness, brightness)
+                return true
+            } catch (e2: Exception) {
+                return false
+            }
+        }
+    }
+
+    private fun setDisplayBrightnessInternal(displayId: Int, brightness: Float): Boolean {
+        // Legacy shim for single-target calls
+        val tokens = getAllPhysicalDisplayTokens()
+        if (tokens.isNotEmpty()) return setDisplayBrightnessOnToken(tokens[0], brightness)
+        return false
+    }
+
+    private val shLock = Object()
+    private var _shProcess: Process? = null
+    private val shProcess: Process
+        get() = synchronized(shLock) {
+            if (_shProcess?.isAlive == true) _shProcess!!
+            else Runtime.getRuntime().exec(arrayOf("sh")).also { _shProcess = it }
+        }
+
+    private fun execShellCommand(command: String) {
+        synchronized(shLock) {
+            try {
+                val output = shProcess.outputStream
+                output.write("$command\n".toByteArray())
+                output.flush()
+            } catch (e: Exception) {
+                Log.e(TAG, "Shell command failed", e)
+            }
+        }
+    }
+
+    // ============================================================
+    // AIDL Interface Implementations
+    // ============================================================
+
+    
+override fun setBrightness(displayId: Int, brightness: Int) {
+        Log.d(TAG, "setBrightness(Global Broadcast, Value: $brightness)")
+        val token = Binder.clearCallingIdentity()
+        try {
+            if (brightness < 0) {
+                // === SCREEN OFF ===
+                execShellCommand("settings put system screen_brightness_mode 0")
+                
+                // Get ALL tokens, but ONLY apply to the first 2 (Main + Cover)
+                // This prevents killing the Glasses (which would be index 2+)
+                val tokens = getAllPhysicalDisplayTokens()
+                val safeTokens = tokens.take(2)
+                
+                for (t in safeTokens) {
+                    setDisplayBrightnessOnToken(t, -1.0f)
+                }
+                
+                execShellCommand("settings put system screen_brightness_float -1.0")
+                execShellCommand("settings put system screen_brightness -1")
+            } else {
+                // === SCREEN ON ===
+                val floatVal = brightness.toFloat() / 255.0f
+                
+                // Restore ALL tokens (safety, in case user replugged glasses)
+                val tokens = getAllPhysicalDisplayTokens()
+                for (t in tokens) {
+                    setDisplayBrightnessOnToken(t, floatVal)
+                }
+                
+                execShellCommand("settings put system screen_brightness_float $floatVal")
+                execShellCommand("settings put system screen_brightness $brightness")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setBrightness failed", e)
+        } finally {
+             Binder.restoreCallingIdentity(token)
+        }
+    }
+
+    override fun setScreenOff(displayIndex: Int, turnOff: Boolean) {
+        Log.d(TAG, "setScreenOff(Global Broadcast, TurnOff: $turnOff)")
+        val token = Binder.clearCallingIdentity()
+        try {
+            val mode = if (turnOff) POWER_MODE_OFF else POWER_MODE_NORMAL
+            
+            // Same safety limit: Only affect first 2 physical screens
+            val tokens = getAllPhysicalDisplayTokens()
+            val safeTokens = tokens.take(2)
+            
+            for (t in safeTokens) {
+                setPowerModeOnToken(t, mode)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "setScreenOff failed", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    // --- V1.0 LOGIC: Window Management (Retained for Tiling/Minimizing) ---
+    
+    override fun forceStop(packageName: String) {
+        val token = Binder.clearCallingIdentity()
+        try { 
+            val realPkg = if (packageName.endsWith(":gemini")) packageName.substringBefore(":") else packageName
+            Runtime.getRuntime().exec("am force-stop $realPkg").waitFor() 
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+    }
+
+    override fun runCommand(command: String) {
+        val token = Binder.clearCallingIdentity()
+        try { Runtime.getRuntime().exec(command).waitFor() } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+    }
+
+
+
+    // === REPOSITION TASK - START ===
+    // Repositions a task window to specified bounds using am task commands
+    override fun repositionTask(packageName: String, className: String?, left: Int, top: Int, right: Int, bottom: Int) {
+        Log.d(TAG, "repositionTask: pkg=$packageName cls=$className bounds=[$left,$top,$right,$bottom]")
+
+        val tid = getTaskId(packageName, className)
+        Log.d(TAG, "repositionTask: getTaskId returned $tid")
+
+        if (tid == -1) {
+            Log.w(TAG, "repositionTask: No task found for $packageName / $className")
+            return
+        }
+
+        val token = Binder.clearCallingIdentity()
+        try {
+            // Set freeform windowing mode (mode 5)
+            val modeCmd = "am task set-windowing-mode $tid 5"
+            Log.d(TAG, "repositionTask: $modeCmd")
+            val modeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd))
+            modeProc.waitFor()
+            Thread.sleep(100)
+
+            // Apply resize
+            val resizeCmd = "am task resize $tid $left $top $right $bottom"
+            Log.d(TAG, "repositionTask: $resizeCmd")
+            val resizeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd))
+            val exitCode = resizeProc.waitFor()
+
+            Log.d(TAG, "repositionTask: resize exitCode=$exitCode for task $tid")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "repositionTask: FAILED", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    // === REPOSITION TASK - END ===
+
+
+
+    // === GET VISIBLE PACKAGES - START ===
+    // Returns list of packages that are actually visible on the specified display
+    // Checks both mViewVisibility AND window frame bounds
+    // Windows moved off-screen (left >= 10000) are considered not visible
+    override fun getVisiblePackages(displayId: Int): List<String> {
+        val list = ArrayList<String>()
+        val token = Binder.clearCallingIdentity()
+        try {
+            Log.d(TAG, "getVisiblePackages: Checking display $displayId")
+            val p = Runtime.getRuntime().exec("dumpsys window windows")
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            var currentPkg: String? = null
+            var isVisible = false
+            var onCorrectDisplay = false
+            var isOffScreen = false
+            val windowPattern = Pattern.compile("Window\\{[0-9a-f]+ u\\d+ ([^\\}/ ]+)")
+            // Pattern to match frame bounds like "frame=[50000,50000][50100,50100]" or "mFrame=[0,0][960,1080]"
+            val framePattern = Pattern.compile("(?:frame|mFrame)=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
+
+            while (r.readLine().also { line = it } != null) {
+                val l = line!!.trim()
+
+                // New window entry - reset state
+                if (l.startsWith("Window #")) {
+                    currentPkg = null
+                    isVisible = false
+                    onCorrectDisplay = false
+                    isOffScreen = false
+                    val matcher = windowPattern.matcher(l)
+                    if (matcher.find()) currentPkg = matcher.group(1)
+                }
+
+                // Check display
+                if (l.contains("displayId=$displayId") || l.contains("mDisplayId=$displayId")) {
+                    onCorrectDisplay = true
+                }
+
+                // Check visibility flag
+                if (l.contains("mViewVisibility=0x0")) {
+                    isVisible = true
+                }
+
+                // Check frame bounds - if left >= 10000, window is off-screen (minimized)
+                val frameMatcher = framePattern.matcher(l)
+                if (frameMatcher.find()) {
+                    try {
+                        val left = frameMatcher.group(1)?.toIntOrNull() ?: 0
+                        if (left >= 10000) {
+                            isOffScreen = true
+                            Log.d(TAG, "getVisiblePackages: $currentPkg is off-screen (left=$left)")
+                        }
+                    } catch (e: Exception) {}
+                }
+
+                // Add to list if truly visible (on correct display, view visible, NOT off-screen)
+                if (currentPkg != null && isVisible && onCorrectDisplay && !isOffScreen) {
+                    if (isUserApp(currentPkg!!) && !list.contains(currentPkg!!)) {
+                        list.add(currentPkg!!)
+                        Log.d(TAG, "getVisiblePackages: Found visible (window): $currentPkg")
+                    }
+                    currentPkg = null
+                }
+            }
+            r.close()
+            p.waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "getVisiblePackages: Error", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+        Log.d(TAG, "getVisiblePackages: display=$displayId result=${list.joinToString()}")
+        return list
+    }
+    // === GET VISIBLE PACKAGES - END ===
+
+    override fun getAllRunningPackages(): List<String> {
+        val list = ArrayList<String>()
+        val token = Binder.clearCallingIdentity()
+        try {
+            val p = Runtime.getRuntime().exec("dumpsys activity activities")
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            val recordPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
+            while (r.readLine().also { line = it } != null) {
+                if (line!!.contains("ActivityRecord{")) {
+                    val m = recordPattern.matcher(line!!)
+                    if (m.find()) { val pkg = m.group(1); if (pkg != null && !list.contains(pkg) && isUserApp(pkg)) list.add(pkg) }
+                }
+            }
+        } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
+        return list
+    }
+
+override fun getWindowLayouts(displayId: Int): List<String> {
+    val results = ArrayList<String>()
+    val token = Binder.clearCallingIdentity()
+    try {
+        val p = Runtime.getRuntime().exec("dumpsys activity activities")
+        val r = BufferedReader(InputStreamReader(p.inputStream))
+        var line: String?
+        
+        var currentDisplayId = -1
+        var currentTaskBounds: String? = null
+        var foundPackages = mutableSetOf<String>()
+        
+        val displayPattern = Pattern.compile("Display #(\\d+)")
+        val boundsPattern = Pattern.compile("bounds=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
+        val rectPattern = Pattern.compile("mBounds=Rect\\((\\d+), (\\d+) - (\\d+), (\\d+)\\)")
+        val activityPattern = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u\\d+ ([a-zA-Z0-9_.]+)/")
+
+        while (r.readLine().also { line = it } != null) {
+            val l = line!!
+            
+            val displayMatcher = displayPattern.matcher(l)
+            if (displayMatcher.find()) {
+                currentDisplayId = displayMatcher.group(1)?.toIntOrNull() ?: -1
+            }
+            
+            if (currentDisplayId != displayId) continue
+            
+            val boundsMatcher = boundsPattern.matcher(l)
+            if (boundsMatcher.find()) {
+                val left = boundsMatcher.group(1)
+                val top = boundsMatcher.group(2)
+                val right = boundsMatcher.group(3)
+                val bottom = boundsMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            val rectMatcher = rectPattern.matcher(l)
+            if (rectMatcher.find()) {
+                val left = rectMatcher.group(1)
+                val top = rectMatcher.group(2)
+                val right = rectMatcher.group(3)
+                val bottom = rectMatcher.group(4)
+                currentTaskBounds = "$left,$top,$right,$bottom"
+            }
+            
+            if (l.contains("ActivityRecord{") && currentTaskBounds != null) {
+                val activityMatcher = activityPattern.matcher(l)
+                if (activityMatcher.find()) {
+                    val pkg = activityMatcher.group(1)
+                    if (pkg != null && isUserApp(pkg) && !foundPackages.contains(pkg)) {
+                        results.add("$pkg|$currentTaskBounds")
+                        foundPackages.add(pkg)
+                    }
+                }
+            }
+        }
+        
+        r.close()
+        p.waitFor()
+    } catch (e: Exception) {
+        Log.e(TAG, "getWindowLayouts failed", e)
+    } finally {
+        Binder.restoreCallingIdentity(token)
+    }
+    return results
+}
+
+
+    // === GET TASK ID - START ===
+    // Uses 'am stack list' to find task ID
+    // PRIORITY: Full component match (pkg/cls) > package match > short activity match
+    // Handles trampolining apps like Gemini which redirect to different packages
+    // For Gemini: caches the exact task ID when found since it becomes invisible after trampoline
+
+    // === GEMINI TASK CACHE - START ===
+    // Cache for Gemini task ID since it trampolines and becomes invisible
+    // The BardEntryPointActivity creates a task, then immediately redirects to Google QSB
+    // After trampoline, the original task disappears from am stack list
+    // We cache the exact task ID when found and reuse it for subsequent repositions
+    // === GEMINI TASK CACHE - END ===
+
+    // === GET TASK ID - START ===
+    // Uses 'am stack list' to find task ID
+    // PRIORITY: Full component match (pkg/cls) > package match > short activity match
+    // Handles trampolining apps like Gemini which redirect to different packages
+    // For Gemini: caches the exact task ID when found since it becomes invisible after trampoline
+
+    override fun getTaskId(packageName: String, className: String?): Int {
+        var exactTaskId = -1      // Best: full component match
+        var packageTaskId = -1    // Good: package name match
+        var fallbackTaskId = -1   // Last resort: short activity name match
+        
+        val token = Binder.clearCallingIdentity()
+        try {
+            Log.d(TAG, "getTaskId: Looking for pkg=$packageName cls=$className")
+            
+            // === GEMINI DETECTION ===
+            val isGemini = packageName == "com.google.android.apps.bard" || 
+                          (className?.contains("Bard") == true) ||
+                          (className?.contains("bard") == true)
+            
+            // === GEMINI CACHE CHECK - START ===
+            // For Gemini, we use a very short cache validity because the original task
+            // gets destroyed quickly. After ~500ms, we should always search fresh
+            // to find the trampoline target instead of the dead original task.
+            if (isGemini && cachedGeminiTaskId > 0) {
+                val cacheAge = System.currentTimeMillis() - cachedGeminiTaskTime
+                // Use very short validity - 500ms max, not 30 seconds
+                // After trampoline completes, the cached ID is useless
+                val shortValidity = 500L
+                if (cacheAge < shortValidity) {
+                    Log.d(TAG, "getTaskId: Gemini using CACHED taskId=$cachedGeminiTaskId (age=${cacheAge}ms)")
+                    return cachedGeminiTaskId
+                } else {
+                    Log.d(TAG, "getTaskId: Gemini cache too old (age=${cacheAge}ms > ${shortValidity}ms), searching fresh")
+                    cachedGeminiTaskId = -1
+                }
+            }
+            // === GEMINI CACHE CHECK - END ===
+            
+            if (isGemini) {
+                Log.d(TAG, "getTaskId: Gemini detected, will check trampoline targets")
+            }
+            
+            val cmd = arrayOf("sh", "-c", "am stack list")
+            val p = Runtime.getRuntime().exec(cmd)
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            
+            // Build component string for exact matching
+            val fullComponent = if (!className.isNullOrEmpty() && className != "null" && className != "default") {
+                "$packageName/$className"
+            } else {
+                null
+            }
+            
+            // Short activity name (fallback only)
+            val shortActivity = className?.substringAfterLast(".")
+            
+            Log.d(TAG, "getTaskId: fullComponent=$fullComponent shortActivity=$shortActivity")
+            
+            while (r.readLine().also { line = it } != null) {
+                val l = line!!.trim()
+                
+                if (!l.contains("taskId=") || !l.contains(":")) continue
+                
+                // Extract task ID from line
+                val match = Regex("taskId=(\\d+):").find(l)
+                if (match == null) continue
+                
+                val foundId = match.groupValues[1].toIntOrNull() ?: continue
+                if (foundId <= 0) continue
+                
+                // PRIORITY 1: Exact full component match (highest priority)
+                if (fullComponent != null && l.contains(fullComponent)) {
+                    Log.d(TAG, "getTaskId: EXACT MATCH taskId=$foundId component=$fullComponent")
+                    exactTaskId = foundId
+                    // Keep searching - want most recent exact match
+                }
+                // PRIORITY 2: Package name match
+                else if (l.contains("$packageName/")) {
+                    Log.d(TAG, "getTaskId: PACKAGE MATCH taskId=$foundId pkg=$packageName")
+                    packageTaskId = foundId
+                }
+                // PRIORITY 3: Gemini trampoline - check for Google Quick Search Box with Assistant activity
+                // The actual Gemini UI runs in Google QSB with an assistant/robin activity
+                // Avoid matching Android Auto ghost activities
+                else if (isGemini && l.contains("com.google.android.googlequicksearchbox")) {
+                    // Check if this is the actual assistant activity (not Auto ghost)
+                    val isAssistantActivity = l.contains("assistant") || l.contains("robin") || l.contains("MainActivity")
+                    val isAutoGhost = l.contains("auto") || l.contains("ghost")
+                    
+                    if (isAssistantActivity && !isAutoGhost) {
+                        if (foundId > packageTaskId) {
+                            Log.d(TAG, "getTaskId: GEMINI TRAMPOLINE MATCH taskId=$foundId (assistant activity)")
+                            packageTaskId = foundId
+                        }
+                    } else {
+                        Log.d(TAG, "getTaskId: GEMINI TRAMPOLINE SKIP taskId=$foundId (not assistant activity)")
+                    }
+                }
+
+                // PRIORITY 4: Short activity name (ONLY if no better match exists)
+                // Skip generic names that cause false positives
+                else if (shortActivity != null && 
+                         shortActivity != "MainActivity" &&  // Too generic
+                         shortActivity != "default" &&       // Too generic
+                         l.contains(shortActivity)) {
+                    Log.d(TAG, "getTaskId: FALLBACK MATCH taskId=$foundId activity=$shortActivity")
+                    fallbackTaskId = foundId
+                }
+            }
+            r.close()
+            p.waitFor()
+            
+            // Return best match in priority order
+            val result = when {
+                exactTaskId > 0 -> exactTaskId
+                packageTaskId > 0 -> packageTaskId
+                fallbackTaskId > 0 -> fallbackTaskId
+                else -> -1
+            }
+            
+            // === GEMINI TASK HANDLING - START ===
+            // Gemini (com.google.android.apps.bard) is a trampolining app:
+            // - BardEntryPointActivity creates a task, then DESTROYS it within ~40ms
+            // - User is redirected to Google Quick Search Box
+            // - The original task ID is useless because the task no longer exists
+            // 
+            // Strategy: Don't cache the destroyed task. Instead:
+            // - If we have an exact match AND the task has activities, cache it
+            // - If task has trampolined (no exact match), use the trampoline target
+            // - For repositioning, the trampoline target (Google QSB) is what's actually running
+            
+            if (isGemini) {
+                if (exactTaskId > 0) {
+                    // We found an exact match - but is the task still alive?
+                    // Check if this task actually has activities (not destroyed)
+                    // For now, we'll cache it but with a very short validity
+                    cachedGeminiTaskId = exactTaskId
+                    cachedGeminiTaskTime = System.currentTimeMillis()
+                    Log.d(TAG, "getTaskId: Gemini exact match found, CACHED taskId=$exactTaskId (may be short-lived)")
+                } else if (packageTaskId > 0) {
+                    // No exact match means trampoline completed
+                    // The packageTaskId is the Google QSB task that Gemini is running in
+                    // This is actually what we should reposition!
+                    Log.d(TAG, "getTaskId: Gemini trampolined, using trampoline target taskId=$packageTaskId")
+                    
+                    // DON'T use cached ID - it's destroyed. Use the live trampoline target.
+                    // Clear any stale cache
+                    if (cachedGeminiTaskId > 0) {
+                        Log.d(TAG, "getTaskId: Clearing stale Gemini cache (old=$cachedGeminiTaskId)")
+                        cachedGeminiTaskId = -1
+                    }
+                    
+                    return packageTaskId
+                }
+            }
+            // === GEMINI TASK HANDLING - END ===
+            
+            Log.d(TAG, "getTaskId: Final result=$result (exact=$exactTaskId pkg=$packageTaskId fallback=$fallbackTaskId)")
+            return result
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "getTaskId: FAILED", e)
+            return -1
+        } finally { 
+            Binder.restoreCallingIdentity(token) 
+        }
+    }
+    // === GET TASK ID - END ===
+
+    // === GET TASK ID - END ===
+
+    // === GET TASK ID - END ===
+
+    // === DEBUG DUMP TASKS - START ===
+    // Dumps raw task info for debugging
+    fun debugDumpTasks(): String {
+        val token = Binder.clearCallingIdentity()
+        val result = StringBuilder()
+        try {
+            val cmd = arrayOf("sh", "-c", "dumpsys activity activities | head -100")
+            val p = Runtime.getRuntime().exec(cmd)
+            val r = BufferedReader(InputStreamReader(p.inputStream))
+            var line: String?
+            while (r.readLine().also { line = it } != null) {
+                result.appendLine(line)
+            }
+            r.close()
+            p.waitFor()
+        } catch (e: Exception) {
+            result.appendLine("ERROR: ${e.message}")
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+        return result.toString()
+    }
+    // === DEBUG DUMP TASKS - END ===
+
+    // === MOVE TASK TO BACK / MINIMIZE TASK - START ===
+    // Minimizes a task using Samsung's IMultiTaskingBinder from ActivityTaskManager
+    // This is what Android's freeform minimize button uses on Samsung devices
+    override fun moveTaskToBack(taskId: Int) {
+        val token = Binder.clearCallingIdentity()
+        try {
+            Log.d(TAG, "moveTaskToBack: Minimizing taskId=$taskId via ATM.getMultiTaskingBinder()")
+
+            var success = false
+
+            try {
+                // Get ActivityTaskManager service
+                val atmClass = Class.forName("android.app.ActivityTaskManager")
+                val getServiceMethod = atmClass.getMethod("getService")
+                val atm = getServiceMethod.invoke(null)
+
+                Log.d(TAG, "moveTaskToBack: Got ATM service")
+
+                // Call getMultiTaskingBinder()
+                val getMultiTaskingBinder = atm.javaClass.getMethod("getMultiTaskingBinder")
+                val multiTaskingBinder = getMultiTaskingBinder.invoke(atm)
+
+                if (multiTaskingBinder != null) {
+                    Log.d(TAG, "moveTaskToBack: Got MultiTaskingBinder: ${multiTaskingBinder.javaClass.name}")
+
+                    // Call minimizeTaskById(taskId)
+                    val minimizeMethod = multiTaskingBinder.javaClass.getMethod(
+                        "minimizeTaskById",
+                        Int::class.javaPrimitiveType
+                    )
+                    minimizeMethod.invoke(multiTaskingBinder, taskId)
+
+                    Log.d(TAG, "moveTaskToBack: minimizeTaskById($taskId) SUCCEEDED!")
+                    success = true
+                } else {
+                    Log.w(TAG, "moveTaskToBack: getMultiTaskingBinder() returned null")
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "moveTaskToBack: Samsung MultiTaskingBinder failed", e)
+                e.printStackTrace()
+            }
+
+            // FALLBACK: Off-screen positioning (only if Samsung API failed)
+            if (!success) {
+                Log.w(TAG, "moveTaskToBack: Using off-screen fallback")
+                val modeCmd = "am task set-windowing-mode $taskId 5"
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd)).waitFor()
+                Thread.sleep(100)
+                val resizeCmd = "am task resize $taskId 99999 99999 100000 100000"
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd)).waitFor()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "moveTaskToBack: FAILED", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+    // === MOVE TASK TO BACK / MINIMIZE TASK - END ===
+
+    private fun isUserApp(pkg: String): Boolean {
+        if (pkg == "com.android.systemui") return false
+        if (pkg == "com.android.launcher3") return false 
+        if (pkg == "com.sec.android.app.launcher") return false 
+        if (pkg == "com.katsuyamaki.DroidOSLauncher") return false
+        if (pkg == "com.example.coverscreentester") return false
+        if (pkg == "com.katsuyamaki.trackpad") return false
+        if (pkg.contains("inputmethod")) return false
+        if (pkg.contains("navigationbar")) return false
+        if (pkg == "ScreenDecorOverlayCover") return false
+        if (pkg == "RecentsTransitionOverlay") return false
+        if (pkg == "FreeformContainer") return false
+        if (pkg == "StatusBar") return false
+        if (pkg == "NotificationShade") return false
+        return true
+    }
+
+    // Interface compliance stubs
+    override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
+    override fun getSystemBrightness(): Int = 128
+    override fun getSystemBrightnessFloat(): Float = 0.5f
+    override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
+    override fun isAutoBrightness(): Boolean = true
+    override fun setBrightnessViaDisplayManager(displayId: Int, brightness: Float): Boolean = setDisplayBrightnessInternal(displayId, brightness)
+}
+```
+
+## File: ShizukuBinder.java
+```java
+package com.example.quadrantlauncher;
+
+import android.content.ComponentName;
+import android.content.ServiceConnection;
+import rikka.shizuku.Shizuku;
+
+public class ShizukuBinder {
+    
+    public static void bind(ComponentName component, ServiceConnection connection, boolean debug, int version) {
+        Shizuku.UserServiceArgs args = new Shizuku.UserServiceArgs(component)
+                .processNameSuffix("shell")
+                .daemon(false)
+                .debuggable(debug)
+                .version(version);
+        
+        Shizuku.bindUserService(args, connection);
+    }
+
+    public static void unbind(ComponentName component, ServiceConnection connection) {
+        Shizuku.UserServiceArgs args = new Shizuku.UserServiceArgs(component)
+                .processNameSuffix("shell")
+                .daemon(false);
+        
+        Shizuku.unbindUserService(args, connection, true); 
+    }
+}
+```
+
+## File: ShizukuHelper.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.content.pm.PackageManager
+import rikka.shizuku.Shizuku
+import java.lang.reflect.Method
+
+object ShizukuHelper {
+    const val SHIZUKU_PERMISSION_REQUEST_CODE = 1001
+
+    // Reflection to access hidden 'newProcess' method
+    private val newProcessMethod: Method by lazy {
+        val clazz = Class.forName("rikka.shizuku.Shizuku")
+        val method = clazz.getDeclaredMethod(
+            "newProcess",
+            Array<String>::class.java,
+            Array<String>::class.java,
+            String::class.java
+        )
+        method.isAccessible = true
+        method
+    }
+
+    /**
+     * Checks if Shizuku is available (Service bound and version correct).
+     */
+    fun isShizukuAvailable(): Boolean {
+        return try {
+            !Shizuku.isPreV11() && Shizuku.getVersion() >= 11
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Checks if we already have the permission.
+     */
+    fun hasPermission(): Boolean {
+        return if (isShizukuAvailable()) {
+            try {
+                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            } catch (e: Exception) {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    /**
+     * Requests permission. Default code used if none provided.
+     */
+    fun requestPermission(requestCode: Int = SHIZUKU_PERMISSION_REQUEST_CODE) {
+        if (isShizukuAvailable()) {
+            Shizuku.requestPermission(requestCode)
+        }
+    }
+
+    /**
+     * Executes a generic shell command using Shizuku.
+     */
+    fun runShellCommand(commandString: String) {
+        val command = arrayOf("sh", "-c", commandString)
+        val process = newProcessMethod.invoke(null, command, null, null) as Process
+        process.waitFor()
+    }
+
+    /**
+     * Kills the target app to force a window reset.
+     */
+    fun killApp(packageName: String) {
+        runShellCommand("am force-stop $packageName")
+    }
+}
+```
+
+## File: SplitActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.app.Activity
+import android.app.ActivityOptions
+import android.content.ComponentName
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.graphics.Rect
+import android.os.Bundle
+import android.os.IBinder
+import android.util.Log
+import android.widget.Button
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import rikka.shizuku.Shizuku
+
+class SplitActivity : AppCompatActivity() {
+
+    companion object {
+        const val SPLIT1_KEY = "SPLIT1_PACKAGE"
+        const val SPLIT2_KEY = "SPLIT2_PACKAGE"
+        const val TAG = "SplitActivity"
+    }
+
+    private var app1Package: String? = null
+    private var app2Package: String? = null
+    private lateinit var app1Button: Button
+    private lateinit var app2Button: Button
+    private lateinit var launchButton: Button
+    
+    private var currentApp = -1
+    private var shellService: IShellService? = null
+    private var isBound = false
+
+    // Connection to the Shell Service (Running inside Shizuku)
+    private val userServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            Log.i(TAG, "Shizuku Service Connected")
+            shellService = IShellService.Stub.asInterface(binder)
+            isBound = true
+            launchButton.text = "LAUNCH SPLIT (Ready)"
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            Log.w(TAG, "Shizuku Service Disconnected")
+            shellService = null
+            isBound = false
+            launchButton.text = "LAUNCH SPLIT (Disconnected)"
+        }
+    }
+
+    // Listener 1: When Shizuku itself starts/connects
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        checkShizukuStatus()
+    }
+
+    // Listener 2: When user grants permission
+    private val requestPermissionResultListener = Shizuku.OnRequestPermissionResultListener { _, grantResult ->
+        checkShizukuStatus()
+    }
+
+    private val appSelectLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val pkg = result.data?.getStringExtra(MainActivity.SELECTED_APP_PACKAGE)
+            if (pkg != null) {
+                val simple = AppPreferences.getSimpleName(pkg)
+                if (currentApp == 1) {
+                    app1Package = pkg
+                    app1Button.text = "App 1: $simple"
+                    AppPreferences.savePackage(this, SPLIT1_KEY, pkg)
+                } else if (currentApp == 2) {
+                    app2Package = pkg
+                    app2Button.text = "App 2: $simple"
+                    AppPreferences.savePackage(this, SPLIT2_KEY, pkg)
+                }
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_split)
+
+        app1Button = findViewById(R.id.app1_button)
+        app2Button = findViewById(R.id.app2_button)
+        launchButton = findViewById(R.id.launch_button_split)
+        
+        loadSavedApps()
+
+        app1Button.setOnClickListener { currentApp = 1; launchAppPicker() }
+        app2Button.setOnClickListener { currentApp = 2; launchAppPicker() }
+
+        launchButton.setOnClickListener {
+            if (app1Package != null && app2Package != null) {
+                launchSplitApps()
+            } else {
+                Toast.makeText(this, "Select two apps.", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Add Listeners
+        Shizuku.addBinderReceivedListener(binderReceivedListener)
+        Shizuku.addRequestPermissionResultListener(requestPermissionResultListener)
+        
+        // Initial Check
+        checkShizukuStatus()
+    }
+
+    private fun checkShizukuStatus() {
+        if (Shizuku.getBinder() == null) {
+            // Shizuku not attached yet
+            launchButton.text = "Waiting for Shizuku..."
+            return
+        }
+
+        if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+            bindShizukuService()
+        } else {
+            launchButton.text = "Requesting Permission..."
+            Shizuku.requestPermission(0)
+        }
+    }
+
+    private fun bindShizukuService() {
+        if (isBound) return
+        
+        try {
+            val component = ComponentName(packageName, ShellUserService::class.java.name)
+            // VERSION CODE 1 (Matches BuildConfig.VERSION_CODE usually)
+            ShizukuBinder.bind(component, userServiceConnection, true, 1)
+            launchButton.text = "Binding..."
+        } catch (e: Exception) {
+            Log.e(TAG, "Bind Failed", e)
+            launchButton.text = "Bind Failed"
+        }
+    }
+
+    private fun loadSavedApps() {
+        app1Package = AppPreferences.loadPackage(this, SPLIT1_KEY)
+        app1Button.text = "App 1: ${AppPreferences.getSimpleName(app1Package)}"
+        app2Package = AppPreferences.loadPackage(this, SPLIT2_KEY)
+        app2Button.text = "App 2: ${AppPreferences.getSimpleName(app2Package)}"
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Shizuku.removeBinderReceivedListener(binderReceivedListener)
+        Shizuku.removeRequestPermissionResultListener(requestPermissionResultListener)
+        
+        if (isBound) {
+            val component = ComponentName(packageName, ShellUserService::class.java.name)
+            ShizukuBinder.unbind(component, userServiceConnection)
+            isBound = false
+        }
+    }
+
+    private fun launchAppPicker() {
+        appSelectLauncher.launch(Intent(this, MainActivity::class.java))
+    }
+
+    private fun launchSplitApps() {
+        val metrics = windowManager.maximumWindowMetrics
+        val w = metrics.bounds.width()
+        val h = metrics.bounds.height()
+        val left = Rect(0, 0, w / 2, h)
+        val right = Rect(w / 2, 0, w, h)
+
+        if (isBound && shellService != null) {
+            launchButton.text = "LAUNCHING..."
+            Thread {
+                try {
+                    shellService?.forceStop(app1Package)
+                    shellService?.forceStop(app2Package)
+                    Thread.sleep(400)
+                    runOnUiThread {
+                        launchApp(app1Package!!, left)
+                        launchApp(app2Package!!, right)
+                        launchButton.text = "LAUNCH SPLIT"
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Remote Call Failed", e)
+                }
+            }.start()
+        } else {
+            Toast.makeText(this, "Shizuku NOT READY. Launching anyway.", Toast.LENGTH_LONG).show()
+            checkShizukuStatus() // Try connecting again
+            launchApp(app1Package!!, left)
+            launchApp(app2Package!!, right)
+        }
+    }
+
+    private fun launchApp(packageName: String, bounds: Rect) {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            if (intent == null) return
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            val options = ActivityOptions.makeBasic().setLaunchBounds(bounds)
+            startActivity(intent, options.toBundle())
+        } catch (e: Exception) {
+            Log.e(TAG, "Launch error", e)
+        }
+    }
+}
+```
+
+## File: TriSplitActivity.kt
+```kotlin
+package com.example.quadrantlauncher
+
+import android.app.Activity
+import android.app.ActivityOptions
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Rect
+import android.os.Bundle
+import android.util.Log
+import android.widget.Button
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import rikka.shizuku.Shizuku
+
+class TriSplitActivity : AppCompatActivity() {
+
+    companion object {
+        const val TRI1_KEY = "TRI1_PACKAGE"
+        const val TRI2_KEY = "TRI2_PACKAGE"
+        const val TRI3_KEY = "TRI3_PACKAGE"
+    }
+
+    private var app1Package: String? = null
+    private var app2Package: String? = null
+    private var app3Package: String? = null
+
+    private lateinit var app1Button: Button
+    private lateinit var app2Button: Button
+    private lateinit var app3Button: Button
+    private lateinit var launchButton: Button
+
+    private var currentApp = -1
+    private var hasShizukuPermission = false
+
+    private val REQUEST_PERMISSION_RESULT_LISTENER =
+        Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+            if (requestCode == ShizukuHelper.SHIZUKU_PERMISSION_REQUEST_CODE) {
+                hasShizukuPermission = grantResult == PackageManager.PERMISSION_GRANTED
+                checkShizukuPermission()
+            }
+        }
+
+    private val appSelectLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val pkg = result.data?.getStringExtra(MainActivity.SELECTED_APP_PACKAGE)
+            if (pkg != null) {
+                val simple = AppPreferences.getSimpleName(pkg)
+                when (currentApp) {
+                    1 -> {
+                        app1Package = pkg
+                        app1Button.text = "App 1: $simple"
+                        AppPreferences.savePackage(this, TRI1_KEY, pkg)
+                    }
+                    2 -> {
+                        app2Package = pkg
+                        app2Button.text = "App 2: $simple"
+                        AppPreferences.savePackage(this, TRI2_KEY, pkg)
+                    }
+                    3 -> {
+                        app3Package = pkg
+                        app3Button.text = "App 3: $simple"
+                        AppPreferences.savePackage(this, TRI3_KEY, pkg)
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Shizuku.addRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER)
+        setContentView(R.layout.activity_tri_split)
+
+        app1Button = findViewById(R.id.app1_button_tri)
+        app2Button = findViewById(R.id.app2_button_tri)
+        app3Button = findViewById(R.id.app3_button_tri)
+        launchButton = findViewById(R.id.launch_button_tri_split)
+
+        loadSavedApps()
+
+        app1Button.setOnClickListener { currentApp = 1; pickApp() }
+        app2Button.setOnClickListener { currentApp = 2; pickApp() }
+        app3Button.setOnClickListener { currentApp = 3; pickApp() }
+
+        launchButton.setOnClickListener {
+            if (app1Package != null && app2Package != null && app3Package != null) {
+                launchSplitApps()
+            } else {
+                Toast.makeText(this, "Select three apps.", Toast.LENGTH_SHORT).show()
+            }
+        }
+        checkShizukuPermission()
+    }
+
+    private fun loadSavedApps() {
+        app1Package = AppPreferences.loadPackage(this, TRI1_KEY)
+        app1Button.text = "App 1: ${AppPreferences.getSimpleName(app1Package)}"
+        app2Package = AppPreferences.loadPackage(this, TRI2_KEY)
+        app2Button.text = "App 2: ${AppPreferences.getSimpleName(app2Package)}"
+        app3Package = AppPreferences.loadPackage(this, TRI3_KEY)
+        app3Button.text = "App 3: ${AppPreferences.getSimpleName(app3Package)}"
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Shizuku.removeRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER)
+    }
+
+    private fun checkShizukuPermission() {
+        if (ShizukuHelper.isShizukuAvailable()) {
+            if (ShizukuHelper.hasPermission()) {
+                hasShizukuPermission = true
+            } else {
+                ShizukuHelper.requestPermission()
+            }
+        }
+    }
+
+    private fun pickApp() {
+        appSelectLauncher.launch(Intent(this, MainActivity::class.java))
+    }
+
+    private fun launchSplitApps() {
+        val metrics = windowManager.maximumWindowMetrics
+        val w = metrics.bounds.width()
+        val h = metrics.bounds.height()
+        val colWidth = w / 3
+
+        val left = Rect(0, 0, colWidth, h)
+        val middle = Rect(colWidth, 0, colWidth * 2, h)
+        val right = Rect(colWidth * 2, 0, w, h)
+
+        if (hasShizukuPermission) {
+            Thread {
+                ShizukuHelper.killApp(app1Package!!)
+                ShizukuHelper.killApp(app2Package!!)
+                ShizukuHelper.killApp(app3Package!!)
+                try { Thread.sleep(400) } catch (e: InterruptedException) {}
+                runOnUiThread {
+                    launchAppIntent(app1Package!!, left)
+                    launchAppIntent(app2Package!!, middle)
+                    launchAppIntent(app3Package!!, right)
+                }
+            }.start()
+        } else {
+            launchAppIntent(app1Package!!, left)
+            launchAppIntent(app2Package!!, middle)
+            launchAppIntent(app3Package!!, right)
+        }
+    }
+
+    private fun launchAppIntent(packageName: String, bounds: Rect) {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            if (intent == null) return
+
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            val options = ActivityOptions.makeBasic().setLaunchBounds(bounds)
+            startActivity(intent, options.toBundle())
+        } catch (e: Exception) {
+            Log.e("TriSplitActivity", "Failed to launch $packageName", e)
+        }
+    }
+}
+```
