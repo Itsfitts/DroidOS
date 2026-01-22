@@ -1,4 +1,3 @@
-
 package com.example.coverscreentester
 
 import android.content.Context
@@ -27,6 +26,38 @@ data class TimedPoint(
 }
 // =================================================================================
 // END BLOCK: TimedPoint data class
+// =================================================================================
+
+// =================================================================================
+// ENUM: PredictionSource
+// SUMMARY: Identifies which algorithm produced a prediction result.
+//          PRECISE = Current high-accuracy algorithm (good for slow swipes)
+//          SHAPE_CONTEXT = Gboard-style normalized shape + language model (fast swipes)
+// =================================================================================
+enum class PredictionSource {
+    PRECISE,
+    SHAPE_CONTEXT
+}
+// =================================================================================
+// END BLOCK: PredictionSource enum
+// =================================================================================
+
+// =================================================================================
+// DATA CLASS: SwipeResult
+// SUMMARY: Packages a prediction word with metadata about how it was generated.
+//          - word: The predicted word
+//          - source: Which algorithm produced this (PRECISE or SHAPE_CONTEXT)
+//          - confidence: Score from 0.0 to 1.0 (higher = more confident)
+//          - rawScore: The actual algorithm score (lower = better for our scoring)
+// =================================================================================
+data class SwipeResult(
+    val word: String,
+    val source: PredictionSource,
+    val confidence: Float = 0.0f,
+    val rawScore: Float = Float.MAX_VALUE
+)
+// =================================================================================
+// END BLOCK: SwipeResult data class
 // =================================================================================
 
 /**
@@ -72,6 +103,19 @@ class PredictionEngine {
         private const val BLOCKED_DICT_FILE = "blocked_words.txt"
         private const val USER_DICT_FILE = "user_words.txt"
         private const val MIN_WORD_LENGTH = 2
+        
+        // (Moved to instance variable to allow Settings adjustment)
+
+        // =================================================================================
+        // SHAPE/CONTEXT ALGORITHM WEIGHTS (Gboard-style - inverted from Precise)
+        // =================================================================================
+        private const val SHAPE_CONTEXT_SHAPE_WEIGHT = 1.5f      // REDUCED: Allow more fuzziness (was 1.8)
+        private const val SHAPE_CONTEXT_LOCATION_WEIGHT = 0.4f   // LOW: Position tolerance
+        private const val SHAPE_CONTEXT_DIRECTION_WEIGHT = 0.6f  // Medium: Flow matters
+        private const val SHAPE_CONTEXT_TURN_WEIGHT = 1.5f       // HIGH: Corners reliable
+        private const val SHAPE_CONTEXT_START_PENALTY = 1.0f     // REDUCED: Forgive sloppy starts
+        private const val SHAPE_CONTEXT_END_PENALTY = 0.8f       // REDUCED: Forgive overshoot (e.g. t->y)
+
     }
 
     // =================================================================================
@@ -85,14 +129,19 @@ class PredictionEngine {
 
     // ... (TrieNode class remains the same) ...
 
-    // UPDATE: Add directionVectors to cache the flow of the word
+// HELPER: Consonant Anchoring
+    private fun isVowel(c: Char): Boolean = "aeiouy".contains(c.lowercaseChar())
+
+    // UPDATE: Add directionVectors and WEIGHTS
     data class WordTemplate(
         val word: String,
         val rank: Int,
         val rawPoints: List<PointF>,
+        val rawWeights: List<Float>, // NEW: Consonant/Vowel weights
         var sampledPoints: List<PointF>? = null,
+        var sampledWeights: List<Float>? = null, // NEW: Resampled weights
         var normalizedPoints: List<PointF>? = null,
-        var directionVectors: List<PointF>? = null // NEW FIELD
+        var directionVectors: List<PointF>? = null
     )
 
 
@@ -112,11 +161,44 @@ class PredictionEngine {
     private val root = TrieNode()
     private val wordList = ArrayList<String>()
 
+    // =================================================================================
+    // SETTINGS: PREDICTION AGGRESSION
+    // Controls the crossover point between Precise (Neat) and Shape (Sloppy) algorithms.
+    // Lower (0.3) = Mostly Shape (Fast/Sloppy)
+    // Higher (2.0) = Mostly Precise (Slow/Neat)
+    // Default: 0.8f
+    // =================================================================================
+    var speedThreshold: Float = 0.8f
 
 
-// --- USER STATS ---
+    private var lastKeyMap: Map<String, PointF>? = null
+    // --- USER STATS ---
     private val USER_STATS_FILE = "user_stats.json"
+    private val KEY_OFFSETS_FILE = "key_offsets.json" // NEW
     private val userFrequencyMap = HashMap<String, Int>()
+    
+    // SPATIAL LEARNING: Stores user's average offset (dx, dy) for each key
+    private val keyOffsets = HashMap<String, PointF>()
+    
+        // BACKSPACE LEARNING: Map of <Word, ExpirationTimestamp>
+    private val temporaryPenalties = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val PENALTY_DURATION_MS = 15_000L // Reduced to 15s safety net
+    
+    fun clearTemporaryPenalties() {
+        if (temporaryPenalties.isNotEmpty()) {
+            temporaryPenalties.clear()
+            android.util.Log.d("DroidOS_Prediction", "Penalties cleared (new input detected)")
+        }
+    }
+
+    fun penalizeWord(word: String) {
+        val clean = word.trim().lowercase(java.util.Locale.ROOT)
+        // Set expiration time
+        temporaryPenalties[clean] = System.currentTimeMillis() + PENALTY_DURATION_MS
+        android.util.Log.d("DroidOS_Prediction", "PENALIZED: '$clean' (Score x10 for 60s)")
+    }
+    private var lastSwipePath: List<TimedPoint>? = null // Cache last path to learn from
+
     
     // =================================================================================
     // OPTIMIZATION: Pre-indexed word lookup by first and last letter
@@ -145,6 +227,88 @@ class PredictionEngine {
     private val customWordDisplayForms = HashMap<String, String>()
     // =================================================================================
     // END BLOCK: Custom word display forms
+    // =================================================================================
+
+    // =================================================================================
+    // CONTEXT MODEL DATA STRUCTURES
+    // SUMMARY: N-gram frequency maps for language model scoring.
+    // =================================================================================
+    private val bigramCounts = HashMap<String, HashMap<String, Int>>()
+    private val unigramCounts = HashMap<String, Int>()
+    private var lastContextWord: String? = null
+    
+    // =================================================================================
+    // GRAMMAR ENGINE (Heuristic POS Tagger)
+    // SUMMARY: Lightweight tagging for top ~120 structural words to apply grammar rules.
+    // =================================================================================
+enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CONJUNCTION, ADVERB, QUESTION, UNKNOWN }
+
+    private val commonPosTags = hashMapOf(
+        // DETERMINERS
+        "the" to POSTag.DETERMINER, "a" to POSTag.DETERMINER, "an" to POSTag.DETERMINER, 
+        "this" to POSTag.DETERMINER, "that" to POSTag.DETERMINER, "these" to POSTag.DETERMINER, 
+        "those" to POSTag.DETERMINER, "my" to POSTag.DETERMINER, "your" to POSTag.DETERMINER, 
+        "his" to POSTag.DETERMINER, "her" to POSTag.DETERMINER, "its" to POSTag.DETERMINER, 
+        "our" to POSTag.DETERMINER, "their" to POSTag.DETERMINER, "all" to POSTag.DETERMINER,
+        "some" to POSTag.DETERMINER, "any" to POSTag.DETERMINER, "no" to POSTag.DETERMINER,
+        
+        // PRONOUNS
+        "i" to POSTag.PRONOUN, "you" to POSTag.PRONOUN, "he" to POSTag.PRONOUN, 
+        "she" to POSTag.PRONOUN, "it" to POSTag.PRONOUN, "we" to POSTag.PRONOUN, 
+        "they" to POSTag.PRONOUN, "me" to POSTag.PRONOUN, "him" to POSTag.PRONOUN,
+        "her" to POSTag.PRONOUN, "us" to POSTag.PRONOUN, "them" to POSTag.PRONOUN,
+        
+        // VERBS (Auxiliary & Common Action)
+        "is" to POSTag.VERB, "am" to POSTag.VERB, "are" to POSTag.VERB, 
+        "was" to POSTag.VERB, "were" to POSTag.VERB, "be" to POSTag.VERB,
+        "been" to POSTag.VERB, "being" to POSTag.VERB,
+        "have" to POSTag.VERB, "has" to POSTag.VERB, "had" to POSTag.VERB,
+        "do" to POSTag.VERB, "does" to POSTag.VERB, "did" to POSTag.VERB,
+        "go" to POSTag.VERB, "going" to POSTag.VERB, "went" to POSTag.VERB, 
+        "gone" to POSTag.VERB, "get" to POSTag.VERB, "got" to POSTag.VERB,
+        "make" to POSTag.VERB, "know" to POSTag.VERB, "think" to POSTag.VERB, 
+        "take" to POSTag.VERB, "see" to POSTag.VERB, "come" to POSTag.VERB, 
+        "want" to POSTag.VERB, "look" to POSTag.VERB, "use" to POSTag.VERB,
+        "find" to POSTag.VERB, "give" to POSTag.VERB, "tell" to POSTag.VERB,
+        "say" to POSTag.VERB, "said" to POSTag.VERB,
+        "run" to POSTag.VERB, "play" to POSTag.VERB, "walk" to POSTag.VERB, 
+        "rub" to POSTag.VERB, "rib" to POSTag.VERB, // ADDED
+        "shady" to POSTag.ADJECTIVE, // ADDED
+        "call" to POSTag.VERB, "try" to POSTag.VERB, "need" to POSTag.VERB,
+        "can" to POSTag.VERB, "could" to POSTag.VERB, "will" to POSTag.VERB,
+        "would" to POSTag.VERB, "should" to POSTag.VERB, "may" to POSTag.VERB,
+        "might" to POSTag.VERB, "must" to POSTag.VERB,
+        
+        // PREPOSITIONS
+        "to" to POSTag.PREPOSITION, "of" to POSTag.PREPOSITION, "in" to POSTag.PREPOSITION,
+        "for" to POSTag.PREPOSITION, "on" to POSTag.PREPOSITION, "with" to POSTag.PREPOSITION,
+        "at" to POSTag.PREPOSITION, "from" to POSTag.PREPOSITION, "by" to POSTag.PREPOSITION,
+        "about" to POSTag.PREPOSITION, "as" to POSTag.PREPOSITION, "into" to POSTag.PREPOSITION,
+        "like" to POSTag.PREPOSITION, "through" to POSTag.PREPOSITION, "after" to POSTag.PREPOSITION,
+        "over" to POSTag.PREPOSITION, "between" to POSTag.PREPOSITION, "out" to POSTag.PREPOSITION,
+        "against" to POSTag.PREPOSITION, "during" to POSTag.PREPOSITION, "without" to POSTag.PREPOSITION,
+        "before" to POSTag.PREPOSITION, "under" to POSTag.PREPOSITION, "around" to POSTag.PREPOSITION,
+        "among" to POSTag.PREPOSITION,
+        
+        // CONJUNCTIONS
+        "and" to POSTag.CONJUNCTION, "but" to POSTag.CONJUNCTION, "or" to POSTag.CONJUNCTION,
+        "if" to POSTag.CONJUNCTION, "because" to POSTag.CONJUNCTION, "when" to POSTag.CONJUNCTION,
+        "than" to POSTag.CONJUNCTION, "so" to POSTag.CONJUNCTION, "while" to POSTag.CONJUNCTION,
+        "since" to POSTag.CONJUNCTION, "although" to POSTag.CONJUNCTION, "though" to POSTag.CONJUNCTION,
+        
+        // ADVERBS (High Frequency)
+        "not" to POSTag.ADVERB, "now" to POSTag.ADVERB, "then" to POSTag.ADVERB,
+        "just" to POSTag.ADVERB, "only" to POSTag.ADVERB, "also" to POSTag.ADVERB,
+        "very" to POSTag.ADVERB, "here" to POSTag.ADVERB, "there" to POSTag.ADVERB,
+        "well" to POSTag.ADVERB, "even" to POSTag.ADVERB, "still" to POSTag.ADVERB,
+        "never" to POSTag.ADVERB, "always" to POSTag.ADVERB, "back" to POSTag.ADVERB,
+        
+        // QUESTION WORDS
+        "what" to POSTag.QUESTION, "who" to POSTag.QUESTION, "where" to POSTag.QUESTION,
+        "why" to POSTag.QUESTION, "how" to POSTag.QUESTION, "which" to POSTag.QUESTION
+    )
+    // =================================================================================
+    // END BLOCK: Context model data structures
     // =================================================================================
     // Cache for the top 1000 words to make "Hail Mary" pass instant
     private val commonWordsCache = ArrayList<String>()
@@ -184,7 +348,7 @@ class PredictionEngine {
             "too", "old", "mean", "same", "tell", "boy", "follow", "very",
             "just", "why", "ask", "went", "men", "read", "need", "land",
             "here", "home", "big", "high", "such", "again", "turn", "hand",
-            "play", "small", "end", "put", "while", "next", "sound", "below",
+            "run", "store", "what", "where", "how", "off", "play", "end", // Added missing words            "play", "small", "end", "put", "while", "next", "sound", "below",
             // Common mobile/tech words
             "swipe", "keyboard", "trackpad", "android", "phone", "text", "type",
             "hello", "yes", "no", "ok", "okay", "thanks", "please", "sorry",
@@ -252,7 +416,10 @@ class PredictionEngine {
      * Boosts the word's priority for future predictions.
      * NOTE: This no longer auto-learns new words. Use learnWord() for that.
      */
+
+
     fun recordSelection(context: Context, word: String) {
+        android.util.Log.d("DroidOS_Debug", "SELECT: recordSelection called for '$word'")
         if (word.isBlank()) return
         val clean = word.lowercase(Locale.ROOT)
         
@@ -260,21 +427,27 @@ class PredictionEngine {
             val count = userFrequencyMap.getOrDefault(clean, 0)
             userFrequencyMap[clean] = count + 1
         }
-        
-        // FIX: Removed auto-learning. Typos won't be added automatically.
-        // The UI must call learnWord() explicitly when the user selects a "New Word".
-        // if (!hasWord(clean)) {
-        //    learnWord(context, clean)
-        // }
+
+        // NEW: Spatial Learning
+        // If we have the swipe path that generated this word, learn the offsets.
+        if (lastSwipePath != null) {
+             android.util.Log.d("DroidOS_Heatmap", "LEARN: Learning triggered for '$clean'. Path points: ${lastSwipePath!!.size}")
+             learnKeyOffsets(context, clean, lastSwipePath!!)
+             lastSwipePath = null // Consumed
+        } else {
+             android.util.Log.d("DroidOS_Debug", "FAIL: lastSwipePath was NULL when selecting '$clean'")
+        }
         
         saveUserStats(context)
     }
+
 
 
     fun loadDictionary(context: Context) {
         Thread {
             try {
                 loadUserStats(context)
+                loadKeyOffsets(context)
                 val start = System.currentTimeMillis()
                 val newRoot = TrieNode()
                 val newWordList = ArrayList<String>()
@@ -1007,7 +1180,8 @@ class PredictionEngine {
                 val maxRatio = if (inputLength < 150f) 1.5f else 5.0f
                 if (ratio > maxRatio || ratio < 0.4f) return@mapNotNull null
 
-                if (template.sampledPoints == null) {
+                
+                if (template.sampledPoints == null || template.normalizedPoints == null || template.directionVectors == null) {
                     template.sampledPoints = samplePath(template.rawPoints, SAMPLE_POINTS)
                     template.normalizedPoints = normalizePath(template.sampledPoints!!)
                     template.directionVectors = calculateDirectionVectors(template.sampledPoints!!)
@@ -1082,29 +1256,18 @@ class PredictionEngine {
     //   3. Keys with longer dwell times get boosted in scoring
     //   4. Final score combines geometric + frequency + dwell time weights
     // =================================================================================
-    fun decodeSwipeTimed(timedPath: List<TimedPoint>, keyMap: Map<String, PointF>): List<String> {
+
+    // =================================================================================
+    // FUNCTION: decodeSwipeTimed (PHASE 2 - Returns Dual Results)
+    // SUMMARY: Now returns SwipeResult list from the dual algorithm.
+    //          The winning algorithm is selected based on swipe speed.
+    //          Source info is used for color-coding in the UI.
+    // =================================================================================
+    fun decodeSwipeTimed(timedPath: List<TimedPoint>, keyMap: Map<String, PointF>): List<SwipeResult> {
         if (timedPath.size < 3 || keyMap.isEmpty()) return emptyList()
         
-        // Convert to regular PointF path for existing geometric analysis
-        val swipePath = timedPath.map { it.toPointF() }
-        
-        // Calculate dwell times per key
-        val keyDwellTimes = calculateKeyDwellTimes(timedPath, keyMap)
-        
-        // Debug log dwell times
-        if (keyDwellTimes.isNotEmpty()) {
-            val dwellDebug = keyDwellTimes.entries
-                .filter { it.value > DWELL_THRESHOLD_MS }
-                .sortedByDescending { it.value }
-                .take(5)
-                .joinToString(", ") { "${it.key}:${it.value}ms" }
-            if (dwellDebug.isNotEmpty()) {
-                android.util.Log.d("DroidOS_Dwell", "Key dwell times: $dwellDebug")
-            }
-        }
-        
-        // Run normal decoding with dwell boost
-        return decodeSwipeWithDwell(swipePath, keyMap, keyDwellTimes)
+        // Use the dual decoder which runs both algorithms and picks winner
+        return decodeSwipeDual(timedPath, keyMap)
     }
     // =================================================================================
     // END BLOCK: decodeSwipeTimed
@@ -1212,8 +1375,13 @@ class PredictionEngine {
         // =======================================================================
 
         val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
+        if (sampledInput.isEmpty()) return emptyList()
+        
         val normalizedInput = normalizePath(sampledInput)
+        if (normalizedInput.isEmpty()) return emptyList()
+        
         val inputDirections = calculateDirectionVectors(sampledInput)
+        if (inputDirections.isEmpty()) return emptyList()
 
         val inputTurns = detectTurns(inputDirections)
         val pathKeys = extractPathKeys(sampledInput, keyMap, 8)
@@ -1313,18 +1481,30 @@ class PredictionEngine {
                 val maxRatio = if (inputLength < 150f) 1.5f else 5.0f
                 if (ratio > maxRatio || ratio < 0.4f) return@mapNotNull null
 
-                if (template.sampledPoints == null) {
-                    template.sampledPoints = samplePath(template.rawPoints, SAMPLE_POINTS)
+                // FIX: Check ALL cached properties, not just sampledPoints
+                // Old cache entries may have sampledPoints but not directionVectors
+                if (template.sampledPoints == null || template.normalizedPoints == null || template.directionVectors == null || template.sampledWeights == null) {
+                    // Use new sampler that handles weights
+                    val (pts, wts) = sampleTemplate(template.rawPoints, template.rawWeights, SAMPLE_POINTS)
+                    template.sampledPoints = pts
+                    template.sampledWeights = wts
+                    
                     template.normalizedPoints = normalizePath(template.sampledPoints!!)
                     template.directionVectors = calculateDirectionVectors(template.sampledPoints!!)
                 }
                 
+                // These are now guaranteed to be non-null
                 val shapeScore = calculateShapeScore(normalizedInput, template.normalizedPoints!!)
-                val locScore = calculateLocationScore(sampledInput, template.sampledPoints!!)
+                // Pass weights to location scorer
+                val locScore = calculateLocationScore(sampledInput, template.sampledPoints!!, template.sampledWeights)
                 val dirScore = calculateDirectionScore(inputDirections, template.directionVectors!!)
+
 
                 val templateTurns = detectTurns(template.directionVectors!!)
                 val turnScore = calculateTurnScore(inputTurns, templateTurns)
+
+                // NEW: Path key matching score - penalizes words where path doesn't match
+                // This distinguishes "awake" (path goes through w) from "awesome" (path would need s)
                 val pathKeyScore = calculatePathKeyScore(pathKeys, word)
 
                 // =======================================================================
@@ -1333,11 +1513,21 @@ class PredictionEngine {
                 // If user lingered on "U", words containing "U" get boosted.
                 // =======================================================================
                 val dwellBoost = calculateDwellBoost(word, keyDwellTimes)
+                
                 // =======================================================================
-                // END DWELL TIME SCORING
+                // NEW: CONTEXT & GRAMMAR BOOST (Ported from Shape Algorithm)
+                // Applies n-gram and POS tagging logic to the precise algorithm
+                // =======================================================================
+                val nGramBoost = getContextBoost(word)
+                val grammarBoost = getGrammarBoost(word)
+                val totalContextBoost = (nGramBoost * grammarBoost).coerceAtMost(2.5f)
+                
+                // =======================================================================
+                // END DWELL & CONTEXT
                 // =======================================================================
 
                 val integrationScore = (shapeScore * SHAPE_WEIGHT) +
+
                                        (locScore * LOCATION_WEIGHT) +
                                        (dirScore * DIRECTION_WEIGHT) +
                                        (turnScore * TURN_WEIGHT) +
@@ -1374,11 +1564,20 @@ class PredictionEngine {
                 // END BLOCK: APOSTROPHE VARIANT BOOST
                 // =======================================================================
 
+                // Apply Context Boost
+                userBoost *= totalContextBoost
 
                 // Apply dwell boost - words matching user's lingered keys score better
                 userBoost *= dwellBoost
 
-                val finalScore = (integrationScore * (1.0f - 0.5f * freqBonus)) / userBoost
+                var finalScore = (integrationScore * (1.0f - 0.5f * freqBonus)) / userBoost
+
+                // APPLY PENALTY
+                val penaltyEnd = temporaryPenalties[word] ?: 0L
+                if (System.currentTimeMillis() < penaltyEnd) {
+                    finalScore *= 10.0f // Massive penalty to push it to bottom
+                }
+
                 Pair(word, finalScore)
             }
         
@@ -1582,7 +1781,9 @@ class PredictionEngine {
                 val ratio = tLen / inputLength
                 if (ratio > 3.0f || ratio < 0.3f) return@mapNotNull null
 
-                if (template.sampledPoints == null) {
+
+                if (template.sampledPoints == null || template.normalizedPoints == null || template.directionVectors == null) {
+
                     template.sampledPoints = samplePath(template.rawPoints, SAMPLE_POINTS)
                     template.normalizedPoints = normalizePath(template.sampledPoints!!)
                     template.directionVectors = calculateDirectionVectors(template.sampledPoints!!)
@@ -1742,15 +1943,12 @@ class PredictionEngine {
     // END BLOCK: extractPathKeys
     // =================================================================================
 
-// =================================================================================
-    // FUNCTION: calculatePathKeyScore (v5 - Early Keys Weighted Heavily)
-    // SUMMARY: Penalizes words that don't match the path keys, with HEAVY emphasis on
-    //          the first 2-3 keys. If path starts "a→w→...", words starting "aw..." 
-    //          should be strongly preferred over words starting "as...".
-    //          
-    //          Key insight from debugging: When swiping "awake", the path often shows
-    //          a→w at the start, but then picks up 's' on the way to 'k'. We need to
-    //          prioritize the FIRST keys which are most reliable.
+
+    // =================================================================================
+    // FUNCTION: calculatePathKeyScore (v6 - Fuzzy Neighbor Matching)
+    // SUMMARY: Penalizes words that don't match path keys.
+    //          UPDATED: Now uses areKeysAdjacent() to forgive "fat finger" errors.
+    //          e.g. Path has 'g', Word has 'h' -> Match (because g-h are neighbors)
     // =================================================================================
     private fun calculatePathKeyScore(pathKeys: List<String>, word: String): Float {
         if (pathKeys.isEmpty()) return 0f
@@ -1759,38 +1957,48 @@ class PredictionEngine {
         var penalty = 0f
         
         // CRITICAL: Check if the FIRST path keys match the FIRST word letters
-        // This is the most reliable signal - the start of the swipe is intentional
         val firstPathKey = pathKeys.firstOrNull()?.firstOrNull()
         val firstWordChar = wordChars.firstOrNull()
         
         if (firstPathKey != null && firstWordChar != null && firstPathKey != firstWordChar) {
-            // First key mismatch - BIG penalty
-            penalty += 5.0f
+            // First key mismatch - Check adjacency (Fuzzy Match)
+            if (areKeysAdjacent(firstPathKey, firstWordChar)) {
+                 penalty += 1.0f // Mild penalty for neighbor start
+            } else {
+                 penalty += 5.0f // Big penalty for wrong start
+            }
         }
         
-        // Check SECOND path key against second word letter (if exists)
+        // Check SECOND path key
         if (pathKeys.size >= 2 && wordChars.length >= 2) {
             val secondPathKey = pathKeys[1].firstOrNull()
             val secondWordChar = wordChars[1]
             
             if (secondPathKey != null && secondPathKey != secondWordChar) {
-                // Second key mismatch - also big penalty
-                // This catches "aw..." vs "as..." - if path shows 'w', penalize 's' words
-                penalty += 4.0f
+                // Fuzzy check for second key
+                if (areKeysAdjacent(secondPathKey, secondWordChar)) {
+                    penalty += 0.5f 
+                } else {
+                    penalty += 4.0f
+                }
             }
         }
         
-        // Check THIRD path key (if exists) - still important but less critical
+        // Check THIRD path key
         if (pathKeys.size >= 3 && wordChars.length >= 3) {
             val thirdPathKey = pathKeys[2].firstOrNull()
             val thirdWordChar = wordChars[2]
             
             if (thirdPathKey != null && thirdWordChar != null && thirdPathKey != thirdWordChar) {
-                penalty += 2.0f
+                if (areKeysAdjacent(thirdPathKey, thirdWordChar)) {
+                    penalty += 0.2f
+                } else {
+                    penalty += 2.0f
+                }
             }
         }
         
-        // Now do subsequence matching for the rest of the path
+        // Subsequence matching (rest of the path)
         var pathIdx = 0
         var wordIdx = 0
         var matchedKeys = 0
@@ -1808,23 +2016,17 @@ class PredictionEngine {
             }
         }
         
-        // Penalty for unmatched path keys (keys we swiped but aren't in the word)
+        // Penalty for unmatched path keys
         val unmatchedKeys = pathKeys.size - matchedKeys
-        penalty += unmatchedKeys * 2.0f  // Reduced from 3.0f since we have early key penalties
+        penalty += unmatchedKeys * 2.0f 
         
-        // Length penalty for very long words vs short paths
+        // Length penalty
         if (wordChars.length > pathKeys.size * 2.5) {
             penalty += 0.5f
         }
-
-        // DEBUG: Log scoring
-        android.util.Log.d("DroidOS_PathKeys", "  '$word': path=${pathKeys.joinToString("-")} matched=$matchedKeys/${pathKeys.size} unmatched=$unmatchedKeys penalty=${"%.2f".format(penalty)}")
         
         return penalty
     }
-    // =================================================================================
-    // END BLOCK: calculatePathKeyScore
-    // =================================================================================
 
     // =================================================================================
     // FUNCTION: areKeysAdjacent
@@ -1885,26 +2087,47 @@ class PredictionEngine {
         templateCache[word]?.let { return it }
 
         val rawPoints = ArrayList<PointF>()
+        val rawWeights = ArrayList<Float>()
         var lastKeyPos: PointF? = null
         
         for (char in word) {
             val keyPos = keyMap[char.toString().uppercase()] ?: keyMap[char.toString().lowercase()] ?: return null
             
+            // Consonant Anchoring: Vowels = 0.6, Consonants = 1.0
+            val weight = if (isVowel(char)) 0.6f else 1.0f
+            
+            // NEW: Apply learned user offset (Fat Finger Correction)
+            val offset = keyOffsets[char.toString().lowercase()] ?: PointF(0f, 0f)
+            val adjustedX = keyPos.x + offset.x
+            val adjustedY = keyPos.y + offset.y
 
             // DOUBLE LETTER LOGIC:
             if (lastKeyPos != null && keyPos.x == lastKeyPos.x && keyPos.y == lastKeyPos.y) {
-                // INCREASED: 10f -> 15f. 
-                // Makes the "circle" gesture easier to register.
+                rawPoints.add(PointF(adjustedX + 15f, adjustedY + 15f))
+                rawWeights.add(weight)
+            }
+            
+            rawPoints.add(PointF(adjustedX, adjustedY))
+            rawWeights.add(weight)
+            
+            lastKeyPos = keyPos
+
+            if (lastKeyPos != null && keyPos.x == lastKeyPos.x && keyPos.y == lastKeyPos.y) {
                 rawPoints.add(PointF(keyPos.x + 15f, keyPos.y + 15f))
+                rawWeights.add(weight)
             }
             
             rawPoints.add(PointF(keyPos.x, keyPos.y))
+            rawWeights.add(weight)
+            
             lastKeyPos = keyPos
         }
 
         if (rawPoints.size < 2) return null
 
-        val t = WordTemplate(word, getWordRank(word), rawPoints)
+        // (Debug log removed to prevent spam)
+
+        val t = WordTemplate(word, getWordRank(word), rawPoints, rawWeights)
         templateCache[word] = t
         return t
     }
@@ -1929,6 +2152,7 @@ class PredictionEngine {
      * This makes paths of different lengths comparable.
      */
     private fun samplePath(path: List<PointF>, numSamples: Int): List<PointF> {
+        // [Existing samplePath code...]
         if (path.size < 2) return path
         if (path.size == numSamples) return path
         
@@ -1974,6 +2198,69 @@ class PredictionEngine {
         }
         
         return sampled
+    }
+
+    /**
+     * Samples both Points AND Weights uniformly.
+     */
+    private fun sampleTemplate(path: List<PointF>, weights: List<Float>, numSamples: Int): Pair<List<PointF>, List<Float>> {
+        if (path.size < 2 || weights.size != path.size) return Pair(path, weights)
+        
+        var totalLength = 0f
+        for (i in 1 until path.size) {
+            totalLength += hypot(path[i].x - path[i-1].x, path[i].y - path[i-1].y)
+        }
+        
+        if (totalLength < 0.001f) {
+            return Pair(
+                List(numSamples) { PointF(path[0].x, path[0].y) },
+                List(numSamples) { weights[0] }
+            )
+        }
+        
+        val segmentLength = totalLength / (numSamples - 1)
+        val sampledPoints = ArrayList<PointF>(numSamples)
+        val sampledWeights = ArrayList<Float>(numSamples)
+        
+        sampledPoints.add(PointF(path[0].x, path[0].y))
+        sampledWeights.add(weights[0])
+        
+        var currentDist = 0f
+        var pathIndex = 0
+        var targetDist = segmentLength
+        
+        while (sampledPoints.size < numSamples - 1 && pathIndex < path.size - 1) {
+            val p1 = path[pathIndex]
+            val p2 = path[pathIndex + 1]
+            val w1 = weights[pathIndex]
+            val w2 = weights[pathIndex + 1]
+            val segLen = hypot(p2.x - p1.x, p2.y - p1.y)
+            
+            while (currentDist + segLen >= targetDist && sampledPoints.size < numSamples - 1) {
+                val ratio = (targetDist - currentDist) / segLen
+                
+                // Interpolate Point
+                val x = p1.x + ratio * (p2.x - p1.x)
+                val y = p1.y + ratio * (p2.y - p1.y)
+                sampledPoints.add(PointF(x, y))
+                
+                // Interpolate Weight
+                val w = w1 + ratio * (w2 - w1)
+                sampledWeights.add(w)
+                
+                targetDist += segmentLength
+            }
+            
+            currentDist += segLen
+            pathIndex++
+        }
+        
+        while (sampledPoints.size < numSamples) {
+            sampledPoints.add(PointF(path.last().x, path.last().y))
+            sampledWeights.add(weights.last())
+        }
+        
+        return Pair(sampledPoints, sampledWeights)
     }
     
     /**
@@ -2043,7 +2330,11 @@ class PredictionEngine {
      * Lower score = better match.
      */
 
-    private fun calculateLocationScore(input: List<PointF>, template: List<PointF>): Float {
+    /**
+     * Calculate location score with Consonant Anchoring support.
+     * @param templateWeights List of weights (1.0 for consonants, 0.6 for vowels). Can be null for backwards compat.
+     */
+    private fun calculateLocationScore(input: List<PointF>, template: List<PointF>, templateWeights: List<Float>? = null): Float {
         var totalDist = 0f
         var totalWeight = 0f
         val size = input.size
@@ -2052,19 +2343,23 @@ class PredictionEngine {
             val dist = hypot(input[i].x - template[i].x, input[i].y - template[i].y)
             
             // --- ENDPOINT WEIGHTING (Strict) ---
-            // Start: 3.0x
-            // End:   5.0x (Crucial for "Swipe" vs "Swiped")
-            // Middle: 1.0x
-            val w = when {
+            val posWeight = when {
                 i < size * 0.15 -> 3.0f
-                i > size * 0.85 -> 5.0f // Heavy penalty for missing the last key
+                i > size * 0.85 -> 5.0f 
                 else -> 1.0f
             }
             
-            totalDist += dist * w
-            totalWeight += w
+            // --- CONSONANT ANCHORING ---
+            // Consonants = 1.0, Vowels = 0.6
+            // Multiply position weight by character weight
+            val charWeight = templateWeights?.getOrElse(i) { 1.0f } ?: 1.0f
+            
+            val combinedWeight = posWeight * charWeight
+            
+            totalDist += dist * combinedWeight
+            totalWeight += combinedWeight
         }
-        return totalDist / totalWeight
+        return if (totalWeight > 0) totalDist / totalWeight else totalDist
     }
 
 
@@ -2382,4 +2677,756 @@ class PredictionEngine {
     }
 
 
+    // =================================================================================
+    // FUNCTION: calculateSwipeSpeed
+    // SUMMARY: Calculates average swipe speed in pixels per millisecond.
+    // =================================================================================
+    fun calculateSwipeSpeed(timedPath: List<TimedPoint>): Float {
+        if (timedPath.size < 2) return 0f
+        
+        var totalLength = 0f
+        for (i in 1 until timedPath.size) {
+            val prev = timedPath[i - 1]
+            val curr = timedPath[i]
+            totalLength += hypot(curr.x - prev.x, curr.y - prev.y)
+        }
+        
+        val startTime = timedPath.first().timestamp
+        val endTime = timedPath.last().timestamp
+        val duration = (endTime - startTime).toFloat()
+        
+        if (duration <= 0f) return 0f
+        
+        return totalLength / duration
+    }
+    // =================================================================================
+    // END BLOCK: calculateSwipeSpeed
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: updateContextModel
+    // SUMMARY: Updates the n-gram language model with a newly committed word.
+    // =================================================================================
+    fun updateContextModel(word: String) {
+        val normalizedWord = word.lowercase(Locale.ROOT).trim()
+        if (normalizedWord.isEmpty() || normalizedWord.length < 2) return
+        
+        unigramCounts[normalizedWord] = (unigramCounts[normalizedWord] ?: 0) + 1
+        
+        lastContextWord?.let { prev ->
+            val prevNorm = prev.lowercase(Locale.ROOT)
+            val bigramMap = bigramCounts.getOrPut(prevNorm) { HashMap() }
+            bigramMap[normalizedWord] = (bigramMap[normalizedWord] ?: 0) + 1
+        }
+        
+        lastContextWord = normalizedWord
+    }
+    // =================================================================================
+    // END BLOCK: updateContextModel
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: clearContext
+    // SUMMARY: Resets the context model's current state at sentence boundaries.
+    // =================================================================================
+    fun clearContext() {
+        lastContextWord = null
+    }
+    // =================================================================================
+    // END BLOCK: clearContext
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: getContextBoost (private)
+    // SUMMARY: Returns a boost factor for a word based on context (previous word).
+    // =================================================================================
+    private fun getContextBoost(word: String): Float {
+        val normalizedWord = word.lowercase(Locale.ROOT)
+        if (lastContextWord == null) return 1.0f
+        
+        val prevWord = lastContextWord!!.lowercase(Locale.ROOT)
+        val bigramMap = bigramCounts[prevWord] ?: return 1.0f
+        
+        val bigramCount = bigramMap[normalizedWord] ?: 0
+        if (bigramCount == 0) return 1.0f
+        
+        val prevTotalCount = bigramMap.values.sum().toFloat().coerceAtLeast(1f)
+        val bigramProb = bigramCount / prevTotalCount
+        
+        return 1.0f + (bigramProb * 0.5f).coerceAtMost(0.5f)
+    }
+    // =================================================================================
+    // END BLOCK: getContextBoost
+    // =================================================================================
+
+    // =================================================================================
+
+
+    // =================================================================================
+    // FUNCTION:     // FUNCTION: getGrammarBoost
+    // SUMMARY: Returns a multiplier based on grammar rules between previous and current word.
+    //          e.g. "I" (Pronoun) -> "run" (Verb) = BOOST
+    //          e.g. "The" (Determiner) -> "run" (Verb) = PENALTY
+    // =================================================================================
+    private fun getGrammarBoost(word: String): Float {
+        if (lastContextWord == null) return 1.0f
+        
+        val prevWord = lastContextWord!!.lowercase(Locale.ROOT)
+        val currWord = word.lowercase(Locale.ROOT)
+        
+        // 1. REPEAT WORD PENALTY (Avoid "the the", "is is")
+        if (prevWord == currWord) {
+            // Exceptions: "that that", "had had"
+            if (prevWord != "that" && prevWord != "had") {
+                return 0.2f // Strong Penalty
+            }
+        }
+        
+        val prevTag = commonPosTags[prevWord] ?: POSTag.UNKNOWN
+        val currTag = commonPosTags[currWord] ?: POSTag.UNKNOWN
+        
+        // If we don't know the tags, assume neutral
+        if (prevTag == POSTag.UNKNOWN && currTag == POSTag.UNKNOWN) return 1.0f
+
+        return when (prevTag) {
+            POSTag.PRONOUN -> {
+                // NEGATIVE CONTEXT: "He the", "I a" -> IMPOSSIBLE
+                if (currTag == POSTag.DETERMINER) 0.1f
+                // "I run", "He is" -> High Boost
+                else if (currTag == POSTag.VERB) 1.3f 
+                // "I very" -> Moderate
+                else if (currTag == POSTag.ADVERB) 1.1f
+                else 1.0f
+            }
+            POSTag.DETERMINER -> {
+                // NEGATIVE CONTEXT: "The the", "My a" -> IMPOSSIBLE
+                if (currTag == POSTag.DETERMINER) 0.1f 
+                // NEGATIVE CONTEXT: "The he" -> HIGHLY UNLIKELY
+                else if (currTag == POSTag.PRONOUN) 0.2f
+                // "The run" (Bad) vs "The car" (Good - assuming Unknowns are often Nouns/Adj)
+                else if (currTag == POSTag.VERB) 0.6f // Penalty
+                else if (currTag == POSTag.UNKNOWN || currTag == POSTag.ADJECTIVE || currTag == POSTag.NOUN) 1.15f 
+                else 1.0f
+            }
+            POSTag.VERB -> {
+                // "Go to", "Look at"
+                if (currTag == POSTag.PREPOSITION || currTag == POSTag.DETERMINER) 1.2f 
+                // "Is not"
+                else if (currTag == POSTag.ADVERB) 1.2f
+                else 1.0f
+            }
+            POSTag.PREPOSITION -> {
+                // "To the", "For my"
+                if (currTag == POSTag.DETERMINER || currTag == POSTag.PRONOUN) 1.25f 
+                else 1.0f
+            }
+            POSTag.ADVERB -> {
+                // "Very good" (Adj), "Not go" (Verb)
+                if (currTag == POSTag.ADJECTIVE || currTag == POSTag.VERB) 1.2f 
+                else 1.0f
+            }
+            POSTag.QUESTION -> {
+                // "Who is", "What do"
+                if (currTag == POSTag.VERB) 1.3f 
+                else 1.0f
+            }
+            else -> 1.0f
+        }
+    }
+
+
+
+
+    // =================================================================================
+    // FUNCTION: decodeSwipeShapeContext (Debug + Grammar + Adjacency Fix)
+    // SUMMARY: Gboard-style decoder with Grammar Context, Debug Logging, and Smart End-Keys.
+    // =================================================================================
+    fun decodeSwipeShapeContext(
+        timedPath: List<TimedPoint>, 
+        keyMap: Map<String, PointF>
+    ): List<SwipeResult> {
+        val swipePath = timedPath.map { it.toPointF() }
+        
+        if (swipePath.size < 3 || keyMap.isEmpty()) return emptyList()
+        if (wordList.isEmpty()) {
+            loadDefaults()
+            return emptyList()
+        }
+
+        val keyMapHash = keyMap.hashCode()
+        if (keyMapHash != lastKeyMapHash) {
+            templateCache.clear()
+            lastKeyMapHash = keyMapHash
+        }
+
+        val inputLength = getPathLength(swipePath)
+        if (inputLength < 10f) return emptyList()
+
+        val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
+        if (sampledInput.isEmpty()) return emptyList()
+        
+        val normalizedInput = normalizePath(sampledInput)
+        val inputDirections = calculateDirectionVectors(sampledInput)
+        val inputTurns = detectTurns(inputDirections)
+
+        val startPoint = sampledInput.first()
+        val endPoint = sampledInput.last()
+        val startKey = findClosestKey(startPoint, keyMap)
+        val endKey = findClosestKey(endPoint, keyMap)
+        
+        // DEBUG: Calculate "Letters Swiped" for logcat
+        val pathKeys = extractPathKeys(sampledInput, keyMap, 8)
+        val pathKeyString = pathKeys.joinToString("-")
+        android.util.Log.d("DroidOS_SwipeDebug", "========================================")
+        android.util.Log.d("DroidOS_SwipeDebug", "[INPUT] Path: $pathKeyString | Start: $startKey | End: $endKey")
+        
+        // Candidate collection
+        val candidates = HashSet<String>()
+        val nearbyStart = findNearbyKeys(startPoint, keyMap, 100f)
+        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 100f)
+        
+        for (s in nearbyStart) {
+            for (e in nearbyEnd) {
+                wordsByFirstLastLetter["${s}${e}"]?.let { candidates.addAll(it) }
+            }
+        }
+        
+        if (startKey != null && startKey.isNotEmpty()) {
+            wordsByFirstLetter[startKey.first()]?.let { words ->
+                candidates.addAll(words.take(50))
+            }
+        }
+        
+        lastContextWord?.let { prev ->
+            val prevNorm = prev.lowercase(Locale.ROOT)
+            bigramCounts[prevNorm]?.let { followingWords ->
+                candidates.addAll(followingWords.keys.take(20))
+            }
+        }
+
+        synchronized(userFrequencyMap) {
+            candidates.addAll(userFrequencyMap.entries
+                .sortedByDescending { it.value }
+                .take(30)
+                .map { it.key })
+        }
+
+        // SCORING
+        val scored = candidates
+            .filter { !isWordBlocked(it) && it.length >= MIN_WORD_LENGTH }
+            .take(400)
+            .mapNotNull { word ->
+                val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
+                
+                val tLen = getPathLength(template.rawPoints)
+                val ratio = tLen / inputLength
+                
+                // More lenient ratio
+                if (ratio > 6.0f || ratio < 0.3f) return@mapNotNull null
+
+                if (template.sampledPoints == null || template.normalizedPoints == null || template.directionVectors == null || template.sampledWeights == null) {
+                    val (pts, wts) = sampleTemplate(template.rawPoints, template.rawWeights, SAMPLE_POINTS)
+                    template.sampledPoints = pts
+                    template.sampledWeights = wts
+                    template.normalizedPoints = normalizePath(template.sampledPoints!!)
+                    template.directionVectors = calculateDirectionVectors(template.sampledPoints!!)
+                }
+                
+                val tSampled = template.sampledPoints ?: return@mapNotNull null
+                val tWeights = template.sampledWeights ?: return@mapNotNull null
+                val tNormalized = template.normalizedPoints ?: return@mapNotNull null
+                val tDirections = template.directionVectors ?: return@mapNotNull null
+                if (tSampled.isEmpty() || tNormalized.isEmpty() || tDirections.isEmpty()) return@mapNotNull null
+                
+                // Calculate scores
+                val shapeScore = calculateShapeScore(normalizedInput, tNormalized)
+                // Pass weights
+                val locScore = calculateLocationScore(sampledInput, tSampled, tWeights)
+                val dirScore = calculateDirectionScore(inputDirections, tDirections)
+                val templateTurns = detectTurns(tDirections)
+                val turnScore = calculateTurnScore(inputTurns, templateTurns)
+                val pathKeyScore = calculatePathKeyScore(pathKeys, word) // Added Path Key Score
+
+                // Integration
+                val geometryScore = (shapeScore * SHAPE_CONTEXT_SHAPE_WEIGHT) +
+                                    (locScore * SHAPE_CONTEXT_LOCATION_WEIGHT) +
+                                    (dirScore * SHAPE_CONTEXT_DIRECTION_WEIGHT) +
+                                    (turnScore * SHAPE_CONTEXT_TURN_WEIGHT) +
+                                    (pathKeyScore * 0.5f) // Add fuzzy path key penalty
+                
+                // Smart Penalty
+                var penalty = 0f
+                if (startKey != null && !word.startsWith(startKey, ignoreCase = true)) {
+                    penalty += SHAPE_CONTEXT_START_PENALTY
+                }
+                if (endKey != null && !word.endsWith(endKey, ignoreCase = true)) {
+                     val lastChar = word.last()
+                     val endChar = endKey.first()
+                     // FIX: If keys are adjacent (e.g. B and N), penalize less
+                     if (areKeysAdjacent(lastChar, endChar)) {
+                         penalty += 0.2f 
+                     } else {
+                         penalty += SHAPE_CONTEXT_END_PENALTY
+                     }
+                }
+                
+                // Context & Grammar
+                val nGramBoost = getContextBoost(word)
+                val grammarBoost = getGrammarBoost(word)
+                val totalContextBoost = (nGramBoost * grammarBoost).coerceAtMost(2.5f)
+                
+                // Frequency
+                val rank = template.rank
+                val freqBonus = 1.0f / (1.0f + 0.15f * ln((rank + 1).toFloat()))
+                
+                var userBoost = 1.0f
+                synchronized(userFrequencyMap) {
+                    val userCount = userFrequencyMap[word] ?: 0
+                    if (userCount > 0) {
+                        userBoost *= (1.0f + 0.1f * min(userCount, 10))
+                    }
+                }
+                userBoost *= totalContextBoost
+                
+                                // FINAL CALCULATION
+                                // FREQUENCY WEIGHT INCREASED (0.4 -> 0.7) to help "run" beat "rub"
+                                var finalScore = (geometryScore + penalty) * (1.0f - 0.7f * freqBonus) / userBoost
+                                
+                                // APPLY PENALTY
+                                val penaltyEnd = temporaryPenalties[word] ?: 0L
+                                if (System.currentTimeMillis() < penaltyEnd) {
+                                    finalScore *= 10.0f // Massive penalty
+                                }
+                                
+                                // DEBUG LOGGING
+                if (finalScore < 5.0f || totalContextBoost > 1.1f) {
+                     android.util.Log.d("DroidOS_SwipeDebug", 
+                        "CAND: %-10s | Final: %.2f | Geom: %.2f | Ctx: %.2f (NG:%.2f * GR:%.2f)".format(
+                            word, finalScore, geometryScore + penalty, totalContextBoost, nGramBoost, grammarBoost
+                        )
+                    )
+                }
+
+                val confidence = (1.0f / (1.0f + finalScore)).coerceIn(0f, 1f)
+                SwipeResult(word, PredictionSource.SHAPE_CONTEXT, confidence, finalScore)
+            }
+        
+        return scored.sortedBy { it.rawScore }.distinctBy { it.word }.take(5)
+    }
+    // =================================================================================
+    // FUNCTION: decodeSwipeDual
+    // SUMMARY: Main entry point for dual-algorithm prediction.
+    //          Runs BOTH Precise and Shape/Context algorithms, then picks winner
+    //          based on swipe speed. Returns SwipeResult list with source info.
+    //          
+    // SPEED-BASED SELECTION:
+    //   - speed < 0.8 px/ms: PRECISE wins (slow, careful swipes)
+    //   - speed >= 0.8 px/ms: SHAPE_CONTEXT wins (fast, sloppy swipes)
+    //          
+    // RETURNS: List<SwipeResult> with first item being the "winner"
+    // =================================================================================
+
+
+    fun decodeSwipeDual(
+        timedPath: List<TimedPoint>, 
+        keyMap: Map<String, PointF>
+    ): List<SwipeResult> {
+        if (timedPath.size < 3 || keyMap.isEmpty()) return emptyList()
+        
+        // NEW: Cache this path. If the user selects a word from this swipe,
+        // we will use this path to learn their "fat finger" offsets.
+        
+
+        // NEW: Cache this path. If the user selects a word from this swipe,
+        // we will use this path to learn their "fat finger" offsets.
+        
+        lastSwipePath = ArrayList(timedPath)
+        lastKeyMap = keyMap // Cache reference
+        android.util.Log.d("DroidOS_Debug", "CACHE: Saved path with ${timedPath.size} points")
+
+        // Ensure dictionary is loaded
+        if (wordList.isEmpty()) {
+            android.util.Log.w("DroidOS_Dual", "Dictionary not loaded, loading now...")
+            loadDefaults()
+            if (wordList.isEmpty()) {
+                android.util.Log.e("DroidOS_Dual", "Failed to load dictionary!")
+                return emptyList()
+            }
+        }
+        
+        val swipePath = timedPath.map { it.toPointF() }
+        val keyDwellTimes = calculateKeyDwellTimes(timedPath, keyMap)
+        
+        // Calculate speed to determine winner
+        val speed = calculateSwipeSpeed(timedPath)
+        // Use instance variable 'speedThreshold' instead of constant
+        val usePrecise = speed < speedThreshold
+        
+        android.util.Log.d("DroidOS_Dual", "========== DUAL DECODE ==========")
+        android.util.Log.d("DroidOS_Dual", "Speed: ${"%.3f".format(speed)} px/ms | Using: ${if (usePrecise) "PRECISE" else "SHAPE_CONTEXT"}")
+        
+        // Run BOTH algorithms
+        val preciseResults = mutableListOf<SwipeResult>()
+        val shapeResults = mutableListOf<SwipeResult>()
+        
+        // Precise algorithm
+        try {
+            val preciseWords = decodeSwipeWithDwell(swipePath, keyMap, keyDwellTimes)
+            android.util.Log.d("DroidOS_Dual", "PRECISE raw: $preciseWords")
+            preciseResults.addAll(preciseWords.mapIndexed { idx, word ->
+                SwipeResult(
+                    word = word,
+                    source = PredictionSource.PRECISE,
+                    confidence = (1.0f - idx * 0.15f).coerceIn(0.3f, 1.0f),
+                    rawScore = idx.toFloat()
+                )
+            })
+            android.util.Log.d("DroidOS_Dual", "PRECISE: ${preciseResults.take(3).map { it.word }}")
+        } catch (e: Exception) {
+            android.util.Log.e("DroidOS_Dual", "Precise error: ${e.message}")
+            e.printStackTrace()  // Print full stack trace to logcat
+        }
+        
+        // Shape/Context algorithm
+        try {
+            val shapeRaw = decodeSwipeShapeContext(timedPath, keyMap)
+            android.util.Log.d("DroidOS_Dual", "SHAPE raw: ${shapeRaw.map { it.word }}")
+            shapeResults.addAll(shapeRaw)
+            android.util.Log.d("DroidOS_Dual", "SHAPE: ${shapeResults.take(3).map { it.word }}")
+        } catch (e: Exception) {
+            android.util.Log.e("DroidOS_Dual", "Shape error: ${e.message}")
+            e.printStackTrace()  // Print full stack trace to logcat
+        }
+
+        
+        // Merge results - winner's top result first
+        val merged = mutableListOf<SwipeResult>()
+        
+        if (usePrecise) {
+            // PRECISE wins
+            preciseResults.firstOrNull()?.let { merged.add(it) }
+            shapeResults.firstOrNull()?.let { merged.add(it) }
+            preciseResults.drop(1).firstOrNull()?.let { merged.add(it) }
+        } else {
+            // SHAPE_CONTEXT wins
+            shapeResults.firstOrNull()?.let { merged.add(it) }
+            preciseResults.firstOrNull()?.let { merged.add(it) }
+            shapeResults.drop(1).firstOrNull()?.let { merged.add(it) }
+        }
+        
+        // Deduplicate by word (keep first occurrence to preserve source)
+        val seen = HashSet<String>()
+        val deduplicated = merged.filter { result ->
+            val normalized = result.word.lowercase(Locale.ROOT)
+            if (seen.contains(normalized)) false
+            else { seen.add(normalized); true }
+        }.take(3)
+        
+        android.util.Log.d("DroidOS_Dual", "FINAL: ${deduplicated.map { "${it.word}(${it.source.name[0]})" }}")
+        android.util.Log.d("DroidOS_Dual", "==================================")
+
+        // DEBUG: Log the weights of the WINNER to verify Consonant Anchoring
+        // This confirms if vowels are getting 0.6 and consonants 1.0
+        if (deduplicated.isNotEmpty()) {
+            val winner = deduplicated[0]
+            val t = templateCache[winner.word]
+            if (t != null) {
+                 android.util.Log.d("DroidOS_Weights", "WINNER '${winner.word}': ${t.rawWeights.map { "%.1f".format(it) }}")
+            }
+        }
+        
+        // FALLBACK: If both algorithms failed, try basic prefix matching
+        if (deduplicated.isEmpty()) {
+            android.util.Log.w("DroidOS_Dual", "Both algorithms failed! Using fallback...")
+            val startPoint = swipePath.first()
+            val startKey = findClosestKey(startPoint, keyMap)
+            if (startKey != null) {
+                val fallbackWords = getSuggestions(startKey, 3)
+                if (fallbackWords.isNotEmpty()) {
+                    android.util.Log.d("DroidOS_Dual", "Fallback results: $fallbackWords")
+                    return fallbackWords.map { word ->
+                        SwipeResult(word, PredictionSource.PRECISE, 0.5f, 100f)
+                    }
+                }
+            }
+        }
+        
+        return deduplicated
+    }
+    // =================================================================================
+    // END BLOCK: decodeSwipeDual
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: decodeSwipeDualPreview
+    // SUMMARY: Lightweight dual-algorithm preview for mid-swipe updates.
+    //          Returns top result from BOTH algorithms simultaneously so UI can
+    //          display them side-by-side during swiping.
+    //          
+    // DISPLAY LAYOUT:
+    //   - Left slot (cand1): Precise top result (GREEN)
+    //   - Middle slot (cand2): Shape/Context top result (BLUE)
+    //   - Right slot (cand3): Empty during preview
+    //          
+    // RETURNS: Pair<SwipeResult?, SwipeResult?> = (preciseTop, shapeTop)
+    // =================================================================================
+    fun decodeSwipeDualPreview(
+        swipePath: List<PointF>, 
+        keyMap: Map<String, PointF>
+    ): Pair<SwipeResult?, SwipeResult?> {
+        if (swipePath.size < 5 || keyMap.isEmpty()) return Pair(null, null)
+        
+        var preciseResult: SwipeResult? = null
+        var shapeResult: SwipeResult? = null
+        
+        // Get quick PRECISE prediction (using existing preview function)
+        try {
+            val preciseWords = decodeSwipePreview(swipePath, keyMap)
+            android.util.Log.d("DroidOS_Preview", "Precise preview: $preciseWords")
+            if (preciseWords.isNotEmpty()) {
+                preciseResult = SwipeResult(
+                    word = preciseWords.first(),
+                    source = PredictionSource.PRECISE,
+                    confidence = 0.8f
+                )
+            }
+        } catch (e: Exception) { 
+            // Silent fail for preview
+        }
+        
+        // Get quick SHAPE prediction (simplified for speed)
+        try {
+            shapeResult = decodeSwipeShapePreview(swipePath, keyMap)
+            android.util.Log.d("DroidOS_Preview", "Shape preview: ${shapeResult?.word}")
+        } catch (e: Exception) { 
+            // Silent fail for preview
+        }
+        
+        return Pair(preciseResult, shapeResult)
+    }
+    // =================================================================================
+    // END BLOCK: decodeSwipeDualPreview
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: decodeSwipeShapePreview
+    // SUMMARY: Lightweight Shape/Context preview for mid-swipe updates.
+    //          Uses simplified scoring with shape-first weights for speed.
+    // =================================================================================
+    private fun decodeSwipeShapePreview(
+        swipePath: List<PointF>, 
+        keyMap: Map<String, PointF>
+    ): SwipeResult? {
+        if (swipePath.size < 5 || keyMap.isEmpty()) return null
+        if (wordList.isEmpty()) return null
+
+        val inputLength = getPathLength(swipePath)
+        if (inputLength < 20f) return null
+
+        val sampledInput = samplePath(swipePath, SAMPLE_POINTS)
+        val normalizedInput = normalizePath(sampledInput)
+
+        val startPoint = sampledInput.first()
+        val endPoint = sampledInput.last()
+        val startKey = findClosestKey(startPoint, keyMap)
+
+        // FAST CANDIDATE COLLECTION - wider radius for shape tolerance
+        val candidates = HashSet<String>()
+
+        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f)  // Wider than precise
+        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f)
+
+        for (s in nearbyStart) {
+            for (e in nearbyEnd) {
+                wordsByFirstLastLetter["${s}${e}"]?.let { candidates.addAll(it) }
+            }
+        }
+
+        if (startKey != null) {
+            wordsByFirstLetter[startKey.first()]?.let { words ->
+                candidates.addAll(words.take(30))
+            }
+        }
+
+        // Add context-boosted candidates
+        lastContextWord?.let { prev ->
+            val prevNorm = prev.lowercase(Locale.ROOT)
+            bigramCounts[prevNorm]?.let { followingWords ->
+                candidates.addAll(followingWords.keys.take(10))
+            }
+        }
+
+        // FAST SCORING with shape-first weights
+        val scored = candidates
+            .filter { !isWordBlocked(it) && it.length >= MIN_WORD_LENGTH }
+            .take(40)
+            .mapNotNull { word ->
+                val template = getOrCreateTemplate(word, keyMap) ?: return@mapNotNull null
+
+                val tLen = getPathLength(template.rawPoints)
+                val ratio = tLen / inputLength
+                if (ratio > 4.0f || ratio < 0.25f) return@mapNotNull null
+
+                
+                if (template.sampledPoints == null || template.normalizedPoints == null || template.directionVectors == null || template.sampledWeights == null) {
+
+                
+                                    val (pts, wts) = sampleTemplate(template.rawPoints, template.rawWeights, SAMPLE_POINTS)
+
+                
+                                    template.sampledPoints = pts
+
+                
+                                    template.sampledWeights = wts
+
+                
+                                    template.normalizedPoints = normalizePath(template.sampledPoints!!)
+
+                
+                                    template.directionVectors = calculateDirectionVectors(template.sampledPoints!!)
+
+                
+                                }
+
+                
+                
+
+                
+                                // SHAPE-FIRST scoring (simplified)
+
+                
+                                val shapeScore = calculateShapeScore(normalizedInput, template.normalizedPoints!!)
+
+                
+                                val locScore = calculateLocationScore(sampledInput, template.sampledPoints!!, template.sampledWeights)
+
+                // Shape weight HIGH, location LOW (Gboard style)
+                val integrationScore = (shapeScore * 1.5f) + (locScore * 0.3f)
+
+                val rank = template.rank
+                val freqBonus = 1.0f / (1.0f + 0.1f * ln((rank + 1).toFloat()))
+                val contextBoost = getContextBoost(word)
+
+                val finalScore = integrationScore * (1.0f - 0.3f * freqBonus) / contextBoost
+                Pair(word, finalScore)
+            }
+
+        val topWord = scored.minByOrNull { it.second }?.first ?: return null
+        
+        return SwipeResult(
+            word = topWord,
+            source = PredictionSource.SHAPE_CONTEXT,
+            confidence = 0.7f
+        )
+    }
+    // =================================================================================
+    // END BLOCK: decodeSwipeShapePreview
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: learnKeyOffsets (Spatial Heatmap)
+    // SUMMARY: Compares the actual swipe path to the ideal keys of the selected word.
+    //          Calculates the offset (error) and updates the rolling average for those keys.
+    //          Only learns from Start, End, and Sharp Turns to avoid noise.
+    // =================================================================================
+
+    private fun learnKeyOffsets(context: Context, word: String, path: List<TimedPoint>) {
+        val keys = lastKeyMap ?: return
+        val rawPath = path.map { it.toPointF() }
+        
+        // 1. Identify Key Points in Path (Start, End, Sharp Turns)
+        // reusing extractPathKeys logic but getting POINTS, not letters
+        val startPoint = rawPath.first()
+        val endPoint = rawPath.last()
+        
+        // Simple Learning: Start -> First Letter, End -> Last Letter
+        // We only learn if the user was "close enough" to be ambiguous (e.g. < 80px)
+        
+        val firstChar = word.first().toString().lowercase()
+        val lastChar = word.last().toString().lowercase()
+        
+        val idealStart = keys[firstChar] ?: keys[firstChar.uppercase()]
+        val idealEnd = keys[lastChar] ?: keys[lastChar.uppercase()]
+        
+        synchronized(keyOffsets) {
+            var modified = false
+            
+
+            // Learn Start Offset
+            if (idealStart != null) {
+                val dx = startPoint.x - idealStart.x
+                val dy = startPoint.y - idealStart.y
+                val dist = hypot(dx, dy)
+                
+                android.util.Log.d("DroidOS_Heatmap", "Start Key '$firstChar': Offset $dist px (Limit: 150f)")
+
+                // INCREASED LIMIT: 80f -> 150f for easier testing
+                if (dist < 150f) {
+                    val current = keyOffsets[firstChar] ?: PointF(0f, 0f)
+                    // Learning Rate 0.1 (Slow adaptation)
+                    current.x = current.x * 0.9f + dx * 0.1f
+                    current.y = current.y * 0.9f + dy * 0.1f
+                    keyOffsets[firstChar] = current
+                    modified = true
+                }
+            }
+
+            
+            // Learn End Offset
+            if (idealEnd != null) {
+                val dx = endPoint.x - idealEnd.x
+                val dy = endPoint.y - idealEnd.y
+                if (hypot(dx, dy) < 80f) {
+                    val current = keyOffsets[lastChar] ?: PointF(0f, 0f)
+                    current.x = current.x * 0.9f + dx * 0.1f
+                    current.y = current.y * 0.9f + dy * 0.1f
+                    keyOffsets[lastChar] = current
+                    modified = true
+                }
+            }
+            
+            if (modified) {
+                saveKeyOffsets(context)
+                templateCache.clear() // Clear cache so new offsets apply
+                android.util.Log.d("DroidOS_Heatmap", "Updated offsets for $firstChar, $lastChar")
+            }
+        }
+    }
+
+    
+    // Helper to load/save offsets
+    private fun loadKeyOffsets(context: Context) {
+        try {
+            val file = java.io.File(context.filesDir, KEY_OFFSETS_FILE)
+            if (file.exists()) {
+                val json = org.json.JSONObject(file.readText())
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val pos = json.getJSONObject(key)
+                    keyOffsets[key] = PointF(pos.getDouble("x").toFloat(), pos.getDouble("y").toFloat())
+                }
+                android.util.Log.d("DroidOS_Heatmap", "Loaded offsets for ${keyOffsets.size} keys")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DroidOS_Heatmap", "Failed to load offsets", e)
+        }
+    }
+
+    private fun saveKeyOffsets(context: Context) {
+        try {
+            val json = org.json.JSONObject()
+            synchronized(keyOffsets) {
+                for ((key, offset) in keyOffsets) {
+                    val pos = org.json.JSONObject()
+                    pos.put("x", offset.x)
+                    pos.put("y", offset.y)
+                    json.put(key, pos)
+                }
+            }
+            java.io.File(context.filesDir, KEY_OFFSETS_FILE).writeText(json.toString())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }

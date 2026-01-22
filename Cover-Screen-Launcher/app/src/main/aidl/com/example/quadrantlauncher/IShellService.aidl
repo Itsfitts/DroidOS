@@ -1,6 +1,7 @@
 package com.example.quadrantlauncher;
 
 interface IShellService {
+    void injectKey(int keyCode, int action, int flags, int displayId, int metaState);
     void forceStop(String packageName);
     void runCommand(String command);
     void setScreenOff(int displayIndex, boolean turnOff);

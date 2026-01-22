@@ -403,4 +403,78 @@ object AppPreferences {
         }
     }
     // === BLACKLIST METHODS - END ===
+
+    // === KEYBIND METHODS ===
+    // Stores "MODIFIER|KEYCODE" string for a command ID
+
+    fun saveKeybind(context: Context, cmdId: String, modifier: Int, keyCode: Int) {
+        val value = "$modifier|$keyCode"
+        getPrefs(context).edit().putString("BIND_$cmdId", value).apply()
+    }
+
+    fun getKeybind(context: Context, cmdId: String): Pair<Int, Int> {
+        val data = getPrefs(context).getString("BIND_$cmdId", null) ?: return Pair(0, 0)
+        return try {
+            val parts = data.split("|")
+            Pair(parts[0].toInt(), parts[1].toInt())
+        } catch (e: Exception) {
+            Pair(0, 0)
+        }
+    }
+
+    fun clearKeybind(context: Context, cmdId: String) {
+        getPrefs(context).edit().remove("BIND_$cmdId").apply()
+    }
+
+// Custom Modifier Key (Stored as KeyCode Int)
+    fun saveCustomModKey(context: Context, keyCode: Int) {
+        getPrefs(context).edit().putInt("CUSTOM_MOD_KEY", keyCode).apply()
+    }
+
+    fun getCustomModKey(context: Context): Int {
+        return getPrefs(context).getInt("CUSTOM_MOD_KEY", 0)
+    }
+
+// Soft Keyboard Support (TextWatcher)
+    fun setSoftKeyboardSupport(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean("SOFT_KB_SUPPORT", enabled).apply()
+    }
+    
+    fun getSoftKeyboardSupport(context: Context): Boolean {
+        return getPrefs(context).getBoolean("SOFT_KB_SUPPORT", false) // Default OFF for privacy
+    }
+
+    // Returns a list of all defined keybinds in format "modifier|keyCode"
+    fun getAllKeybinds(context: Context): ArrayList<String> {
+        val list = ArrayList<String>()
+        val allPrefs = getPrefs(context).all
+        for ((key, value) in allPrefs) {
+            if (key.startsWith("BIND_") && value is String) {
+                // value format is "modifier|keyCode"
+                list.add(value)
+            }
+        }
+        return list
+    }
+
+    // --- BOTTOM MARGIN (Per Display) ---
+    // Keys format: MARGIN_BOTTOM_D0, MARGIN_BOTTOM_D1, etc.
+    
+    fun setBottomMarginPercent(context: Context, displayId: Int, percent: Int) {
+        getPrefs(context).edit().putInt("MARGIN_BOTTOM_D$displayId", percent).apply()
+    }
+
+    fun getBottomMarginPercent(context: Context, displayId: Int): Int {
+        return getPrefs(context).getInt("MARGIN_BOTTOM_D$displayId", 0)
+    }
+
+    // --- TOP MARGIN (Per Display) ---
+    
+    fun setTopMarginPercent(context: Context, displayId: Int, percent: Int) {
+        getPrefs(context).edit().putInt("MARGIN_TOP_D$displayId", percent).apply()
+    }
+
+    fun getTopMarginPercent(context: Context, displayId: Int): Int {
+        return getPrefs(context).getInt("MARGIN_TOP_D$displayId", 0)
+    }
 }

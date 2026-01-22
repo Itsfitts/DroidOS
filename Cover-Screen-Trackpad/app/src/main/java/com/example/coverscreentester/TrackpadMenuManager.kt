@@ -47,6 +47,43 @@ class TrackpadMenuManager(
     private var helpClickCount = 0
     private var lastHelpClickTime = 0L
 
+    // =================================================================================
+    // FUNCTION: handlePassthroughTouch
+    // SUMMARY: manually dispatches a touch event to the menu window if it falls within bounds.
+    //          Used by OverlayService to pass touches through the BT Mouse layer.
+    // =================================================================================
+    fun handlePassthroughTouch(event: MotionEvent): Boolean {
+        val view = drawerView ?: return false
+        if (!isVisible || !view.isAttachedToWindow) return false
+        
+        // 1. Check Bounds
+        val loc = IntArray(2)
+        view.getLocationOnScreen(loc)
+        val x = loc[0]
+        val y = loc[1]
+        val w = view.width
+        val h = view.height
+        
+        val rawX = event.rawX
+        val rawY = event.rawY
+        
+        if (rawX >= x && rawX < x + w && rawY >= y && rawY < y + h) {
+            // 2. Transform to Local Coordinates
+            // dispatchTouchEvent expects X/Y to be local to the view
+            val offsetEvent = MotionEvent.obtain(event)
+            offsetEvent.offsetLocation(-x.toFloat(), -y.toFloat())
+            
+            // 3. Dispatch
+            val handled = view.dispatchTouchEvent(offsetEvent)
+            offsetEvent.recycle()
+            return handled
+        }
+        return false
+    }
+    // =================================================================================
+    // END BLOCK: handlePassthroughTouch
+    // =================================================================================
+
     fun show() {
         if (isVisible) return
         if (drawerView == null) setupDrawer()
@@ -609,6 +646,41 @@ class TrackpadMenuManager(
             v -> service.updatePref("block_soft_kb", v as Boolean)
         })
 
+        // =================================================================================
+        // SPACEBAR MOUSE EXTENDED MODE TOGGLE
+        // SUMMARY: When enabled, spacebar mouse mode stays active indefinitely. Mode only
+        //          deactivates when tapping outside the keyboard overlay area. This allows
+        //          continuous cursor control without the normal 1-second timeout.
+        // =================================================================================
+        list.add(TrackpadMenuAdapter.MenuItem("Spacebar Mouse Extended Mode", android.R.drawable.ic_menu_compass, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefSpacebarMouseExtended) 1 else 0) {
+            v -> service.updatePref("spacebar_mouse_extended", v as Boolean)
+        })
+
+        // =================================================================================
+        // END BLOCK: SPACEBAR MOUSE EXTENDED MODE TOGGLE
+        // =================================================================================
+
+        // Override System Shortcuts toggle
+        list.add(TrackpadMenuAdapter.MenuItem("Override System Shortcuts", android.R.drawable.ic_menu_close_clear_cancel, TrackpadMenuAdapter.Type.TOGGLE, if(p.prefOverrideSystemShortcuts) 1 else 0) {
+            v -> service.updatePref("override_system_shortcuts", v as Boolean)
+        })
+
+        // =================================================================================
+        // PREDICTION AGGRESSION SLIDER (Safe Clamped Version)
+        // Range: 0.3 (Sloppy) to 2.0 (Precise) -> Slider 0 to 170
+        // We CLAMP the input to ensure bad saved values (like 8.0) don't break the UI.
+        // =================================================================================
+        val rawAggression = p.prefPredictionAggression
+        val safeAggression = rawAggression.coerceIn(0.3f, 2.0f) // Force valid range
+        val sliderValue = ((safeAggression - 0.3f) * 100).toInt()
+        
+        list.add(TrackpadMenuAdapter.MenuItem("Prediction: Sloppy (L) vs Neat (R)", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, sliderValue, 170) { v ->
+            // Explicitly cast v to Int to fix "Unresolved reference" error
+            val intV = v as Int
+            val floatVal = 0.3f + (intV / 100f)
+            service.updatePref("prediction_aggression", floatVal)
+        })
+
         return list
     }
     // =========================
@@ -892,4 +964,3 @@ class TrackpadMenuManager(
         return list
     }
 }
-

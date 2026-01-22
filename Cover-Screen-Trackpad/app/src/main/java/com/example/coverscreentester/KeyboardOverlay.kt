@@ -37,7 +37,26 @@ class KeyboardOverlay(
 
 
     private var keyboardView: KeyboardView? = null
+    // =================================================================================
+    // SPACEBAR MOUSE EXTENDED MODE - DRAG HANDLE INDICATOR
+    // SUMMARY: Reference to the drag handle indicator so we can change its color
+    //          (red when extended mode is active, grey when inactive).
+    // =================================================================================
+    private var dragHandleIndicator: View? = null
+    // =================================================================================
+    // END BLOCK: DRAG HANDLE INDICATOR REFERENCE
+    // =================================================================================
+    private var cachedCustomModKey = 0
     private var keyboardParams: WindowManager.LayoutParams? = null
+
+    // =================================================================================
+    // LAUNCHER BLOCKED SHORTCUTS
+    // SUMMARY: Set of shortcuts registered in the Launcher. Passed to KeyboardView.
+    // =================================================================================
+    private var launcherBlockedShortcuts: Set<String> = emptySet()
+    // =================================================================================
+    // END BLOCK: LAUNCHER BLOCKED SHORTCUTS
+    // =================================================================================
     private var isVisible = false
     private val predictionEngine = PredictionEngine.instance
     // State Variables
@@ -45,9 +64,14 @@ class KeyboardOverlay(
 
     private var isResizing = false
     // [NEW] Track scale internally to avoid slow SharedPreferences reads during drag
-    private var internalScale = 1.0f 
+    private var internalScale = 1.0f
     private var dragStartScale = 1.0f
     private var dragStartHeight = 0
+
+    // Mouse Tracking
+    private var lastMouseX = 0f
+    private var lastMouseY = 0f
+    private var isMouseDragging = false
 
     private var isAnchored = false
     private var initialTouchX = 0f
@@ -124,6 +148,16 @@ class KeyboardOverlay(
     // END BLOCK: VIRTUAL MIRROR CALLBACK
     // =================================================================================
 
+    // =================================================================================
+    // ARROW KEYS SWIPE CALLBACK
+    // SUMMARY: Forwards arrow key swipe from KeyboardView to OverlayService
+    // =================================================================================
+    var onArrowSwipe: ((Float, Float) -> Unit)? = null
+    var onMouseScroll: ((Float, Float) -> Unit)? = null
+    // =================================================================================
+    // END BLOCK: ARROW KEYS SWIPE CALLBACK
+    // =================================================================================
+
     // Layer change callback for syncing mirror keyboard
     var onLayerChanged: ((KeyboardView.KeyboardState) -> Unit)? = null
 
@@ -137,7 +171,33 @@ class KeyboardOverlay(
     // END BLOCK: onSuggestionsChanged
     // =================================================================================
 
+    // =================================================================================
+    // FUNCTION: handlePassthroughTouch
+    // SUMMARY: Manually dispatches a touch event to the keyboard window.
+    // =================================================================================
+    fun handlePassthroughTouch(event: MotionEvent): Boolean {
+        val container = keyboardContainer ?: return false
+        if (!isVisible || !container.isAttachedToWindow) return false
 
+        val loc = IntArray(2)
+        container.getLocationOnScreen(loc)
+        val x = loc[0]
+        val y = loc[1]
+        val w = container.width
+        val h = container.height
+
+        val rawX = event.rawX
+        val rawY = event.rawY
+
+        if (rawX >= x && rawX < x + w && rawY >= y && rawY < y + h) {
+            val offsetEvent = MotionEvent.obtain(event)
+            offsetEvent.offsetLocation(-x.toFloat(), -y.toFloat())
+            val handled = container.dispatchTouchEvent(offsetEvent)
+            offsetEvent.recycle()
+            return handled
+        }
+        return false
+    }
 
 
     fun setScreenDimensions(width: Int, height: Int, displayId: Int) {
@@ -536,6 +596,43 @@ class KeyboardOverlay(
     // END BLOCK: setVoiceActive
     // =================================================================================
 
+    fun setInputCaptureMode(active: Boolean) {
+        keyboardView?.setInputCaptureMode(active)
+    }
+
+fun setCustomModKey(keyCode: Int) {
+        cachedCustomModKey = keyCode // Cache it
+        keyboardView?.setCustomModKey(keyCode) // Apply to current view
+    }
+
+    fun setOverrideSystemShortcuts(enabled: Boolean) {
+        keyboardView?.setOverrideSystemShortcuts(enabled)
+    }
+
+    // =================================================================================
+    // FUNCTION: setLauncherBlockedShortcuts
+    // SUMMARY: Updates the set of shortcuts that should be blocked.
+    //          Stores locally AND attempts to forward to KeyboardView if it exists.
+    //          If KeyboardView doesn't exist yet, the shortcuts will be applied
+    //          when show() creates it.
+    // @param shortcuts - Set of "modifier|keyCode" strings from Launcher
+    // =================================================================================
+    fun setLauncherBlockedShortcuts(shortcuts: Set<String>) {
+        launcherBlockedShortcuts = shortcuts
+        Log.d(TAG, "Updated launcher blocked shortcuts: ${shortcuts.size} entries")
+
+        // Try to apply to existing KeyboardView (may be null if not shown yet)
+        if (keyboardView != null) {
+            keyboardView?.setLauncherBlockedShortcuts(shortcuts)
+            Log.d(TAG, "Applied blocked shortcuts to existing KeyboardView")
+        } else {
+            Log.d(TAG, "KeyboardView is null - shortcuts will be applied when show() is called")
+        }
+    }
+    // =================================================================================
+    // END FUNCTION: setLauncherBlockedShortcuts
+    // =================================================================================
+
     // =================================================================================
     // VIRTUAL MIRROR ORIENTATION MODE METHODS
     // SUMMARY: Methods for managing orientation mode during virtual mirror operation.
@@ -902,11 +999,35 @@ class KeyboardOverlay(
         // [FIX] Use custom FrameLayout to intercept ALL touches.
         keyboardContainer = object : FrameLayout(context) {
             
-            // SHIELD 1: Block Mouse Hovers
+            // SHIELD 1: Handle Mouse Hovers & Scroll (Enable Bluetooth Mouse)
             override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-                if (event.isFromSource(InputDevice.SOURCE_MOUSE) || 
+                if (event.isFromSource(InputDevice.SOURCE_MOUSE) ||
                     event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
-                    return true 
+
+                    if (event.actionMasked == MotionEvent.ACTION_HOVER_MOVE) {
+                        if (lastMouseX == 0f && lastMouseY == 0f) {
+                            lastMouseX = event.x
+                            lastMouseY = event.y
+                            return true
+                        }
+                        val dx = event.x - lastMouseX
+                        val dy = event.y - lastMouseY
+                        lastMouseX = event.x
+                        lastMouseY = event.y
+
+                        // Pass as Hover (isDragging=false)
+                        onCursorMove?.invoke(dx, dy, false)
+                        return true
+                    }
+
+                    if (event.actionMasked == MotionEvent.ACTION_SCROLL) {
+                        val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+                        val h = event.getAxisValue(MotionEvent.AXIS_HSCROLL)
+                        onMouseScroll?.invoke(h, v)
+                        return true
+                    }
+
+                    return true
                 }
                 return super.dispatchGenericMotionEvent(event)
             }
@@ -922,14 +1043,46 @@ class KeyboardOverlay(
                     return true
                 }
 
-                // 1. Block Non-Fingers
-                if (event.getToolType(0) != MotionEvent.TOOL_TYPE_FINGER) return true
-                
+                // 1. Block Non-Fingers (Except Mouse)
+                val toolType = event.getToolType(0)
+                val isMouse = toolType == MotionEvent.TOOL_TYPE_MOUSE || event.isFromSource(InputDevice.SOURCE_MOUSE)
+
+                if (toolType != MotionEvent.TOOL_TYPE_FINGER && !isMouse) return true
+
                 // 2. Block Virtual/Null Devices
                 if (event.device == null || event.deviceId <= 0) return true
-                
-                // 3. Block Mouse Sources
-                if (event.isFromSource(InputDevice.SOURCE_MOUSE)) return true
+
+                // 3. Handle Mouse Inputs (Clicks/Drags)
+                if (isMouse) {
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            lastMouseX = event.x
+                            lastMouseY = event.y
+                            isMouseDragging = false
+                            onTouchDown?.invoke() // Start drag state in Service
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = event.x - lastMouseX
+                            val dy = event.y - lastMouseY
+
+                            if (kotlin.math.abs(dx) > 0 || kotlin.math.abs(dy) > 0) isMouseDragging = true
+
+                            lastMouseX = event.x
+                            lastMouseY = event.y
+                            // Pass as Drag (isDragging=true)
+                            onCursorMove?.invoke(dx, dy, true)
+                        }
+                        MotionEvent.ACTION_UP -> {
+                            onTouchUp?.invoke()
+                            if (!isMouseDragging) {
+                                // Static click = Tap
+                                onCursorClick?.invoke(false)
+                            }
+                            isMouseDragging = false
+                        }
+                    }
+                    return true
+                }
 
                 val devId = event.deviceId
                 val action = event.actionMasked
@@ -984,6 +1137,11 @@ class KeyboardOverlay(
         // 1. The Keyboard Keys
         keyboardView = KeyboardView(context)
 
+        // [FIX] Apply cached Custom Mod Key immediately on creation
+        if (cachedCustomModKey != 0) {
+            keyboardView?.setCustomModKey(cachedCustomModKey)
+        }
+
         // SHIELD 3: Backup Generic Motion Listener
         keyboardView?.setOnGenericMotionListener { _, event ->
             if (event.isFromSource(InputDevice.SOURCE_MOUSE) || 
@@ -1009,6 +1167,16 @@ class KeyboardOverlay(
         // END BLOCK: SPACEBAR MOUSE CURSOR MOVE CALLBACK BINDING
         // =================================================================================
 
+        // =================================================================================
+        // ARROW KEYS SWIPE CALLBACK BINDING
+        // SUMMARY: Forwards arrow swipe from KeyboardView to OverlayService
+        // =================================================================================
+        keyboardView?.onArrowSwipe = { dx, dy ->
+            onArrowSwipe?.invoke(dx, dy)
+        }
+        // =================================================================================
+        // END BLOCK: ARROW KEYS SWIPE CALLBACK BINDING
+        // =================================================================================
 
         keyboardView?.cursorClickAction = { isRight ->
             onCursorClick?.invoke(isRight)
@@ -1042,7 +1210,20 @@ class KeyboardOverlay(
         keyboardView?.setKeyboardListener(this)
         val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
         keyboardView?.setVibrationEnabled(prefs.getBoolean("vibrate", true))
-        
+
+        // =================================================================================
+        // APPLY LAUNCHER BLOCKED SHORTCUTS TO NEW KEYBOARDVIEW
+        // SUMMARY: The launcherBlockedShortcuts may have been set before the KeyboardView
+        //          was created. Now that it exists, sync the blocked shortcuts to it.
+        // =================================================================================
+        if (launcherBlockedShortcuts.isNotEmpty()) {
+            keyboardView?.setLauncherBlockedShortcuts(launcherBlockedShortcuts)
+            Log.d(TAG, "Applied ${launcherBlockedShortcuts.size} blocked shortcuts to new KeyboardView")
+        }
+        // =================================================================================
+        // END BLOCK: APPLY LAUNCHER BLOCKED SHORTCUTS TO NEW KEYBOARDVIEW
+        // =================================================================================
+
         // [FIX] Load saved scale and update Internal State immediately
         // Use 69 as default to match resetPosition logic (prevent 1.0 mismatch)
         val scale = prefs.getInt("keyboard_key_scale", 69) / 100f
@@ -1116,26 +1297,130 @@ class KeyboardOverlay(
         keyboardParams?.x = savedX
         keyboardParams?.y = savedY
 
-        windowManager.addView(keyboardContainer, keyboardParams)
+windowManager.addView(keyboardContainer, keyboardParams)
         updateAlpha(currentAlpha)
         
         // [FIX] Initialize Resize Anchors so D-pad/Scaling works immediately
         // This prevents the "Background resizes but Keys don't" bug on fresh load.
         dragStartHeight = keyboardHeight
         dragStartScale = internalScale
+
+        // =================================================================================
+        // SPACEBAR MOUSE EXTENDED MODE - APPLY PREFERENCE ON VIEW CREATION
+        // =================================================================================
+        val extendedModePref = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            .getBoolean("spacebar_mouse_extended", false)
+        keyboardView?.setSpacebarExtendedMode(extendedModePref)
+        android.util.Log.d("KeyboardOverlay", "Applied spacebar extended mode: $extendedModePref")
+        
+        // Connect callback for drag handle color updates
+        keyboardView?.onExtendedModeChanged = { isActive ->
+            updateDragHandleColor(isActive)
+        }
+        // =================================================================================
+        // END BLOCK: SPACEBAR MOUSE EXTENDED MODE INITIALIZATION
+        // =================================================================================
     }
 
 
 
 
 
+    // =================================================================================
+    // FUNCTION: addDragHandle
+    // SUMMARY: Creates the drag handle at the top of the keyboard. The indicator bar
+    //          changes color based on spacebar mouse extended mode state:
+    //          - Grey (#555555): Normal state
+    //          - Red (#FF5555): Extended mode active (tap to exit)
+    //          Tapping (not dragging) the handle while in extended mode exits the mode.
+    // =================================================================================
     private fun addDragHandle() {
-        val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 28); handleParams.gravity = Gravity.TOP
-        val indicator = View(context); val indicatorBg = GradientDrawable(); indicatorBg.setColor(Color.parseColor("#555555")); indicatorBg.cornerRadius = 3f; indicator.background = indicatorBg
-        val indicatorParams = FrameLayout.LayoutParams(50, 5); indicatorParams.gravity = Gravity.CENTER; indicatorParams.topMargin = 8
-        handle.addView(indicator, indicatorParams); handle.setOnTouchListener { _, event -> handleDrag(event); true }
+        val handle = FrameLayout(context)
+        val handleParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 28)
+        handleParams.gravity = Gravity.TOP
+        
+        // Create indicator bar
+        val indicator = View(context)
+        val indicatorBg = GradientDrawable()
+        indicatorBg.setColor(Color.parseColor("#555555"))
+        indicatorBg.cornerRadius = 3f
+        indicator.background = indicatorBg
+        
+        // Store reference for color updates
+        dragHandleIndicator = indicator
+        
+        val indicatorParams = FrameLayout.LayoutParams(50, 5)
+        indicatorParams.gravity = Gravity.CENTER
+        indicatorParams.topMargin = 8
+        handle.addView(indicator, indicatorParams)
+        
+        // Variables to detect tap vs drag
+        var touchStartX = 0f
+        var touchStartY = 0f
+        var isDragGesture = false
+        val tapThreshold = 10f // pixels - movement less than this is a tap
+        
+        handle.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    touchStartX = event.rawX
+                    touchStartY = event.rawY
+                    isDragGesture = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = kotlin.math.abs(event.rawX - touchStartX)
+                    val dy = kotlin.math.abs(event.rawY - touchStartY)
+                    if (dx > tapThreshold || dy > tapThreshold) {
+                        isDragGesture = true
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    // If it was a tap (not a drag) and extended mode is active, exit mode
+                    if (!isDragGesture) {
+                        val kbView = keyboardView
+                        if (kbView != null && kbView.isInSpacebarMouseMode()) {
+                            android.util.Log.d("KeyboardOverlay", "Drag handle tapped - exiting extended mode")
+                            kbView.exitSpacebarMouseMode()
+                            updateDragHandleColor(false)
+                            // Haptic feedback
+                            handle.performHapticFeedback(android.view.HapticFeedbackConstants.REJECT)
+                            return@setOnTouchListener true
+                        }
+                    }
+                }
+            }
+            // Pass to normal drag handling
+            handleDrag(event)
+            true
+        }
+        
         keyboardContainer?.addView(handle, handleParams)
     }
+    // =================================================================================
+    // END BLOCK: addDragHandle
+    // =================================================================================
+    // =================================================================================
+    // FUNCTION: updateDragHandleColor
+    // SUMMARY: Updates the drag handle indicator color based on spacebar mouse extended
+    //          mode state. Red when active (indicating tap to exit), grey when inactive.
+    //          Called from KeyboardView when extended mode state changes.
+    // =================================================================================
+    fun updateDragHandleColor(extendedModeActive: Boolean) {
+        val indicator = dragHandleIndicator ?: return
+        val bg = indicator.background as? GradientDrawable ?: return
+        
+        if (extendedModeActive) {
+            bg.setColor(Color.parseColor("#FF5555")) // Red - tap to exit
+        } else {
+            bg.setColor(Color.parseColor("#555555")) // Grey - normal
+        }
+        indicator.invalidate()
+        
+        android.util.Log.d("KeyboardOverlay", "Drag handle color updated: extended=$extendedModeActive")
+    }
+    // =================================================================================
+    // END BLOCK: updateDragHandleColor
+    // =================================================================================
 
     private fun addResizeHandle() {
         val handle = FrameLayout(context); val handleParams = FrameLayout.LayoutParams(36, 36); handleParams.gravity = Gravity.BOTTOM or Gravity.RIGHT
@@ -1297,32 +1582,39 @@ class KeyboardOverlay(
             return
         }
 
+
         // 3. Handle Enter - clears everything
         if (keyCode == KeyEvent.KEYCODE_ENTER) {
             isSentenceStart = true
+            predictionEngine.clearContext()  // Clear context at sentence boundary
             lastCommittedSwipeWord = null
+
             currentComposingWord.clear()
             originalCaseWord.clear()
             updateSuggestionsWithSync(emptyList())  // CLEAR prediction bar
             return
         }
 
-        // 4. Handle Space - clears composition, clears prediction bar
+                // 4. Handle Space - clears composition, clears prediction bar
         if (char != null && Character.isWhitespace(char)) {
             isSentenceStart = false
             lastCommittedSwipeWord = null
+            predictionEngine.clearTemporaryPenalties() // Manual typing clears penalties
             currentComposingWord.clear()
             originalCaseWord.clear()
             updateSuggestionsWithSync(emptyList())  // CLEAR prediction bar
             return
         }
+
 
         // 5. Handle ending punctuation (. , ! ? ; : ") - clears composition
         if (isEndingPunctuation) {
             if (char == '.' || char == '!' || char == '?') {
                 isSentenceStart = true
+                predictionEngine.clearContext()  // Clear context at sentence boundary
             }
             lastCommittedSwipeWord = null
+
             currentComposingWord.clear()
             originalCaseWord.clear()
             updateSuggestionsWithSync(emptyList())  // CLEAR prediction bar
@@ -1390,6 +1682,9 @@ class KeyboardOverlay(
 
                 // [FIX] Use Bulk Delete for reliability (especially with KB Blocker)
                 (context as? OverlayService)?.injectBulkDelete(deleteCount)
+
+                // NEGATIVE REINFORCEMENT: Penalize this word temporarily
+                predictionEngine.penalizeWord(lastCommittedSwipeWord!!.trim())
 
                 // Clear the swipe history so next backspace is normal
                 lastCommittedSwipeWord = null
@@ -1463,10 +1758,19 @@ class KeyboardOverlay(
     //          SCENARIO 2: Manual Typing Completion - just append remaining suffix (no delete!)
     //          SCENARIO 3: Manual Typing with typo - delete only the mismatched portion
     // =================================================================================
+
     override fun onSuggestionClick(text: String, isNew: Boolean) {
         android.util.Log.d("DroidOS_Prediction", "=== SUGGESTION CLICK START ===")
         android.util.Log.d("DroidOS_Prediction", "Clicked word: '$text' (isNew=$isNew)")
+        
+        // FIX: Tell the engine we selected this word so it can learn!
+        predictionEngine.recordSelection(context, text)
+        
+        // SUCCESS: Manual selection clears penalties
+        predictionEngine.clearTemporaryPenalties()
+        
         android.util.Log.d("DroidOS_Prediction", "currentComposingWord: '${currentComposingWord}'")
+
         android.util.Log.d("DroidOS_Prediction", "lastCommittedSwipeWord: '$lastCommittedSwipeWord'")
 
         // 1. Learn word if it was flagged as New
@@ -1622,12 +1926,13 @@ class KeyboardOverlay(
     // SUMMARY: Handles swipe gesture completion. Runs decoding in background thread.
     //          OPTIMIZED: Reduced logging for better performance.
     // =================================================================================
+
     // =================================================================================
-    // FUNCTION: onSwipeDetectedTimed (Time-Weighted Swipe Handler)
-    // SUMMARY: Receives swipe path WITH timestamps for dwell-based word disambiguation.
-    //          Calls PredictionEngine.decodeSwipeTimed for time-aware scoring.
-    //          This allows users to linger on keys to select less common words.
-    //          Example: Linger on "U" to get "four" instead of "for".
+    // FUNCTION: onSwipeDetectedTimed (PHASE 2 - Dual Algorithm with Color Coding)
+    // SUMMARY: Receives swipe path and gets predictions from dual algorithm.
+    //          Winner is selected based on swipe speed:
+    //            - Slow swipes: PRECISE wins (GREEN text)
+    //            - Fast swipes: SHAPE_CONTEXT wins (BLUE text)
     // =================================================================================
     override fun onSwipeDetectedTimed(path: List<TimedPoint>) {
         if (keyboardView == null || path.size < 3) return
@@ -1635,35 +1940,42 @@ class KeyboardOverlay(
         val keyMap = keyboardView?.getKeyCenters()
         if (keyMap.isNullOrEmpty()) return
 
-        // Run time-weighted prediction in background
+        // Run dual prediction in background
         Thread {
             try {
-                val suggestions = predictionEngine.decodeSwipeTimed(path, keyMap)
+                // decodeSwipeTimed now returns List<SwipeResult>
+                val results = predictionEngine.decodeSwipeTimed(path, keyMap)
                 
-                if (suggestions.isEmpty()) {
-                    android.util.Log.d("DroidOS_Swipe", "TIMED DECODE: No suggestions returned")
+                if (results.isEmpty()) {
+                    android.util.Log.d("DroidOS_Swipe", "DUAL DECODE: No suggestions returned")
                     return@Thread
                 }
                 
-                android.util.Log.d("DroidOS_Swipe", "TIMED DECODE: Got ${suggestions.size} suggestions: ${suggestions.joinToString(", ")}")
+                val winner = results.first()
+                android.util.Log.d("DroidOS_Swipe", "DUAL DECODE: Winner='${winner.word}' via ${winner.source}")
 
                 handler.post {
-                    var bestMatch = suggestions[0]
+                    var bestMatch = winner.word
+                    val winningSource = winner.source
                     val isCap = isSentenceStart
 
                     if (isCap) {
-                        bestMatch = bestMatch.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        bestMatch = bestMatch.replaceFirstChar { 
+                            if (it.isLowerCase()) it.titlecase() else it.toString() 
+                        }
                     }
 
-val displaySuggestions = if (isCap) {
-                        suggestions.map { it.replaceFirstChar { c -> c.titlecase() } }
-                    } else {
-                        suggestions
-                    }.map { word -> 
+                    // Build display suggestions with source info for color coding
+                    val displaySuggestions = results.map { result ->
+                        var word = result.word
+                        if (isCap) {
+                            word = word.replaceFirstChar { c -> c.titlecase() }
+                        }
                         KeyboardView.Candidate(
                             text = word, 
                             isNew = false,
-                            isCustom = predictionEngine.isCustomWord(word)
+                            isCustom = predictionEngine.isCustomWord(result.word),
+                            source = result.source  // Pass source for color coding!
                         )
                     }
 
@@ -1678,16 +1990,23 @@ val displaySuggestions = if (isCap) {
                     textToCommit = "$textToCommit "
 
                     injectText(textToCommit)
+                    
+                    // Update context model for future predictions
+                    predictionEngine.updateContextModel(bestMatch)
+                    
+                    // SUCCESS: We committed a new word, so clear any previous backspace penalties
+                    predictionEngine.clearTemporaryPenalties()
+                    
                     lastCommittedSwipeWord = textToCommit
                     isSentenceStart = false
                     
-                    // Clear composition state since we just committed a swipe word
+                    // Clear composition state
                     currentComposingWord.clear()
                     originalCaseWord.clear()
-                    // NOTE: Don't clear suggestions here - we want to show alternatives
                 }
             } catch (e: Exception) {
-                android.util.Log.e("DroidOS_Swipe", "Timed swipe decode error: ${e.message}")
+                android.util.Log.e("DroidOS_Swipe", "Dual swipe decode error: ${e.message}")
+                e.printStackTrace()
             }
         }.start()
     }
@@ -1749,16 +2068,12 @@ val displaySuggestions = if (isCap) {
     // =================================================================================
 
     // =================================================================================
-    // FUNCTION: onSwipeProgress (LIVE SWIPE PREVIEW)
-    // SUMMARY: Called during swipe to show real-time predictions as user swipes.
-    //          Uses a lightweight prediction that doesn't commit text.
-    //          This helps users see what word will be typed and helps debug.
+
     // =================================================================================
-// =================================================================================
-    // FUNCTION: onSwipeProgress (LIVE SWIPE PREVIEW - Single Prediction)
-    // SUMMARY: Called during swipe to show real-time prediction as user swipes.
-    //          Shows ONLY the top prediction (like GBoard) for cleaner UX.
-    //          Full suggestions shown on swipe completion in onSwipeDetected.
+    // FUNCTION: onSwipeProgress (PHASE 3 - Dual Live Preview)
+    // SUMMARY: Shows BOTH algorithms' predictions during swiping.
+    //          Left slot = Precise (GREEN), Middle slot = Shape (BLUE)
+    //          This lets users see what both algorithms predict in real-time.
     // =================================================================================
     override fun onSwipeProgress(path: List<android.graphics.PointF>) {
         if (keyboardView == null || path.size < 5) return
@@ -1766,42 +2081,63 @@ val displaySuggestions = if (isCap) {
         val keyMap = keyboardView?.getKeyCenters()
         if (keyMap.isNullOrEmpty()) return
 
-        // Run prediction in background to avoid UI lag
+        // Run dual preview in background
         Thread {
             try {
-                val suggestions = predictionEngine.decodeSwipePreview(path, keyMap)
+                val (preciseResult, shapeResult) = predictionEngine.decodeSwipeDualPreview(path, keyMap)
 
-                if (suggestions.isNotEmpty()) {
+                // Only update if we have at least one result
+                if (preciseResult != null || shapeResult != null) {
                     handler.post {
-                        // Get only the TOP prediction
-                        var topPrediction = suggestions[0]
+                        val isCap = isSentenceStart
+                        val displaySuggestions = mutableListOf<KeyboardView.Candidate>()
                         
-                        // Apply capitalization if at sentence start
-                        if (isSentenceStart) {
-                            topPrediction = topPrediction.replaceFirstChar { 
-                                if (it.isLowerCase()) it.titlecase() else it.toString() 
+                        // LEFT SLOT: Precise prediction (GREEN)
+                        if (preciseResult != null) {
+                            var word = preciseResult.word
+                            if (isCap) {
+                                word = word.replaceFirstChar { c -> c.titlecase() }
                             }
+                            displaySuggestions.add(KeyboardView.Candidate(
+                                text = word,
+                                isNew = false,
+                                isCustom = predictionEngine.isCustomWord(preciseResult.word),
+                                source = PredictionSource.PRECISE
+                            ))
+                        } else {
+                            // Empty placeholder to maintain layout
+                            displaySuggestions.add(KeyboardView.Candidate("", false, false, null))
                         }
+                        
+                        // MIDDLE SLOT: Shape/Context prediction (BLUE)
+                        if (shapeResult != null) {
+                            var word = shapeResult.word
+                            if (isCap) {
+                                word = word.replaceFirstChar { c -> c.titlecase() }
+                            }
+                            displaySuggestions.add(KeyboardView.Candidate(
+                                text = word,
+                                isNew = false,
+                                isCustom = predictionEngine.isCustomWord(shapeResult.word),
+                                source = PredictionSource.SHAPE_CONTEXT
+                            ))
+                        } else {
+                            displaySuggestions.add(KeyboardView.Candidate("", false, false, null))
+                        }
+                        
+                        // RIGHT SLOT: Empty during preview (filled on completion)
+                        displaySuggestions.add(KeyboardView.Candidate("", false, false, null))
 
-                        // Show ONLY the top prediction (single item list)
-val singleSuggestion = listOf(KeyboardView.Candidate(
-                            text = topPrediction, 
-                            isNew = false,
-                            isCustom = predictionEngine.isCustomWord(topPrediction)
-                        ))
-                        updateSuggestionsWithSync(singleSuggestion)
+                        updateSuggestionsWithSync(displaySuggestions)
                     }
                 }
             } catch (e: Exception) {
-                // Silently ignore errors during preview
+                // Silent fail for preview - don't spam logs
             }
         }.start()
     }
     // =================================================================================
-    // END BLOCK: onSwipeProgress
-    // =================================================================================
-    // =================================================================================
-    // END BLOCK: onSwipeProgress
+    // END BLOCK: onSwipeProgress (Dual Live Preview)
     // =================================================================================
 
 
@@ -1965,15 +2301,64 @@ val singleSuggestion = listOf(KeyboardView.Candidate(
         }.start()
     }
 
-    // [FIX] Helper to fix Z-Order relative to Trackpad
-    fun bringToFront() {
-        if (!isVisible || keyboardContainer == null) return
-        try {
-            // Remove and Re-add to move to the top of the WindowManager stack
-            windowManager.removeView(keyboardContainer)
-            windowManager.addView(keyboardContainer, keyboardParams)
-        } catch (e: Exception) {
-            e.printStackTrace()
+            // [FIX] Helper to fix Z-Order relative to Trackpad
+        fun bringToFront() {
+            if (!isVisible || keyboardContainer == null) return
+            try {
+                // Remove and Re-add to move to the top of the WindowManager stack
+                windowManager.removeView(keyboardContainer)
+                windowManager.addView(keyboardContainer, keyboardParams)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+    // =================================================================================
+    // FUNCTION: setNumberLayerOverride
+    // SUMMARY: Automatically switches to Number/Symbol layer when Visual Queue is active.
+    //          Saves previous state to restore later.
+    // =================================================================================
+    private var savedLayerState: KeyboardView.KeyboardState? = null
+
+    fun setNumberLayerOverride(active: Boolean) {
+        val kb = keyboardView ?: return
+        if (active) {
+            // Save current state if not already saved (prevents overwriting if called twice)
+            if (savedLayerState == null) {
+                savedLayerState = kb.getKeyboardState()
+                android.util.Log.d(TAG, "Auto-Switch: Saved layer $savedLayerState, switching to SYMBOLS")
+            }
+            // SYMBOLS_1 contains the Number Row on main grid
+            kb.setKeyboardState(KeyboardView.KeyboardState.SYMBOLS_1)
+        } else {
+            // Restore
+            if (savedLayerState != null) {
+                android.util.Log.d(TAG, "Auto-Switch: Restoring layer $savedLayerState")
+                kb.setKeyboardState(savedLayerState!!)
+                savedLayerState = null
+            }
         }
     }
+
+    // =================================================================================
+    // FUNCTION: getKeyboardBounds
+    // SUMMARY: Returns the screen bounds of the keyboard overlay for tap-outside detection.
+    // =================================================================================
+    fun getKeyboardBounds(): android.graphics.Rect? {
+        val container = keyboardContainer ?: return null
+        val params = keyboardParams ?: return null
+        
+        val location = IntArray(2)
+        container.getLocationOnScreen(location)
+        
+        return android.graphics.Rect(
+            location[0],
+            location[1],
+            location[0] + container.width,
+            location[1] + container.height
+        )
+    }
+    // =================================================================================
+    // END BLOCK: getKeyboardBounds
+    // =================================================================================
 }

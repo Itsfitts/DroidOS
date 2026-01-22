@@ -125,6 +125,16 @@
                 android:tooltipText="Profiles"/>
 
             <ImageView
+                android:id="@+id/icon_mode_keybinds"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_mode_keybinds"
+                android:tint="#AAAAAA"
+                android:background="@drawable/bg_item_press"
+                android:tooltipText="Keybinds"/>
+
+            <ImageView
                 android:id="@+id/icon_mode_settings"
                 android:layout_width="32dp"
                 android:layout_height="32dp"

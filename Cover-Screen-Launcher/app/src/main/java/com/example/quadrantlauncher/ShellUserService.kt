@@ -281,6 +281,18 @@ override fun setBrightness(displayId: Int, brightness: Int) {
         try { Runtime.getRuntime().exec(command).waitFor() } catch (e: Exception) {} finally { Binder.restoreCallingIdentity(token) }
     }
 
+    override fun injectKey(keyCode: Int, action: Int, flags: Int, displayId: Int, metaState: Int) {
+        val token = Binder.clearCallingIdentity()
+        try {
+            val cmd = "input keyevent --display $displayId $keyCode"
+            Runtime.getRuntime().exec(cmd).waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "injectKey failed", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+
 
 
     // === REPOSITION TASK - START ===
@@ -303,7 +315,9 @@ override fun setBrightness(displayId: Int, brightness: Int) {
             Log.d(TAG, "repositionTask: $modeCmd")
             val modeProc = Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd))
             modeProc.waitFor()
-            Thread.sleep(100)
+            
+            // Wait for OS animation/state-change (Samsung needs ~300ms)
+            Thread.sleep(300)
 
             // Apply resize
             val resizeCmd = "am task resize $tid $left $top $right $bottom"
@@ -746,7 +760,10 @@ override fun getWindowLayouts(displayId: Int): List<String> {
                 val modeCmd = "am task set-windowing-mode $taskId 5"
                 Runtime.getRuntime().exec(arrayOf("sh", "-c", modeCmd)).waitFor()
                 Thread.sleep(100)
-                val resizeCmd = "am task resize $taskId 99999 99999 100000 100000"
+                
+                // [FIX] Use NEGATIVE coordinates to ensure off-screen on all displays
+                // Positive huge numbers can sometimes clamp to the bottom-right edge visible area
+                val resizeCmd = "am task resize $taskId -10000 -10000 -9900 -9900"
                 Runtime.getRuntime().exec(arrayOf("sh", "-c", resizeCmd)).waitFor()
             }
 

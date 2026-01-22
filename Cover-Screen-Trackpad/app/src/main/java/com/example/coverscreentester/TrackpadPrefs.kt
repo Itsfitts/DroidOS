@@ -42,6 +42,9 @@ class TrackpadPrefs {
     // END BLOCK: VIRTUAL MIRROR MODE PREFERENCES
     // =================================================================================
 
+    var prefOverrideSystemShortcuts = true
+    var customModKey = 0 // To persist across view rebuilds
+
     var hardkeyVolUpTap = "left_click"
     var hardkeyVolUpDouble = "left_click"
     var hardkeyVolUpHold = "left_click"

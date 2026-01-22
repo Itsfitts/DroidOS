@@ -31,17 +31,25 @@ class KeyboardView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : LinearLayout(context, attrs, defStyleAttr) {
 
-// =================================================================================
+    companion object {
+        private const val TAG = "KeyboardView"
+    }
+
+
+    // =================================================================================
     // DATA CLASS: Candidate
     // SUMMARY: Represents a word suggestion in the prediction bar.
     //   - text: The word to display
     //   - isNew: True if word is NOT in any dictionary (shown in RED, can be added)
     //   - isCustom: True if word is in USER dictionary (shown in ITALIC)
+    //   - source: Which algorithm produced this (for color-coding)
+    //             PRECISE = Green, SHAPE_CONTEXT = Blue, null = White
     // =================================================================================
     data class Candidate(
         val text: String, 
         val isNew: Boolean = false,
-        val isCustom: Boolean = false
+        val isCustom: Boolean = false,
+        val source: PredictionSource? = null
     )
     // =================================================================================
     // END BLOCK: Candidate data class
@@ -98,8 +106,26 @@ class KeyboardView @JvmOverloads constructor(
     private var isCtrlActive = false
     private var isAltActive = false
 
+private var isMetaActive = false // For Windows/Command key
+
 
     private var isVoiceActive = false
+    private var isInputCaptureActive = false
+
+private var customModKeyCode = 0
+    private var isCustomModLatchedLocal = false
+    private var overrideSystemShortcuts = true
+
+    // =================================================================================
+    // LAUNCHER BLOCKED SHORTCUTS SET
+    // SUMMARY: Contains shortcuts registered in the Launcher (format: "modifier|keyCode").
+    //          Only block shortcuts that exist in this set when overrideSystemShortcuts is true.
+    //          Empty set = block nothing (allow all shortcuts through to system)
+    // =================================================================================
+    private var launcherBlockedShortcuts: Set<String> = emptySet()
+    // =================================================================================
+    // END BLOCK: LAUNCHER BLOCKED SHORTCUTS SET
+    // =================================================================================
 
     // [NEW] Mirror Mode & Visual Helpers
     private var isMirrorMode = false
@@ -279,7 +305,33 @@ class KeyboardView @JvmOverloads constructor(
 
     // Touch Mode State
     private var isTrackpadTouchMode = false
+    
+    // =================================================================================
+    // SPACEBAR MOUSE EXTENDED MODE STATE
+    // SUMMARY: When true, spacebar mouse mode stays active indefinitely (no timer reset).
+    //          Mode only deactivates when exitSpacebarMouseMode() is called externally
+    //          (triggered by tapping the drag handle).
+    // =================================================================================
+    private var isSpacebarMouseExtendedMode = false
+    
+    // Callback to notify overlay when extended mode state changes (for drag handle color)
+    var onExtendedModeChanged: ((Boolean) -> Unit)? = null
+    
+    // =================================================================================
+    // ARROW KEYS SWIPE CALLBACK
+    // SUMMARY: When in spacebar mouse mode, arrow keys trigger swipe instead of arrows.
+    //          Parameters: dx (horizontal), dy (vertical) - values are -1, 0, or 1
+    // =================================================================================
+    var onArrowSwipe: ((Float, Float) -> Unit)? = null
+    // =================================================================================
+    // END BLOCK: SPACEBAR MOUSE EXTENDED MODE STATE
+    // =================================================================================
 
+    // =================================================================================
+    // TRACKPAD RESET RUNNABLE
+    // SUMMARY: Called after 1-second timeout in normal (non-extended) mode to deactivate
+    //          spacebar mouse mode. Resets visual state and notifies overlay.
+    // =================================================================================
     private val trackpadResetRunnable = Runnable { 
         isTrackpadTouchMode = false
         
@@ -290,7 +342,16 @@ class KeyboardView @JvmOverloads constructor(
             spaceView.invalidate() // Force redraw
         }
         this.invalidate() // Force keyboard redraw
+        
+        // Notify overlay (in case color was set)
+        onExtendedModeChanged?.invoke(false)
+        
+        // Rebuild keyboard to reset arrow key colors
+        buildKeyboard()
     }
+    // =================================================================================
+    // END BLOCK: TRACKPAD RESET RUNNABLE
+    // =================================================================================
 
 
     // Hold / Drag Logic
@@ -308,10 +369,87 @@ class KeyboardView @JvmOverloads constructor(
     }
 
 
+    // =================================================================================
+    // FUNCTION: setSpacebarExtendedMode
+    // SUMMARY: Enables or disables spacebar mouse extended mode. When enabled, the normal
+    //          1-second timer is bypassed and mode stays active until explicitly exited.
+    //          Called from OverlayService when preference changes.
+    // =================================================================================
+    fun setSpacebarExtendedMode(enabled: Boolean) {
+        isSpacebarMouseExtendedMode = enabled
+        android.util.Log.d("SpaceTrackpad", "Extended Mode set to: $enabled")
+        
+        // If we just disabled extended mode and trackpad mode is active, start the normal timer
+        if (!enabled && isTrackpadTouchMode) {
+            handler.removeCallbacks(trackpadResetRunnable)
+            handler.postDelayed(trackpadResetRunnable, 1000)
+        }
+    }
+    // =================================================================================
+    // END BLOCK: setSpacebarExtendedMode
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: exitSpacebarMouseMode
+    // SUMMARY: Forcibly exits spacebar mouse mode. Called when user taps the drag handle
+    //          in extended mode. Resets all trackpad state and notifies overlay to
+    //          reset drag handle color back to grey.
+    // =================================================================================
+    fun exitSpacebarMouseMode() {
+        if (!isTrackpadTouchMode) return
+        
+        android.util.Log.d("SpaceTrackpad", "Exiting spacebar mouse mode (external request)")
+        
+        // Cancel any pending timers
+        handler.removeCallbacks(trackpadResetRunnable)
+        handler.removeCallbacks(holdToDragRunnable)
+        
+        // Reset state
+        isTrackpadTouchMode = false
+        isSpaceTrackpadActive = false
+        isDragging = false
+        spacebarPointerId = -1
+        
+        // Reset visual
+        val spaceView = findViewWithTag<View>("SPACE")
+        if (spaceView != null) {
+            setKeyVisual(spaceView, false, "SPACE")
+            spaceView.invalidate()
+        }
+        this.invalidate()
+        
+        // Notify overlay to turn drag handle back to grey
+        onExtendedModeChanged?.invoke(false)
+        
+        // Rebuild keyboard to reset arrow key colors
+        buildKeyboard()
+    }
+    // =================================================================================
+    // END BLOCK: exitSpacebarMouseMode
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: isInSpacebarMouseMode
+    // SUMMARY: Returns true if spacebar mouse mode is currently active. Used by
+    //          OverlayService to determine if tap-outside should exit mode.
+    // =================================================================================
+    fun isInSpacebarMouseMode(): Boolean {
+        return isTrackpadTouchMode
+    }
+    // =================================================================================
+    // END BLOCK: isInSpacebarMouseMode
+    // =================================================================================
+    // =================================================================================
+    // FUNCTION: startTrackpadTimer
+    // SUMMARY: Activates spacebar mouse mode with visual feedback. In normal mode, starts
+    //          a 1-second timer that will deactivate mode. In EXTENDED mode, no timer is
+    //          started - mode stays active until exitSpacebarMouseMode() is called.
+    //          Also notifies overlay to update drag handle color when in extended mode.
+    // =================================================================================
     private fun startTrackpadTimer() {
         isTrackpadTouchMode = true
         
-        // FORCE VISUAL: Keep Spacebar Green while timer is active
+        // FORCE VISUAL: Keep Spacebar Green while mode is active
         val spaceView = findViewWithTag<View>("SPACE")
         if (spaceView != null) {
             setKeyVisual(spaceView, true, "SPACE")
@@ -319,8 +457,27 @@ class KeyboardView @JvmOverloads constructor(
         }
         
         handler.removeCallbacks(trackpadResetRunnable)
-        handler.postDelayed(trackpadResetRunnable, 1000)
+        
+        // =================================================================================
+        // EXTENDED MODE CHECK
+        // In extended mode, skip the timer - mode stays active until explicit exit
+        // =================================================================================
+        if (!isSpacebarMouseExtendedMode) {
+            handler.postDelayed(trackpadResetRunnable, 1000)
+        } else {
+            android.util.Log.d("SpaceTrackpad", "Extended mode active - timer skipped")
+            // Notify overlay to turn drag handle red
+            onExtendedModeChanged?.invoke(true)
+            // Rebuild keyboard to update arrow key colors to blue
+            buildKeyboard()
+        }
+        // =================================================================================
+        // END BLOCK: EXTENDED MODE CHECK
+        // =================================================================================
     }
+    // =================================================================================
+    // END BLOCK: startTrackpadTimer
+    // =================================================================================
 
 
 
@@ -409,11 +566,12 @@ class KeyboardView @JvmOverloads constructor(
     private val row4Lower = listOf("SYM", ",", "SPACE", ".")
     private val row4Sym = listOf("ABC", ",", "SPACE", ".")
 
-    // Row 5 
-    private val arrowRow = listOf("TAB", "CTRL", "ALT", "←", "↑", "↓", "→", "ESC")
+    // Row 5 (Changed TAB to META)
+    private val arrowRow = listOf("META", "CTRL", "ALT", "←", "↑", "↓", "→", "ESC")
     
-    // Row 6 (Moved SCREEN to far left)
-    private val navRow = listOf("SCREEN", "HIDE_KB", "MUTE", "VOL-", "VOL+", "BACK", "FWD", "MIC")
+    // Row 6 (Replaced SCREEN with TAB, Removed SCREEN)
+    // Note: SCREEN logic is removed, but we keep the key for layout balance, now acting as TAB.
+    private val navRow = listOf("TAB", "HIDE_KB", "MUTE", "VOL-", "VOL+", "BACK", "FWD", "MIC")
 
     // Keys allowed to repeat when held
 
@@ -454,6 +612,32 @@ class KeyboardView @JvmOverloads constructor(
             }
         }
     }
+
+    fun setInputCaptureMode(active: Boolean) {
+        isInputCaptureActive = active
+        // Visual feedback? maybe dim the keyboard slightly or change border
+        if (active) setBackgroundColor(Color.parseColor("#330000")) // Subtle Red tint
+        else setBackgroundColor(Color.parseColor("#1A1A1A"))
+    }
+
+    fun setOverrideSystemShortcuts(enabled: Boolean) {
+        overrideSystemShortcuts = enabled
+    }
+
+    // =================================================================================
+    // FUNCTION: setLauncherBlockedShortcuts
+    // SUMMARY: Updates the set of shortcuts that should be blocked when
+    //          overrideSystemShortcuts is enabled. Only shortcuts in this set
+    //          will be blocked; others pass through to the system.
+    // @param shortcuts - Set of "modifier|keyCode" strings from Launcher
+    // =================================================================================
+    fun setLauncherBlockedShortcuts(shortcuts: Set<String>) {
+        launcherBlockedShortcuts = shortcuts
+        android.util.Log.d(TAG, "KeyboardView: Updated blocked shortcuts: ${shortcuts.size} entries")
+    }
+    // =================================================================================
+    // END FUNCTION: setLauncherBlockedShortcuts
+    // =================================================================================
 
     // =================================================================================
     // FUNCTION: setOrientationModeActive
@@ -500,7 +684,8 @@ class KeyboardView @JvmOverloads constructor(
 
         // Start the path collection with timestamp
         currentPath.clear()
-        currentPath.add(TimedPoint(x, y, System.currentTimeMillis()))
+        currentPath.add(TimedPoint(x, y, android.os.SystemClock.uptimeMillis()))
+
     }
     // =================================================================================
     // END BLOCK: startSwipeFromPosition
@@ -529,8 +714,15 @@ class KeyboardView @JvmOverloads constructor(
             Log.d("KeyboardView", "Deferred tap on key: $keyTag")
 
             if (keyTag == "SPACE") {
-                // For spacebar, trigger space character
-                listener?.onSpecialKey(SpecialKey.SPACE, 0)
+                // =================================================================================
+                // DEFERRED SPACEBAR TAP - ROUTE THROUGH handleKeyPress
+                // SUMMARY: Same fix as main spacebar handling - route through handleKeyPress
+                //          so modifier shortcuts and logging work correctly.
+                // =================================================================================
+                handleKeyPress("SPACE")
+                // =================================================================================
+                // END BLOCK: DEFERRED SPACEBAR TAP
+                // =================================================================================
             } else {
                 // For other keys, trigger the full key press sequence
                 onKeyDown(keyTag, touchedView)
@@ -1029,8 +1221,9 @@ private fun buildKeyboard() {
                 swipeTrail?.clear()
                 swipeTrail?.addPoint(event.x, event.y)
                 currentPath.clear()
-                // NEW: Add with timestamp for dwell detection
-                currentPath.add(TimedPoint(event.x, event.y, System.currentTimeMillis()))
+                // FIX: Use event.eventTime for consistent timestamps with ACTION_MOVE
+                currentPath.add(TimedPoint(event.x, event.y, event.eventTime))
+
             }
 
             android.view.MotionEvent.ACTION_POINTER_DOWN -> {
@@ -1266,11 +1459,17 @@ private fun buildKeyboard() {
 
 
 
-        // --- SPACEBAR TRACKPAD HANDLING ---
+// --- SPACEBAR TRACKPAD HANDLING ---
         // [MODIFIED] Check for Spacebar OR Active Trackpad Mode (Full Keyboard)
         // If mode is active (Green), ALL keyboard touches become mouse inputs.
+        // =================================================================================
+        // ARROW KEYS EXCEPTION: When in spacebar mouse mode, arrow keys should NOT be
+        // intercepted for cursor movement - they perform swipe actions instead.
+        // =================================================================================
+        val arrowKeys = listOf("←", "↑", "↓", "→")
+        val isArrowKey = keyTag in arrowKeys
         val isTrackpadStart = (keyTag == "SPACE" && action == MotionEvent.ACTION_DOWN)
-        val isTrackpadContinue = (isTrackpadTouchMode && action == MotionEvent.ACTION_DOWN)
+        val isTrackpadContinue = (isTrackpadTouchMode && action == MotionEvent.ACTION_DOWN && !isArrowKey)
 
         if (isTrackpadStart || isTrackpadContinue || spacebarPointerId == pointerId) {
             when (action) {
@@ -1352,14 +1551,20 @@ private fun buildKeyboard() {
                             startTrackpadTimer()
                         } else {
                             if (!isSpaceTrackpadActive) {
-                                // Normal Space Tap (Turns Grey immediately above)
-                                if (isPredictiveBarEmpty) {
-                                    listener?.onSpecialKey(SpecialKey.SPACE, 0)
-                                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                } else {
-                                    listener?.onSpecialKey(SpecialKey.SPACE, 0)
-                                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                }
+                                // =================================================================================
+                                // SPACEBAR TAP - ROUTE THROUGH handleKeyPress
+                                // SUMMARY: Previously called listener?.onSpecialKey() directly, which bypassed
+                                //          handleKeyPress() and all its modifier/shortcut logic. Now we route
+                                //          through handleKeyPress("SPACE") so that:
+                                //          1. Spacebar is logged in debug output
+                                //          2. Alt+Space, Ctrl+Space can work as shortcuts
+                                //          3. Spacebar broadcasts to Launcher when modifiers are active
+                                // =================================================================================
+                                handleKeyPress("SPACE")
+                                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                // =================================================================================
+                                // END BLOCK: SPACEBAR TAP - ROUTE THROUGH handleKeyPress
+                                // =================================================================================
                             } else {
                                 // Drag Finished -> Enter Touch Mode (Stays Green)
                                 startTrackpadTimer()
@@ -1595,7 +1800,7 @@ private fun buildKeyboard() {
     // Keys that trigger layout changes (?123, ABC) or state toggles (CTRL, ALT)
     // must fire on UP to prevent "Flickering" caused by immediate layout rebuilds
     // while the finger is still pressing the screen.
-    private val deferredKeys = setOf("SHIFT", "?123", "ABC", "SYM", "SYM1", "SYM2", "CTRL", "ALT", "MODE", "SCREEN")
+    private val deferredKeys = setOf("SHIFT", "?123", "ABC", "SYM", "SYM1", "SYM2", "CTRL", "ALT", "META", "MODE", "SCREEN", "TAB")
 
     // =================================================================================
     // FUNCTION: onKeyDown
@@ -1760,7 +1965,7 @@ private fun buildKeyboard() {
         "SHIFT" -> if (currentState == KeyboardState.CAPS_LOCK) "⬆" else "⇧"
         "BKSP" -> "⌫"; "ENTER" -> "↵"; "SPACE" -> " "
         "SYM", "SYM1", "SYM2" -> "?123"; "ABC" -> "ABC"
-        "TAB" -> "⇥"; "CTRL" -> "Ctrl"; "ALT" -> "Alt"; "ESC" -> "Esc"
+        "TAB" -> "⇥"; "CTRL" -> "Ctrl"; "ALT" -> "Alt"; "META" -> "❖"; "ESC" -> "Esc"
         "←" -> "◀"; "→" -> "▶"; "↑" -> "▲"; "↓" -> "▼"
         "MUTE" -> "Mute"; "VOL-" -> "Vol-"; "VOL+" -> "Vol+"
         "BACK" -> "Back"; "FWD" -> "Fwd"; "MIC" -> "🎤"
@@ -1772,6 +1977,8 @@ private fun buildKeyboard() {
     private fun getKeyColor(key: String): Int {
         if (key == "CTRL" && isCtrlActive) return Color.parseColor("#3DDC84")
         if (key == "ALT" && isAltActive) return Color.parseColor("#3DDC84")
+
+if (key == "META" && isMetaActive) return Color.parseColor("#3DDC84")
         
         // NEW: Voice Active Indicator
         // UPDATED: Voice Key Color
@@ -1784,7 +1991,19 @@ private fun buildKeyboard() {
             return if (isSymbolsActive()) Color.parseColor("#FF9800") else Color.parseColor("#FF5555")
         }
         
-        if (key in arrowRow || key in navRow) return Color.parseColor("#252525")
+        // =================================================================================
+        // ARROW KEYS COLOR - BLUE WHEN IN SPACEBAR MOUSE MODE
+        // =================================================================================
+        if (key in arrowRow) {
+            if (key in listOf("←", "↑", "↓", "→") && isTrackpadTouchMode) {
+                return Color.parseColor("#4488FF") // Blue for swipe mode
+            }
+            return Color.parseColor("#252525")
+        }
+        if (key in navRow) return Color.parseColor("#252525")
+        // =================================================================================
+        // END BLOCK: ARROW KEYS COLOR
+        // =================================================================================
         
         return when (key) {
             "SHIFT" -> when (currentState) {
@@ -1807,76 +2026,224 @@ private fun buildKeyboard() {
         var meta = 0
         if (isCtrlActive) meta = meta or 0x1000 
         if (isAltActive) meta = meta or 0x02 
+
+if (isMetaActive) meta = meta or 0x10000 // META_META_ON 
         return meta
     }
 
 
-    private fun handleKeyPress(key: String, fromRepeat: Boolean = false) {
-        if (isMirrorMode) return // STOP Ghost Typing
-        var meta = getMetaState()
-
-        if (fromRepeat && !isKeyRepeatable(key)) return
-
-        when (key) {
-            "CTRL" -> { if (!fromRepeat) { isCtrlActive = !isCtrlActive; buildKeyboard() } }
-            "ALT" -> { if (!fromRepeat) { isAltActive = !isAltActive; buildKeyboard() } }
-            "SHIFT" -> { /* Handled in onKeyUp/Down */ }
-            
-            "BKSP" -> listener?.onSpecialKey(SpecialKey.BACKSPACE, meta)
-            "ENTER" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.ENTER, meta) }
-            "SPACE" -> listener?.onSpecialKey(SpecialKey.SPACE, meta)
-            "TAB" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.TAB, meta) }
-            "ESC" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.ESCAPE, meta) }
-            
-            "←" -> listener?.onSpecialKey(SpecialKey.ARROW_LEFT, meta)
-            "→" -> listener?.onSpecialKey(SpecialKey.ARROW_RIGHT, meta)
-            "↑" -> listener?.onSpecialKey(SpecialKey.ARROW_UP, meta)
-            "↓" -> listener?.onSpecialKey(SpecialKey.ARROW_DOWN, meta)
-            
-            "MUTE" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.MUTE, meta) }
-            "VOL-" -> listener?.onSpecialKey(SpecialKey.VOL_DOWN, meta)
-            "VOL+" -> listener?.onSpecialKey(SpecialKey.VOL_UP, meta)
-            "BACK" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.BACK_NAV, meta) }
-            "FWD" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.FWD_NAV, meta) }
-            "MIC" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.VOICE_INPUT, meta) }
-            
-            "SCREEN" -> { 
-                if (!fromRepeat) {
-                    if (isSymbolsActive()) {
-                        listener?.onScreenModeChange()
-                    } else {
-                        listener?.onScreenToggle()
-                    }
-                }
-            }
-            "HIDE_KB" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.HIDE_KEYBOARD, meta) }
-            
-            "SYM", "SYM1" -> { if (!fromRepeat) { currentState = KeyboardState.SYMBOLS_1; buildKeyboard() } }
-            "SYM2" -> { if (!fromRepeat) { currentState = KeyboardState.SYMBOLS_2; buildKeyboard() } }
-            "ABC" -> { if (!fromRepeat) { currentState = KeyboardState.LOWERCASE; buildKeyboard() } }
-            
-            else -> {
-                if (key.length == 1) {
-                    val char = key[0]
-                    val pair = getSymbolKeyCode(char)
-                    val code = pair.first
-                    val shiftNeeded = pair.second
-                    if (shiftNeeded) meta = meta or KeyEvent.META_SHIFT_ON
-                    listener?.onKeyPress(code, char, meta)
-                    if (!fromRepeat && currentState == KeyboardState.UPPERCASE) { 
-                        currentState = KeyboardState.LOWERCASE
-                        buildKeyboard()
-                    }
-                }
-            }
-        }
-        if (!fromRepeat && key != "CTRL" && key != "ALT" && key != "SHIFT") {
-            if (isCtrlActive || isAltActive) {
-                isCtrlActive = false; isAltActive = false; buildKeyboard()
-            }
-        }
+    fun setCustomModKey(keyCode: Int) {
+        android.util.Log.d("DroidOS_Debug", "setCustomModKey: Old=$customModKeyCode New=$keyCode")
+        customModKeyCode = keyCode
     }
 
+        private fun handleKeyPress(key: String, fromRepeat: Boolean = false) {
+            if (isMirrorMode) return // STOP Ghost Typing
+            var meta = getMetaState()
+
+        // DEBUG: Log Raw Input
+        android.util.Log.d("DroidOS_Debug", "handleKeyPress: key='$key' customModKeyCode=$customModKeyCode")
+    
+            // 1. RESOLVE KEYCODE
+            // We need the keycode early to check against customModKeyCode
+            val charPair = if (key.length == 1) getSymbolKeyCode(key[0]) else Pair(0, false)
+            var keyCode = charPair.first
+
+            android.util.Log.d("DroidOS_Debug", "Resolved KeyCode: $keyCode")
+            
+            // Handle special keys mapping
+            if (keyCode == 0 || keyCode == KeyEvent.KEYCODE_UNKNOWN) {
+                 keyCode = when(key) {
+                    "←" -> KeyEvent.KEYCODE_DPAD_LEFT
+                    "→" -> KeyEvent.KEYCODE_DPAD_RIGHT
+                    "↑" -> KeyEvent.KEYCODE_DPAD_UP
+                    "↓" -> KeyEvent.KEYCODE_DPAD_DOWN
+                    "ENTER" -> KeyEvent.KEYCODE_ENTER
+                    "BKSP" -> KeyEvent.KEYCODE_DEL
+                    "SPACE" -> KeyEvent.KEYCODE_SPACE
+                    "TAB" -> KeyEvent.KEYCODE_TAB
+                    "ESC" -> KeyEvent.KEYCODE_ESCAPE
+                    else -> 0
+                }
+            }
+    
+                            // 2. CHECK CUSTOM MODIFIER (Toggle Latch)
+                            if (!fromRepeat && customModKeyCode != 0 && keyCode == customModKeyCode) {
+                                android.util.Log.d(TAG, "Custom Mod Key MATCH ($keyCode). Broadcasting & Latching...")
+
+                                // Broadcast the modifier to Launcher so IT latches too
+                                val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
+                                intent.setPackage("com.katsuyamaki.DroidOSLauncher")
+                                intent.putExtra("keyCode", keyCode)
+                                intent.putExtra("metaState", meta)
+                                context.sendBroadcast(intent)
+
+                                // Latch locally so next key is broadcast too
+                                isCustomModLatchedLocal = true
+                                // No timer - stays latched until next non-modifier key press
+
+                                return
+                            }            // 3. INPUT CAPTURE REDIRECT (For Launcher Commands)
+            val isLayerKey = key in setOf("SYM", "SYM1", "SYM2", "ABC", "SHIFT", "CAPS")
+            if (isInputCaptureActive && !isLayerKey) {
+                var finalCode = 0
+
+                // Handle Digits (0-9) with reliable math
+                if (key.length == 1 && Character.isDigit(key[0])) {
+                    val digit = key[0] - '0'
+                    finalCode = KeyEvent.KEYCODE_0 + digit
+                }
+                // Use already-resolved keyCode for other keys
+                else if (keyCode != 0) {
+                    finalCode = keyCode
+                }
+
+                // Send if valid
+                if (finalCode != 0) {
+                    val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
+                    intent.setPackage("com.katsuyamaki.DroidOSLauncher")
+                    intent.putExtra("keyCode", finalCode)
+                    intent.putExtra("metaState", meta)
+                    context.sendBroadcast(intent)
+                    android.util.Log.d("KeyboardView", "Capture Mode: Sent $finalCode for key $key")
+                }
+
+                // BLOCK EVERYTHING - don't let keys leak to app
+                return
+            }
+    
+            if (fromRepeat && !isKeyRepeatable(key)) return
+    
+                    // =================================================================================
+                    // MODIFIER SHORTCUT HANDLING WITH SELECTIVE BLOCKING
+                    // SUMMARY: When a modifier is active (Ctrl/Alt/Meta/Custom), broadcasts the key
+                    //          to the Launcher. Only blocks the system shortcut if:
+                    //          1. overrideSystemShortcuts is enabled AND
+                    //          2. The shortcut exists in launcherBlockedShortcuts set
+                    //          This allows standard shortcuts like Ctrl+C/V to pass through.
+                    // =================================================================================
+                    val isModifierKey = key in setOf("SHIFT", "CTRL", "ALT", "META", "SYM", "SYM1", "SYM2", "ABC", "CAPS")
+
+                    if (!fromRepeat && (isAltActive || isCtrlActive || isMetaActive || isCustomModLatchedLocal) && !isModifierKey) {
+                        // Build the shortcut key string to check against blocked set
+                        val shortcutKey = "$meta|$keyCode"
+                        val isShortcutRegistered = launcherBlockedShortcuts.contains(shortcutKey)
+
+                        android.util.Log.d(TAG, "Shortcut check: $shortcutKey, registered=$isShortcutRegistered, override=$overrideSystemShortcuts")
+
+                        // Only broadcast to Launcher if this shortcut is registered there
+                        if (isShortcutRegistered && keyCode != 0) {
+                            val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
+                            intent.setPackage("com.katsuyamaki.DroidOSLauncher")
+                            intent.putExtra("keyCode", keyCode)
+                            intent.putExtra("metaState", meta)
+                            context.sendBroadcast(intent)
+                            android.util.Log.d(TAG, "Broadcasting Remote Key: $key ($keyCode) (Latched: $isCustomModLatchedLocal)")
+                        }
+
+                        // Reset ALL modifiers (One-shot)
+                        isCtrlActive = false
+                        isAltActive = false
+                        isMetaActive = false
+                        isCustomModLatchedLocal = false
+                        buildKeyboard()
+
+                        // Only block system shortcut if:
+                        // 1. Override is enabled
+                        // 2. This specific shortcut is registered in the Launcher
+                        if (overrideSystemShortcuts && isShortcutRegistered) {
+                            android.util.Log.d(TAG, "Blocking system shortcut: $shortcutKey")
+                            return
+                        }
+                        // If shortcut is NOT registered, let it pass through to the system
+                        // (e.g., Ctrl+C, Ctrl+V will work normally)
+                    }
+                    // =================================================================================
+                    // END BLOCK: MODIFIER SHORTCUT HANDLING WITH SELECTIVE BLOCKING
+                    // =================================================================================            
+            // 5. INTERNAL KEY LOGIC (Toggles)
+            // ... (Keep existing switch(key) logic) ...
+            when (key) {
+                "CTRL" -> { if (!fromRepeat) { isCtrlActive = !isCtrlActive; buildKeyboard() } }
+                "ALT" -> { if (!fromRepeat) { isAltActive = !isAltActive; buildKeyboard() } }
+                
+                "META" -> { if (!fromRepeat) { isMetaActive = !isMetaActive; buildKeyboard() } }            "SHIFT" -> { /* Handled in onKeyUp/Down */ }
+                
+                "BKSP" -> listener?.onSpecialKey(SpecialKey.BACKSPACE, meta)
+                "ENTER" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.ENTER, meta) }
+                "SPACE" -> listener?.onSpecialKey(SpecialKey.SPACE, meta)
+                "ESC" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.ESCAPE, meta) }
+                
+                "←" -> listener?.onSpecialKey(SpecialKey.ARROW_LEFT, meta)
+                "→" -> listener?.onSpecialKey(SpecialKey.ARROW_RIGHT, meta)
+                "↑" -> listener?.onSpecialKey(SpecialKey.ARROW_UP, meta)
+                "↓" -> listener?.onSpecialKey(SpecialKey.ARROW_DOWN, meta)
+                
+                "MUTE" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.MUTE, meta) }
+                "VOL-" -> listener?.onSpecialKey(SpecialKey.VOL_DOWN, meta)
+                "VOL+" -> listener?.onSpecialKey(SpecialKey.VOL_UP, meta)
+                "BACK" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.BACK_NAV, meta) }
+                "FWD" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.FWD_NAV, meta) }
+                "MIC" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.VOICE_INPUT, meta) }
+                
+                                        // SCREEN key reused as TAB
+                
+                                        "TAB" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.TAB, meta) }            "HIDE_KB" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.HIDE_KEYBOARD, meta) }
+                
+                "SYM", "SYM1" -> { if (!fromRepeat) { currentState = KeyboardState.SYMBOLS_1; buildKeyboard() } }
+                "SYM2" -> { if (!fromRepeat) { currentState = KeyboardState.SYMBOLS_2; buildKeyboard() } }
+                "ABC" -> { if (!fromRepeat) { currentState = KeyboardState.LOWERCASE; buildKeyboard() } }
+                
+                else -> {
+                    if (key.length == 1) {
+                        val char = key[0]
+                        val pair = getSymbolKeyCode(char)
+                        val code = pair.first
+                        val shiftNeeded = pair.second
+                        if (shiftNeeded) meta = meta or KeyEvent.META_SHIFT_ON
+                        listener?.onKeyPress(code, char, meta)
+                        if (!fromRepeat && currentState == KeyboardState.UPPERCASE) { 
+                            currentState = KeyboardState.LOWERCASE
+                            buildKeyboard()
+                        }
+                    }
+                }
+            }
+            // === DIRECT LINE TO LAUNCHER ===
+            // If modifiers are active, broadcast the key to the Launcher immediately.
+            // This bypasses Android's restriction on Accessibility Services seeing injected keys.
+            if (!fromRepeat && (isAltActive || isCtrlActive || isMetaActive)) {
+                val charCode = if (key.length == 1) getSymbolKeyCode(key[0]).first else 0
+                // If it's a special key (like Arrow), convert it
+                val finalCode = if (charCode != KeyEvent.KEYCODE_UNKNOWN && charCode != 0) charCode else when(key) {
+                    "←" -> KeyEvent.KEYCODE_DPAD_LEFT
+                    "→" -> KeyEvent.KEYCODE_DPAD_RIGHT
+                    "↑" -> KeyEvent.KEYCODE_DPAD_UP
+                    "↓" -> KeyEvent.KEYCODE_DPAD_DOWN
+                    "ENTER" -> KeyEvent.KEYCODE_ENTER
+                    "BKSP" -> KeyEvent.KEYCODE_DEL
+                    "SPACE" -> KeyEvent.KEYCODE_SPACE
+                    "TAB" -> KeyEvent.KEYCODE_TAB
+                    else -> 0
+                }
+    
+                if (finalCode != 0) {
+                    val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
+                    intent.setPackage("com.katsuyamaki.DroidOSLauncher") // Target the Launcher explicitly
+                    intent.putExtra("keyCode", finalCode)
+                    intent.putExtra("metaState", getMetaState())
+                    context.sendBroadcast(intent)
+                    android.util.Log.d("KeyboardView", "Broadcasting Remote Key: $key ($finalCode) Meta: ${getMetaState()}")
+                }
+            }
+            // === END DIRECT LINE ===
+    
+            if (!fromRepeat && key != "CTRL" && key != "ALT" && key != "SHIFT" && key != "META") {
+                if (isCtrlActive || isAltActive || isMetaActive) {
+                    isCtrlActive = false; isAltActive = false; isMetaActive = false; buildKeyboard()
+                }
+            }
+        }
     private fun getSymbolKeyCode(c: Char): Pair<Int, Boolean> {
         return when (c) {
             in 'a'..'z' -> KeyEvent.keyCodeFromString("KEYCODE_${c.uppercase()}") to false
@@ -1996,16 +2363,33 @@ for (i in 0 until 3) {
                 view.visibility = View.VISIBLE
                 view.alpha = 1.0f
 
+
                 // =======================================================================
-                // VISUAL STYLING BASED ON WORD TYPE
-                // - RED + BOLD: Word not in any dictionary (isNew=true) - can be added
-                // - WHITE + ITALIC: Word is user-added custom word (isCustom=true)
-                // - WHITE + BOLD: Word is in main dictionary (normal)
+                // VISUAL STYLING BASED ON WORD TYPE AND PREDICTION SOURCE
+                // Priority order:
+                //   1. isNew = RED (word not in dictionary)
+                //   2. PRECISE source = GREEN (slow swipe winner)
+                //   3. SHAPE_CONTEXT source = BLUE (fast swipe winner)
+                //   4. isCustom = WHITE ITALIC (user dictionary)
+                //   5. Default = WHITE BOLD (main dictionary)
                 // =======================================================================
+                val PRECISE_GREEN = Color.parseColor("#4CAF50")   // Material Green 500
+                val SHAPE_BLUE = Color.parseColor("#2196F3")      // Material Blue 500
+                
                 when {
                     item.isNew -> {
-                        // NOT IN DICTIONARY - Red, bold (user can add it)
+                        // NOT IN DICTIONARY - Red, bold
                         view.setTextColor(Color.RED)
+                        view.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    }
+                    item.source == PredictionSource.PRECISE -> {
+                        // PRECISE ALGORITHM - Green, bold (slow swipe)
+                        view.setTextColor(PRECISE_GREEN)
+                        view.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    }
+                    item.source == PredictionSource.SHAPE_CONTEXT -> {
+                        // SHAPE/CONTEXT ALGORITHM - Blue, bold (fast swipe)
+                        view.setTextColor(SHAPE_BLUE)
                         view.typeface = android.graphics.Typeface.DEFAULT_BOLD
                     }
                     item.isCustom -> {
@@ -2020,7 +2404,7 @@ for (i in 0 until 3) {
                     }
                 }
                 // =======================================================================
-                // END BLOCK: Visual styling
+                // END BLOCK: Visual styling with algorithm color coding
                 // =======================================================================
 
                 // TOUCH LISTENER: Handle Click vs Drag

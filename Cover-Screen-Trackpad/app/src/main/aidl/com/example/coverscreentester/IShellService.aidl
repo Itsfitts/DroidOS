@@ -1,4 +1,3 @@
-
 package com.example.coverscreentester;
 
 interface IShellService {
@@ -22,4 +21,3 @@ interface IShellService {
     void setBrightness(int value);
     boolean setBrightnessViaDisplayManager(int displayId, float brightness);
 }
-

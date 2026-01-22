@@ -89,6 +89,37 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             } else if (matches("STOP_SERVICE")) {
                 Log.d("OverlayService", "Stopping Service")
                 forceExit()
+            } else if (matches("SET_INPUT_CAPTURE")) {
+                val capture = intent.getBooleanExtra("CAPTURE", false)
+                Log.d("OverlayService", "Input Capture Set: $capture")
+                keyboardOverlay?.setInputCaptureMode(capture)
+} else if (matches("SET_CUSTOM_MOD")) {
+                val keyCode = intent.getIntExtra("KEYCODE", 0)
+                Log.d("OverlayService", "Custom Mod Key Set: $keyCode")
+                prefs.customModKey = keyCode // Save to prefs
+                keyboardOverlay?.setCustomModKey(keyCode)
+            } else if (matches("SET_NUM_LAYER")) {
+                val active = intent.getBooleanExtra("ACTIVE", false)
+                keyboardOverlay?.setNumberLayerOverride(active)
+            // =================================================================================
+            // HANDLER: UPDATE_KEYBINDS
+            // SUMMARY: Receives the list of registered keybinds from DroidOS Launcher.
+            //          Updates launcherBlockedShortcuts set and syncs to KeyboardOverlay.
+            //          Format: ArrayList of "modifier|keyCode" strings
+            // =================================================================================
+            } else if (matches("UPDATE_KEYBINDS")) {
+                val keybinds = intent.getStringArrayListExtra("KEYBINDS")
+                Log.d("OverlayService", "Received UPDATE_KEYBINDS: ${keybinds?.size ?: 0} keybinds")
+                if (keybinds != null) {
+                    launcherBlockedShortcuts.clear()
+                    launcherBlockedShortcuts.addAll(keybinds)
+                    // Sync to KeyboardOverlay/KeyboardView
+                    keyboardOverlay?.setLauncherBlockedShortcuts(launcherBlockedShortcuts)
+                    Log.d("OverlayService", "Blocked shortcuts updated: $launcherBlockedShortcuts")
+                }
+            // =================================================================================
+            // END HANDLER: UPDATE_KEYBINDS
+            // =================================================================================
             }
         }
     }
@@ -110,7 +141,20 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         }
     }
 
-
+    // =================================================================================
+    // FUNCTION: requestKeybindsFromLauncher
+    // SUMMARY: Sends a broadcast to the DroidOS Launcher requesting the current list
+    //          of registered keybinds. The Launcher will respond with UPDATE_KEYBINDS.
+    // =================================================================================
+    private fun requestKeybindsFromLauncher() {
+        val intent = Intent("com.katsuyamaki.DroidOSLauncher.REQUEST_KEYBINDS")
+        intent.setPackage("com.katsuyamaki.DroidOSLauncher")
+        sendBroadcast(intent)
+        Log.d("OverlayService", "Requested keybinds from Launcher")
+    }
+    // =================================================================================
+    // END FUNCTION: requestKeybindsFromLauncher
+    // =================================================================================
 
     fun enforceZOrder() {
         try {
@@ -156,6 +200,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                         windowManager?.addView(cursorLayout, cursorParams)
                     } catch (e: Exception) {
                         try { windowManager?.addView(cursorLayout, cursorParams) } catch(z: Exception) {}
+                    }
+                }
+                
+                // [FIX] RE-CAPTURE POINTER
+                // If BT Mouse Capture is active, we MUST re-assert focus and capture
+                // because removing/adding other views might have stolen it.
+                if (isBtMouseCaptureActive && btMouseCaptureLayout?.isAttachedToWindow == true) {
+                    btMouseCaptureLayout?.post {
+                        Log.d(BT_TAG, "enforceZOrder: Re-requesting Focus & Capture")
+                        btMouseCaptureLayout?.requestFocus()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            btMouseCaptureLayout?.requestPointerCapture()
+                        }
                     }
                 }
                 
@@ -281,6 +338,23 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         var prefPersistentService = false 
 
         var prefBlockSoftKeyboard = false
+
+        // =================================================================================
+        // PREDICTION AGGRESSION (Precision vs Shape)
+        // 0.3 (Sloppy/Fast) to 2.0 (Neat/Precise). Default 0.8.
+        // =================================================================================
+        var prefPredictionAggression = 0.8f
+    
+    // =================================================================================
+    // SPACEBAR MOUSE EXTENDED MODE PREFERENCE
+    // SUMMARY: When enabled, spacebar mouse mode stays active indefinitely (no 1-second
+    //          timeout). Mode only deactivates when user taps outside the keyboard overlay.
+    //          This allows continuous cursor control without repeatedly activating.
+    // =================================================================================
+    var prefSpacebarMouseExtended = false
+    // =================================================================================
+    // END BLOCK: SPACEBAR MOUSE EXTENDED MODE PREFERENCE
+    // =================================================================================
         var prefAlwaysPreferGboard = true  // NEW: Fight Samsung's keyboard takeover
         
         // Defaults set to "none" (System Default)
@@ -312,11 +386,28 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         var prefMirrorY = 0
         var prefMirrorWidth = -1  // -1 = auto
         var prefMirrorHeight = -1 // -1 = auto
+
+        // NEW: Toggle to block system meta shortcuts (e.g. Meta+S -> Messages)
+        var prefOverrideSystemShortcuts = true
+        var customModKey = 0 // To persist across view rebuilds
+
         // =================================================================================
         // END BLOCK: VIRTUAL MIRROR MODE PREFERENCES
         // =================================================================================
     }
     val prefs = Prefs()
+
+    // =================================================================================
+    // LAUNCHER BLOCKED SHORTCUTS SET
+    // SUMMARY: Contains the set of shortcuts registered in the DroidOS Launcher.
+    //          Format: "modifier|keyCode" (e.g., "4096|47" for Meta+S)
+    //          Only shortcuts in this set should be blocked when overrideSystemShortcuts is true.
+    //          Received via UPDATE_KEYBINDS broadcast from Launcher.
+    // =================================================================================
+    private val launcherBlockedShortcuts = mutableSetOf<String>()
+    // =================================================================================
+    // END BLOCK: LAUNCHER BLOCKED SHORTCUTS SET
+    // =================================================================================
 
     // =========================
     // KEY INJECTION
@@ -850,6 +941,24 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     private lateinit var remoteCursorParams: WindowManager.LayoutParams
 
     // =================================================================================
+    // BT MOUSE CAPTURE OVERLAY VARIABLES
+    // SUMMARY: Full-screen transparent overlay that captures all Bluetooth mouse input
+    //          when targeting a virtual display. Prevents BT mouse from interacting
+    //          with physical screen content and enables proper coordinate scaling.
+    // =================================================================================
+    private var btMouseCaptureLayout: FrameLayout? = null
+    private var btMouseCaptureParams: WindowManager.LayoutParams? = null
+    private var isBtMouseCaptureActive = false
+    private var isBtMouseButtonDown = false // NEW: Tracks if left button is held
+    private var lastBtMouseX = 0f
+    private var lastBtMouseY = 0f
+    private var isBtMouseDragging = false
+    private val BT_TAG = "BT_MOUSE_CAPTURE"
+    // =================================================================================
+    // END BLOCK: BT MOUSE CAPTURE OVERLAY VARIABLES
+    // =================================================================================
+
+    // =================================================================================
     // VIRTUAL MIRROR MODE VARIABLES
     // =================================================================================
     private var mirrorWindowManager: WindowManager? = null
@@ -1231,6 +1340,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 triggerAggressiveBlocking()
                 handler.post(blockingHeartbeat)
             }
+
+// Request Custom Modifier Key from Launcher
+            val syncIntent = Intent("com.katsuyamaki.DroidOSLauncher.REQUEST_CUSTOM_MOD_SYNC")
+            syncIntent.setPackage("com.katsuyamaki.DroidOSLauncher")
+            sendBroadcast(syncIntent)
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             shellService = null
@@ -1244,9 +1358,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
 
         // Register BOTH new and old prefixes to support all scripts/buttons
         val commandFilter = IntentFilter().apply {
-            val cmds = listOf("SOFT_RESTART", "ENFORCE_ZORDER", "MOVE_TO_DISPLAY", "TOGGLE_MIRROR", "TOGGLE_VIRTUAL_MIRROR", "OPEN_DRAWER", "STOP_SERVICE")
+            val cmds = listOf("SOFT_RESTART", "ENFORCE_ZORDER", "MOVE_TO_DISPLAY", "TOGGLE_MIRROR", "TOGGLE_VIRTUAL_MIRROR", "OPEN_DRAWER", "STOP_SERVICE", "SET_INPUT_CAPTURE", "SET_CUSTOM_MOD", "UPDATE_KEYBINDS", "SET_NUM_LAYER")
             val prefixes = listOf("com.katsuyamaki.DroidOSTrackpadKeyboard.", "com.example.coverscreentester.")
-            
+
             for (p in prefixes) {
                 for (c in cmds) {
                     addAction("$p$c")
@@ -1259,6 +1373,17 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         } else {
             registerReceiver(commandReceiver, commandFilter)
         }
+
+        // =================================================================================
+        // REQUEST KEYBINDS FROM LAUNCHER ON STARTUP
+        // SUMMARY: Ask the Launcher to broadcast its registered keybinds so we know
+        //          which shortcuts to block. This ensures sync on Trackpad startup.
+        // =================================================================================
+        requestKeybindsFromLauncher()
+        // =================================================================================
+        // END BLOCK: REQUEST KEYBINDS FROM LAUNCHER ON STARTUP
+        // =================================================================================
+
         try { displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager; displayManager?.registerDisplayListener(this, handler) } catch (e: Exception) {}
         // =================================================================================
         // VIRTUAL DISPLAY KEEP-ALIVE: Initialize PowerManager
@@ -1531,6 +1656,39 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     // SUMMARY: AccessibilityService entry point - called when user enables service.
     //          Initializes managers, loads dictionary, registers receivers, and builds UI.
     // =================================================================================
+    // =================================================================================
+    // FUNCTION: handleGlobalTouch
+    // SUMMARY: Called on any touch event that passes through. Checks if spacebar mouse
+    //          extended mode is active and if touch is outside keyboard bounds.
+    //          If so, exits extended mode.
+    // NOTE: This is called from the root trackpad touch handler or accessibility event.
+    // =================================================================================
+    private fun handleSpacebarExtendedModeCheck(x: Float, y: Float, action: Int) {
+        if (!prefs.prefSpacebarMouseExtended) return
+        if (action != MotionEvent.ACTION_DOWN) return
+        
+        val kbView = keyboardOverlay?.getKeyboardView() ?: return
+        if (!kbView.isInSpacebarMouseMode()) return
+        
+        // Check if touch is within keyboard bounds
+        val kbBounds = keyboardOverlay?.getKeyboardBounds()
+        if (kbBounds == null) {
+            // Can't determine bounds, don't exit
+            return
+        }
+        
+        val isInsideKeyboard = x >= kbBounds.left && x <= kbBounds.right &&
+                               y >= kbBounds.top && y <= kbBounds.bottom
+        
+        if (!isInsideKeyboard) {
+            android.util.Log.d("SpaceTrackpad", "Tap outside keyboard detected - exiting extended mode")
+            kbView.exitSpacebarMouseMode()
+        }
+    }
+    // =================================================================================
+    // END BLOCK: handleSpacebarExtendedModeCheck
+    // =================================================================================
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d(TAG, "Accessibility Service Connected")
@@ -1851,6 +2009,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         } catch (e: Exception) {
             android.util.Log.e("OverlayService", "Failed to cleanup keyboard/menu", e)
         }
+        // Clean up BT mouse capture overlay
+        removeBtMouseCaptureOverlay()
         // Nullify references to ensure setup functions create fresh instances
         trackpadLayout = null
         bubbleView = null
@@ -2058,7 +2218,43 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean { return false }
         })
         
-        trackpadLayout?.setOnTouchListener { _, event -> val devId = event.deviceId; val tool = event.getToolType(0); if (tool != MotionEvent.TOOL_TYPE_FINGER) return@setOnTouchListener false; when (event.actionMasked) { MotionEvent.ACTION_DOWN -> activeFingerDeviceId = devId; MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> { if (activeFingerDeviceId > 0 && devId != activeFingerDeviceId) return@setOnTouchListener false } }; gestureDetector.onTouchEvent(event); handleTrackpadTouch(event); true }
+        // =================================================================================
+        // TRACKPAD TOUCH LISTENER
+        // SUMMARY: Handles all touch events on the trackpad area. Filters for finger-only
+        //          input, passes to gesture detector, and calls handleTrackpadTouch for
+        //          cursor movement. Also checks for spacebar extended mode exit.
+        // =================================================================================
+        trackpadLayout?.setOnTouchListener { _, event ->
+            val devId = event.deviceId
+            val tool = event.getToolType(0)
+            
+            // Only accept finger touches (not mouse, stylus, etc.)
+            if (tool != MotionEvent.TOOL_TYPE_FINGER) return@setOnTouchListener false
+            
+            // Track active finger to prevent ghost touches
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> activeFingerDeviceId = devId
+                MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> {
+                    if (activeFingerDeviceId > 0 && devId != activeFingerDeviceId) {
+                        return@setOnTouchListener false
+                    }
+                }
+            }
+            
+            // Check for spacebar mouse extended mode exit (on tap outside keyboard)
+            handleSpacebarExtendedModeCheck(event.rawX, event.rawY, event.action)
+            
+            // Pass to gesture detector for tap detection
+            gestureDetector.onTouchEvent(event)
+            
+            // CRITICAL: Handle trackpad touch for cursor movement
+            handleTrackpadTouch(event)
+            
+            true
+        }
+        // =================================================================================
+        // END BLOCK: TRACKPAD TOUCH LISTENER
+        // =================================================================================
         trackpadLayout?.visibility = View.GONE
         windowManager?.addView(trackpadLayout, trackpadParams)
         updateBorderColor(currentBorderColor)
@@ -2538,6 +2734,22 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             "bubble_alpha" -> updateBubbleAlpha(value as Int)
             "persistent_service" -> prefs.prefPersistentService = parseBoolean(value)
             "block_soft_kb" -> { prefs.prefBlockSoftKeyboard = parseBoolean(value); setSoftKeyboardBlocking(prefs.prefBlockSoftKeyboard) }
+            "prediction_aggression" -> { 
+                prefs.prefPredictionAggression = (value as? Float) ?: 0.8f
+                // Apply immediately to Engine
+                PredictionEngine.instance.speedThreshold = prefs.prefPredictionAggression
+            }
+            // =================================================================================
+            // SPACEBAR MOUSE EXTENDED MODE UPDATE
+            // =================================================================================
+            "spacebar_mouse_extended" -> { 
+                prefs.prefSpacebarMouseExtended = parseBoolean(value)
+                keyboardOverlay?.getKeyboardView()?.setSpacebarExtendedMode(prefs.prefSpacebarMouseExtended)
+                savePrefs()
+            }
+            // =================================================================================
+            // END BLOCK: SPACEBAR MOUSE EXTENDED MODE UPDATE
+            // =================================================================================
             "keyboard_alpha" -> { prefs.prefKeyboardAlpha = value as Int; keyboardOverlay?.updateAlpha(prefs.prefKeyboardAlpha) }
 
             "hardkey_vol_up_tap" -> prefs.hardkeyVolUpTap = value as String
@@ -2570,6 +2782,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
             // =================================================================================
             // END BLOCK: VIRTUAL MIRROR MODE UPDATE HANDLERS
             // =================================================================================
+            "override_system_shortcuts" -> {
+                prefs.prefOverrideSystemShortcuts = parseBoolean(value)
+                keyboardOverlay?.setOverrideSystemShortcuts(prefs.prefOverrideSystemShortcuts)
+                // Sync launcher blocked shortcuts to keyboard
+                keyboardOverlay?.setLauncherBlockedShortcuts(launcherBlockedShortcuts)
+            }
         }
         savePrefs() 
     }
@@ -2623,6 +2841,18 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 prefs.prefBubbleAlpha = p.getInt("bubble_alpha", 255)
                 prefs.prefPersistentService = p.getBoolean("persistent_service", false)
                 prefs.prefBlockSoftKeyboard = p.getBoolean("block_soft_kb", false)
+                
+                prefs.prefPredictionAggression = p.getFloat("prediction_aggression", 0.8f)
+                // Apply to Engine on startup
+                PredictionEngine.instance.speedThreshold = prefs.prefPredictionAggression
+
+                // =================================================================================
+                // SPACEBAR MOUSE EXTENDED MODE LOAD
+                // =================================================================================
+                prefs.prefSpacebarMouseExtended = p.getBoolean("spacebar_mouse_extended", false)
+                // =================================================================================
+                // END BLOCK: SPACEBAR MOUSE EXTENDED MODE LOAD
+                // =================================================================================
                 // Hardkey Defaults: Set to "none"
                 prefs.hardkeyVolUpTap = p.getString("hardkey_vol_up_tap", "none") ?: "none"
                 prefs.hardkeyVolUpDouble = p.getString("hardkey_vol_up_double", "none") ?: "none"
@@ -2639,7 +2869,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // VIRTUAL MIRROR MODE LOAD
         // =================================================================================
         // [Fixed] Always FORCE OFF on app restart/reload. Do not load saved state.
-        prefs.prefVirtualMirrorMode = false 
+        prefs.prefVirtualMirrorMode = false
+
+        prefs.prefOverrideSystemShortcuts = p.getBoolean("override_system_shortcuts", true)
+        prefs.customModKey = p.getInt("custom_mod_key", 0)
         prefs.prefMirrorOrientDelayMs = p.getLong("mirror_orient_delay_ms", 1000L)
 
         // Load Mirror Keyboard Prefs
@@ -2685,6 +2918,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         // New Settings (Vibrate, Position)
         settingsStr.append("${if(prefs.prefVibrate) 1 else 0};${if(prefs.prefVPosLeft) 1 else 0};${if(prefs.prefHPosTop) 1 else 0};")
+        
+        // Prediction Aggression
+        settingsStr.append("${prefs.prefPredictionAggression};")
 
         // Physical Keyboard Bounds
         settingsStr.append("$currentKbX;$currentKbY;$currentKbW;$currentKbH")
@@ -2742,6 +2978,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         
         e.putBoolean("persistent_service", prefs.prefPersistentService)
         e.putBoolean("block_soft_kb", prefs.prefBlockSoftKeyboard)
+        e.putFloat("prediction_aggression", prefs.prefPredictionAggression)
+
+        // =================================================================================
+        // SPACEBAR MOUSE EXTENDED MODE SAVE
+        // =================================================================================
+        e.putBoolean("spacebar_mouse_extended", prefs.prefSpacebarMouseExtended)
+        // =================================================================================
+        // END BLOCK: SPACEBAR MOUSE EXTENDED MODE SAVE
+        // =================================================================================
         
         e.putString("hardkey_vol_up_tap", prefs.hardkeyVolUpTap)
         e.putString("hardkey_vol_up_double", prefs.hardkeyVolUpDouble)
@@ -2759,6 +3004,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // =================================================================================
         e.putBoolean("virtual_mirror_mode", prefs.prefVirtualMirrorMode)
         e.putLong("mirror_orient_delay_ms", prefs.prefMirrorOrientDelayMs)
+
+        e.putBoolean("override_system_shortcuts", prefs.prefOverrideSystemShortcuts)
+        e.putInt("custom_mod_key", prefs.customModKey)
 
         // Save Mirror Keyboard Prefs
         e.putInt("mirror_alpha", prefs.prefMirrorAlpha)
@@ -2844,6 +3092,28 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         keyboardOverlay?.onTouchTap = { handleExternalTouchTap() }
 
         // =================================================================================
+        // ARROW KEYS SWIPE CALLBACK - SPACEBAR MOUSE MODE
+        // SUMMARY: When arrow keys pressed in spacebar mouse mode, perform swipe.
+        //          dx/dy are -1, 0, or 1. Uses BASE_SWIPE_DISTANCE * scrollSpeed.
+        // =================================================================================
+        keyboardOverlay?.onArrowSwipe = { dx, dy ->
+            val distance = BASE_SWIPE_DISTANCE * prefs.scrollSpeed
+            performSwipe(dx * distance, dy * distance)
+        }
+
+        // =================================================================================
+        // MOUSE SCROLL CALLBACK
+        // SUMMARY: Forward mouse wheel events from keyboard overlay to target display
+        // =================================================================================
+        keyboardOverlay?.onMouseScroll = { h, v ->
+            // Scale scroll speed (e.g. 10x for reasonable scroll amount)
+            injectScroll(h * 10f, v * 10f)
+        }
+        // =================================================================================
+        // END BLOCK: ARROW KEYS SWIPE CALLBACK
+        // =================================================================================
+
+        // =================================================================================
         // VIRTUAL MIRROR TOUCH CALLBACK
         // SUMMARY: Wire up the mirror touch callback to forward touch events from the
         //          physical keyboard to the mirror keyboard on the remote display.
@@ -2902,6 +3172,22 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
         // [REMOVED] Do not force scale here. 
         // KeyboardOverlay loads the fresh "keyboard_key_scale" from disk automatically.
         // Forcing 'prefs.prefKeyScale' here causes bugs because 'prefs' might be stale.
+        // =================================================================================
+        // SPACEBAR MOUSE EXTENDED MODE INITIALIZATION
+        // =================================================================================
+        keyboardOverlay?.getKeyboardView()?.setSpacebarExtendedMode(prefs.prefSpacebarMouseExtended)
+        // =================================================================================
+        // END BLOCK: SPACEBAR MOUSE EXTENDED MODE INITIALIZATION
+        // =================================================================================
+
+        // Set override system shortcuts preference
+        keyboardOverlay?.setOverrideSystemShortcuts(prefs.prefOverrideSystemShortcuts)
+
+        // Sync launcher blocked shortcuts to keyboard
+        keyboardOverlay?.setLauncherBlockedShortcuts(launcherBlockedShortcuts)
+
+        // Re-apply saved custom mod key
+        keyboardOverlay?.setCustomModKey(prefs.customModKey)
     }
 
 
@@ -3072,58 +3358,93 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
     }
     private fun openMenuHandle(event: MotionEvent): Boolean { if (event.action == MotionEvent.ACTION_DOWN) menuManager?.toggle(); return true }
     private fun injectAction(action: Int, source: Int, button: Int, time: Long) { if (shellService == null) return; Thread { try { shellService?.injectMouse(action, cursorX, cursorY, inputTargetDisplayId, source, button, time) } catch(e: Exception){} }.start() }
-    private fun injectScroll(hScroll: Float, vScroll: Float) { if (shellService == null) return; Thread { try { shellService?.injectScroll(cursorX, cursorY, vScroll / 10f, hScroll / 10f, inputTargetDisplayId) } catch(e: Exception){} }.start() }
+    fun injectScroll(hScroll: Float, vScroll: Float) { if (shellService == null) return; Thread { try { shellService?.injectScroll(cursorX, cursorY, vScroll / 10f, hScroll / 10f, inputTargetDisplayId) } catch(e: Exception){} }.start() }
 
     // Helper to allow external components (like Keyboard) to control the cursor
     // Added 'isDragging' to switch between Hover (Mouse) and Drag (Touch)
 // =================================================================================
-    // SPACEBAR MOUSE CURSOR MOVEMENT HANDLER
-    // SUMMARY: Handles cursor movement from the spacebar trackpad feature.
-    //          Updates cursor position and visual, then injects hover/drag events.
+    // SPACEBAR MOUSE CURSOR MOVEMENT HANDLER (with BT Mouse Display Sync)
+    // SUMMARY: Handles cursor movement from the spacebar trackpad feature AND
+    //          Bluetooth mouse input. Updates cursor position and visual, then
+    //          injects hover/drag events.
+    //
+    //          BLUETOOTH MOUSE DISPLAY SYNC: When targeting a virtual display,
+    //          uses 'input -d <displayId> mouse move' command to physically move
+    //          the system cursor to the target display. This syncs the Android
+    //          system cursor with DroidOS's software cursor.
+    //
     //          CRITICAL: Skips hover injection when cursor is over keyboard bounds
     //          to prevent feedback loop that causes lag/freezing.
     // =================================================================================
     fun handleExternalMouseMove(dx: Float, dy: Float, isDragging: Boolean) {
-        // Calculate safe bounds
+        Log.d(BT_TAG, "handleExternalMouseMove: dx=$dx, dy=$dy, isDragging=$isDragging")
+        Log.d(BT_TAG, "├─ inputTargetDisplayId=$inputTargetDisplayId, currentDisplayId=$currentDisplayId")
+        Log.d(BT_TAG, "├─ cursorX=$cursorX, cursorY=$cursorY (before update)")
+
+        // Calculate safe bounds based on target display
         val safeW = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth.toFloat() else uiScreenWidth.toFloat()
         val safeH = if (inputTargetDisplayId != currentDisplayId) targetScreenHeight.toFloat() else uiScreenHeight.toFloat()
 
-        // Update position
+        // Update software cursor position
         cursorX = (cursorX + dx).coerceIn(0f, safeW)
         cursorY = (cursorY + dy).coerceIn(0f, safeH)
 
-        // Update Visuals (Redraw the cursor icon)
+        // Update Visuals (Redraw the cursor icon overlay)
         if (inputTargetDisplayId == currentDisplayId) {
-             cursorParams.x = cursorX.toInt()
-             cursorParams.y = cursorY.toInt()
-             try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {}
+            cursorParams.x = cursorX.toInt()
+            cursorParams.y = cursorY.toInt()
+            try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch (e: Exception) {}
         } else {
-             remoteCursorParams.x = cursorX.toInt()
-             remoteCursorParams.y = cursorY.toInt()
-             try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {}
+            remoteCursorParams.x = cursorX.toInt()
+            remoteCursorParams.y = cursorY.toInt()
+            try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch (e: Exception) {}
         }
+
+        // =======================================================================
+        // BLUETOOTH MOUSE DISPLAY SYNC
+        // When targeting a virtual/remote display, move the system mouse cursor
+        // to the target display using shell command. This ensures the BT mouse
+        // cursor follows our software cursor to the virtual display.
+        // =======================================================================
+        if (inputTargetDisplayId != currentDisplayId && shellService != null) {
+            val dxInt = dx.toInt()
+            val dyInt = dy.toInt()
+            if (dxInt != 0 || dyInt != 0) {
+                Thread {
+                    try {
+                        // Move system cursor to target display using relative movement
+                        shellService?.runCommand("input -d $inputTargetDisplayId mouse move $dxInt $dyInt")
+                    } catch (e: Exception) {
+                        Log.e("OverlayService", "BT mouse display sync failed", e)
+                    }
+                }.start()
+            }
+        }
+        // =======================================================================
+        // END BLOCK: BLUETOOTH MOUSE DISPLAY SYNC
+        // =======================================================================
 
         // [ANTI-FEEDBACK-LOOP FIX]
         // Check if cursor is over the keyboard - if so, skip hover injection
         // This prevents the injected mouse events from creating a feedback loop
         // where the keyboard receives the hover, processes it, and triggers more events
         val isOverKeyboard = isCursorOverKeyboard()
-        
-        // Input Injection
+
+        // Input Injection (for apps that listen to motion events)
         if (isDragging) {
-             // TOUCH DRAG: SOURCE_TOUCHSCREEN + ACTION_MOVE
-             // Always inject drag events - user explicitly initiated drag
-             injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, 0, SystemClock.uptimeMillis())
+            // TOUCH DRAG: SOURCE_TOUCHSCREEN + ACTION_MOVE
+            // Always inject drag events - user explicitly initiated drag
+            injectAction(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHSCREEN, 0, SystemClock.uptimeMillis())
         } else {
-             // MOUSE HOVER: SOURCE_MOUSE + ACTION_HOVER_MOVE
-             // Skip hover injection when over keyboard to prevent feedback loop
-             if (!isOverKeyboard) {
-                 injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
-             }
+            // MOUSE HOVER: SOURCE_MOUSE + ACTION_HOVER_MOVE
+            // Skip hover injection when over keyboard to prevent feedback loop
+            if (!isOverKeyboard) {
+                injectAction(MotionEvent.ACTION_HOVER_MOVE, InputDevice.SOURCE_MOUSE, 0, SystemClock.uptimeMillis())
+            }
         }
     }
     // =================================================================================
-    // END BLOCK: SPACEBAR MOUSE CURSOR MOVEMENT HANDLER
+    // END BLOCK: SPACEBAR MOUSE CURSOR MOVEMENT HANDLER (with BT Mouse Display Sync)
     // =================================================================================
 
     // =================================================================================
@@ -3349,18 +3670,44 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                     prefs.prefVPosLeft = parts[28] == "1"
                     prefs.prefHPosTop = parts[29] == "1"
                 }
+                
 
-                // Load Physical Keyboard Bounds
-                var kbIndex = 30
-                if (parts.size < 34 && parts.size >= 31) kbIndex = 27 
+            // [FIX] Load Prediction Aggression (Only if profile is new enough, i.e. has 35+ parts)
+            // We check >= 35 because: 30(base) + 1(aggression) + 4(bounds) = 35
+            // This prevents reading "X-coordinate" as "Aggression" on legacy profiles.
+            if (parts.size >= 35) {
+                try {
+                    prefs.prefPredictionAggression = parts[30].toFloat()
+                    PredictionEngine.instance.speedThreshold = prefs.prefPredictionAggression
+                } catch (e: Exception) {
+                    android.util.Log.e("OverlayService", "Failed to parse aggression", e)
+                }
+            }
 
-                if (parts.size > kbIndex) {
-                     savedKbX = parts[kbIndex].toInt(); savedKbY = parts[kbIndex+1].toInt()
+            // Load Physical Keyboard Bounds
+            // Logic:
+            // Size 35+ -> Newest (Aggression at 30, Bounds at 31)
+            // Size 34  -> Previous (Bounds at 30)
+            // Size 31  -> Oldest (Bounds at 27)
+            var kbIndex = 30
+            if (parts.size >= 35) {
+                kbIndex = 31
+            } else if (parts.size < 34 && parts.size >= 31) {
+                kbIndex = 27 
+            }
+            
+
+            // Ensure we have enough parts for X, Y, W, H
+            if (parts.size > kbIndex + 3) {
+                 try {
+                     savedKbX = parts[kbIndex].toInt()
+                     savedKbY = parts[kbIndex+1].toInt()
+
                      savedKbW = parts[kbIndex+2].toInt(); savedKbH = parts[kbIndex+3].toInt()
                      
                      keyboardOverlay?.setWindowBounds(savedKbX, savedKbY, savedKbW, savedKbH)
                      keyboardUpdated = true
-                }
+                } catch (e: Exception) { }
 
                 // Apply Visuals
                 updateBorderColor(currentBorderColor); updateScrollSize(); updateHandleSize()
@@ -3372,6 +3719,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener {
                 applyBubbleAppearance()
             }
         }
+    }
+
 
         // [FIX] LOAD MIRROR KEYBOARD PARAMS (If in Mirror Mode)
         if (prefs.prefVirtualMirrorMode) {
@@ -3636,8 +3985,8 @@ if (isResize) {
     fun cycleInputTarget() {
         if (displayManager == null) return; val displays = displayManager!!.displays; var nextId = -1
         for (d in displays) { if (d.displayId != currentDisplayId) { if (inputTargetDisplayId == currentDisplayId) { nextId = d.displayId; break } else if (inputTargetDisplayId == d.displayId) { continue } else { nextId = d.displayId } } }
-        if (nextId == -1) { inputTargetDisplayId = currentDisplayId; targetScreenWidth = uiScreenWidth; targetScreenHeight = uiScreenHeight; removeRemoteCursor(); removeMirrorKeyboard(); cursorX = uiScreenWidth / 2f; cursorY = uiScreenHeight / 2f; cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception){}; cursorView?.visibility = View.VISIBLE; updateBorderColor(0x55FFFFFF.toInt()); showToast("Target: Local (Display $currentDisplayId)"); updateWakeLockState() }
-        else { inputTargetDisplayId = nextId; updateTargetMetrics(nextId); createRemoteCursor(nextId); updateVirtualMirrorMode(); cursorX = targetScreenWidth / 2f; cursorY = targetScreenHeight / 2f; remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt(); try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception){}; cursorView?.visibility = View.GONE; updateBorderColor(0xFFFF00FF.toInt()); showToast("Target: Display $nextId"); updateWakeLockState() }
+        if (nextId == -1) { inputTargetDisplayId = currentDisplayId; targetScreenWidth = uiScreenWidth; targetScreenHeight = uiScreenHeight; removeRemoteCursor(); removeMirrorKeyboard(); removeBtMouseCaptureOverlay(); cursorX = uiScreenWidth / 2f; cursorY = uiScreenHeight / 2f; cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception){}; cursorView?.visibility = View.VISIBLE; updateBorderColor(0x55FFFFFF.toInt()); showToast("Target: Local (Display $currentDisplayId)"); updateWakeLockState() }
+        else { inputTargetDisplayId = nextId; updateTargetMetrics(nextId); createRemoteCursor(nextId); updateVirtualMirrorMode(); createBtMouseCaptureOverlay(); cursorX = targetScreenWidth / 2f; cursorY = targetScreenHeight / 2f; remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt(); try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception){}; cursorView?.visibility = View.GONE; updateBorderColor(0xFFFF00FF.toInt()); showToast("Target: Display $nextId"); updateWakeLockState() }
     }
 
     // =================================================================================
@@ -3704,6 +4053,550 @@ if (isResize) {
 
     private fun createRemoteCursor(displayId: Int) { try { removeRemoteCursor(); val display = displayManager?.getDisplay(displayId) ?: return; val remoteContext = createTrackpadDisplayContext(display); remoteWindowManager = remoteContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager; remoteCursorLayout = FrameLayout(remoteContext); remoteCursorView = ImageView(remoteContext); remoteCursorView?.setImageResource(R.drawable.ic_cursor); val size = if (prefs.prefCursorSize > 0) prefs.prefCursorSize else 50; remoteCursorLayout?.addView(remoteCursorView, FrameLayout.LayoutParams(size, size)); remoteCursorParams = WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT); remoteCursorParams.gravity = Gravity.TOP or Gravity.LEFT; val metrics = android.util.DisplayMetrics(); display.getRealMetrics(metrics); remoteCursorParams.x = metrics.widthPixels / 2; remoteCursorParams.y = metrics.heightPixels / 2; remoteWindowManager?.addView(remoteCursorLayout, remoteCursorParams) } catch (e: Exception) { e.printStackTrace() } }
     private fun removeRemoteCursor() { try { if (remoteCursorLayout != null && remoteWindowManager != null) { remoteWindowManager?.removeView(remoteCursorLayout) } } catch (e: Exception) {}; remoteCursorLayout = null; remoteCursorView = null; remoteWindowManager = null }
+
+    // =================================================================================
+    // BT MOUSE CAPTURE OVERLAY - CREATE
+    // SUMMARY: Creates a full-screen transparent overlay on the physical display that
+    //          intercepts all Bluetooth mouse input when targeting a virtual display.
+    // =================================================================================
+    private fun createBtMouseCaptureOverlay() {
+        Log.d(BT_TAG, "┌─────────────────────────────────────────────────────────┐")
+        Log.d(BT_TAG, "│ createBtMouseCaptureOverlay() CALLED                    │")
+        Log.d(BT_TAG, "└─────────────────────────────────────────────────────────┘")
+        Log.d(BT_TAG, "├─ isBtMouseCaptureActive: $isBtMouseCaptureActive")
+        Log.d(BT_TAG, "├─ windowManager null?: ${windowManager == null}")
+        Log.d(BT_TAG, "├─ inputTargetDisplayId: $inputTargetDisplayId")
+        Log.d(BT_TAG, "├─ currentDisplayId: $currentDisplayId")
+
+        if (isBtMouseCaptureActive) {
+            Log.d(BT_TAG, "├─ SKIP: Already active")
+            return
+        }
+        if (windowManager == null) {
+            Log.e(BT_TAG, "├─ ERROR: windowManager is null!")
+            return
+        }
+
+        // Reset tracking state
+        lastBtMouseX = 0f
+        lastBtMouseY = 0f
+        isBtMouseDragging = false
+        isBtMouseButtonDown = false // NEW: Ensure clean button state
+
+        btMouseCaptureLayout = object : FrameLayout(this@OverlayService) {
+
+            // FIX: Hide system cursor when hovering over this overlay
+            // Using a 1x1 transparent bitmap because TYPE_NULL is ignored by some OEMs (Samsung)
+            override fun onResolvePointerIcon(event: MotionEvent?, pointerIndex: Int): android.view.PointerIcon? {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    try {
+                        val bmp = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+                        return android.view.PointerIcon.create(bmp, 0f, 0f)
+                    } catch (e: Exception) {
+                        return android.view.PointerIcon.getSystemIcon(context, android.view.PointerIcon.TYPE_NULL)
+                    }
+                }
+                return super.onResolvePointerIcon(event, pointerIndex)
+            }
+
+            override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+                val isMouseSource = event.isFromSource(InputDevice.SOURCE_MOUSE) ||
+                                    event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)
+
+                if (!isMouseSource) {
+                    return super.dispatchGenericMotionEvent(event)
+                }
+
+                // If Pointer Capture is active, this method won't be called for moves,
+                // but we might still get other events or initial hovers.
+                
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_HOVER_MOVE -> {
+                        // Standard Hover (Fallback if capture fails)
+                        if (lastBtMouseX == 0f && lastBtMouseY == 0f) {
+                            lastBtMouseX = event.x
+                            lastBtMouseY = event.y
+                            return true
+                        }
+
+                        val rawDx = event.x - lastBtMouseX
+                        val rawDy = event.y - lastBtMouseY
+                        lastBtMouseX = event.x
+                        lastBtMouseY = event.y
+
+                        val (scaledDx, scaledDy) = scaleBtMouseMovement(rawDx, rawDy)
+                        handleExternalMouseMove(scaledDx, scaledDy, false)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_SCROLL -> {
+                        val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+                        val hScroll = event.getAxisValue(MotionEvent.AXIS_HSCROLL)
+                        Log.d(BT_TAG, "ACTION_SCROLL: v=$vScroll, h=$hScroll")
+                        injectScroll(hScroll * 10f, vScroll * 10f)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_HOVER_ENTER -> {
+                        Log.d(BT_TAG, "ACTION_HOVER_ENTER: Mouse entered capture area")
+                        return true
+                    }
+
+                    MotionEvent.ACTION_HOVER_EXIT -> {
+                        Log.d(BT_TAG, "ACTION_HOVER_EXIT: Mouse exited capture area")
+                        return true
+                    }
+                }
+
+                Log.v(BT_TAG, "├─ Consuming other mouse generic event: ${event.actionMasked}")
+                return true
+            }
+
+            override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+                val toolType = event.getToolType(0)
+                
+                // FIX: Strict Mouse Detection. 
+                // If toolType is FINGER, treat it as a touch regardless of Source.
+                // This prevents the "BT Cursor over Trackpad" issue where the system 
+                // might flag the touch as having mouse source affinity.
+                val isMouse = toolType == MotionEvent.TOOL_TYPE_MOUSE || 
+                              (event.isFromSource(InputDevice.SOURCE_MOUSE) && toolType != MotionEvent.TOOL_TYPE_FINGER)
+                
+                Log.v(BT_TAG, "dispatchTouchEvent: action=${event.actionMasked}, toolType=$toolType, isMouse=$isMouse, deviceId=${event.deviceId}")
+                
+                // =======================================================================
+                // FINGER TOUCH PASSTHROUGH
+                // If this is a finger touch, manually dispatch it to the windows underneath
+                // in Z-Order (Menu -> Bubble -> Keyboard -> Trackpad).
+                // This bypasses the WindowManager's inability to pass touches through
+                // a touchable overlay window.
+                // =======================================================================
+                if (!isMouse) {
+                    // 1. Menu (Top Priority)
+                    if (menuManager?.handlePassthroughTouch(event) == true) return true
+                    
+                    // 2. Bubble
+                    if (dispatchToView(bubbleView, event)) return true
+                    
+                    // 3. Keyboard
+                    if (keyboardOverlay?.handlePassthroughTouch(event) == true) return true
+                    
+                    // 4. Trackpad (Base Layer)
+                    if (dispatchToView(trackpadLayout, event)) return true
+                    
+                    // If nothing handled it, return false (passes to system/wallpaper)
+                    return false
+                }
+                // =======================================================================
+                // END: FINGER TOUCH PASSTHROUGH
+                // =======================================================================
+                
+                // Mouse events - we handle and consume these
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        // FIX: Check if Pointer Capture is active - if so, skip to prevent double-injection
+                        val hasCapturedPointer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            btMouseCaptureLayout?.hasPointerCapture() ?: false
+                        } else false
+                        
+                        Log.d(BT_TAG, "MOUSE ACTION_DOWN: x=${event.x}, y=${event.y}")
+                        Log.d(BT_TAG, "├─ hasCapturedPointer=$hasCapturedPointer, isBtMouseButtonDown=$isBtMouseButtonDown")
+                        
+                        if (hasCapturedPointer) {
+                            // Pointer Capture is active - clicks handled by CapturedPointerListener
+                            Log.d(BT_TAG, "├─ SKIP: Pointer Capture active (handled by CapturedPointerListener)")
+                        } else {
+                            // Fallback path when Pointer Capture is not active
+                            Log.d(BT_TAG, "├─ FALLBACK: No Pointer Capture, using dispatchTouchEvent path")
+                            lastBtMouseX = event.x
+                            lastBtMouseY = event.y
+                            isBtMouseDragging = false
+                            if (!isBtMouseButtonDown) {
+                                isBtMouseButtonDown = true
+                                handleExternalTouchDown()
+                                Log.d(BT_TAG, "├─ Called handleExternalTouchDown()")
+                            }
+                        }
+                    }
+                    
+                    MotionEvent.ACTION_MOVE -> {
+                        val rawDx = event.x - lastBtMouseX
+                        val rawDy = event.y - lastBtMouseY
+                        
+                        if (kotlin.math.abs(rawDx) > 0 || kotlin.math.abs(rawDy) > 0) {
+                            isBtMouseDragging = true
+                        }
+                        
+                        lastBtMouseX = event.x
+                        lastBtMouseY = event.y
+                        
+                        Log.d(BT_TAG, "MOUSE ACTION_MOVE: rawDx=$rawDx, rawDy=$rawDy, dragging=$isBtMouseDragging")
+                        
+                        val (scaledDx, scaledDy) = scaleBtMouseMovement(rawDx, rawDy)
+                        handleExternalMouseMove(scaledDx, scaledDy, true)
+                        Log.d(BT_TAG, "├─ Forwarded as drag")
+                    }
+                    
+                    MotionEvent.ACTION_UP -> {
+                        // FIX: Check if Pointer Capture is active - if so, skip to prevent double-injection
+                        val hasCapturedPointer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            btMouseCaptureLayout?.hasPointerCapture() ?: false
+                        } else false
+                        
+                        Log.d(BT_TAG, "MOUSE ACTION_UP: wasDragging=$isBtMouseDragging")
+                        Log.d(BT_TAG, "├─ hasCapturedPointer=$hasCapturedPointer, isBtMouseButtonDown=$isBtMouseButtonDown")
+                        
+                        if (hasCapturedPointer) {
+                            // Pointer Capture is active - clicks handled by CapturedPointerListener
+                            Log.d(BT_TAG, "├─ SKIP: Pointer Capture active (handled by CapturedPointerListener)")
+                        } else {
+                            // Fallback path when Pointer Capture is not active
+                            Log.d(BT_TAG, "├─ FALLBACK: No Pointer Capture, using dispatchTouchEvent path")
+                            if (isBtMouseButtonDown) {
+                                isBtMouseButtonDown = false
+                                handleExternalTouchUp()
+                                Log.d(BT_TAG, "├─ Called handleExternalTouchUp()")
+                            }
+                        }
+                        
+                        isBtMouseDragging = false
+                    }
+                }
+                
+                return true // Consume mouse events
+            }
+        }
+
+        btMouseCaptureLayout?.setBackgroundColor(0x00000000) // Fully transparent
+
+        btMouseCaptureParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            // REMOVED FLAG_NOT_FOCUSABLE: We need focus for Pointer Capture
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        
+        Log.d(BT_TAG, "├─ Flags: NOT_FOCUSABLE | NOT_TOUCH_MODAL | LAYOUT_IN_SCREEN | LAYOUT_NO_LIMITS")
+        btMouseCaptureParams?.gravity = Gravity.TOP or Gravity.LEFT
+
+        // Ensure overlay covers entire screen including system bars and cutouts
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            btMouseCaptureParams?.layoutInDisplayCutoutMode = 
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        
+        // Log the actual screen dimensions for debugging
+        val metrics = resources.displayMetrics
+        Log.d(BT_TAG, "├─ Screen metrics: ${metrics.widthPixels}x${metrics.heightPixels}")
+        Log.d(BT_TAG, "├─ uiScreenWidth=$uiScreenWidth, uiScreenHeight=$uiScreenHeight")
+
+        Log.d(BT_TAG, "├─ Created LayoutParams (MATCH_PARENT x MATCH_PARENT)")
+        
+        // Setup Pointer Capture
+        btMouseCaptureLayout?.isFocusable = true
+        btMouseCaptureLayout?.isFocusableInTouchMode = true
+        
+        // [FIX] Auto-Capture on Focus Regain
+        // If the OS gives focus back to this view (e.g. after closing a menu),
+        // automatically grab pointer capture again.
+        btMouseCaptureLayout?.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus && isBtMouseCaptureActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                 Log.d(BT_TAG, "Focus regained -> Requesting Pointer Capture")
+                 btMouseCaptureLayout?.requestPointerCapture()
+            }
+        }
+        
+        // =================================================================================
+        // CAPTURED POINTER LISTENER (BT Mouse with Pointer Capture)
+        // SUMMARY: Handles mouse input when Pointer Capture is active.
+        //          FIX: Only respond to ACTION_BUTTON_PRESS/RELEASE, ignore ACTION_DOWN/UP
+        //          to prevent double-injection of touch events.
+        //          
+        //          When Pointer Capture is active:
+        //          - ACTION_MOVE: Contains relative delta in x/y
+        //          - ACTION_BUTTON_PRESS: Button pressed (use actionButton to identify which)
+        //          - ACTION_BUTTON_RELEASE: Button released
+        //          - ACTION_DOWN/UP: Also fired but we ignore to prevent double-clicks
+        // =================================================================================
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            btMouseCaptureLayout?.setOnCapturedPointerListener { view, event ->
+                val action = event.actionMasked
+                
+                // 1. RELATIVE MOVEMENT
+                if (action == MotionEvent.ACTION_MOVE) {
+                    val rawDx = event.x
+                    val rawDy = event.y
+                    
+                    if (rawDx != 0f || rawDy != 0f) {
+                        val (scaledDx, scaledDy) = scaleBtMouseMovement(rawDx, rawDy)
+                        handleExternalMouseMove(scaledDx, scaledDy, isBtMouseButtonDown)
+                    }
+                }
+                // 2. BUTTON PRESS (Primary action for clicks)
+                // FIX: ONLY handle ACTION_BUTTON_PRESS, not ACTION_DOWN
+                // ACTION_DOWN is also sent but would cause double-injection
+                else if (action == MotionEvent.ACTION_BUTTON_PRESS) {
+                    val button = event.actionButton
+                    val isRight = (button == MotionEvent.BUTTON_SECONDARY)
+                    val isLeft = (button == MotionEvent.BUTTON_PRIMARY)
+                    
+                    Log.d(BT_TAG, "CAPTURED: BUTTON_PRESS button=$button isLeft=$isLeft isRight=$isRight")
+                    
+                    if (isLeft && !isBtMouseButtonDown) {
+                        isBtMouseButtonDown = true
+                        handleExternalTouchDown()
+                    }
+                    // Right click is handled on release
+                }
+                // 3. BUTTON RELEASE
+                // FIX: ONLY handle ACTION_BUTTON_RELEASE, not ACTION_UP
+                else if (action == MotionEvent.ACTION_BUTTON_RELEASE) {
+                    val button = event.actionButton
+                    val isRight = (button == MotionEvent.BUTTON_SECONDARY)
+                    val isLeft = (button == MotionEvent.BUTTON_PRIMARY)
+                    
+                    Log.d(BT_TAG, "CAPTURED: BUTTON_RELEASE button=$button isLeft=$isLeft isRight=$isRight")
+                    
+                    if (isRight) {
+                        // Right Click - perform tap (down+up quickly)
+                        performClick(true)
+                    } else if (isLeft && isBtMouseButtonDown) {
+                        isBtMouseButtonDown = false
+                        handleExternalTouchUp()
+                    }
+                }
+                // 4. IGNORE ACTION_DOWN/ACTION_UP in captured mode
+                // These are duplicate events that would cause double-injection
+                else if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP) {
+                    Log.v(BT_TAG, "CAPTURED: Ignoring duplicate $action (handled via BUTTON_PRESS/RELEASE)")
+                }
+                
+                return@setOnCapturedPointerListener true
+            }
+        }
+        // =================================================================================
+        // END BLOCK: CAPTURED POINTER LISTENER
+        // =================================================================================
+
+        try {
+            windowManager?.addView(btMouseCaptureLayout, btMouseCaptureParams)
+            
+            // Request Focus and Capture immediately
+            btMouseCaptureLayout?.post {
+                btMouseCaptureLayout?.requestFocus()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    btMouseCaptureLayout?.requestPointerCapture()
+                }
+            }
+            isBtMouseCaptureActive = true
+            Log.d(BT_TAG, "├─ ★ SUCCESS: BT Mouse Capture Overlay ADDED ★")
+            
+            // Hide the system cursor
+            hideSystemCursor()
+            
+            Log.d(BT_TAG, "└─ Overlay active, system cursor hidden")
+            showToast("BT Mouse Capture: ON")
+        } catch (e: Exception) {
+            Log.e(BT_TAG, "├─ ✗ FAILED to add overlay: ${e.message}", e)
+            btMouseCaptureLayout = null
+        }
+    }
+    // =================================================================================
+    // END BLOCK: BT MOUSE CAPTURE OVERLAY - CREATE
+    // =================================================================================
+
+    // =================================================================================
+    // BT MOUSE CAPTURE OVERLAY - REMOVE
+    // =================================================================================
+    private fun removeBtMouseCaptureOverlay() {
+        Log.d(BT_TAG, "┌─────────────────────────────────────────────────────────┐")
+        Log.d(BT_TAG, "│ removeBtMouseCaptureOverlay() CALLED                    │")
+        Log.d(BT_TAG, "└─────────────────────────────────────────────────────────┘")
+        Log.d(BT_TAG, "├─ isBtMouseCaptureActive: $isBtMouseCaptureActive")
+
+        if (!isBtMouseCaptureActive) {
+            Log.d(BT_TAG, "├─ SKIP: Not active")
+            return
+        }
+
+        try {
+            btMouseCaptureLayout?.let {
+                val attached = it.isAttachedToWindow
+                Log.d(BT_TAG, "├─ isAttachedToWindow: $attached")
+                if (attached) {
+                    windowManager?.removeView(it)
+                    Log.d(BT_TAG, "├─ ★ SUCCESS: Overlay REMOVED ★")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(BT_TAG, "├─ Error removing overlay: ${e.message}")
+        }
+
+        btMouseCaptureLayout = null
+        isBtMouseCaptureActive = false
+        lastBtMouseX = 0f
+        lastBtMouseY = 0f
+        isBtMouseButtonDown = false // NEW: Reset button state
+        
+        // Restore the system cursor
+        showSystemCursor()
+        
+        Log.d(BT_TAG, "└─ Cleanup complete, system cursor restored")
+        showToast("BT Mouse Capture: OFF")
+    }
+    // =================================================================================
+    // END BLOCK: BT MOUSE CAPTURE OVERLAY - REMOVE
+    // =================================================================================
+
+    // =================================================================================
+    // FUNCTION: verifyBtMouseCaptureState
+    // SUMMARY: Verifies that BT mouse capture state matches reality.
+    //          Fixes desync issues where isBtMouseCaptureActive doesn't match
+    //          whether the overlay is actually attached and functional.
+    // @param expectedActive - What we think the state should be
+    // @return true if state is correct, false if it was corrected
+    // =================================================================================
+    private fun verifyBtMouseCaptureState(expectedActive: Boolean): Boolean {
+        val isActuallyAttached = btMouseCaptureLayout?.isAttachedToWindow ?: false
+        
+        Log.d(BT_TAG, "verifyBtMouseCaptureState: expected=$expectedActive, " +
+                      "flagActive=$isBtMouseCaptureActive, attached=$isActuallyAttached")
+        
+        // Case 1: Flag says active but view not attached - fix by removing
+        if (isBtMouseCaptureActive && !isActuallyAttached) {
+            Log.w(BT_TAG, "DESYNC: Flag active but view not attached - correcting to OFF")
+            isBtMouseCaptureActive = false
+            btMouseCaptureLayout = null
+            isBtMouseButtonDown = false
+            showSystemCursor()
+            return false
+        }
+        
+        // Case 2: Flag says inactive but view is attached - fix by removing
+        if (!isBtMouseCaptureActive && isActuallyAttached) {
+            Log.w(BT_TAG, "DESYNC: Flag inactive but view attached - removing orphan view")
+            try {
+                windowManager?.removeView(btMouseCaptureLayout)
+            } catch (e: Exception) {}
+            btMouseCaptureLayout = null
+            isBtMouseButtonDown = false
+            return false
+        }
+        
+        // Case 3: State matches expectation
+        if (isBtMouseCaptureActive == expectedActive) {
+            return true
+        }
+        
+        // Case 4: Need to change state
+        if (expectedActive && !isBtMouseCaptureActive) {
+            Log.d(BT_TAG, "State correction: Creating BT Mouse Capture")
+            createBtMouseCaptureOverlay()
+        } else if (!expectedActive && isBtMouseCaptureActive) {
+            Log.d(BT_TAG, "State correction: Removing BT Mouse Capture")
+            removeBtMouseCaptureOverlay()
+        }
+        
+        return false
+    }
+    // =================================================================================
+    // END BLOCK: verifyBtMouseCaptureState
+    // =================================================================================
+
+    // =================================================================================
+    // BT MOUSE MOVEMENT SCALING
+    // =================================================================================
+    private fun scaleBtMouseMovement(rawDx: Float, rawDy: Float): Pair<Float, Float> {
+        if (inputTargetDisplayId == currentDisplayId) {
+            return Pair(rawDx * prefs.cursorSpeed, rawDy * prefs.cursorSpeed)
+        }
+
+        val scaleX = targetScreenWidth.toFloat() / uiScreenWidth.toFloat()
+        val scaleY = targetScreenHeight.toFloat() / uiScreenHeight.toFloat()
+
+        // [FIX] UNIFORM SCALING
+        // Use the LARGER scale factor for both axes. This prevents slow vertical movement
+        // on tall/narrow physical screens when mapping to wide virtual screens.
+        val uniformScale = kotlin.math.max(scaleX, scaleY)
+
+        val scaledDx = rawDx * uniformScale * prefs.cursorSpeed
+        val scaledDy = rawDy * uniformScale * prefs.cursorSpeed
+
+        Log.v(BT_TAG, "scaleBtMouseMovement: physical=${uiScreenWidth}x${uiScreenHeight}, " +
+                      "virtual=${targetScreenWidth}x${targetScreenHeight}, " +
+                      "scale=($scaleX, $scaleY), " +
+                      "raw=($rawDx, $rawDy) -> scaled=($scaledDx, $scaledDy)")
+
+        return Pair(scaledDx, scaledDy)
+    }
+    // =================================================================================
+    // END BLOCK: BT MOUSE MOVEMENT SCALING
+    // =================================================================================
+
+    // =================================================================================
+    // SYSTEM CURSOR VISIBILITY CONTROL
+    // SUMMARY: Hides/shows the Android system mouse cursor using reflection.
+    //          When BT mouse capture is active, we hide the system cursor so only
+    //          our software cursor (remoteCursorLayout) is visible on the virtual display.
+    // =================================================================================
+    private var systemCursorHidden = false
+    
+    private fun hideSystemCursor() {
+        Log.d(BT_TAG, "hideSystemCursor() called")
+        try {
+            val imClass = Class.forName("android.hardware.input.InputManager")
+            val getInstance = imClass.getMethod("getInstance")
+            val inputManager = getInstance.invoke(null)
+            val setCursorVisibility = imClass.getMethod("setCursorVisibility", Boolean::class.javaPrimitiveType)
+            setCursorVisibility.invoke(inputManager, false)
+            systemCursorHidden = true
+            Log.d(BT_TAG, "├─ ★ System cursor HIDDEN via InputManager.setCursorVisibility(false)")
+        } catch (e: Exception) {
+            Log.w(BT_TAG, "├─ setCursorVisibility not available, trying pointer_speed method")
+            // Fallback: Set pointer speed to minimum (doesn't actually hide but reduces visibility)
+            try {
+                shellService?.runCommand("settings put system pointer_speed -7")
+                systemCursorHidden = true
+                Log.d(BT_TAG, "├─ Set pointer_speed to -7 (fallback)")
+            } catch (e2: Exception) {
+                Log.e(BT_TAG, "├─ Failed to hide cursor: ${e2.message}")
+            }
+        }
+    }
+    
+    private fun showSystemCursor() {
+        Log.d(BT_TAG, "showSystemCursor() called")
+        if (!systemCursorHidden) {
+            Log.d(BT_TAG, "├─ Cursor wasn't hidden, skipping")
+            return
+        }
+        
+        try {
+            val imClass = Class.forName("android.hardware.input.InputManager")
+            val getInstance = imClass.getMethod("getInstance")
+            val inputManager = getInstance.invoke(null)
+            val setCursorVisibility = imClass.getMethod("setCursorVisibility", Boolean::class.javaPrimitiveType)
+            setCursorVisibility.invoke(inputManager, true)
+            systemCursorHidden = false
+            Log.d(BT_TAG, "├─ ★ System cursor SHOWN via InputManager.setCursorVisibility(true)")
+        } catch (e: Exception) {
+            Log.w(BT_TAG, "├─ setCursorVisibility not available, trying pointer_speed method")
+            try {
+                shellService?.runCommand("settings put system pointer_speed 0")
+                systemCursorHidden = false
+                Log.d(BT_TAG, "├─ Reset pointer_speed to 0 (fallback)")
+            } catch (e2: Exception) {
+                Log.e(BT_TAG, "├─ Failed to show cursor: ${e2.message}")
+            }
+        }
+    }
+    // =================================================================================
+    // END BLOCK: SYSTEM CURSOR VISIBILITY CONTROL
+    // =================================================================================
 
     // =================================================================================
     // VIRTUAL MIRROR MODE FUNCTIONS
@@ -4200,16 +5093,32 @@ if (isResize) {
                 if (!isCustomKeyboardVisible) toggleCustomKeyboard(suppressAutomation = true)
 
                 // 2. Load MIRROR Profile (Pref is now true, so this loads VM profile)
-                loadLayout() 
+                loadLayout()
                 updateVirtualMirrorMode()
 
                 showToast("Mirror Mode ON")
+
+                                // Create BT Mouse Capture overlay to intercept mouse on physical screen
+                // FIX: Use verification function to ensure clean state
+                verifyBtMouseCaptureState(true)
+
                 
-                val intentCycle = Intent("com.katsuyamaki.DroidOSLauncher.CYCLE_DISPLAY")
-                intentCycle.setPackage("com.katsuyamaki.DroidOSLauncher")
-                sendBroadcast(intentCycle)
-            } else {
-                prefs.prefVirtualMirrorMode = false
+
+                                // [FIX] Smart Launcher Move: Target Virtual Display directly
+
+                                // Instead of cycling blind, we tell Launcher exactly where to go.
+
+                                val intentMove = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.MOVE_TO_DISPLAY")
+
+                                intentMove.setPackage("com.katsuyamaki.DroidOSLauncher")
+
+                                intentMove.putExtra("displayId", inputTargetDisplayId) // Target the virtual display
+
+                                sendBroadcast(intentMove)
+
+                            } else {
+
+                                prefs.prefVirtualMirrorMode = false
                 showToast("No virtual display found.")
             }
 
@@ -4218,10 +5127,13 @@ if (isResize) {
             android.util.Log.d(TAG, "Exiting Virtual Mirror Mode")
 
             // [FIX] REMOVED the redundant saveLayout() here.
-            // It was overwriting the Standard Profile with the active VM layout 
+            // It was overwriting the Standard Profile with the active VM layout
             // because prefVirtualMirrorMode was already set to false above.
 
             removeMirrorKeyboard()
+            // Remove BT Mouse Capture overlay
+            // FIX: Use verification function to ensure clean state
+            verifyBtMouseCaptureState(false)
             inputTargetDisplayId = currentDisplayId
             targetScreenWidth = uiScreenWidth
             targetScreenHeight = uiScreenHeight
@@ -4237,9 +5149,15 @@ if (isResize) {
 
             showToast("Mirror Mode OFF")
             
-            val intentCycle = Intent("com.katsuyamaki.DroidOSLauncher.CYCLE_DISPLAY")
-            intentCycle.setPackage("com.katsuyamaki.DroidOSLauncher")
-            sendBroadcast(intentCycle)
+            // [FIX] Smart Launcher Move: Return to Active Physical Display
+            // Check if Display 1 (Cover) is active, otherwise default to 0 (Main)
+            val d1 = displayManager?.getDisplay(1)
+            val targetPhysicalId = if (d1 != null && d1.state == Display.STATE_ON) 1 else 0
+            
+            val intentMove = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.MOVE_TO_DISPLAY")
+            intentMove.setPackage("com.katsuyamaki.DroidOSLauncher")
+            intentMove.putExtra("displayId", targetPhysicalId)
+            sendBroadcast(intentMove)
         }
         
         savePrefs()
@@ -4526,6 +5444,34 @@ if (isResize) {
                 Log.e(TAG, "Bulk delete failed", e)
             }
         }
+    }
+
+    // =================================================================================
+    // HELPER: dispatchToView
+    // SUMMARY: Checks if a touch event is within a view's bounds and dispatches it.
+    //          Used for manual passthrough from the BT Capture Overlay.
+    // =================================================================================
+    private fun dispatchToView(view: View?, event: MotionEvent): Boolean {
+        if (view == null || view.visibility != View.VISIBLE || !view.isAttachedToWindow) return false
+        
+        val loc = IntArray(2)
+        view.getLocationOnScreen(loc)
+        val x = loc[0]
+        val y = loc[1]
+        val w = view.width
+        val h = view.height
+        
+        val rawX = event.rawX
+        val rawY = event.rawY
+        
+        if (rawX >= x && rawX < x + w && rawY >= y && rawY < y + h) {
+            val offsetEvent = MotionEvent.obtain(event)
+            offsetEvent.offsetLocation(-x.toFloat(), -y.toFloat())
+            val handled = view.dispatchTouchEvent(offsetEvent)
+            offsetEvent.recycle()
+            return handled
+        }
+        return false
     }
 
     fun injectText(text: String) {
