@@ -3436,6 +3436,16 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     } else { 
                         if (app.packageName != PACKAGE_BLANK) { 
                             app.isMinimized = !app.isMinimized
+                            
+                            // [FIX] Clear focus if minimizing the active app to prevent pop-back
+                            if (app.isMinimized) {
+                                val basePkg = app.getBasePackage()
+                                if (activePackageName == basePkg || activePackageName == app.packageName) {
+                                    activePackageName = null
+                                    Log.d(TAG, "Cleared active focus for minimized app: $basePkg")
+                                }
+                            }
+
                             notifyItemChanged(position)
                             if (isInstantMode) applyLayoutImmediate() 
                         } 
@@ -3554,16 +3564,21 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         else -> !app.isMinimized
                     }
 
-                    if (app.isMinimized != newState) {
-                        app.isMinimized = newState
-
-                        val basePkg = app.getBasePackage()
-                        val cls = app.className
-
-                        if (newState) {
-                             // MINIMIZING: Move to Back
-                             Thread {
-                                 try {
+                                        if (app.isMinimized != newState) {
+                                            app.isMinimized = newState
+                                            
+                                            val basePkg = app.getBasePackage()
+                                            val cls = app.className
+                                            
+                                            if (newState) {
+                                                 // [FIX] Clear focus if minimizing the active app
+                                                 if (activePackageName == basePkg || activePackageName == app.packageName) {
+                                                     activePackageName = null
+                                                     Log.d(TAG, "WM Command: Cleared focus for minimized app: $basePkg")
+                                                 }
+                    
+                                                 // MINIMIZING: Move to Back
+                                                 Thread {                                 try {
                                      val tid = shellService?.getTaskId(basePkg, cls) ?: -1
                                      if (tid != -1) shellService?.moveTaskToBack(tid)
                                  } catch(e: Exception){}
@@ -3624,6 +3639,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                 // 1. Force Minimize the visual window
                                 val basePkg = targetApp.getBasePackage()
                                 val cls = targetApp.className
+                                
+                                // [FIX] Clear focus if hiding the active app
+                                if (activePackageName == basePkg || activePackageName == targetApp.packageName) {
+                                    activePackageName = null
+                                    Log.d(TAG, "WM Command: Cleared focus for hidden app: $basePkg")
+                                }
+
                                 Thread { 
                                     try { 
                                         val tid = shellService?.getTaskId(basePkg, cls) ?: -1
