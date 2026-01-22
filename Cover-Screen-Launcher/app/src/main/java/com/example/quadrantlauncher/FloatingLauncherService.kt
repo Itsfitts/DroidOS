@@ -350,9 +350,6 @@ private var isSoftKeyboardSupport = false
     private var selectedLayoutType = 2
     private var selectedResolutionIndex = 0
     private var currentDpiSetting = -1
-    // [FIX] State tracking to avoid redundant resolution calls/sleeps
-    private var lastAppliedResIndex = -1
-    private var lastAppliedDpi = -1
     private var currentFontSize = 16f
     
     private var activeCustomRects: List<Rect>? = null
@@ -1285,10 +1282,6 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         } else {
             currentDpiSetting = savedDpi
         }
-        
-        // FIX: Sync state tracking to prevent unnecessary sleep on first execution
-        lastAppliedResIndex = selectedResolutionIndex
-        lastAppliedDpi = currentDpiSetting
 
         // [REMOVED] Auto-force disabled to prevent getting stuck on 120Hz
         // checkAndForceHighRefreshRate(displayId)
@@ -2989,33 +2982,18 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         
         Thread { 
             try { 
-                var configChanged = false
-
-                // Apply resolution only if changed
-                if (selectedResolutionIndex != lastAppliedResIndex) {
-                    val resCmd = getResolutionCommand(selectedResolutionIndex)
-                    shellService?.runCommand(resCmd)
-                    lastAppliedResIndex = selectedResolutionIndex
-                    configChanged = true
+                // Apply resolution
+                val resCmd = getResolutionCommand(selectedResolutionIndex)
+                shellService?.runCommand(resCmd)
+                
+                // Apply DPI
+                if (currentDpiSetting > 0) { 
+                    shellService?.runCommand("wm density $currentDpiSetting -d $currentDisplayId")
+                } else if (currentDpiSetting == -1) { 
+                    shellService?.runCommand("wm density reset -d $currentDisplayId")
                 }
                 
-                // Apply DPI only if changed
-                if (currentDpiSetting != lastAppliedDpi) {
-                    if (currentDpiSetting > 0) { 
-                        shellService?.runCommand("wm density $currentDpiSetting -d $currentDisplayId")
-                    } else if (currentDpiSetting == -1) { 
-                        shellService?.runCommand("wm density reset -d $currentDisplayId")
-                    }
-                    lastAppliedDpi = currentDpiSetting
-                    configChanged = true
-                }
-                
-                // [FIX] Only sleep if we actually changed system configuration
-                if (configChanged) {
-                    Thread.sleep(800)
-                }
-                
-                // Get screen dimensions
+                Thread.sleep(800)
                 
                                 // [FIX] Use getLayoutRects() which contains the Bottom Margin logic.
                 // We use the member variable 'selectedLayoutType' (which matches the passed 'layoutType' 99% of the time).
@@ -3042,20 +3020,17 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 
                 val activeApps = selectedAppsQueue.filter { !it.isMinimized }
                 
-                // Kill/Prep Logic - Only wait if we actually have apps to launch
-                // [FIX] If activeApps is empty (we are just minimizing), SKIP THE SLEEP.
-                if (activeApps.isNotEmpty()) {
-                    if (killAppOnExecute) { 
-                        for (app in activeApps) { 
-                            if (app.packageName != PACKAGE_BLANK) { 
-                                val basePkg = app.getBasePackage()
-                                shellService?.forceStop(basePkg)
-                            } 
-                        }
-                        Thread.sleep(400) 
-                    } else { 
-                        Thread.sleep(100) 
+                // Kill apps if enabled
+                if (killAppOnExecute) { 
+                    for (app in activeApps) { 
+                        if (app.packageName != PACKAGE_BLANK) { 
+                            val basePkg = app.getBasePackage()
+                            shellService?.forceStop(basePkg)
+                        } 
                     }
+                    Thread.sleep(400) 
+                } else { 
+                    Thread.sleep(100) 
                 }
                 
 // === LAUNCH AND TILE APPS (Robust Background Loop) ===
@@ -3590,21 +3565,25 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     }
 
                                         if (app.isMinimized != newState) {
-                                                                app.isMinimized = newState
-                                                                
-                                                                val basePkg = app.getBasePackage()
-                                                                val cls = app.className
-                                                                
-                                                                if (newState) {
-                                                                     // [FIX] Clear focus if minimizing the active app
-                                                                     if (activePackageName == basePkg || activePackageName == app.packageName) {
-                                                                         activePackageName = null
-                                                                     }
-                                                                     
-                                                                     // MINIMIZING: Handled by refreshQueueAndLayout -> executeLaunch
-                                                                     // We removed the redundant thread here to prevent race conditions and double-execution lag.
-
-                                                                } else {
+                                            app.isMinimized = newState
+                                            
+                                            val basePkg = app.getBasePackage()
+                                            val cls = app.className
+                                            
+                                            if (newState) {
+                                                 // [FIX] Clear focus if minimizing the active app
+                                                 if (activePackageName == basePkg || activePackageName == app.packageName) {
+                                                     activePackageName = null
+                                                     Log.d(TAG, "WM Command: Cleared focus for minimized app: $basePkg")
+                                                 }
+                    
+                                                 // MINIMIZING: Move to Back
+                                                 Thread {                                 try {
+                                     val tid = shellService?.getTaskId(basePkg, cls) ?: -1
+                                     if (tid != -1) shellService?.moveTaskToBack(tid)
+                                 } catch(e: Exception){}
+                             }.start()
+                        } else {
                              // RESTORING: Bring to Front on Current Display
                              // We reuse the launch logic which handles "Bring to Front" if already running.
                              // We run this in background to avoid UI stutter.
