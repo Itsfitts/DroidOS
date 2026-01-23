@@ -1525,15 +1525,18 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     private fun dismissKeyboardAndRestore() { val searchBar = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); if (searchBar != null && searchBar.hasFocus()) { searchBar.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(searchBar.windowToken, 0) }; val dpiInput = drawerView?.findViewById<EditText>(R.id.input_dpi_value); if (dpiInput != null && dpiInput.hasFocus()) { dpiInput.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(dpiInput.windowToken, 0) }; updateDrawerHeight(false) }
 
     // [NEW] Brings the Black Wallpaper to front.
-    // This effectively minimizes whatever app is currently top, preventing the "Last App" freeze.
     private fun showWallpaper() {
+        if (currentDisplayId < 2) return
         try {
             val intent = Intent(this, MainActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             intent.putExtra("WALLPAPER_MODE", true)
+            
             val options = android.app.ActivityOptions.makeBasic()
             options.setLaunchDisplayId(currentDisplayId)
-            startActivity(intent, options.toBundle())
+            
+            val ctx = displayContext ?: this
+            ctx.startActivity(intent, options.toBundle())
         } catch (e: Exception) {
             Log.e(TAG, "Failed to show wallpaper", e)
         }
@@ -2425,7 +2428,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             }
 
             // FORCE NEW TASK helps reparent the activity to the target display
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+// FLAG_ACTIVITY_NEW_TASK is crucial for reparenting tasks to a new display
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 
             val options = android.app.ActivityOptions.makeBasic()
             options.setLaunchDisplayId(currentDisplayId)
@@ -2435,7 +2439,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 Log.d(TAG, "launchViaApi: bounds=$bounds")
             }
 
-            startActivity(intent, options.toBundle())
+            // [FIX] Use displayContext to ensure the intent starts from the correct display stack
+            val ctx = displayContext ?: this
+            ctx.startActivity(intent, options.toBundle())
             Log.d(TAG, "launchViaApi: SUCCESS $basePkg")
 
         } catch (e: Exception) {
@@ -3086,106 +3092,97 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 }
                 
                 // Handle minimized apps
-                val minimizedApps = selectedAppsQueue.filter { it.isMinimized }
+                                val minimizedApps = selectedAppsQueue.filter { it.isMinimized }
+                                val activeApps = selectedAppsQueue.filter { !it.isMinimized }
                 
-                // If on Virtual Display and NO active apps (Show Desktop), just launch Wallpaper
-                if (currentDisplayId >= 2 && activeApps.isEmpty() && minimizedApps.isNotEmpty()) {
-                    showWallpaper()
-                } else {
-                    // Standard Loop
-                    for (app in minimizedApps) { 
-                        if (app.packageName != PACKAGE_BLANK) { 
-                            try { 
-                                val basePkg = app.getBasePackage()
-                                val tid = shellService?.getTaskId(basePkg, app.className) ?: -1
-                                if (tid != -1) shellService?.moveTaskToBack(tid) 
-                            } catch (e: Exception) {} 
-                        } 
-                    }
-                }
+                                // If clearing screen on Virtual Display (no active apps), just show Wallpaper
+                                if (currentDisplayId >= 2 && activeApps.isEmpty() && minimizedApps.isNotEmpty()) {
+                                     showWallpaper()
+                                } else {
+                                    // Standard Minimize Loop
+                                    for (app in minimizedApps) { 
+                                        if (app.packageName != PACKAGE_BLANK) { 
+                                            Thread {
+                                                try { 
+                                                    val basePkg = app.getBasePackage()
+                                                    val tid = shellService?.getTaskId(basePkg, app.className) ?: -1
+                                                    if (tid != -1) shellService?.moveTaskToBack(tid) 
+                                                } catch (e: Exception) {} 
+                                            }.start()
+                                        } 
+                                    }
+                                }
+                                
+                                // Kill/Prep Logic - Only wait if we actually have apps to launch
+                                if (activeApps.isNotEmpty()) {
+                                    if (killAppOnExecute) { 
+                                        for (app in activeApps) { 
+                                            if (app.packageName != PACKAGE_BLANK) { 
+                                                val basePkg = app.getBasePackage()
+                                                shellService?.forceStop(basePkg)
+                                            } 
+                                        }
+                                        Thread.sleep(400) 
+                                    } else { 
+                                        Thread.sleep(100) 
+                                    }
+                                }
+                                
+                // === LAUNCH AND TILE APPS (Robust Background Loop) ===
+                                // [FIX] We use Thread.sleep inside this background thread instead of uiHandler.postDelayed.
+                                // This ensures the sequence continues executing even if the UI thread is throttled/closed.
+                                for (i in 0 until minOf(activeApps.size, rects.size)) {
+                                    val app = activeApps[i]
+                                    val bounds = rects[i]
                 
-                val activeApps = selectedAppsQueue.filter { !it.isMinimized }
+                                    if (app.packageName == PACKAGE_BLANK) continue
                 
-                // Kill/Prep Logic - Only wait if we actually have apps to launch
-                // [FIX] If activeApps is empty (we are just minimizing), SKIP THE SLEEP.
-                if (activeApps.isNotEmpty()) {
-                    if (killAppOnExecute) { 
-                        for (app in activeApps) { 
-                            if (app.packageName != PACKAGE_BLANK) { 
-                                val basePkg = app.getBasePackage()
-                                shellService?.forceStop(basePkg)
-                            } 
-                        }
-                        Thread.sleep(400) 
-                    } else { 
-                        Thread.sleep(100) 
-                    }
-                }
+                                    val basePkg = app.getBasePackage()
+                                    val cls = app.className
                 
-// === LAUNCH AND TILE APPS (Robust Background Loop) ===
-                // [FIX] We use Thread.sleep inside this background thread instead of uiHandler.postDelayed.
-                // This ensures the sequence continues executing even if the UI thread is throttled/closed.
-                for (i in 0 until minOf(activeApps.size, rects.size)) {
-                    val app = activeApps[i]
-                    val bounds = rects[i]
-
-                    if (app.packageName == PACKAGE_BLANK) continue
-
-                    val basePkg = app.getBasePackage()
-                    val cls = app.className
-
-// UI Update must be posted
-                    uiHandler.post {
-                        debugShowAppIdentification("TILE[$i]", basePkg, cls)
-                    }
-
-                    // 1. Launch App (API PREFERRED)
-                    // We use launchViaApi because ActivityOptions.setLaunchDisplayId() is more reliable
-                    // than 'am start --display' for moving existing tasks between screens.
-                    Log.w("DROIDOS_TRACE", "API LAUNCH: $basePkg/$cls on D$currentDisplayId")
-                    launchViaApi(app.packageName, app.className, null)
-
+                // UI Update must be posted
+                                    uiHandler.post {
+                                        debugShowAppIdentification("TILE[$i]", basePkg, cls)
+                                    }
+                
+                                    // 1. Launch App (API PREFERRED)
+                                    // We use launchViaApi because ActivityOptions.setLaunchDisplayId() is more reliable
+                                    // than 'am start --display' for moving existing tasks between screens.
+                                    // [FIX] Pass 'bounds' to API to hint Freeform Mode immediately!
+                                    Log.w("DROIDOS_TRACE", "API LAUNCH: $basePkg/$cls on D$currentDisplayId")
+                                    launchViaApi(app.packageName, app.className, bounds)
                     val isGeminiApp = basePkg.contains("bard") || basePkg.contains("gemini")
 
                     // 2. WAIT AND RESIZE (Sequential/Blocking)
-                    // We block the loop here until THIS window is ready and resized.
-                    // This ensures App 1 is fully positioned before we even touch App 2.
                     try {
-                        // SMART POLLING:
-                        // Active Window (Swap): Returns almost instantly.
-                        // Cold Boot: Waits up to 3s.
                         var tid = -1
                         val maxWait = if (isGeminiApp) 8000L else 3000L
                         val startPoll = System.currentTimeMillis()
 
-                        // Fast poll (50ms) for snappiness
+                        // Poll for Task ID
                         while (System.currentTimeMillis() - startPoll < maxWait) {
                             tid = shellService?.getTaskId(basePkg, cls) ?: -1
                             if (tid != -1) break
                             Thread.sleep(50)
                         }
 
-                        // If we found it instantly (already running), delay is minimal (50ms).
-                        // If it took time, we wait a tiny bit for the window surface to be ready.
-                        val wasInstant = (System.currentTimeMillis() - startPoll < 150)
-                        if (!wasInstant) Thread.sleep(200)
+                        if (tid != -1) {
+                            // [FIX 1] Enforce Display: If app is stubborn and stayed on D0, force it to D[current]
+                            shellService?.runCommand("am task move-task-to-display $tid $currentDisplayId")
+                            
+                            // [FIX 2] Enforce Freeform
+                            shellService?.runCommand("am task set-windowing-mode $tid 5")
+                            Thread.sleep(50)
 
-                        // PASS 1: Set Mode & Resize
-                        Log.d(TAG, "Tile[$i]: Repositioning ${app.label} (TID: $tid)")
-                        shellService?.repositionTask(basePkg, cls, bounds.left, bounds.top, bounds.right, bounds.bottom)
-
-                        // PASS 2: Redundant Resize for Samsung (Only if not instant swap)
-                        // If we are just swapping active windows, Pass 1 is usually enough.
-                        // We do a quick check-up resize.
-                        if (!wasInstant) Thread.sleep(200)
-
-                        val finalTid = shellService?.getTaskId(basePkg, cls) ?: -1
-                        if (finalTid != -1) {
-                            shellService?.runCommand("am task resize $finalTid ${bounds.left} ${bounds.top} ${bounds.right} ${bounds.bottom}")
+                            // [FIX 3] Enforce Size (Double Tap)
+                            shellService?.repositionTask(basePkg, cls, bounds.left, bounds.top, bounds.right, bounds.bottom)
+                            shellService?.runCommand("am task resize $tid ${bounds.left} ${bounds.top} ${bounds.right} ${bounds.bottom}")
+                        } else {
+                            Log.e(TAG, "Tile[$i]: Task ID not found for $basePkg")
                         }
 
                     } catch (e: Exception) {
-                        Log.e(TAG, "Tile[$i]: Reposition failed", e)
+                        Log.e(TAG, "Tile[$i]: Resize failed", e)
                     }
 
                     // 3. Buffer before next app
@@ -3656,27 +3653,30 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                                                          activePackageName = null
                                                                      }
                                                                      
-    // MINIMIZING: Move to Back
+                                     // MINIMIZING: Move to Back
                                      Thread {
                                          try {
+                                             val tid = shellService?.getTaskId(basePkg, cls) ?: -1
+                                             
                                              // Virtual Display Strategy
                                              if (currentDisplayId >= 2) {
-                                                 // Check if this is the ONLY visible app
-                                                 val visibleCount = shellService?.getVisiblePackages(currentDisplayId)?.size ?: 0
-                                                 val isLastApp = visibleCount <= 1 
+                                                 // 1. Force Resize to 1x1 at 0,0 (Hide it immediately)
+                                                 // We do this for ALL apps on virtual display to avoid "Visible Corner" and timeouts.
+                                                 if (tid != -1) {
+                                                     shellService?.runCommand("am task set-windowing-mode $tid 5")
+                                                     shellService?.repositionTask(basePkg, cls, 0, 0, 1, 1)
+                                                 }
 
-                                                 if (isLastApp) {
-                                                     // LAST APP: "Launch" the wallpaper to cover it.
-                                                     // This avoids the system hanging while searching for a Home screen.
-                                                     showWallpaper()
-                                                 } else {
-                                                     // NOT LAST: Standard minimize works fine (focus transfers to app behind)
-                                                     val tid = shellService?.getTaskId(basePkg, cls) ?: -1
-                                                     if (tid != -1) shellService?.moveTaskToBack(tid)
+                                                 // 2. Launch Wallpaper (Holds focus, prevents 5s hang)
+                                                 showWallpaper()
+                                                 
+                                                 // 3. System Minimize (Clean up stack later)
+                                                 if (tid != -1) {
+                                                     Thread.sleep(500) // Small delay to let wallpaper appear
+                                                     shellService?.moveTaskToBack(tid)
                                                  }
                                              } else {
                                                  // Standard Display (Phone/Cover)
-                                                 val tid = shellService?.getTaskId(basePkg, cls) ?: -1
                                                  if (tid != -1) shellService?.moveTaskToBack(tid)
                                              }
                                          } catch(e: Exception){}
