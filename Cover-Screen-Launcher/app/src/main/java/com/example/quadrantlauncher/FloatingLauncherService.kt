@@ -3007,6 +3007,25 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     private fun pickIcon() { toggleDrawer(); try { val intent = Intent(this, IconPickerActivity::class.java); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); val metrics = windowManager.maximumWindowMetrics; val w = 1000; val h = (metrics.bounds.height() * 0.7).toInt(); val x = (metrics.bounds.width() - w) / 2; val y = (metrics.bounds.height() - h) / 2; val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(Rect(x, y, x+w, y+h)); startActivity(intent, options.toBundle()) } catch (e: Exception) { safeToast("Error launching picker: ${e.message}") } }
     private fun saveProfile() { var name = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.text?.toString()?.trim(); if (name.isNullOrEmpty()) { val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()); name = "Profile_$timestamp" }; val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveProfile(this, name, selectedLayoutType, selectedResolutionIndex, currentDpiSetting, pkgs); safeToast("Saved: $name"); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText(""); switchMode(MODE_PROFILES) }
     private fun loadProfile(name: String) { val data = AppPreferences.getProfileData(this, name) ?: return; try { val parts = data.split("|"); selectedLayoutType = parts[0].toInt(); selectedResolutionIndex = parts[1].toInt(); currentDpiSetting = parts[2].toInt(); val pkgList = parts[3].split(","); selectedAppsQueue.clear(); for (pkg in pkgList) { if (pkg.isNotEmpty()) { if (pkg == PACKAGE_BLANK) { selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK, null)) } else { val app = allAppsList.find { it.packageName == pkg }; if (app != null) selectedAppsQueue.add(app) } } }; AppPreferences.saveLastLayout(this, selectedLayoutType); AppPreferences.saveDisplayResolution(this, currentDisplayId, selectedResolutionIndex); AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting); activeProfileName = name; updateSelectedAppsDock(); safeToast("Loaded: $name"); drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged(); if (isInstantMode) applyLayoutImmediate() } catch (e: Exception) { Log.e(TAG, "Failed to load profile", e) } }
+
+    // [DIAGNOSTIC] Check which display currently holds the app
+    private fun logAppLocation(tag: String, pkg: String) {
+        Thread {
+            try {
+                val onVirtual = shellService?.getVisiblePackages(currentDisplayId)?.contains(pkg) == true
+                val onMain = shellService?.getVisiblePackages(0)?.contains(pkg) == true
+                val onCover = shellService?.getVisiblePackages(1)?.contains(pkg) == true
+                
+                val loc = when {
+                    onVirtual -> "VIRTUAL($currentDisplayId)"
+                    onMain -> "MAIN(0)"
+                    onCover -> "COVER(1)"
+                    else -> "HIDDEN/UNKNOWN"
+                }
+                Log.w("DROIDOS_DIAG", "$tag: $pkg is on $loc")
+            } catch(e: Exception) {}
+        }.start()
+    }
     
 
     // === EXECUTE LAUNCH - START ===
@@ -3129,28 +3148,21 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                 }
                                 
                 // === LAUNCH AND TILE APPS (Robust Background Loop) ===
-                                // [FIX] We use Thread.sleep inside this background thread instead of uiHandler.postDelayed.
-                                // This ensures the sequence continues executing even if the UI thread is throttled/closed.
-                                for (i in 0 until minOf(activeApps.size, rects.size)) {
-                                    val app = activeApps[i]
-                                    val bounds = rects[i]
-                
-                                    if (app.packageName == PACKAGE_BLANK) continue
-                
-                                    val basePkg = app.getBasePackage()
-                                    val cls = app.className
-                
-                // UI Update must be posted
-                                    uiHandler.post {
-                                        debugShowAppIdentification("TILE[$i]", basePkg, cls)
-                                    }
-                
-                                    // 1. Launch App (API PREFERRED)
-                                    // We use launchViaApi because ActivityOptions.setLaunchDisplayId() is more reliable
-                                    // than 'am start --display' for moving existing tasks between screens.
-                                    // [FIX] Pass 'bounds' to API to hint Freeform Mode immediately!
-                                    Log.w("DROIDOS_TRACE", "API LAUNCH: $basePkg/$cls on D$currentDisplayId")
-                                    launchViaApi(app.packageName, app.className, bounds)
+                for (i in 0 until minOf(activeApps.size, rects.size)) {
+                    val app = activeApps[i]
+                    val bounds = rects[i]
+
+                    if (app.packageName == PACKAGE_BLANK) continue
+
+                    val basePkg = app.getBasePackage()
+                    val cls = app.className
+
+                    uiHandler.post { debugShowAppIdentification("TILE[$i]", basePkg, cls) }
+
+                    // 1. Launch App (API PREFERRED)
+                    // This uses the correct displayContext now, which is the most reliable way to target screens.
+                    launchViaApi(app.packageName, app.className, bounds)
+
                     val isGeminiApp = basePkg.contains("bard") || basePkg.contains("gemini")
 
                     // 2. WAIT AND RESIZE (Sequential/Blocking)
@@ -3167,26 +3179,36 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         }
 
                         if (tid != -1) {
-                            // [FIX 1] Enforce Display: If app is stubborn and stayed on D0, force it to D[current]
-                            shellService?.runCommand("am task move-task-to-display $tid $currentDisplayId")
+                            // DIAGNOSTIC 2: Did it land correctly?
+                            // If not, we trigger the EMERGENCY MOVE
+                            val visibleOnTarget = shellService?.getVisiblePackages(currentDisplayId)?.contains(basePkg) == true
                             
-                            // [FIX 2] Enforce Freeform
+                            if (!visibleOnTarget) {
+                                Log.e("DROIDOS_DIAG", "MISSED TARGET: $basePkg is NOT on $currentDisplayId. Forcing Move...")
+                                shellService?.runCommand("am task move-task-to-display $tid $currentDisplayId")
+                                Thread.sleep(200) // Wait for move
+                            }
+
+                            // [FIX] Force Freeform Mode Explicitly via Shell
                             shellService?.runCommand("am task set-windowing-mode $tid 5")
                             Thread.sleep(50)
 
-                            // [FIX 3] Enforce Size (Double Tap)
+                            // Apply Bounds
                             shellService?.repositionTask(basePkg, cls, bounds.left, bounds.top, bounds.right, bounds.bottom)
+                            
+                            // Double-tap resize for Samsung
                             shellService?.runCommand("am task resize $tid ${bounds.left} ${bounds.top} ${bounds.right} ${bounds.bottom}")
+                            
+                            // DIAGNOSTIC 3: Final check
+                            logAppLocation("POST-TILE", basePkg)
                         } else {
-                            Log.e(TAG, "Tile[$i]: Task ID not found for $basePkg")
+                            Log.e("DROIDOS_DIAG", "TASK ID NOT FOUND: $basePkg")
                         }
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Tile[$i]: Resize failed", e)
                     }
 
-                    // 3. Buffer before next app
-                    // Increased to 150ms to ensure WindowManager state settles before next 'am start'
                     Thread.sleep(150)
                 }
                 // === LAUNCH AND TILE APPS - END ===
