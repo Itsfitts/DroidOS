@@ -76,6 +76,16 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // [NEW] Wallpaper Mode for Virtual Displays
+        // Used as a "Desktop Background" to hold focus when apps are minimized.
+        if (intent.getBooleanExtra("WALLPAPER_MODE", false)) {
+            val view = android.view.View(this)
+            view.setBackgroundColor(android.graphics.Color.BLACK)
+            setContentView(view)
+            // Do NOT finish. We need this activity to stay alive to hold focus.
+            return
+        }
+
         // Redirect to PermissionActivity if essential permissions are missing
         if (!hasAllPermissions()) {
             val intent = Intent(this, PermissionActivity::class.java)

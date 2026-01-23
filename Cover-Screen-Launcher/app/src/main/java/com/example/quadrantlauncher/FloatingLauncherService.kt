@@ -350,6 +350,9 @@ private var isSoftKeyboardSupport = false
     private var selectedLayoutType = 2
     private var selectedResolutionIndex = 0
     private var currentDpiSetting = -1
+    // [FIX] State tracking to avoid redundant resolution calls/sleeps
+    private var lastAppliedResIndex = -1
+    private var lastAppliedDpi = -1
     private var currentFontSize = 16f
     
     private var activeCustomRects: List<Rect>? = null
@@ -1282,6 +1285,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         } else {
             currentDpiSetting = savedDpi
         }
+        
+        // FIX: Sync state tracking to prevent unnecessary sleep on first execution
+        lastAppliedResIndex = selectedResolutionIndex
+        lastAppliedDpi = currentDpiSetting
 
         // [REMOVED] Auto-force disabled to prevent getting stuck on 120Hz
         // checkAndForceHighRefreshRate(displayId)
@@ -1515,6 +1522,21 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     
     private fun updateBubbleIcon() { val iconView = bubbleView?.findViewById<ImageView>(R.id.bubble_icon) ?: return; if (!isBound && showShizukuWarning) { uiHandler.post { iconView.setImageResource(android.R.drawable.ic_dialog_alert); iconView.setColorFilter(Color.RED); iconView.imageTintList = null }; return }; uiHandler.post { try { val uriStr = AppPreferences.getIconUri(this); if (uriStr != null) { val uri = Uri.parse(uriStr); val input = contentResolver.openInputStream(uri); val bitmap = BitmapFactory.decodeStream(input); input?.close(); if (bitmap != null) { iconView.setImageBitmap(bitmap); iconView.imageTintList = null; iconView.clearColorFilter() } else { iconView.setImageResource(R.drawable.ic_launcher_bubble); iconView.imageTintList = null; iconView.clearColorFilter() } } else { iconView.setImageResource(R.drawable.ic_launcher_bubble); iconView.imageTintList = null; iconView.clearColorFilter() } } catch (e: Exception) { iconView.setImageResource(R.drawable.ic_launcher_bubble); iconView.imageTintList = null; iconView.clearColorFilter() } } }
     private fun dismissKeyboardAndRestore() { val searchBar = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); if (searchBar != null && searchBar.hasFocus()) { searchBar.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(searchBar.windowToken, 0) }; val dpiInput = drawerView?.findViewById<EditText>(R.id.input_dpi_value); if (dpiInput != null && dpiInput.hasFocus()) { dpiInput.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(dpiInput.windowToken, 0) }; updateDrawerHeight(false) }
+
+    // [NEW] Brings the Black Wallpaper to front.
+    // This effectively minimizes whatever app is currently top, preventing the "Last App" freeze.
+    private fun showWallpaper() {
+        try {
+            val intent = Intent(this, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.putExtra("WALLPAPER_MODE", true)
+            val options = android.app.ActivityOptions.makeBasic()
+            options.setLaunchDisplayId(currentDisplayId)
+            startActivity(intent, options.toBundle())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show wallpaper", e)
+        }
+    }
 
     private fun setupDrawer() {
         val context = displayContext ?: this
@@ -2577,6 +2599,33 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         targetDisplayIndex = currentDisplayId
         AppPreferences.setTargetDisplayIndex(this, targetDisplayIndex)
         
+        // [NEW] Launch Wallpaper on Virtual Display
+        // This ensures there is always a window at the bottom of the stack to hold focus.
+        if (currentDisplayId >= 2) {
+            try {
+                val intent = Intent(this, MainActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                intent.putExtra("WALLPAPER_MODE", true)
+                
+                val options = android.app.ActivityOptions.makeBasic()
+                options.setLaunchDisplayId(currentDisplayId)
+                
+                startActivity(intent, options.toBundle())
+                
+                // Optional: Move it to back after a short delay so it doesn't cover existing apps
+                // (If you are switching to a display that already has apps open)
+                uiHandler.postDelayed({
+                    try {
+                        val tid = shellService?.getTaskId(packageName, null) ?: -1
+                        if (tid != -1) shellService?.moveTaskToBack(tid)
+                    } catch(e: Exception){}
+                }, 500)
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to launch wallpaper", e)
+            }
+        }
+
         // 3. REBUILD
         setupBubble()
         setupDrawer()
@@ -2973,6 +3022,12 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         isExecuting = true
         pendingExecutionNeeded = false // Reset pending flag for THIS run
 
+        // Get currently visible apps on this display, excluding ourselves and the trackpad
+        val activeApps = shellService?.getVisiblePackages(currentDisplayId)
+            ?.mapNotNull { pkgName -> allAppsList.find { it.packageName == pkgName } }
+            ?.filter { it.packageName != packageName && it.packageName != PACKAGE_TRACKPAD }
+            ?: emptyList()
+
         if (closeDrawer) toggleDrawer()
         refreshDisplayId()
 
@@ -2982,18 +3037,33 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         
         Thread { 
             try { 
-                // Apply resolution
-                val resCmd = getResolutionCommand(selectedResolutionIndex)
-                shellService?.runCommand(resCmd)
-                
-                // Apply DPI
-                if (currentDpiSetting > 0) { 
-                    shellService?.runCommand("wm density $currentDpiSetting -d $currentDisplayId")
-                } else if (currentDpiSetting == -1) { 
-                    shellService?.runCommand("wm density reset -d $currentDisplayId")
+                var configChanged = false
+
+                // Apply resolution only if changed
+                if (selectedResolutionIndex != lastAppliedResIndex) {
+                    val resCmd = getResolutionCommand(selectedResolutionIndex)
+                    shellService?.runCommand(resCmd)
+                    lastAppliedResIndex = selectedResolutionIndex
+                    configChanged = true
                 }
                 
-                Thread.sleep(800)
+                // Apply DPI only if changed
+                if (currentDpiSetting != lastAppliedDpi) {
+                    if (currentDpiSetting > 0) { 
+                        shellService?.runCommand("wm density $currentDpiSetting -d $currentDisplayId")
+                    } else if (currentDpiSetting == -1) { 
+                        shellService?.runCommand("wm density reset -d $currentDisplayId")
+                    }
+                    lastAppliedDpi = currentDpiSetting
+                    configChanged = true
+                }
+                
+                // [FIX] Only sleep if we actually changed system configuration
+                if (configChanged) {
+                    Thread.sleep(800)
+                }
+                
+                // Get screen dimensions
                 
                                 // [FIX] Use getLayoutRects() which contains the Bottom Margin logic.
                 // We use the member variable 'selectedLayoutType' (which matches the passed 'layoutType' 99% of the time).
@@ -3008,29 +3078,39 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 
                 // Handle minimized apps
                 val minimizedApps = selectedAppsQueue.filter { it.isMinimized }
-                for (app in minimizedApps) { 
-                    if (app.packageName != PACKAGE_BLANK) { 
-                        try { 
-                            val basePkg = app.getBasePackage()
-                            val tid = shellService?.getTaskId(basePkg, app.className) ?: -1
-                            if (tid != -1) shellService?.moveTaskToBack(tid) 
-                        } catch (e: Exception) {} 
-                    } 
+                
+                // If on Virtual Display and NO active apps (Show Desktop), just launch Wallpaper
+                if (currentDisplayId >= 2 && activeApps.isEmpty() && minimizedApps.isNotEmpty()) {
+                    showWallpaper()
+                } else {
+                    // Standard Loop
+                    for (app in minimizedApps) { 
+                        if (app.packageName != PACKAGE_BLANK) { 
+                            try { 
+                                val basePkg = app.getBasePackage()
+                                val tid = shellService?.getTaskId(basePkg, app.className) ?: -1
+                                if (tid != -1) shellService?.moveTaskToBack(tid) 
+                            } catch (e: Exception) {} 
+                        } 
+                    }
                 }
                 
                 val activeApps = selectedAppsQueue.filter { !it.isMinimized }
                 
-                // Kill apps if enabled
-                if (killAppOnExecute) { 
-                    for (app in activeApps) { 
-                        if (app.packageName != PACKAGE_BLANK) { 
-                            val basePkg = app.getBasePackage()
-                            shellService?.forceStop(basePkg)
-                        } 
+                // Kill/Prep Logic - Only wait if we actually have apps to launch
+                // [FIX] If activeApps is empty (we are just minimizing), SKIP THE SLEEP.
+                if (activeApps.isNotEmpty()) {
+                    if (killAppOnExecute) { 
+                        for (app in activeApps) { 
+                            if (app.packageName != PACKAGE_BLANK) { 
+                                val basePkg = app.getBasePackage()
+                                shellService?.forceStop(basePkg)
+                            } 
+                        }
+                        Thread.sleep(400) 
+                    } else { 
+                        Thread.sleep(100) 
                     }
-                    Thread.sleep(400) 
-                } else { 
-                    Thread.sleep(100) 
                 }
                 
 // === LAUNCH AND TILE APPS (Robust Background Loop) ===
@@ -3565,25 +3645,45 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     }
 
                                         if (app.isMinimized != newState) {
-                                            app.isMinimized = newState
-                                            
-                                            val basePkg = app.getBasePackage()
-                                            val cls = app.className
-                                            
-                                            if (newState) {
-                                                 // [FIX] Clear focus if minimizing the active app
-                                                 if (activePackageName == basePkg || activePackageName == app.packageName) {
-                                                     activePackageName = null
-                                                     Log.d(TAG, "WM Command: Cleared focus for minimized app: $basePkg")
+                                                                app.isMinimized = newState
+                                                                
+                                                                val basePkg = app.getBasePackage()
+                                                                val cls = app.className
+                                                                
+                                                                if (newState) {
+                                                                     // [FIX] Clear focus if minimizing the active app
+                                                                     if (activePackageName == basePkg || activePackageName == app.packageName) {
+                                                                         activePackageName = null
+                                                                     }
+                                                                     
+    // MINIMIZING: Move to Back
+                                     Thread {
+                                         try {
+                                             // Virtual Display Strategy
+                                             if (currentDisplayId >= 2) {
+                                                 // Check if this is the ONLY visible app
+                                                 val visibleCount = shellService?.getVisiblePackages(currentDisplayId)?.size ?: 0
+                                                 val isLastApp = visibleCount <= 1 
+
+                                                 if (isLastApp) {
+                                                     // LAST APP: "Launch" the wallpaper to cover it.
+                                                     // This avoids the system hanging while searching for a Home screen.
+                                                     showWallpaper()
+                                                 } else {
+                                                     // NOT LAST: Standard minimize works fine (focus transfers to app behind)
+                                                     val tid = shellService?.getTaskId(basePkg, cls) ?: -1
+                                                     if (tid != -1) shellService?.moveTaskToBack(tid)
                                                  }
-                    
-                                                 // MINIMIZING: Move to Back
-                                                 Thread {                                 try {
-                                     val tid = shellService?.getTaskId(basePkg, cls) ?: -1
-                                     if (tid != -1) shellService?.moveTaskToBack(tid)
-                                 } catch(e: Exception){}
-                             }.start()
-                        } else {
+                                             } else {
+                                                 // Standard Display (Phone/Cover)
+                                                 val tid = shellService?.getTaskId(basePkg, cls) ?: -1
+                                                 if (tid != -1) shellService?.moveTaskToBack(tid)
+                                             }
+                                         } catch(e: Exception){}
+                                     }.start()
+                                                                     // We removed the redundant thread here to prevent race conditions and double-execution lag.
+
+                                                                } else {
                              // RESTORING: Bring to Front on Current Display
                              // We reuse the launch logic which handles "Bring to Front" if already running.
                              // We run this in background to avoid UI stutter.
