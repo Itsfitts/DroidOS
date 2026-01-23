@@ -81,8 +81,31 @@ class MainActivity : AppCompatActivity() {
         if (intent.getBooleanExtra("WALLPAPER_MODE", false)) {
             val view = android.view.View(this)
             view.setBackgroundColor(android.graphics.Color.BLACK)
+            
+            // SAFETY 1: Close immediately if tapped (Fail-safe)
+            view.setOnClickListener { finish() }
+            
+            // SAFETY 2: Close immediately if we land on a Physical Display (0 or 1)
+            // This handles cases where Android moves the activity when glasses are unplugged.
+            val checkDisplay = {
+                val currentDisplay = display // Capture 'this.display' into a local variable
+                if (currentDisplay != null && currentDisplay.displayId < 2) {
+                    android.util.Log.i("DroidOS", "Wallpaper landed on Display ${currentDisplay.displayId} - Self Destructing")
+                    finish()
+                }
+            }
+
+            // Check on load
+            checkDisplay()
+            
+            // Check whenever window focus changes (e.g. display move)
+            view.viewTreeObserver.addOnWindowFocusChangeListener { hasFocus ->
+                if (hasFocus) {
+                    checkDisplay()
+                }
+            }
+            
             setContentView(view)
-            // Do NOT finish. We need this activity to stay alive to hold focus.
             return
         }
 
