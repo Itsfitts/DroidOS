@@ -311,6 +311,9 @@ private var isSoftKeyboardSupport = false
     // [NEW] Persist tiling info for Watchdog recovery
     private val packageRectCache = java.util.concurrent.ConcurrentHashMap<String, Rect>()
     
+    // [NEW] Prevent concurrent watchdog threads for the same package
+    private val activeEnforcements = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private lateinit var drawerParams: WindowManager.LayoutParams
 
@@ -1876,11 +1879,18 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         }
     }
 
-    // [NEW] Robust Move Logic: Finds original slot and forces move with retries
+// [NEW] Robust Move Logic: Finds original slot and forces move with retries
     private fun forceAppToDisplay(pkg: String, targetDisplayId: Int) {
+        // [LOCK] Prevent duplicate threads
+        if (activeEnforcements.contains(pkg)) {
+            Log.d("DROIDOS_WATCHDOG", "SKIP: Enforcement already active for $pkg")
+            return
+        }
+        activeEnforcements.add(pkg)
+
         Thread {
             try {
-                // 1. Get Task ID
+                // 1. Get Task ID & Class Name
                 var tid = shellService?.getTaskId(pkg, null) ?: -1
                 if (tid == -1) {
                     Thread.sleep(200) 
@@ -1888,30 +1898,50 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 }
 
                 if (tid != -1) {
-                    Log.w("DROIDOS_WATCHDOG", "Targeting Task $tid for $pkg. Starting Aggressive Loop...")
+                    Log.w("DROIDOS_WATCHDOG", "Targeting Task $tid for $pkg. Starting Locked Loop...")
 
-                    // 2. Lookup Cache first (More reliable than live queue)
+                    // 2. Lookup Cache / AppInfo
                     var bounds: Rect? = packageRectCache[pkg]
+                    var className: String? = null
                     
-                    // Fallback to queue if cache missing
-                    if (bounds == null) {
-                        val appIndex = selectedAppsQueue.indexOfFirst { 
-                            it.packageName == pkg || it.getBasePackage() == pkg 
-                        }
-                        if (appIndex != -1) {
+                    // Fallback to queue + get Class Name
+                    val appEntry = selectedAppsQueue.find { it.packageName == pkg || it.getBasePackage() == pkg }
+                    if (appEntry != null) {
+                         className = appEntry.className
+                         if (bounds == null) {
+                             val appIndex = selectedAppsQueue.indexOf(appEntry)
                              val rects = getLayoutRects()
-                             if (appIndex < rects.size) bounds = rects[appIndex]
-                        }
+                             if (appIndex >= 0 && appIndex < rects.size) bounds = rects[appIndex]
+                         }
                     }
 
-                    // 3. AGGRESSIVE Loop (10 attempts, fast interval)
+                    // 3. AGGRESSIVE Loop (10 attempts)
                     for (i in 1..10) {
-                        // Combined command for speed (less IPC overhead)
+                        // A. Try Task Move (Standard)
                         shellService?.runCommand("am task move-task-to-display $tid $targetDisplayId")
                         shellService?.runCommand("am task set-windowing-mode $tid 5")
                         
+                        // B. Escalation Levels
+                        // Level 1 (Attempts 3-6): Force Relaunch with NEW_TASK flag
+                        if (i > 3 && i <= 6 && className != null) {
+                             val cmd = "am start -n $pkg/$className --display $targetDisplayId --windowingMode 5 -f 0x10000000 --user 0"
+                             Log.w("DROIDOS_WATCHDOG", "Escalating L1 (Relaunch): $cmd")
+                             shellService?.runCommand(cmd)
+                        }
+                        
+                        // Level 2 (Attempts 7+): NUCLEAR OPTION (Kill & Restart)
+                        // If it refuses to move after 6 tries, the process is likely stuck with bad display affinity.
+                        if (i > 6 && className != null) {
+                             Log.e("DROIDOS_WATCHDOG", "Escalating L2 (Nuclear): Killing $pkg to break display affinity")
+                             shellService?.forceStop(pkg)
+                             Thread.sleep(300) // Wait for death
+                             
+                             val cmd = "am start -n $pkg/$className --display $targetDisplayId --windowingMode 5 -f 0x10000000 --user 0"
+                             shellService?.runCommand(cmd)
+                        }
+                        
+                        // Apply Bounds
                         if (bounds != null) {
-                            // Send resize immediately after move
                             shellService?.runCommand("am task resize $tid ${bounds.left} ${bounds.top} ${bounds.right} ${bounds.bottom}")
                             Log.d("DROIDOS_WATCHDOG", "Attempt $i: D$targetDisplayId @ $bounds")
                         } else {
@@ -1920,6 +1950,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         }
 
                         // Check success
+                        // We check BOTH display ID and visibility
                         val visibleOnTarget = shellService?.getVisiblePackages(targetDisplayId)?.contains(pkg) == true
                         if (visibleOnTarget) {
                             Log.w("DROIDOS_WATCHDOG", "SUCCESS: App moved on attempt $i")
@@ -1928,13 +1959,16 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             break
                         }
                         
-                        Thread.sleep(200) // Fast retry (200ms)
+                        Thread.sleep(300) // Slightly slower retry to let system process
                     }
                 } else {
                     Log.e("DROIDOS_WATCHDOG", "Could not find Task ID for $pkg")
                 }
             } catch (e: Exception) {
                 Log.e("DROIDOS_WATCHDOG", "Force move failed", e)
+            } finally {
+                // [UNLOCK] Release lock
+                activeEnforcements.remove(pkg)
             }
         }.start()
     }
