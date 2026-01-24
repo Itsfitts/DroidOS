@@ -1783,6 +1783,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     private fun showVisualQueue(prompt: String, highlightSlot0Based: Int = -1) {
         if (visualQueueView == null) setupVisualQueue()
 
+        // Ensure list is sorted active-first before showing
+        sortAppQueue()
+
         // FAST SYNC CHECK: Get visible packages for THIS display immediately
         // This ensures the HUD reflects reality even if the background poller hasn't run.
         val visiblePkgs = if (shellService != null) {
@@ -2404,7 +2407,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     private fun getTargetDimensions(index: Int): Pair<Int, Int>? { return when(index) { 1 -> 1422 to 1500; 2 -> 1920 to 1080; 3 -> 3840 to 1080; else -> null } }
     private fun getResolutionCommand(index: Int): String { return when(index) { 1 -> "wm size 1422x1500 -d $currentDisplayId"; 2 -> "wm size 1920x1080 -d $currentDisplayId"; 3 -> "wm size 3840x1080 -d $currentDisplayId"; else -> "wm size reset -d $currentDisplayId" } }
 
-            // Sorts active apps to front (Slot 1,2,3) and minimized to back
+// Sorts active apps to front and minimized to back.
+            // Maintains relative order (Stable Sort), ensuring newly minimized apps
+            // appear at the front of the inactive group (Left-to-Right).
             private fun sortAppQueue() {
                 selectedAppsQueue.sortWith(compareBy { it.isMinimized })
             }
@@ -3648,16 +3653,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         if (app.packageName != PACKAGE_BLANK) { 
                             app.isMinimized = !app.isMinimized
                             
-                            // [FIX] Clear focus if minimizing the active app to prevent pop-back
-                            if (app.isMinimized) {
-                                val basePkg = app.getBasePackage()
-                                if (activePackageName == basePkg || activePackageName == app.packageName) {
-                                    activePackageName = null
-                                    Log.d(TAG, "Cleared active focus for minimized app: $basePkg")
-                                }
-                            }
-
-                            notifyItemChanged(position)
+                            // Re-sort queue to move inactive apps to the end
+                            sortAppQueue()
+                            // Refresh all UIs (Drawer Dock + Visual Queue)
+                            updateAllUIs()
+                            
                             if (isInstantMode) applyLayoutImmediate() 
                         } 
                     } 
