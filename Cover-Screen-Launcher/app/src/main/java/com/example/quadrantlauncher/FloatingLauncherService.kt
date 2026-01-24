@@ -1010,78 +1010,23 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        val isWatchdogActive = (currentDisplayId >= 2 && Build.VERSION.SDK_INT >= 30)
-
-        // LOG ENTRY: Only log STATE_CHANGE events to verify service is alive
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            Log.d("DROIDOS_WATCHDOG", "Event: STATE_CHANGE | Pkg: ${event.packageName} | Disp: ${event.displayId} | Active: $isWatchdogActive")
-        }
-
-        // [DEBUG WATCHDOG] Monitor Cover Screen (Display 1)
-        if (isWatchdogActive) {
-            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
-                event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
-                event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
+        // 1. WATCHDOG LOGIC (Direct Event Handling)
+        // If we are targeting a Virtual Display (ID >= 2), monitor Display 1 (Cover) for escapes.
+        if (currentDisplayId >= 2 && event.displayId == 1) {
+            val pkg = event.packageName?.toString()
+            
+            // Filter out safe system apps
+            if (!pkg.isNullOrEmpty() && 
+                pkg != packageName && 
+                pkg != PACKAGE_TRACKPAD && 
+                pkg != "com.android.systemui" && 
+                pkg != "com.sec.android.app.launcher" && 
+                !pkg.contains("inputmethod")) {
                 
-                try {
-                    val allWindows = this.windows
-                    
-                    // DIAGNOSTIC: Check what displays are visible to the service
-                    if (allWindows.find { it.displayId == 1 } == null) {
-                         // Only log periodically to avoid flood
-                         if (System.currentTimeMillis() % 2000 < 50) { 
-                             Log.e("DROIDOS_WATCHDOG", "Display 1 (Cover) NOT in window list! Visible IDs: ${allWindows.map { it.displayId }.distinct()}")
-                         }
-                    }
-
-                    val coverWindows = allWindows.filter { it.displayId == 1 }
-
-                    if (coverWindows != null) {
-                        for (window in coverWindows) {
-                            if (window.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) {
-                                val node = window.root
-                                val pkg = node?.packageName?.toString()
-                                node?.recycle()
-
-                                if (pkg != null) {
-                                    // 1. LOG EVERYTHING SEEN ON COVER
-                                    Log.w("DROIDOS_WATCHDOG", "DETECTED on Cover: $pkg")
-
-                                    // 2. Filter out System/Launcher
-                                    if (pkg != packageName && 
-                                        pkg != PACKAGE_TRACKPAD && 
-                                        pkg != "com.android.systemui" && 
-                                        pkg != "com.sec.android.app.launcher" && 
-                                        !pkg.contains("inputmethod")) {
-
-                                        Log.w("DROIDOS_WATCHDOG", ">> CATCH: $pkg forbidden. Forcing move to D$currentDisplayId...")
-                                        
-                                        Thread {
-                                            try {
-                                                val tid = shellService?.getTaskId(pkg, null) ?: -1
-                                                Log.w("DROIDOS_WATCHDOG", "   -> Task ID for $pkg: $tid")
-                                                
-                                                if (tid != -1) {
-                                                    // Move
-                                                    shellService?.runCommand("am task move-task-to-display $tid $currentDisplayId")
-                                                    // Force Mode
-                                                    shellService?.runCommand("am task set-windowing-mode $tid 5") 
-                                                    // Ensure Size
-                                                    shellService?.runCommand("am task resize $tid 0 0 1000 1000")
-                                                } else {
-                                                    Log.e("DROIDOS_WATCHDOG", "   -> FAIL: No Task ID found")
-                                                }
-                                            } catch(e: Exception) {
-                                                Log.e("DROIDOS_WATCHDOG", "   -> EXCEPTION", e)
-                                            }
-                                        }.start()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("DROIDOS_WATCHDOG", "Error scanning windows", e)
+                // Only act on state changes (app opening/resuming)
+                if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                    Log.w("DROIDOS_WATCHDOG", "ESCAPE DETECTED: $pkg on Cover (D1). Triggering Recovery to D$currentDisplayId")
+                    forceAppToDisplay(pkg, currentDisplayId)
                 }
             }
         }
@@ -1926,6 +1871,69 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             pendingArg1 = -1
             hideVisualQueue()
         }
+    }
+
+    // [NEW] Robust Move Logic: Finds original slot and forces move with retries
+    private fun forceAppToDisplay(pkg: String, targetDisplayId: Int) {
+        Thread {
+            try {
+                // 1. Get Task ID
+                var tid = shellService?.getTaskId(pkg, null) ?: -1
+                if (tid == -1) {
+                    Thread.sleep(200) // Wait briefly and retry
+                    tid = shellService?.getTaskId(pkg, null) ?: -1
+                }
+
+                if (tid != -1) {
+                    Log.w("DROIDOS_WATCHDOG", "Targeting Task $tid for $pkg. Starting Force Loop...")
+
+                    // 2. Find intended bounds from queue
+                    var bounds: Rect? = null
+                    val appIndex = selectedAppsQueue.indexOfFirst { 
+                        it.packageName == pkg || it.getBasePackage() == pkg 
+                    }
+                    
+                    if (appIndex != -1) {
+                         val rects = getLayoutRects()
+                         if (appIndex < rects.size) {
+                             bounds = rects[appIndex]
+                         }
+                    }
+
+                    // 3. Force Loop (3 attempts)
+                    for (i in 1..3) {
+                        // Move to Display
+                        shellService?.runCommand("am task move-task-to-display $tid $targetDisplayId")
+                        // Force Freeform
+                        shellService?.runCommand("am task set-windowing-mode $tid 5")
+                        
+                        // Apply Tiling Bounds (Restoring Slot)
+                        if (bounds != null) {
+                            shellService?.repositionTask(pkg, null, bounds.left, bounds.top, bounds.right, bounds.bottom)
+                            shellService?.runCommand("am task resize $tid ${bounds.left} ${bounds.top} ${bounds.right} ${bounds.bottom}")
+                            Log.d("DROIDOS_WATCHDOG", "Attempt $i: Moving to D$targetDisplayId @ $bounds")
+                        } else {
+                            // Default fallback
+                            shellService?.runCommand("am task resize $tid 0 0 1000 1000")
+                            Log.d("DROIDOS_WATCHDOG", "Attempt $i: Moving to D$targetDisplayId (Default Size)")
+                        }
+
+                        // Check success
+                        val visibleOnTarget = shellService?.getVisiblePackages(targetDisplayId)?.contains(pkg) == true
+                        if (visibleOnTarget) {
+                            Log.w("DROIDOS_WATCHDOG", "SUCCESS: App moved on attempt $i")
+                            break
+                        }
+                        
+                        Thread.sleep(500) // Wait before retry
+                    }
+                } else {
+                    Log.e("DROIDOS_WATCHDOG", "Could not find Task ID for $pkg")
+                }
+            } catch (e: Exception) {
+                Log.e("DROIDOS_WATCHDOG", "Force move failed", e)
+            }
+        }.start()
     }
 
     // === KEY PICKER (POPUP) ===
