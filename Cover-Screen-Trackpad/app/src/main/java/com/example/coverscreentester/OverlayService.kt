@@ -4238,19 +4238,25 @@ if (isResize) {
                 // =======================================================================
                 
                 // Mouse events - we handle and consume these
+                // CHECK BUTTON: Use actionButton to distinguish Left vs Right clicks
+                val isRightButton = (event.actionButton == MotionEvent.BUTTON_SECONDARY)
+
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
-                        Log.d(BT_TAG, "MOUSE ACTION_DOWN: x=${event.x}, y=${event.y}, rawX=${event.rawX}, rawY=${event.rawY}")
-                        Log.d(BT_TAG, "├─ Cursor position: cursorX=$cursorX, cursorY=$cursorY")
-                        Log.d(BT_TAG, "├─ Target display: $inputTargetDisplayId")
-                        lastBtMouseX = event.x
-                        lastBtMouseY = event.y
-                        isBtMouseDragging = false
-                        handleExternalTouchDown()
-                        Log.d(BT_TAG, "├─ Called handleExternalTouchDown()")
+                        if (isRightButton) {
+                             Log.d(BT_TAG, "MOUSE RIGHT DOWN: Ignored (waiting for UP)")
+                        } else {
+                             Log.d(BT_TAG, "MOUSE LEFT DOWN: Starting Touch Stream")
+                             lastBtMouseX = event.x
+                             lastBtMouseY = event.y
+                             isBtMouseDragging = false
+                             handleExternalTouchDown()
+                        }
                     }
                     
                     MotionEvent.ACTION_MOVE -> {
+                        // Only process drag for Left Button
+                        // (Right drag is usually not a standard Android touch gesture)
                         val rawDx = event.x - lastBtMouseX
                         val rawDy = event.y - lastBtMouseY
                         
@@ -4261,19 +4267,20 @@ if (isResize) {
                         lastBtMouseX = event.x
                         lastBtMouseY = event.y
                         
-                        Log.d(BT_TAG, "MOUSE ACTION_MOVE: rawDx=$rawDx, rawDy=$rawDy, dragging=$isBtMouseDragging")
-                        
                         val (scaledDx, scaledDy) = scaleBtMouseMovement(rawDx, rawDy)
                         handleExternalMouseMove(scaledDx, scaledDy, true)
-                        Log.d(BT_TAG, "├─ Forwarded as drag")
                     }
                     
                     MotionEvent.ACTION_UP -> {
-                        Log.d(BT_TAG, "MOUSE ACTION_UP: wasDragging=$isBtMouseDragging")
-                        handleExternalTouchUp()
-                        if (!isBtMouseDragging) {
-                            Log.d(BT_TAG, "├─ Was click, calling performClick()")
-                            performClick(false)
+                        if (isRightButton) {
+                             Log.d(BT_TAG, "MOUSE RIGHT UP: Performing Right Click")
+                             performClick(true)
+                        } else {
+                             Log.d(BT_TAG, "MOUSE LEFT UP: Ending Touch Stream")
+                             handleExternalTouchUp()
+                             // REMOVED: performClick(false)
+                             // The handleExternalTouchDown() + handleExternalTouchUp() sequence 
+                             // already constitutes a complete click/tap.
                         }
                         isBtMouseDragging = false
                     }
