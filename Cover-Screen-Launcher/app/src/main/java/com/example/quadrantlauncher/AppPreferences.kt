@@ -290,7 +290,7 @@ object AppPreferences {
     }
 
     fun getAutoRestartTrackpad(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_AUTO_RESTART_TRACKPAD, false) // Default Off
+        return getPrefs(context).getBoolean(KEY_AUTO_RESTART_TRACKPAD, true) // Default ON
     }
 
     fun setTargetDisplayIndex(context: Context, index: Int) {
@@ -352,8 +352,7 @@ object AppPreferences {
     }
     
     fun getReorderDrag(context: Context): Boolean {
-        // CHANGED: Default to FALSE so Tap works out of box
-        return getPrefs(context).getBoolean(KEY_REORDER_METHOD_DRAG, false)
+        return getPrefs(context).getBoolean(KEY_REORDER_METHOD_DRAG, true) // Default ON
     }
     
     fun setReorderTap(context: Context, enable: Boolean) {
@@ -361,7 +360,7 @@ object AppPreferences {
     }
     
     fun getReorderTap(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_REORDER_METHOD_TAP, true) // Default Enabled
+        return getPrefs(context).getBoolean(KEY_REORDER_METHOD_TAP, false) // Default OFF
     }
     
     fun setReorderScroll(context: Context, enable: Boolean) {
@@ -413,12 +412,31 @@ object AppPreferences {
     }
 
     fun getKeybind(context: Context, cmdId: String): Pair<Int, Int> {
-        val data = getPrefs(context).getString("BIND_$cmdId", null) ?: return Pair(0, 0)
-        return try {
-            val parts = data.split("|")
-            Pair(parts[0].toInt(), parts[1].toInt())
-        } catch (e: Exception) {
-            Pair(0, 0)
+        val savedData = getPrefs(context).getString("BIND_$cmdId", null)
+        
+        if (savedData != null) {
+            return try {
+                val parts = savedData.split("|")
+                Pair(parts[0].toInt(), parts[1].toInt())
+            } catch (e: Exception) {
+                Pair(0, 0)
+            }
+        }
+
+        // DEFAULTS (Alt = 2)
+        // S=47, H=36, L=40, O=43, J=38, K=39, X=52, Space=62, F=34, G=35
+        return when (cmdId) {
+            "SWAP" -> Pair(2, 47)              // Alt + S
+            "SWAP_ACTIVE_LEFT" -> Pair(2, 36)  // Alt + H
+            "SWAP_ACTIVE_RIGHT" -> Pair(2, 40) // Alt + L
+            "HIDE" -> Pair(2, 43)              // Alt + O
+            "MINIMIZE" -> Pair(2, 38)          // Alt + J
+            "UNMINIMIZE" -> Pair(2, 39)        // Alt + K
+            "KILL" -> Pair(2, 52)              // Alt + X
+            "OPEN_DRAWER" -> Pair(2, 62)       // Alt + Space
+            "SET_FOCUS" -> Pair(2, 34)         // Alt + F
+            "FOCUS_LAST" -> Pair(2, 35)        // Alt + G
+            else -> Pair(0, 0)
         }
     }
 

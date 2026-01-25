@@ -341,10 +341,10 @@ private var isSoftKeyboardSupport = false
         MODE_RESOLUTION, 
         MODE_REFRESH, 
         MODE_DPI, 
+        MODE_BLACKLIST, // [FIX] Reordered to match visual icon order
         MODE_PROFILES, 
         MODE_KEYBINDS, 
-        MODE_SETTINGS,
-        MODE_BLACKLIST
+        MODE_SETTINGS
     )
 
     private fun cycleTab(reverse: Boolean) {
@@ -460,13 +460,22 @@ private var isSoftKeyboardSupport = false
     }
 
     private fun broadcastKeybindsToKeyboard() {
-        val binds = AppPreferences.getAllKeybinds(this)
+        val binds = ArrayList<String>()
+        // Iterate AVAILABLE_COMMANDS to ensure defaults are included
+        for (cmd in AVAILABLE_COMMANDS) {
+            val bind = AppPreferences.getKeybind(this, cmd.id)
+            if (bind.second != 0) { // Valid keyCode
+                // Format: "modifier|keyCode"
+                binds.add("${bind.first}|${bind.second}")
+            }
+        }
+
         val intent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.UPDATE_KEYBINDS")
         intent.setPackage("com.katsuyamaki.DroidOSTrackpadKeyboard")
         intent.putStringArrayListExtra("KEYBINDS", binds)
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         sendBroadcast(intent)
-        Log.e(TAG, "Broadcasted ${binds.size} keybinds to Keyboard")
+        Log.e(TAG, "Broadcasted ${binds.size} keybinds to Keyboard (inc. defaults)")
     }
     // === SWIPE CALLBACK - START ===
     // Handles swipe gestures for various modes including blacklist
@@ -1664,6 +1673,12 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         // --- SEARCH BAR INPUT LOGIC ---
         searchBar.setOnKeyListener { _, keyCode, event -> 
             if (event.action == KeyEvent.ACTION_DOWN) {
+                // [FIX] Intercept TAB to cycle tabs instead of changing focus
+                if (keyCode == KeyEvent.KEYCODE_TAB) {
+                    cycleTab(event.isShiftPressed)
+                    return@setOnKeyListener true
+                }
+
                 // ESC: Exit input mode, give focus to drawer for navigation
                 if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
                     dismissKeyboardAndRestore()
