@@ -32,6 +32,14 @@ class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener
     
     private lateinit var btnContinue: Button
 
+    private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val statusChecker = object : Runnable {
+        override fun run() {
+            refreshUI()
+            uiHandler.postDelayed(this, 500)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_permissions)
@@ -125,12 +133,19 @@ class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener
     }
 
     override fun onResume() {
-        super.onResume() 
+        super.onResume()
         refreshUI()
+        uiHandler.post(statusChecker) // Start polling
+    }
+
+    override fun onPause() {
+        super.onPause()
+        uiHandler.removeCallbacks(statusChecker) // Stop polling
     }
 
     override fun onDestroy() {
-        super.onDestroy() 
+        super.onDestroy()
+        uiHandler.removeCallbacks(statusChecker)
         Shizuku.removeRequestPermissionResultListener(this)
     }
 
@@ -180,13 +195,23 @@ class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener
     }
 
     private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        for (enabledService in enabledServices) {
-            val serviceInfo = enabledService.resolveInfo.serviceInfo
-            if (serviceInfo.packageName == context.packageName && serviceInfo.name == service.name) {
-                return true
+        try {
+            val expectedComponentName = android.content.ComponentName(context, service)
+            val enabledServicesSetting = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: return false
+            
+            val stringSplitter = android.text.TextUtils.SimpleStringSplitter(':')
+            stringSplitter.setString(enabledServicesSetting)
+            
+            while (stringSplitter.hasNext()) {
+                val componentNameString = stringSplitter.next()
+                val enabledComponent = android.content.ComponentName.unflattenFromString(componentNameString)
+                if (enabledComponent != null && enabledComponent == expectedComponentName) return true
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         return false
     }
