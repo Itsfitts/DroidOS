@@ -424,12 +424,12 @@ object AppPreferences {
         }
 
         // DEFAULTS (Alt = 2)
-        // S=47, H=36, L=40, O=43, J=38, K=39, X=52, Space=62, F=34, G=35
+        // O=43, H=36, L=40, I=37, J=38, K=39, X=52, Space=62, F=34, G=35
         return when (cmdId) {
-            "SWAP" -> Pair(2, 47)              // Alt + S
+            "SWAP" -> Pair(2, 43)              // Alt + O
             "SWAP_ACTIVE_LEFT" -> Pair(2, 36)  // Alt + H
             "SWAP_ACTIVE_RIGHT" -> Pair(2, 40) // Alt + L
-            "HIDE" -> Pair(2, 43)              // Alt + O
+            "HIDE" -> Pair(2, 37)              // Alt + I
             "MINIMIZE" -> Pair(2, 38)          // Alt + J
             "UNMINIMIZE" -> Pair(2, 39)        // Alt + K
             "KILL" -> Pair(2, 52)              // Alt + X

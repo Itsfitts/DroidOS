@@ -3738,7 +3738,29 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 val idxB = if (rawB > 0) rawB - 1 else -1
                 
                 if (idxA in selectedAppsQueue.indices && idxB in selectedAppsQueue.indices) {
+                    val appA = selectedAppsQueue[idxA]
+                    val appB = selectedAppsQueue[idxB]
+
+                    // LOGIC: State Swap if mixed Active/Inactive
+                    // This allows inactive apps to "take the place" of active ones
+                    if (appA.isMinimized != appB.isMinimized) {
+                        val stateA = appA.isMinimized
+                        appA.isMinimized = appB.isMinimized
+                        appB.isMinimized = stateA
+                    }
+
                     Collections.swap(selectedAppsQueue, idxA, idxB)
+
+                    // LOGIC: Remove Inactive Blanks (Auto-Delete)
+                    // If a blank space was swapped into an inactive state, delete it
+                    val toRemove = mutableListOf<MainActivity.AppInfo>()
+                    if (appA.packageName == PACKAGE_BLANK && appA.isMinimized) toRemove.add(appA)
+                    if (appB.packageName == PACKAGE_BLANK && appB.isMinimized) toRemove.add(appB)
+                    
+                    if (toRemove.isNotEmpty()) {
+                        selectedAppsQueue.removeAll(toRemove)
+                    }
+
                     refreshQueueAndLayout("Swapped slots $rawA & $rawB")
                 }
             }
@@ -3801,8 +3823,14 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 if (index in selectedAppsQueue.indices) {
                     val app = selectedAppsQueue[index]
 
-                    // Don't minimize blanks
-                    if (app.packageName == PACKAGE_BLANK) return
+                    // SPECIAL BLANK LOGIC: Hide/Minimize = Delete
+                    if (app.packageName == PACKAGE_BLANK) {
+                        if (cmd == "MINIMIZE" || (cmd == "TOGGLE_MINIMIZE" && !app.isMinimized)) {
+                            selectedAppsQueue.removeAt(index)
+                            refreshQueueAndLayout("Removed Blank Space")
+                            return
+                        }
+                    }
 
                     val newState = when (cmd) {
                         "MINIMIZE" -> true
@@ -3905,8 +3933,12 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                              if (index in selectedAppsQueue.indices) {
                                 val targetApp = selectedAppsQueue[index]
                                 
-                                // If already blank, do nothing
-                                if (targetApp.packageName == PACKAGE_BLANK) return
+                                // If already blank, remove it
+                                if (targetApp.packageName == PACKAGE_BLANK) {
+                                    selectedAppsQueue.removeAt(index)
+                                    refreshQueueAndLayout("Removed Blank Space")
+                                    return
+                                }
                                 
                                 // 1. Force Minimize the visual window
                                 val basePkg = targetApp.getBasePackage()
