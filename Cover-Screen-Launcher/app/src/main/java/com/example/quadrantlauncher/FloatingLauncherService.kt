@@ -1110,7 +1110,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     // Update history if package changed
                     if (activePackageName != detectedPkg) {
                         secondLastValidPackageName = lastValidPackageName
-                        lastValidPackageName = activePackageName
+                        // [FIX] Don't overwrite history with null if we manually cleared activePackageName
+                        // This preserves "Focus Last" functionality after minimizing an app
+                        if (activePackageName != null) {
+                            lastValidPackageName = activePackageName
+                        }
                         activePackageName = detectedPkg
 
                         // Update UI to show underline for new focus
@@ -3799,7 +3803,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                                                 
                                                                 if (newState) {
                                                                      // [FIX] Clear focus if minimizing the active app
-                                                                     if (activePackageName == basePkg || activePackageName == app.packageName) {
+                                                                     // Handles Gemini alias (app=bard, active=google)
+                                                                     val isGemini = basePkg == "com.google.android.apps.bard"
+                                                                     val activeIsGoogle = activePackageName == "com.google.android.googlequicksearchbox"
+                                                                     
+                                                                     if (activePackageName == basePkg || 
+                                                                         activePackageName == app.packageName ||
+                                                                         (isGemini && activeIsGoogle)) {
                                                                          activePackageName = null
                                                                      }
                                                                      
@@ -3888,7 +3898,12 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                 val cls = targetApp.className
                                 
                                 // [FIX] Clear focus if hiding the active app
-                                if (activePackageName == basePkg || activePackageName == targetApp.packageName) {
+                                val isGemini = basePkg == "com.google.android.apps.bard"
+                                val activeIsGoogle = activePackageName == "com.google.android.googlequicksearchbox"
+
+                                if (activePackageName == basePkg || 
+                                    activePackageName == targetApp.packageName ||
+                                    (isGemini && activeIsGoogle)) {
                                     activePackageName = null
                                     Log.d(TAG, "WM Command: Cleared focus for hidden app: $basePkg")
                                 }
