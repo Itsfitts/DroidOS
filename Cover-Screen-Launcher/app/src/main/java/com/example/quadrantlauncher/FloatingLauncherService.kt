@@ -391,7 +391,17 @@ private var isSoftKeyboardSupport = false
     lateinit var uiHandler: Handler // Declare uiHandler here
     override fun onCreate() {
         super.onCreate()
-        // Receivers are now registered in onServiceConnected (if active) or initWindow (wake up)
+        
+        // Register ADB Receiver
+        val filter = IntentFilter().apply {
+            addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.MOVE_TO_DISPLAY")
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(launcherReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(launcherReceiver, filter)
+        }
+
         uiHandler = Handler(Looper.getMainLooper())
     }
 
@@ -1150,72 +1160,60 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         try { Shizuku.addBinderReceivedListener(shizukuBinderListener); Shizuku.addRequestPermissionResultListener(shizukuPermissionListener) } catch (e: Exception) {}
         try { if (rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) bindShizuku() } catch (e: Exception) {}
 
-        // STARTUP CHECK: Only load heavy data if Active
-        if (AppPreferences.getLauncherActive(this)) {
-            // Load Heavy Data & Prefs
-            loadInstalledApps()
-            currentFontSize = AppPreferences.getFontSize(this)
-            killAppOnExecute = AppPreferences.getKillOnExecute(this)
-            targetDisplayIndex = AppPreferences.getTargetDisplayIndex(this)
-            autoRestartTrackpad = AppPreferences.getAutoRestartTrackpad(this)
-            isInstantMode = AppPreferences.getInstantMode(this)
-            showShizukuWarning = AppPreferences.getShowShizukuWarning(this)
-            useAltScreenOff = AppPreferences.getUseAltScreenOff(this)
-            isReorderDragEnabled = AppPreferences.getReorderDrag(this)
-            isReorderTapEnabled = AppPreferences.getReorderTap(this)
-            currentDrawerHeightPercent = AppPreferences.getDrawerHeightPercent(this)
-            currentDrawerWidthPercent = AppPreferences.getDrawerWidthPercent(this)
-            autoResizeEnabled = AppPreferences.getAutoResizeKeyboard(this)
-            customModKey = AppPreferences.getCustomModKey(this)
-            isSoftKeyboardSupport = AppPreferences.getSoftKeyboardSupport(this)
+        // Load preferences
+        loadInstalledApps(); currentFontSize = AppPreferences.getFontSize(this)
+        killAppOnExecute = AppPreferences.getKillOnExecute(this); targetDisplayIndex = AppPreferences.getTargetDisplayIndex(this)
+        autoRestartTrackpad = AppPreferences.getAutoRestartTrackpad(this) // NEW LOAD
+        isInstantMode = AppPreferences.getInstantMode(this); showShizukuWarning = AppPreferences.getShowShizukuWarning(this)
+        useAltScreenOff = AppPreferences.getUseAltScreenOff(this); isReorderDragEnabled = AppPreferences.getReorderDrag(this)
+        isReorderTapEnabled = AppPreferences.getReorderTap(this); currentDrawerHeightPercent = AppPreferences.getDrawerHeightPercent(this)
+        currentDrawerWidthPercent = AppPreferences.getDrawerWidthPercent(this); autoResizeEnabled = AppPreferences.getAutoResizeKeyboard(this)
+        // Margins now loaded in loadDisplaySettings()
 
-            sendCustomModToTrackpad()
-            broadcastKeybindsToKeyboard()
-            logSavedKeybinds()
+        // Load Custom Mod
+        customModKey = AppPreferences.getCustomModKey(this)
 
-            // Register ADB Receiver
-            val adbFilter = IntentFilter().apply {
-                addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.MOVE_TO_DISPLAY")
-            }
-            if (Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(launcherReceiver, adbFilter, Context.RECEIVER_EXPORTED)
-            } else {
-                registerReceiver(launcherReceiver, adbFilter)
-            }
-        
-            // Build UI
-            val targetDisplayId = targetDisplayIndex
-            setupDisplayContext(targetDisplayId)
-            setupBubble()
-            setupDrawer()
+        isSoftKeyboardSupport = AppPreferences.getSoftKeyboardSupport(this)
 
-            // --- IMMEDIATE RESTORE ---
-            // Ensure Visual Queue is populated before user interaction
-            restoreQueueFromPrefs()
-            // -------------------------
+        // Sync Custom Mod to Trackpad
+        sendCustomModToTrackpad()
 
-            selectedLayoutType = AppPreferences.getLastLayout(this)
-            activeCustomLayoutName = AppPreferences.getLastCustomLayoutName(this)
-            if (selectedLayoutType == LAYOUT_CUSTOM_DYNAMIC && activeCustomLayoutName != null) {
-                val data = AppPreferences.getCustomLayoutData(this, activeCustomLayoutName!!)
-                if (data != null) {
-                    val rects = mutableListOf<Rect>()
-                    val rectParts = data.split("|")
-                    for (rp in rectParts) {
-                        val coords = rp.split(",")
-                        if (coords.size == 4) rects.add(Rect(coords[0].toInt(), coords[1].toInt(), coords[2].toInt(), coords[3].toInt()))
-                    }
-                    activeCustomRects = rects
+        // Sync Keybinds to Trackpad
+        broadcastKeybindsToKeyboard()
+
+        // Debug Loaded Keys
+        logSavedKeybinds()
+
+        // Build UI
+        val targetDisplayId = targetDisplayIndex
+        setupDisplayContext(targetDisplayId)
+        setupBubble()
+        setupDrawer()
+
+        // --- IMMEDIATE RESTORE ---
+        // Ensure Visual Queue is populated before user interaction
+        restoreQueueFromPrefs()
+        // -------------------------
+
+        selectedLayoutType = AppPreferences.getLastLayout(this)
+        activeCustomLayoutName = AppPreferences.getLastCustomLayoutName(this)
+        if (selectedLayoutType == LAYOUT_CUSTOM_DYNAMIC && activeCustomLayoutName != null) {
+            val data = AppPreferences.getCustomLayoutData(this, activeCustomLayoutName!!)
+            if (data != null) {
+                val rects = mutableListOf<Rect>()
+                val rectParts = data.split("|")
+                for (rp in rectParts) {
+                    val coords = rp.split(",")
+                    if (coords.size == 4) rects.add(Rect(coords[0].toInt(), coords[1].toInt(), coords[2].toInt(), coords[3].toInt()))
                 }
+                activeCustomRects = rects
             }
-            updateGlobalFontSize()
-            updateBubbleIcon()
-            loadDisplaySettings(currentDisplayId)
-
-            safeToast("Launcher Ready")
-        } else {
-            Log.d(TAG, "Launcher suspended (Headless Mode). Launch app to wake.")
         }
+        updateGlobalFontSize()
+        updateBubbleIcon()
+        loadDisplaySettings(currentDisplayId)
+
+        safeToast("Launcher Ready")
     }
 
     private fun sendCustomModToTrackpad() {
@@ -1234,16 +1232,6 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         val targetDisplayId = intent?.getIntExtra("DISPLAY_ID", currentDisplayId) ?: currentDisplayId
 
         Log.d(TAG, "onStartCommand: Target Display $targetDisplayId (Current: $currentDisplayId)")
-
-        // WAKE UP CHECK: Only wake if this is a USER launch (has DISPLAY_ID), not a system restart
-        if (intent != null && intent.hasExtra("DISPLAY_ID")) {
-             AppPreferences.setLauncherActive(this, true)
-             // Force re-init if waking up
-             if (bubbleView == null) {
-                 initWindow()
-                 return START_NOT_STICKY
-             }
-        }
 
         if (bubbleView != null) {
             // If we are already running but the target display changed, move the bubble
@@ -1410,21 +1398,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         } catch (e: Exception) {}
 
         if (isBound) { try { ShizukuBinder.unbind(ComponentName(packageName, ShellUserService::class.java.name), userServiceConnection); isBound = false } catch (e: Exception) {} }
-        
-        // AGGRESSIVE MEMORY CLEANUP
-        allAppsList.clear()
-        displayList.clear()
-        selectedAppsQueue.clear()
-        drawerView = null
-        bubbleView = null
-        debugStatusView = null
-        
-        setKeepScreenOn(false)
-        wakeLock = null
-        
-        // FORCE MEMORY RELEASE
-        System.gc()
-        Runtime.getRuntime().gc()
+    setKeepScreenOn(false)
+    wakeLock = null
     }
     
     // === SAFE TOAST FUNCTION - START ===
@@ -2153,62 +2128,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
      * This is called when the service starts or when the target display changes.
      */
     private fun initWindow() {
-        // RELOAD DATA (Required if waking from dormant state)
-        if (allAppsList.isEmpty()) {
-            loadInstalledApps()
-            currentFontSize = AppPreferences.getFontSize(this)
-            killAppOnExecute = AppPreferences.getKillOnExecute(this)
-            targetDisplayIndex = AppPreferences.getTargetDisplayIndex(this)
-            autoRestartTrackpad = AppPreferences.getAutoRestartTrackpad(this)
-            isInstantMode = AppPreferences.getInstantMode(this)
-            showShizukuWarning = AppPreferences.getShowShizukuWarning(this)
-            useAltScreenOff = AppPreferences.getUseAltScreenOff(this)
-            isReorderDragEnabled = AppPreferences.getReorderDrag(this)
-            isReorderTapEnabled = AppPreferences.getReorderTap(this)
-            currentDrawerHeightPercent = AppPreferences.getDrawerHeightPercent(this)
-            currentDrawerWidthPercent = AppPreferences.getDrawerWidthPercent(this)
-            autoResizeEnabled = AppPreferences.getAutoResizeKeyboard(this)
-            customModKey = AppPreferences.getCustomModKey(this)
-            isSoftKeyboardSupport = AppPreferences.getSoftKeyboardSupport(this)
-            
-            sendCustomModToTrackpad()
-            
-            // Register ADB Receiver (Late Init)
-            try {
-                val adbFilter = IntentFilter().apply {
-                    addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.MOVE_TO_DISPLAY")
-                }
-                if (Build.VERSION.SDK_INT >= 33) {
-                    registerReceiver(launcherReceiver, adbFilter, Context.RECEIVER_EXPORTED)
-                } else {
-                    registerReceiver(launcherReceiver, adbFilter)
-                }
-            } catch(e: Exception) {}
-        }
-
         setupDisplayContext(currentDisplayId)
         setupBubble()
         setupDrawer()
         updateBubbleIcon()
         loadDisplaySettings(currentDisplayId)
-        
-        // Ensure receivers are registered (in case we woke up from dormant state)
-        try {
-            unregisterReceiver(commandReceiver) // Avoid double registration
-        } catch(e: Exception) {}
-        
-        val filter = IntentFilter().apply {
-            addAction(ACTION_OPEN_DRAWER)
-            addAction(ACTION_UPDATE_ICON)
-            addAction(ACTION_CYCLE_DISPLAY)
-            addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_SCREEN_OFF)
-            addAction("KEEP_SCREEN_ON")
-            addAction("com.katsuyamaki.DroidOSLauncher.WINDOW_MANAGER")
-            addAction("com.katsuyamaki.DroidOSLauncher.REQUEST_CUSTOM_MOD_SYNC")
-            addAction("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
-        }
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(commandReceiver, filter, Context.RECEIVER_EXPORTED) else registerReceiver(commandReceiver, filter)
     }
     
     private fun startReorderMode(index: Int) { if (!isReorderTapEnabled) return; if (index < 0 || index >= selectedAppsQueue.size) return; val prevIndex = reorderSelectionIndex; reorderSelectionIndex = index; val adapter = drawerView!!.findViewById<RecyclerView>(R.id.selected_apps_recycler).adapter; if (prevIndex != -1) adapter?.notifyItemChanged(prevIndex); adapter?.notifyItemChanged(reorderSelectionIndex); safeToast("Tap another app to Swap") }
@@ -3640,36 +3564,20 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 displayList.add(ToggleOption("Auto-Start Trackpad", autoRestartTrackpad) { autoRestartTrackpad = it; AppPreferences.setAutoRestartTrackpad(this, it); if (it) safeToast("Trackpad will restart on next Launcher startup") })
                 displayList.add(ToggleOption("Shizuku Warning (Icon Alert)", showShizukuWarning) { showShizukuWarning = it; AppPreferences.setShowShizukuWarning(this, it); updateBubbleIcon() })
 
-                val restartOnClose = AppPreferences.getAutoRestartOnClose(this)
-                displayList.add(ToggleOption("Auto-Restart on Close", restartOnClose) { 
-                    AppPreferences.setAutoRestartOnClose(this, it)
-                    // Trigger UI refresh if needed, usually switchMode re-renders on next interaction
+                // Restart Button (Process Kill - Auto Restarts Service)
+                displayList.add(ActionOption("Restart DroidOS Launcher") {
+                    safeToast("Restarting Launcher...")
+                    stopSelf()
+                    android.os.Process.killProcess(android.os.Process.myPid())
                 })
 
-                // NEW: Kill App Button (Added at the very bottom)
-                displayList.add(ActionOption("Close DroidOS Launcher") {
-                    if (AppPreferences.getAutoRestartOnClose(this)) {
-                        safeToast("Restarting Launcher...")
-                        stopSelf()
-                        android.os.Process.killProcess(android.os.Process.myPid())
+                // Terminate Button (Disables Accessibility Service - Requires Manual Re-enable)
+                displayList.add(ActionOption("Terminate DroidOS Service") {
+                    safeToast("Terminating Service...")
+                    if (Build.VERSION.SDK_INT >= 24) {
+                        disableSelf()
                     } else {
-                        safeToast("Closing Launcher...")
-                        // SUSPEND: Mark inactive and clean up UI
-                        AppPreferences.setLauncherActive(this, false)
-                        
-                        try {
-                            if (bubbleView != null) {
-                                val wm = attachedWindowManager ?: windowManager
-                                wm.removeView(bubbleView)
-                                bubbleView = null
-                            }
-                            if (isExpanded && drawerView != null) {
-                                windowManager.removeView(drawerView)
-                                isExpanded = false
-                            }
-                        } catch (e: Exception) {}
-                        
-                        stopSelf() // Stop service (It may auto-restart headless if enabled)
+                        stopSelf()
                     }
                 })
             }
