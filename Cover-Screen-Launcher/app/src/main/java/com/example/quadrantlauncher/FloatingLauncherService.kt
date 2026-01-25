@@ -4341,16 +4341,41 @@ else -> AppHolder(View(parent.context)) } }
                 else holder.itemView.setBackgroundResource(R.drawable.bg_item_press)
                 // --------------------------------
                 
-                if (item is LayoutOption) { 
+                if (item is LayoutOption) {
                     holder.nameInput.setText(item.name)
                     val isSelected = if (item.type == LAYOUT_CUSTOM_DYNAMIC) { item.type == selectedLayoutType && item.name == activeCustomLayoutName } else { item.type == selectedLayoutType && activeCustomLayoutName == null }
                     
-                    // Specific highlight overrides keyboard highlight if item is active
+                    // 1. VISUAL STATE
                     if (isSelected || isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) 
                     else holder.itemView.setBackgroundResource(R.drawable.bg_item_press)
                     
-                    holder.itemView.setOnClickListener { selectLayout(item) }
-                    if (item.isCustomSaved) { holder.itemView.setOnLongClickListener { startRename(holder.nameInput); true }; val saveLayoutName = { val newName = holder.nameInput.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameCustomLayout(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); if (activeCustomLayoutName == item.name) { activeCustomLayoutName = newName; AppPreferences.saveLastCustomLayoutName(holder.itemView.context, newName, currentDisplayId) }; switchMode(MODE_LAYOUTS) } }; endRename(holder.nameInput) }; holder.nameInput.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveLayoutName(); true } else false }; holder.nameInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) saveLayoutName() } } else { holder.nameInput.isEnabled = false; holder.nameInput.isFocusable = false; holder.nameInput.setTextColor(Color.WHITE) } 
+                    // 2. CLICK HANDLING (Selection Only - No Editing)
+                    // Attach the selection action to BOTH the container and the text view
+                    // This ensures maximum hit target area.
+                    val selectAction = View.OnClickListener { selectLayout(item) }
+                    
+                    holder.itemView.setOnClickListener(selectAction)
+                    holder.nameInput.setOnClickListener(selectAction)
+                    
+                    // 3. LOCK DOWN EDIT TEXT
+                    // Configure EditText to behave exactly like a clickable TextView
+                    holder.nameInput.apply {
+                        isEnabled = true // Keep enabled so text is white (not greyed out)
+                        setTextColor(Color.WHITE)
+                        background = null // Remove underline
+                        
+                        isFocusable = false
+                        isFocusableInTouchMode = false
+                        isClickable = true // Capture clicks for the listener above
+                        isLongClickable = false
+                        inputType = 0 // TYPE_NULL
+                    }
+
+                    // 4. CLEAR LISTENERS
+                    // Remove any legacy editing listeners to prevent interference
+                    holder.itemView.setOnLongClickListener(null)
+                    holder.nameInput.setOnEditorActionListener(null)
+                    holder.nameInput.onFocusChangeListener = null
                 }
                 else if (item is ResolutionOption) { 
                     holder.nameInput.setText(item.name); if (item.index >= 100) { holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.itemView.setOnLongClickListener { startRename(holder.nameInput); true }; val saveResName = { val newName = holder.nameInput.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameCustomResolution(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_RESOLUTION) } }; endRename(holder.nameInput) }; holder.nameInput.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveResName(); true } else false }; holder.nameInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) saveResName() } } else { holder.nameInput.isEnabled = false; holder.nameInput.isFocusable = false; holder.nameInput.setTextColor(Color.WHITE) }; val isSelected = (item.index == selectedResolutionIndex); if (isSelected || isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { applyResolution(item) } 
