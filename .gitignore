@@ -1,0 +1,10 @@
+# Ignore Python Virtual Environment
+DroidOS/bin/
+DroidOS/lib/
+DroidOS/lib64/
+DroidOS/include/
+DroidOS/share/
+DroidOS/pyvenv.cfg
+__pycache__/
+*.pyc
+
