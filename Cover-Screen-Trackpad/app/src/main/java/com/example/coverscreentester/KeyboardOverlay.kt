@@ -341,6 +341,7 @@ class KeyboardOverlay(
     fun getViewHeight(): Int = keyboardHeight
     fun getScale(): Float = internalScale // [FIX] Added accessor
     fun getKeyboardView(): KeyboardView? = keyboardView
+    fun getContainerView(): View? = keyboardContainer // NEW
 
 
     

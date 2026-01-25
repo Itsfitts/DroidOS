@@ -4057,8 +4057,73 @@ if (isResize) {
     private fun removeRemoteCursor() { try { if (remoteCursorLayout != null && remoteWindowManager != null) { remoteWindowManager?.removeView(remoteCursorLayout) } } catch (e: Exception) {}; remoteCursorLayout = null; remoteCursorView = null; remoteWindowManager = null }
 
     // =================================================================================
-    // BT MOUSE CAPTURE OVERLAY - CREATE
-    // SUMMARY: Creates a full-screen transparent overlay on the physical display that
+    // HELPER: Forward Touch to Sibling Windows
+    // Used by BT Mouse Capture Overlay to let finger touches reach Trackpad/Keyboard
+    // =================================================================================
+    private fun forwardTouchToSiblings(event: MotionEvent): Boolean {
+        var handled = false
+        val rawX = event.rawX
+        val rawY = event.rawY
+
+        // 1. Try Menu (Highest Priority)
+        if (!handled) {
+            handled = menuManager?.dispatchTouchToView(event) == true
+        }
+
+        // 2. Try Bubble (High Priority - floats above KB/Trackpad)
+        if (!handled && bubbleView != null && bubbleView?.isAttachedToWindow == true) {
+             val bView = bubbleView!!
+             val loc = IntArray(2)
+             bView.getLocationOnScreen(loc)
+             val x = loc[0].toFloat()
+             val y = loc[1].toFloat()
+             
+             if (rawX >= x && rawX <= x + bView.width && rawY >= y && rawY <= y + bView.height) {
+                 event.offsetLocation(-x, -y)
+                 handled = bView.dispatchTouchEvent(event)
+                 event.offsetLocation(x, y) // Restore
+             }
+        }
+
+        // 3. Try Keyboard
+        if (!handled && isCustomKeyboardVisible) {
+            val kbContainer = keyboardOverlay?.getContainerView()
+            if (kbContainer != null && kbContainer.isAttachedToWindow && keyboardOverlay?.isShowing() == true) {
+                val loc = IntArray(2)
+                kbContainer.getLocationOnScreen(loc)
+                val x = loc[0].toFloat()
+                val y = loc[1].toFloat()
+                
+                if (rawX >= x && rawX <= x + kbContainer.width && rawY >= y && rawY <= y + kbContainer.height) {
+                    event.offsetLocation(-x, -y)
+                    handled = kbContainer.dispatchTouchEvent(event)
+                    event.offsetLocation(x, y) // Restore
+                }
+            }
+        }
+
+        // 3. Try Trackpad
+        if (!handled && isTrackpadVisible && trackpadLayout != null) {
+            val tpView = trackpadLayout!!
+            if (tpView.isAttachedToWindow && tpView.visibility == View.VISIBLE) {
+                val loc = IntArray(2)
+                tpView.getLocationOnScreen(loc)
+                val x = loc[0].toFloat()
+                val y = loc[1].toFloat()
+                
+                if (rawX >= x && rawX <= x + tpView.width && rawY >= y && rawY <= y + tpView.height) {
+                    event.offsetLocation(-x, -y)
+                    handled = tpView.dispatchTouchEvent(event)
+                    event.offsetLocation(x, y) // Restore
+                }
+            }
+        }
+
+        return handled
+    }
+
+    // =================================================================================
+    // BT MOUSE CAPTURE OVERLAY - CREATE    // SUMMARY: Creates a full-screen transparent overlay on the physical display that
     //          intercepts all Bluetooth mouse input when targeting a virtual display.
     // =================================================================================
     private fun createBtMouseCaptureOverlay() {
@@ -4154,14 +4219,18 @@ if (isResize) {
                 Log.v(BT_TAG, "dispatchTouchEvent: action=${event.actionMasked}, toolType=$toolType, isMouse=$isMouse, deviceId=${event.deviceId}")
                 
                 // =======================================================================
-                // FINGER TOUCH PASSTHROUGH
-                // If this is a finger touch (not mouse), we want it to pass through
-                // to the views underneath (keyboard, trackpad, etc.)
-                // Return FALSE to indicate we didn't handle it, allowing it to propagate
+                // FINGER TOUCH FORWARDING
+                // Forward finger touches to sibling windows (Trackpad, Keyboard, Menu)
+                // because this overlay blocks them.
                 // =======================================================================
                 if (!isMouse) {
-                    Log.d(BT_TAG, "├─ FINGER TOUCH - passing through (not consuming)")
-                    // Return false = "I didn't handle this, let it go to views below"
+                    // Try to dispatch to siblings
+                    if (forwardTouchToSiblings(event)) {
+                        return true // Handled by a sibling
+                    }
+                    
+                    // If no sibling handled it, we allow it to "pass through" (return false).
+                    // Since we are full-screen, this usually drops the event, but it's safe fallback.
                     return false
                 }
                 // =======================================================================

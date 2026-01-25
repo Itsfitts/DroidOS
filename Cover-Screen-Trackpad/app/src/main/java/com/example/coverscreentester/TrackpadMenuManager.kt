@@ -88,6 +88,28 @@ class TrackpadMenuManager(
     fun toggle() {
         if (isVisible) hide() else show()
     }
+    
+    // NEW: Helper to receive forwarded touches from overlay
+    fun dispatchTouchToView(event: MotionEvent): Boolean {
+        if (!isVisible || drawerView == null) return false
+        
+        val view = drawerView!!
+        val loc = IntArray(2)
+        view.getLocationOnScreen(loc)
+        val x = loc[0].toFloat()
+        val y = loc[1].toFloat()
+        
+        // Check bounds
+        if (event.rawX >= x && event.rawX <= x + view.width && 
+            event.rawY >= y && event.rawY <= y + view.height) {
+            
+            event.offsetLocation(-x, -y)
+            val handled = view.dispatchTouchEvent(event)
+            event.offsetLocation(x, y) // Restore for caller
+            return handled
+        }
+        return false
+    }
 
     fun bringToFront() {
         if (!isVisible || drawerView == null) return
