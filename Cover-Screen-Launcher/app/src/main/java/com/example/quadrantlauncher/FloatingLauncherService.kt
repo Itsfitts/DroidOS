@@ -73,12 +73,20 @@ class FloatingLauncherService : AccessibilityService() {
                     val targetId = intent.getIntExtra("displayId", 0)
                     Log.d(TAG, "Launcher moving to Display: $targetId")
                     uiHandler.post {
+                        // CLEANUP OLD VIEWS (Bubble & Drawer)
+                        try {
+                            val wm = attachedWindowManager ?: windowManager
+                            if (bubbleView != null) {
+                                try { wm.removeView(bubbleView) } catch(e: Exception) {}
+                            }
+                            if (drawerView != null && isExpanded) {
+                                try { wm.removeView(drawerView) } catch(e: Exception) {}
+                            }
+                        } catch (e: Exception) { Log.e(TAG, "Receiver cleanup failed", e) }
+
                         currentDisplayId = targetId
-                        // Re-initialize window on new display
-                        if (windowManager != null && bubbleView != null) {
-                            try { windowManager.removeView(bubbleView) } catch(e: Exception) {}
-                        }
                         initWindow()
+                        isExpanded = false // Reset state for new display
                     }
                 }
             }
@@ -2693,20 +2701,18 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         val targetDisplay = dm.getDisplay(newId) ?: return
         
-        // 1. CLEANUP using the captured manager
+        // 1. CLEANUP using the captured manager (Robust)
         try { 
+            val wm = attachedWindowManager ?: windowManager
+            
             if (bubbleView != null) {
-                // Use the specific manager that added it, fallback to current
-                val wm = attachedWindowManager ?: windowManager
-                wm.removeView(bubbleView)
+                try { wm.removeView(bubbleView) } catch(e: Exception) {}
             }
-        } catch (e: Exception) { Log.e(TAG, "Failed to remove bubble", e) }
-        
-        try {
+            
             if (drawerView != null && isExpanded) {
-                windowManager.removeView(drawerView)
+                try { wm.removeView(drawerView) } catch(e: Exception) {}
             }
-        } catch (e: Exception) {}
+        } catch (e: Exception) { Log.e(TAG, "Cleanup failed", e) }
 
         // Clear cached auxiliary views using CURRENT (Old) WM before switching context
         if (visualQueueView != null) {
