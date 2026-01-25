@@ -3671,14 +3671,14 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         } 
                     } else { 
                         if (app.packageName != PACKAGE_BLANK) { 
-                            app.isMinimized = !app.isMinimized
-                            
-                            // Re-sort queue to move inactive apps to the end
-                            sortAppQueue()
-                            // Refresh all UIs (Drawer Dock + Visual Queue)
-                            updateAllUIs()
-                            
-                            if (isInstantMode) applyLayoutImmediate() 
+                            // [FIX] Use centralized command to ensure focus logic runs
+                            // This routes the click through handleWindowManagerCommand which contains the logic
+                            // to clear activePackageName if the minimized app was the focused one.
+                            val intent = Intent().apply {
+                                putExtra("COMMAND", "TOGGLE_MINIMIZE")
+                                putExtra("INDEX", position + 1) // Handler expects 1-based index
+                            }
+                            handleWindowManagerCommand(intent)
                         } 
                     } 
                 } catch(e: Exception) {
