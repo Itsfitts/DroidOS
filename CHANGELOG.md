@@ -1,5 +1,20 @@
 # Changelog
 
+## [v4.0] - DroidOS Update (2026-01-25)
+### Major Features
+- **Custom Keybinding System:** Comprehensive overhaul allowing users to define and reorder hotkeys with specialized swap/hide logic.
+- **Hardware Integration:** Integration for Hard Keyboards and Mice, including a Bluetooth Mouse Mirror Mode with corrected Z-order rendering.
+- **Keyboard Navigation:** Full support for navigating the DroidOS Launcher interface using hardware keyboard inputs (Tab and directional arrows).
+- **App Focus System:** New internal logic to manage window focus more reliably when switching between apps or displays.
+- **Custom Margin Adjustment:** Added the ability to fine-tune display margins for better layout precision on different screen types.
+
+### Bug Fixes & UI Improvements
+- **Process Management:** Fixed bugs related to Closing and Restarting apps; separated Terminate and Restart buttons for better control.
+- **Display Stability:** Resolved "Display Confusion" issues within the watchdog timer and fixed crashes during layout renaming.
+- **Layout Refinements:** Edit Layout Names and implemented per-display layout configurations.
+- **Cleanup:** Sanitized internal dictionaries and disabled debug logging for the release build to improve performance.
+
+
 ## [v3.0] - DroidOS Trackpad (2025-12-18)
 ### Major Features
 - **Hardkey Mapping:** Map Volume Up/Down keys to actions (Click, Scroll, Toggle UI) with Single Tap, Double Tap, and Hold gestures.

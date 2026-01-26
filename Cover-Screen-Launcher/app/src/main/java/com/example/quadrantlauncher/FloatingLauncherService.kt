@@ -1507,6 +1507,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         val themeContext = ContextThemeWrapper(context, R.style.Theme_QuadrantLauncher)
         bubbleView = LayoutInflater.from(themeContext).inflate(R.layout.layout_bubble, null)
         bubbleView?.isClickable = true; bubbleView?.isFocusable = true 
+        // [FIX] Disable system focus highlight to prevent ugly borders/grey overlay
+        if (Build.VERSION.SDK_INT >= 26) bubbleView?.defaultFocusHighlightEnabled = false
         
         // Z-ORDER UPDATE: Try ACCESSIBILITY_OVERLAY (2032) + FLAG_LAYOUT_NO_LIMITS
         val targetType = if (Build.VERSION.SDK_INT >= 26) 2032 else WindowManager.LayoutParams.TYPE_PHONE 
@@ -1591,6 +1593,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         val themeContext = ContextThemeWrapper(context, R.style.Theme_QuadrantLauncher)
         drawerView = LayoutInflater.from(themeContext).inflate(R.layout.layout_rofi_drawer, null)
         drawerView!!.fitsSystemWindows = true 
+        // [FIX] Disable system focus highlight (prevents screen turning grey when drawer is focused)
+        if (Build.VERSION.SDK_INT >= 26) drawerView!!.defaultFocusHighlightEnabled = false
         
         // Z-ORDER UPDATE: Match Bubble settings
         val targetType = if (Build.VERSION.SDK_INT >= 26) 2032 else WindowManager.LayoutParams.TYPE_PHONE 
@@ -1683,6 +1687,20 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
                     dismissKeyboardAndRestore()
                     drawerView?.requestFocus()
+                    return@setOnKeyListener true
+                }
+
+                // [FIX] DOWN: Move focus from search bar to list
+                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    dismissKeyboardAndRestore()
+                    drawerView?.requestFocus()
+                    
+                    // Highlight current selection (usually 0 after tab switch)
+                    if (displayList.isNotEmpty()) {
+                        if (selectedListIndex >= displayList.size) selectedListIndex = 0
+                        mainRecycler.adapter?.notifyItemChanged(selectedListIndex)
+                        mainRecycler.scrollToPosition(selectedListIndex)
+                    }
                     return@setOnKeyListener true
                 }
                 // ENTER: Launch top result immediately
