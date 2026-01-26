@@ -348,6 +348,9 @@ private var isSoftKeyboardSupport = false
     private var queueSelectedIndex = -1
     private var queueCommandPending: CommandDef? = null
     private var queueCommandSourceIndex = -1
+    
+    // [FIX] Map to track manual minimize toggles to prevent auto-refresh overwriting them
+    private val manualStateOverrides = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val TAB_ORDER = listOf(
         MODE_SEARCH, 
         MODE_LAYOUTS, 
@@ -1783,6 +1786,30 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
                 // === QUEUE NAVIGATION MODE ===
                 if (currentFocusArea == FOCUS_QUEUE) {
+                    
+                    // 1. HOTKEY CHECK (Priority: Overrides Enter/Space defaults if bound)
+                    // We check custom bindings first. If a key matches, execute it.
+                    for (cmd in AVAILABLE_COMMANDS) {
+                        val bind = AppPreferences.getKeybind(this, cmd.id)
+                        // Ignore modifiers in queue mode per user request ("don't need a modifier")
+                        if (bind.second == keyCode) {
+                            if (cmd.argCount == 2) {
+                                // 2-Step Command (e.g. Swap)
+                                queueCommandPending = cmd
+                                queueCommandSourceIndex = queueSelectedIndex
+                                debugStatusView?.visibility = View.VISIBLE
+                                debugStatusView?.text = "${cmd.label}: Select Target & Press Enter"
+                                selectedRecycler.adapter?.notifyDataSetChanged()
+                            } else {
+                                // 1-Step Command (e.g. Kill, Minimize, Focus Last)
+                                val intent = Intent().putExtra("COMMAND", cmd.id).putExtra("INDEX", queueSelectedIndex + 1)
+                                handleWindowManagerCommand(intent)
+                            }
+                            return@setOnKeyListener true
+                        }
+                    }
+
+                    // 2. NAVIGATION & DEFAULT ACTIONS
                     when (keyCode) {
                         KeyEvent.KEYCODE_DPAD_LEFT -> {
                             if (queueSelectedIndex > 0) {
@@ -1807,7 +1834,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         KeyEvent.KEYCODE_DPAD_UP -> {
                             // Exit to Search
                             currentFocusArea = FOCUS_SEARCH
-                            queueSelectedIndex = -1 // Clear highlight
+                            queueSelectedIndex = -1
                             selectedRecycler.adapter?.notifyDataSetChanged()
                             debugStatusView?.visibility = View.GONE
                             searchBar.requestFocus()
@@ -1818,10 +1845,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         KeyEvent.KEYCODE_DPAD_DOWN -> {
                             // Exit to List
                             currentFocusArea = FOCUS_LIST
-                            queueSelectedIndex = -1 // Clear highlight
+                            queueSelectedIndex = -1
                             selectedRecycler.adapter?.notifyDataSetChanged()
                             debugStatusView?.visibility = View.GONE
-                            
                             if (displayList.isNotEmpty()) {
                                 if (selectedListIndex >= displayList.size) selectedListIndex = 0
                                 mainRecycler.adapter?.notifyItemChanged(selectedListIndex)
@@ -1829,42 +1855,28 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             }
                             return@setOnKeyListener true
                         }
-                        KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_SPACE -> {
+                        KeyEvent.KEYCODE_ENTER -> {
                             if (queueCommandPending != null) {
-                                // COMPLETE 2-STEP COMMAND
+                                // Complete 2-Step Command
                                 val intent = Intent()
                                     .putExtra("COMMAND", queueCommandPending!!.id)
                                     .putExtra("INDEX_A", queueCommandSourceIndex + 1)
                                     .putExtra("INDEX_B", queueSelectedIndex + 1)
                                 handleWindowManagerCommand(intent)
-                                
                                 queueCommandPending = null
                                 queueCommandSourceIndex = -1
                                 debugStatusView?.text = "Command Executed"
                             } else {
-                                // DEFAULT ACTION: SET FOCUS
-                                val intent = Intent().putExtra("COMMAND", "SET_FOCUS").putExtra("INDEX", queueSelectedIndex + 1)
+                                // DEFAULT ENTER: TOGGLE MINIMIZE (Hide/Unhide)
+                                val intent = Intent().putExtra("COMMAND", "TOGGLE_MINIMIZE").putExtra("INDEX", queueSelectedIndex + 1)
                                 handleWindowManagerCommand(intent)
                             }
                             return@setOnKeyListener true
                         }
-                    }
-                    
-                    // COMMAND SHORTCUTS (A-Z)
-                    // Check if key matches any configured bind (ignoring modifiers)
-                    for (cmd in AVAILABLE_COMMANDS) {
-                        val bind = AppPreferences.getKeybind(this, cmd.id)
-                        if (bind.second == keyCode) { // Match KeyCode
-                            if (cmd.argCount == 2) {
-                                // 2-Step Command (e.g. Swap) -> Start Selection Mode
-                                queueCommandPending = cmd
-                                queueCommandSourceIndex = queueSelectedIndex
-                                debugStatusView?.visibility = View.VISIBLE
-                                debugStatusView?.text = "${cmd.label}: Select Target & Press Enter"
-                                selectedRecycler.adapter?.notifyDataSetChanged() // Refresh for source highlight
-                            } else {
-                                // 1-Step Command (e.g. Kill, Minimize) -> Execute Immediately
-                                val intent = Intent().putExtra("COMMAND", cmd.id).putExtra("INDEX", queueSelectedIndex + 1)
+                        KeyEvent.KEYCODE_SPACE -> {
+                            if (queueCommandPending == null) {
+                                // DEFAULT SPACE: SET FOCUS (Launch/Activate)
+                                val intent = Intent().putExtra("COMMAND", "SET_FOCUS").putExtra("INDEX", queueSelectedIndex + 1)
                                 handleWindowManagerCommand(intent)
                             }
                             return@setOnKeyListener true
@@ -2402,6 +2414,14 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             
             bubbleView?.visibility = View.GONE
             isExpanded = true
+            
+            // [FIX] Reset all navigation/focus state to prevent ghost highlights
+            currentFocusArea = FOCUS_SEARCH
+            queueSelectedIndex = -1
+            queueCommandPending = null
+            queueCommandSourceIndex = -1
+            debugStatusView?.visibility = View.GONE
+            
             switchMode(MODE_SEARCH)
             
             val et = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)
@@ -3112,7 +3132,17 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                         visiblePackages.contains(basePkg)
                                     }
 
-                                    appInfo.isMinimized = !isVisible
+                                    // [FIX] Check for recent manual override (within 5 seconds)
+                                    // Prevents app from flickering grey/hidden immediately after unminimizing
+                                    val lastManualTime = manualStateOverrides[basePkg] ?: 0L
+                                    val isRecentOverride = (System.currentTimeMillis() - lastManualTime) < 5000
+
+                                    if (!isRecentOverride) {
+                                        appInfo.isMinimized = !isVisible
+                                    } else {
+                                        Log.d(DEBUG_TAG, "fetchRunningApps: Ignoring system visibility for ${appInfo.label} (Manual Override Active)")
+                                    }
+
                                     selectedAppsQueue.add(appInfo)
                                     Log.d(DEBUG_TAG, "fetchRunningApps: Restored ${appInfo.label} minimized=${appInfo.isMinimized}")
                                 }
@@ -4167,6 +4197,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                                                 app.isMinimized = newState
                                                                 
                                                                 val basePkg = app.getBasePackage()
+                                                                // [FIX] Record manual override timestamp
+                                                                manualStateOverrides[basePkg] = System.currentTimeMillis()
+                                                                
                                                                 val cls = app.className
                                                                 
                                                                 if (newState) {
