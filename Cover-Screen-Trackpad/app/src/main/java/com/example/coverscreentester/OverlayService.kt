@@ -195,8 +195,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                     }
                 }
 
-                // LAYER 5: CURSOR (Top Layer)
-                // Must be added LAST to float over everything
+                // LAYER 5: CURSOR (Visual Layer)
                 if (cursorLayout != null && cursorLayout?.isAttachedToWindow == true) {
                     try {
                         windowManager?.removeView(cursorLayout)
@@ -205,8 +204,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                         try { windowManager?.addView(cursorLayout, cursorParams) } catch(z: Exception) {}
                     }
                 }
+
+                // LAYER 6: BT MOUSE CAPTURE (Input Interception Layer)
+                // [FIX] Must be ABSOLUTE TOP to intercept mouse events before any other window.
+                // We forward finger touches down to siblings via forwardTouchToSiblings().
+                if (isBtMouseCaptureActive && btMouseCaptureLayout != null && btMouseCaptureLayout?.isAttachedToWindow == true) {
+                    try {
+                        windowManager?.removeView(btMouseCaptureLayout)
+                        windowManager?.addView(btMouseCaptureLayout, btMouseCaptureParams)
+                        Log.d(BT_TAG, "Z-Order: BT Capture Overlay moved to TOP")
+                    } catch (e: Exception) {
+                        Log.e(BT_TAG, "Z-Order: Failed to move BT Capture", e)
+                    }
+                }
                 
-                Log.d("OverlayService", "Z-Order Enforced: Trackpad -> Keyboard -> Cursor")
+                Log.d("OverlayService", "Z-Order Enforced: Trackpad -> Keyboard -> Cursor -> BT Capture")
             }
         } catch (e: Exception) {
             Log.e("OverlayService", "Z-Order failed", e)
