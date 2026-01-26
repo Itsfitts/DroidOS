@@ -1874,10 +1874,27 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             return@setOnKeyListener true
                         }
                         KeyEvent.KEYCODE_SPACE -> {
-                            if (queueCommandPending == null) {
-                                // DEFAULT SPACE: SET FOCUS (Launch/Activate)
-                                val intent = Intent().putExtra("COMMAND", "SET_FOCUS").putExtra("INDEX", queueSelectedIndex + 1)
-                                handleWindowManagerCommand(intent)
+                            if (queueCommandPending == null && queueSelectedIndex in selectedAppsQueue.indices) {
+                                // [FIX] DEFAULT SPACE: Toggle Internal Focus (Green Underline)
+                                val app = selectedAppsQueue[queueSelectedIndex]
+                                if (app.packageName != PACKAGE_BLANK) {
+                                    val pkg = app.packageName
+                                    
+                                    // Handle Gemini alias for matching
+                                    val isGemini = pkg == "com.google.android.apps.bard"
+                                    val activeIsGoogle = activePackageName == "com.google.android.googlequicksearchbox"
+                                    val isActive = (activePackageName == pkg) || (isGemini && activeIsGoogle)
+
+                                    if (isActive) {
+                                        // CLEAR Focus
+                                        activePackageName = null
+                                    } else {
+                                        // SET Focus
+                                        if (activePackageName != null) lastValidPackageName = activePackageName
+                                        activePackageName = pkg
+                                    }
+                                    updateAllUIs()
+                                }
                             }
                             return@setOnKeyListener true
                         }
@@ -4367,34 +4384,58 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 refreshQueueAndLayout("Toggled Drawer")
             }
             "SET_FOCUS" -> {
-                // 'index' is 0-based here (converted at top of function from 1-based intent)
+                // 'index' is 0-based here
                 if (index in selectedAppsQueue.indices) {
                     val app = selectedAppsQueue[index]
                     if (app.packageName != PACKAGE_BLANK) {
-                        // Launching it brings it to front (Focus)
-                        val rects = getLayoutRects()
-                        val bounds = if (index < rects.size) rects[index] else null
-                        Thread {
-                             launchViaShell(app.getBasePackage(), app.className, bounds)
-                        }.start()
-                        safeToast("Focused: ${app.label}")
+                        
+                        // [FIX] Internal Focus vs System Launch
+                        if (isExpanded) {
+                            // Drawer Open: Update Internal Variable Only (Green Underline)
+                            if (activePackageName != app.packageName) {
+                                if (activePackageName != null) lastValidPackageName = activePackageName
+                                activePackageName = app.packageName
+                                updateAllUIs()
+                            }
+                        } else {
+                            // Drawer Closed: Perform Actual Launch
+                            val rects = getLayoutRects()
+                            val bounds = if (index < rects.size) rects[index] else null
+                            Thread {
+                                 launchViaShell(app.getBasePackage(), app.className, bounds)
+                            }.start()
+                            safeToast("Focused: ${app.label}")
+                        }
                     }
                 }
             }
             "FOCUS_LAST" -> {
-                // Switch to previous valid app (Alt-Tab behavior for our tiles)
+                // Switch to previous valid app
                 val target = if (lastValidPackageName == activePackageName) secondLastValidPackageName else lastValidPackageName
 
                 if (target != null) {
                     val app = selectedAppsQueue.find { it.packageName == target }
                     if (app != null) {
-                        val idx = selectedAppsQueue.indexOf(app)
-                        val rects = getLayoutRects()
-                        val bounds = if (idx >= 0 && idx < rects.size) rects[idx] else null
-                        Thread {
-                             launchViaShell(app.getBasePackage(), app.className, bounds)
-                        }.start()
-                        safeToast("Focused: ${app.label}")
+                        
+                        // [FIX] Internal Focus vs System Launch
+                        if (isExpanded) {
+                            // Drawer Open: Update Internal Variable Only
+                            if (activePackageName != app.packageName) {
+                                activePackageName = app.packageName
+                                // Swap logic for history
+                                lastValidPackageName = target
+                                updateAllUIs()
+                            }
+                        } else {
+                            // Drawer Closed: Perform Actual Launch
+                            val idx = selectedAppsQueue.indexOf(app)
+                            val rects = getLayoutRects()
+                            val bounds = if (idx >= 0 && idx < rects.size) rects[idx] else null
+                            Thread {
+                                 launchViaShell(app.getBasePackage(), app.className, bounds)
+                            }.start()
+                            safeToast("Focused: ${app.label}")
+                        }
                     } else {
                         safeToast("Last app not in layout")
                     }
