@@ -4331,7 +4331,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
     inner class RofiAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         inner class AppHolder(v: View) : RecyclerView.ViewHolder(v) { val icon: ImageView = v.findViewById(R.id.rofi_app_icon); val text: TextView = v.findViewById(R.id.rofi_app_text); val star: ImageView = v.findViewById(R.id.rofi_app_star) }
-        inner class LayoutHolder(v: View) : RecyclerView.ViewHolder(v) { val nameInput: EditText = v.findViewById(R.id.layout_name); val btnEdit: ImageView = v.findViewById(R.id.btn_edit_layout_name) }
+        // [FIX] Include all buttons in Holder to support legacy logic and prevent crashes
+        inner class LayoutHolder(v: View) : RecyclerView.ViewHolder(v) { 
+            val nameInput: EditText = v.findViewById(R.id.layout_name)
+            val btnEdit: ImageView = v.findViewById(R.id.btn_edit_layout_name)
+            val btnSave: ImageView = v.findViewById(R.id.btn_save_profile)
+            val btnExtinguish: ImageView = v.findViewById(R.id.btn_extinguish_item) 
+        }
 
         inner class DpiHolder(v: View) : RecyclerView.ViewHolder(v) { val slider: android.widget.SeekBar = v.findViewById(R.id.sb_dpi_slider); val input: EditText = v.findViewById(R.id.input_dpi_value) }
 
@@ -4416,6 +4422,12 @@ else -> AppHolder(View(parent.context)) } }
                 // --- APPLY KEYBOARD HIGHLIGHT ---
                 if (isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active)
                 else holder.itemView.setBackgroundResource(R.drawable.bg_item_press)
+                
+                // [FIX] Explicitly hide all buttons by default
+                // This ensures the Edit button only appears when we explicitly enable it for Layouts
+                holder.btnEdit.visibility = View.GONE
+                holder.btnSave.visibility = View.GONE
+                holder.btnExtinguish.visibility = View.GONE
                 // --------------------------------
                 
                                 if (item is LayoutOption) { 
