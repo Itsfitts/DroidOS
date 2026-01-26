@@ -25,7 +25,10 @@ class ShellUserService : IShellService.Stub() {
         @Volatile private var displayControlClassLoaded = false
     }
 
-    // === GEMINI TASK CACHE - START ===
+    // === EFFICIENCY CACHE ===
+    private var cachedVisiblePackages: List<String> = emptyList()
+    private var lastVisibleCacheTime: Long = 0
+    private val VISIBLE_CACHE_TTL = 800L // 800ms Cache Validity
     // Cache for Gemini task ID since it trampolines and becomes invisible
     // The BardEntryPointActivity creates a task, then immediately redirects to Google QSB
     // After trampoline, the original task disappears from am stack list
@@ -342,10 +345,20 @@ override fun setBrightness(displayId: Int, brightness: Int) {
     // Checks both mViewVisibility AND window frame bounds
     // Windows moved off-screen (left >= 10000) are considered not visible
     override fun getVisiblePackages(displayId: Int): List<String> {
+        val now = System.currentTimeMillis()
+        
+        // [EFFICIENCY] Return cached result if valid
+        if (now - lastVisibleCacheTime < VISIBLE_CACHE_TTL && cachedVisiblePackages.isNotEmpty()) {
+            Log.d("EFFICIENCY", "getVisiblePackages: CACHE HIT (Age: ${now - lastVisibleCacheTime}ms)")
+            return ArrayList(cachedVisiblePackages)
+        }
+        
+        Log.d("EFFICIENCY", "getVisiblePackages: CACHE MISS - Running dumpsys...")
+
         val list = ArrayList<String>()
         val token = Binder.clearCallingIdentity()
         try {
-            Log.d(TAG, "getVisiblePackages: Checking display $displayId")
+            // Log.d(TAG, "getVisiblePackages: Checking display $displayId")
             val p = Runtime.getRuntime().exec("dumpsys window windows")
             val r = BufferedReader(InputStreamReader(p.inputStream))
             var line: String?
@@ -354,13 +367,11 @@ override fun setBrightness(displayId: Int, brightness: Int) {
             var onCorrectDisplay = false
             var isOffScreen = false
             val windowPattern = Pattern.compile("Window\\{[0-9a-f]+ u\\d+ ([^\\}/ ]+)")
-            // Pattern to match frame bounds like "frame=[50000,50000][50100,50100]" or "mFrame=[0,0][960,1080]"
             val framePattern = Pattern.compile("(?:frame|mFrame)=\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]")
 
             while (r.readLine().also { line = it } != null) {
                 val l = line!!.trim()
 
-                // New window entry - reset state
                 if (l.startsWith("Window #")) {
                     currentPkg = null
                     isVisible = false
@@ -370,45 +381,44 @@ override fun setBrightness(displayId: Int, brightness: Int) {
                     if (matcher.find()) currentPkg = matcher.group(1)
                 }
 
-                // Check display
                 if (l.contains("displayId=$displayId") || l.contains("mDisplayId=$displayId")) {
                     onCorrectDisplay = true
                 }
 
-                // Check visibility flag
                 if (l.contains("mViewVisibility=0x0")) {
                     isVisible = true
                 }
 
-                // Check frame bounds - if left >= 10000, window is off-screen (minimized)
                 val frameMatcher = framePattern.matcher(l)
                 if (frameMatcher.find()) {
                     try {
                         val left = frameMatcher.group(1)?.toIntOrNull() ?: 0
                         if (left >= 10000) {
                             isOffScreen = true
-                            Log.d(TAG, "getVisiblePackages: $currentPkg is off-screen (left=$left)")
+                            // Log.d(TAG, "getVisiblePackages: $currentPkg is off-screen (left=$left)")
                         }
                     } catch (e: Exception) {}
                 }
 
-                // Add to list if truly visible (on correct display, view visible, NOT off-screen)
                 if (currentPkg != null && isVisible && onCorrectDisplay && !isOffScreen) {
                     if (isUserApp(currentPkg!!) && !list.contains(currentPkg!!)) {
                         list.add(currentPkg!!)
-                        Log.d(TAG, "getVisiblePackages: Found visible (window): $currentPkg")
                     }
                     currentPkg = null
                 }
             }
             r.close()
             p.waitFor()
+            
+            // [EFFICIENCY] Update Cache
+            cachedVisiblePackages = ArrayList(list)
+            lastVisibleCacheTime = now
+            
         } catch (e: Exception) {
             Log.e(TAG, "getVisiblePackages: Error", e)
         } finally {
             Binder.restoreCallingIdentity(token)
         }
-        Log.d(TAG, "getVisiblePackages: display=$displayId result=${list.joinToString()}")
         return list
     }
     // === GET VISIBLE PACKAGES - END ===

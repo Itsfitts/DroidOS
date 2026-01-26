@@ -1049,6 +1049,14 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
+        // [EFFICIENCY] IMMEDIATE FILTER
+        // Ignore high-frequency events that we don't use
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            return
+        }
+
         // 1. WATCHDOG LOGIC (Direct Event Handling)
         // If we are targeting a Virtual Display (ID >= 2), monitor Display 1 (Cover) for escapes.
         if (currentDisplayId >= 2 && event.displayId == 1) {
@@ -2781,6 +2789,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 uiHandler.postDelayed({ applyLayoutImmediate() }, 200)
                 uiHandler.postDelayed({ applyLayoutImmediate() }, 800) 
             } 
+            
+            // [FIX] Close drawer after successful add
+            toggleDrawer()
         }
     }
     // === ADD TO SELECTION - END ===

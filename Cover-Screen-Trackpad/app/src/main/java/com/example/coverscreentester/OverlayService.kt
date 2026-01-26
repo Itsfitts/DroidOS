@@ -810,6 +810,14 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         
+        // [EFFICIENCY] IMMEDIATE FILTER
+        // Block high-frequency noise immediately
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED || 
+            event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            return
+        }
+        
         // Log.v(TAG, "onAccessibilityEvent: ${event.eventType} pkg=${event.packageName}")
 
         // [MODIFIED] MAIN SCREEN GUARD REMOVED
