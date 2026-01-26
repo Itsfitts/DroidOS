@@ -1791,8 +1791,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     // We check custom bindings first. If a key matches, execute it.
                     for (cmd in AVAILABLE_COMMANDS) {
                         val bind = AppPreferences.getKeybind(this, cmd.id)
-                        // Ignore modifiers in queue mode per user request ("don't need a modifier")
-                        if (bind.second == keyCode) {
+                        
+                        // [FIX] Ignore modifiers BUT SKIP Enter/Space to preserve default nav behavior
+                        // This prevents "Toggle Drawer" (Space) from overriding "Set Focus" (Space)
+                        if (bind.second == keyCode && keyCode != KeyEvent.KEYCODE_SPACE && keyCode != KeyEvent.KEYCODE_ENTER) {
+                            
                             if (cmd.argCount == 2) {
                                 // 2-Step Command (e.g. Swap)
                                 queueCommandPending = cmd
