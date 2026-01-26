@@ -2906,8 +2906,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 val allRunning = shellService!!.getAllRunningPackages()
                 val lastQueue = AppPreferences.getLastQueue(this)
 
-                Log.d(DEBUG_TAG, "fetchRunningApps: visible=${visiblePackages.joinToString()}")
-                Log.d(DEBUG_TAG, "fetchRunningApps: lastQueue=${lastQueue.joinToString()}")
+                // Log.d(DEBUG_TAG, "fetchRunningApps: visible=${visiblePackages.joinToString()}")
+                // Log.d(DEBUG_TAG, "fetchRunningApps: lastQueue=${lastQueue.joinToString()}")
 
                 uiHandler.post {
                     selectedAppsQueue.clear()
@@ -3391,10 +3391,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     }
 
                     try {
-                        Log.d(TAG, "Tile[$i]: Executing Launch: $cmd")
+                        // Log.d(TAG, "Tile[$i]: Executing Launch: $cmd")
                         shellService?.runCommand(cmd)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Tile[$i]: Launch failed", e)
+                        // Log.e(TAG, "Tile[$i]: Launch failed", e)
                     }
 
                     val isGeminiApp = basePkg.contains("bard") || basePkg.contains("gemini")
@@ -3423,7 +3423,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         if (!wasInstant) Thread.sleep(200)
 
                         // PASS 1: Set Mode & Resize
-                        Log.d(TAG, "Tile[$i]: Repositioning ${app.label} (TID: $tid)")
+                        // Log.d(TAG, "Tile[$i]: Repositioning ${app.label} (TID: $tid)")
                         shellService?.repositionTask(basePkg, cls, bounds.left, bounds.top, bounds.right, bounds.bottom)
 
                         // PASS 2: Redundant Resize for Samsung (Only if not instant swap)

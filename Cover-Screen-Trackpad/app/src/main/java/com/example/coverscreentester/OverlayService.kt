@@ -809,7 +809,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     // =================================================================================
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-
+        
+        // Log.v(TAG, "onAccessibilityEvent: ${event.eventType} pkg=${event.packageName}")
 
         // [MODIFIED] MAIN SCREEN GUARD REMOVED
         // We now allow blocking logic to run on the Main Screen if configured.
@@ -2067,9 +2068,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
             //          On Cover Screen (1+), apply blocking if enabled.
             //          Samsung takeover is handled by the Content Observer, not here.
             // =================================================================================
-            android.util.Log.w(TAG, "╔══════════════════════════════════════════════════════════╗")
-            android.util.Log.w(TAG, "║ KEYBOARD LOGIC START - setupUI($displayId)              ║")
-            android.util.Log.w(TAG, "╚══════════════════════════════════════════════════════════╝")
+            // android.util.Log.w(TAG, "╔══════════════════════════════════════════════════════════╗")
+            // android.util.Log.w(TAG, "║ KEYBOARD LOGIC START - setupUI($displayId)              ║")
+            // android.util.Log.w(TAG, "╚══════════════════════════════════════════════════════════╝")
             
             val preCurrentIme = try {
                 android.provider.Settings.Secure.getString(contentResolver, "default_input_method") ?: "null"
@@ -2078,23 +2079,24 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 try { softKeyboardController.showMode.toString() } catch (e: Exception) { "error" }
             } else { "N/A (API < 24)" }
             
+            /*
             android.util.Log.w(TAG, "├─ PRE-STATE:")
             android.util.Log.w(TAG, "│  ├─ displayId: $displayId")
             android.util.Log.w(TAG, "│  ├─ currentDisplayId: $currentDisplayId")
             android.util.Log.w(TAG, "│  ├─ prefBlockSoftKeyboard: ${prefs.prefBlockSoftKeyboard}")
             android.util.Log.w(TAG, "│  ├─ current IME: $preCurrentIme")
             android.util.Log.w(TAG, "│  └─ showMode: $preShowMode")
-            
+            */
 
             if (displayId == 0) {
-                android.util.Log.w(TAG, "├─ ACTION: MAIN SCREEN - Checking Blocking Prefs")
+                // android.util.Log.w(TAG, "├─ ACTION: MAIN SCREEN - Checking Blocking Prefs")
 
                 // ALLOW Null Keyboard on Main Screen if preference is set
                 if (prefs.prefBlockSoftKeyboard) {
-                     android.util.Log.w(TAG, "│  └─ Blocking enabled on Main Screen: enforcing Null Keyboard")
+                     // android.util.Log.w(TAG, "│  └─ Blocking enabled on Main Screen: enforcing Null Keyboard")
                      setSoftKeyboardBlocking(true)
                 } else {
-                     android.util.Log.w(TAG, "│  └─ Blocking NOT enabled")
+                     // android.util.Log.w(TAG, "│  └─ Blocking NOT enabled")
                      // Ensure showMode is AUTO if not blocking
                      if (Build.VERSION.SDK_INT >= 24) {
                         try { softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO } catch (e: Exception) {}
@@ -2102,16 +2104,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 }
             } else {
 
-                android.util.Log.w(TAG, "├─ ACTION: COVER SCREEN - Checking if blocking needed")
+                // android.util.Log.w(TAG, "├─ ACTION: COVER SCREEN - Checking if blocking needed")
                 if (prefs.prefBlockSoftKeyboard) {
-                    android.util.Log.w(TAG, "│  └─ Blocking enabled, calling triggerAggressiveBlocking()")
+                    // android.util.Log.w(TAG, "│  └─ Blocking enabled, calling triggerAggressiveBlocking()")
                     triggerAggressiveBlocking()
                 } else {
-                    android.util.Log.w(TAG, "│  └─ Blocking NOT enabled, skipping")
+                    // android.util.Log.w(TAG, "│  └─ Blocking NOT enabled, skipping")
                 }
             }
             
-            android.util.Log.w(TAG, "└─ KEYBOARD LOGIC END")
+            // android.util.Log.w(TAG, "└─ KEYBOARD LOGIC END")
             // =================================================================================
             // END BLOCK: KEYBOARD BLOCKING/RESTORATION LOGIC FOR DISPLAY SWITCH
             // =================================================================================

@@ -298,13 +298,13 @@ override fun setBrightness(displayId: Int, brightness: Int) {
     // === REPOSITION TASK - START ===
     // Repositions a task window to specified bounds using am task commands
     override fun repositionTask(packageName: String, className: String?, left: Int, top: Int, right: Int, bottom: Int) {
-        Log.d(TAG, "repositionTask: pkg=$packageName cls=$className bounds=[$left,$top,$right,$bottom]")
+        // Log.d(TAG, "repositionTask: pkg=$packageName cls=$className bounds=[$left,$top,$right,$bottom]")
 
         val tid = getTaskId(packageName, className)
-        Log.d(TAG, "repositionTask: getTaskId returned $tid")
+        // Log.d(TAG, "repositionTask: getTaskId returned $tid")
 
         if (tid == -1) {
-            Log.w(TAG, "repositionTask: No task found for $packageName / $className")
+            // Log.w(TAG, "repositionTask: No task found for $packageName / $className")
             return
         }
 
@@ -525,7 +525,7 @@ override fun getWindowLayouts(displayId: Int): List<String> {
         
         val token = Binder.clearCallingIdentity()
         try {
-            Log.d(TAG, "getTaskId: Looking for pkg=$packageName cls=$className")
+            // Log.d(TAG, "getTaskId: Looking for pkg=$packageName cls=$className")
             
             // === GEMINI DETECTION ===
             val isGemini = packageName == "com.google.android.apps.bard" || 

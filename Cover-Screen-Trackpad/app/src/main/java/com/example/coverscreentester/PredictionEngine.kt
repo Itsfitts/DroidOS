@@ -419,7 +419,7 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
 
 
     fun recordSelection(context: Context, word: String) {
-        android.util.Log.d("DroidOS_Debug", "SELECT: recordSelection called for '$word'")
+        // android.util.Log.d("DroidOS_Debug", "SELECT: recordSelection called for '$word'")
         if (word.isBlank()) return
         val clean = word.lowercase(Locale.ROOT)
         
@@ -431,11 +431,11 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         // NEW: Spatial Learning
         // If we have the swipe path that generated this word, learn the offsets.
         if (lastSwipePath != null) {
-             android.util.Log.d("DroidOS_Heatmap", "LEARN: Learning triggered for '$clean'. Path points: ${lastSwipePath!!.size}")
+             // android.util.Log.d("DroidOS_Heatmap", "LEARN: Learning triggered for '$clean'. Path points: ${lastSwipePath!!.size}")
              learnKeyOffsets(context, clean, lastSwipePath!!)
              lastSwipePath = null // Consumed
         } else {
-             android.util.Log.d("DroidOS_Debug", "FAIL: lastSwipePath was NULL when selecting '$clean'")
+             // android.util.Log.d("DroidOS_Debug", "FAIL: lastSwipePath was NULL when selecting '$clean'")
         }
         
         saveUserStats(context)
