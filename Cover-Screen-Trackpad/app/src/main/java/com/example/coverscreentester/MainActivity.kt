@@ -24,10 +24,16 @@ import rikka.shizuku.Shizuku
 
 class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListener {
 
-    private lateinit var btnFixRestricted: Button
-    private lateinit var btnOpenAccessibility: Button
-    private lateinit var btnStartCheck: Button
-    private lateinit var btnSwitchDisplay: Button
+    // Wizard UI Elements
+    private lateinit var containerRestricted: android.widget.LinearLayout
+    private lateinit var containerAccessibility: android.widget.LinearLayout
+    private lateinit var containerShizuku: android.widget.LinearLayout
+
+    private lateinit var iconRestricted: android.widget.ImageView
+    private lateinit var iconAccessibility: android.widget.ImageView
+    private lateinit var iconShizuku: android.widget.ImageView
+
+    private lateinit var btnLaunch: android.widget.Button
     
     // Track if we've already initialized the UI
     private var uiInitialized = false
@@ -106,45 +112,43 @@ override fun onCreate(savedInstanceState: Bundle?) {
     private fun initializePermissionUI() {
         setContentView(R.layout.activity_main)
         uiInitialized = true
-        
-        btnFixRestricted = findViewById(R.id.btn_fix_restricted)
-        btnOpenAccessibility = findViewById(R.id.btn_open_accessibility)
-        btnStartCheck = findViewById(R.id.btn_start_check)
-        btnSwitchDisplay = findViewById(R.id.btn_switch_display)
-        
+
+        // Bind Views
+        containerRestricted = findViewById(R.id.btn_fix_restricted)
+        containerAccessibility = findViewById(R.id.btn_open_accessibility)
+        containerShizuku = findViewById(R.id.btn_start_check)
+
+        iconRestricted = findViewById(R.id.icon_restricted)
+        iconAccessibility = findViewById(R.id.icon_accessibility)
+        iconShizuku = findViewById(R.id.icon_shizuku)
+
+        btnLaunch = findViewById(R.id.btn_switch_display)
+
         // Register Shizuku listener
         Shizuku.addRequestPermissionResultListener(this)
-        
-        // Setup click listeners
-        btnFixRestricted.setOnClickListener { 
-            openAppInfo()
-        }
-        
-        btnOpenAccessibility.setOnClickListener { 
-            openAccessibilitySettings() 
-        }
-        
-        btnStartCheck.setOnClickListener {
-            // First check Shizuku
+
+        // Click Listeners
+        containerRestricted.setOnClickListener { openAppInfo() }
+        containerAccessibility.setOnClickListener { openAccessibilitySettings() }
+
+        containerShizuku.setOnClickListener {
             if (!isShizukuReady()) {
                 requestShizukuPermission()
-                return@setOnClickListener
+            } else {
+                Toast.makeText(this, "Shizuku already active", Toast.LENGTH_SHORT).show()
+                updateButtonStates()
             }
-            
+        }
+
+        btnLaunch.setOnClickListener {
+            // Final check
             if (checkCriticalPermissions()) {
                 launchOverlayServiceAndFinish()
             } else {
                 showMissingPermissionsToast()
             }
         }
-        
-        btnSwitchDisplay.setOnClickListener {
-            // Send broadcast to switch display if service is running
-            val intent = Intent(this, OverlayService::class.java)
-            intent.action = "SWITCH_DISPLAY"
-            startService(intent)
-        }
-        
+
         updateButtonStates()
     }
     // =================================================================================
@@ -171,52 +175,49 @@ override fun onCreate(savedInstanceState: Bundle?) {
     // =================================================================================
     private fun updateButtonStates() {
         if (!uiInitialized) return
-        
+
         val isAccessibilityReady = isAccessibilityEnabled()
         val isShizukuReady = isShizukuReady()
-        
-        // Standard Colors
-        val colorGreen = android.graphics.Color.parseColor("#4CAF50")
-        val colorRed = android.graphics.Color.parseColor("#FF5555")
-        
-        // 1. Restricted Settings Button
-        // Note: There is no direct API to check Restricted status. 
-        // We use isAccessibilityReady as a proxy: if Accessibility is ON, Restricted Settings must be ALLOWED.
-        if (isAccessibilityReady) {
-            btnFixRestricted.backgroundTintList = android.content.res.ColorStateList.valueOf(colorGreen)
-            btnFixRestricted.text = "1. Restricted Settings ✓"
-        } else {
-            btnFixRestricted.backgroundTintList = android.content.res.ColorStateList.valueOf(colorRed)
-            btnFixRestricted.text = "1. Allow Restricted Settings"
+
+        // Helper to update row visual state
+        fun updateRow(container: android.widget.LinearLayout, icon: android.widget.ImageView, isDone: Boolean) {
+            if (isDone) {
+                icon.setImageResource(android.R.drawable.checkbox_on_background)
+                icon.setColorFilter(android.graphics.Color.GREEN)
+                container.alpha = 0.5f // Dim when done
+            } else {
+                icon.setImageResource(android.R.drawable.checkbox_off_background)
+                icon.setColorFilter(android.graphics.Color.RED)
+                container.alpha = 1.0f
+            }
         }
 
-        // 2. Accessibility Button
-        // Turns Green independently if Accessibility is enabled
-        if (isAccessibilityReady) {
-            btnOpenAccessibility.backgroundTintList = android.content.res.ColorStateList.valueOf(colorGreen)
-            btnOpenAccessibility.text = "2. Accessibility ✓"
-        } else {
-            btnOpenAccessibility.backgroundTintList = android.content.res.ColorStateList.valueOf(colorRed)
-            btnOpenAccessibility.text = "2. Enable Accessibility"
-        }
-        
-        // 3. Shizuku Button
-        // Turns Green independently if Shizuku is granted (even if Accessibility is off)
-        if (isShizukuReady) {
-            btnStartCheck.backgroundTintList = android.content.res.ColorStateList.valueOf(colorGreen)
-            btnStartCheck.text = "3. Shizuku Granted ✓"
-        } else {
-            btnStartCheck.backgroundTintList = android.content.res.ColorStateList.valueOf(colorRed)
-            btnStartCheck.text = "3. Grant Shizuku"
-        }
+        // 1. Restricted Settings (Implicit: if Accessibility works, this is done)
+        updateRow(containerRestricted, iconRestricted, isAccessibilityReady)
+        if (isAccessibilityReady) iconRestricted.setColorFilter(android.graphics.Color.GREEN)
 
-        // 4. Launch App Button
-        // Only turns Green when ALL critical permissions are ready
-        btnSwitchDisplay.text = "Launch App"
+        // 2. Accessibility
+        updateRow(containerAccessibility, iconAccessibility, isAccessibilityReady)
+
+        // 3. Shizuku
+        updateRow(containerShizuku, iconShizuku, isShizukuReady)
+
+        // 4. Launch Button State
         if (isAccessibilityReady && isShizukuReady) {
-            btnSwitchDisplay.backgroundTintList = android.content.res.ColorStateList.valueOf(colorGreen)
+            btnLaunch.isEnabled = true
+            btnLaunch.alpha = 1.0f
+            btnLaunch.text = "LAUNCH TRACKPAD"
+            btnLaunch.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#3DDC84"))
         } else {
-            btnSwitchDisplay.backgroundTintList = android.content.res.ColorStateList.valueOf(colorRed)
+            btnLaunch.isEnabled = false
+            btnLaunch.alpha = 0.5f
+
+            // Helpful Guide Text
+            btnLaunch.text = when {
+                !isAccessibilityReady -> "Step 2: Enable Accessibility"
+                !isShizukuReady -> "Step 3: Grant Shizuku"
+                else -> "Grant Permissions First"
+            }
         }
     }
     // =================================================================================
