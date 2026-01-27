@@ -100,14 +100,26 @@ class DockInputMethodService : InputMethodService() {
         // 1. Open DroidOS Overlay Keyboard
         btnKeyboard.setOnClickListener {
             val intent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.TOGGLE_CUSTOM_KEYBOARD")
+            intent.setPackage(packageName)
+            intent.putExtra("FORCE_SHOW", true) // Tell Overlay to show, not just toggle
+            intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
             sendBroadcast(intent)
+            
+            // Force Z-Order update
+            val zIntent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.ENFORCE_ZORDER")
+            zIntent.setPackage(packageName)
+            zIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+            sendBroadcast(zIntent)
         }
 
         // 2. Voice Input (Trigger Overlay Service Logic)
         btnVoice.setOnClickListener {
-            val intent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.VOICE_TYPE_TRIGGERED")
+            val intent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.REQUEST_VOICE_INPUT")
+            intent.setPackage(packageName)
+            intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
             sendBroadcast(intent)
         }
+
 
         // 3. Paste from Clipboard
         btnPaste.setOnClickListener {

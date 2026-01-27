@@ -2,6 +2,8 @@ package com.example.coverscreentester
 
 import android.accessibilityservice.AccessibilityService
 import android.app.Notification
+import android.media.AudioManager
+import android.media.AudioRecordingConfiguration
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
@@ -1201,22 +1203,44 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 action == "CYCLE_INPUT_TARGET" -> cycleInputTarget()
                 action == "RESET_CURSOR" -> resetCursorCenter()
                 action == "TOGGLE_DEBUG" -> toggleDebugMode()
-                action == "FORCE_KEYBOARD" || action == "TOGGLE_CUSTOM_KEYBOARD" -> toggleCustomKeyboard()
+                action == "FORCE_KEYBOARD" || action == "TOGGLE_CUSTOM_KEYBOARD" -> {
+                    val forceShow = intent.getBooleanExtra("FORCE_SHOW", false)
+                    if (forceShow) {
+                        // Ensure it's shown even if internal state thinks it is
+                        if (keyboardOverlay == null) initCustomKeyboard()
+                        if (keyboardOverlay?.isShowing() != true) {
+                            keyboardOverlay?.show()
+                            isCustomKeyboardVisible = true
+                        }
+                        keyboardOverlay?.bringToFront()
+                        enforceZOrder()
+                    } else {
+                        toggleCustomKeyboard()
+                    }
+                }
                 action == "OPEN_MENU" -> { menuManager?.show(); enforceZOrder() }
                 action == "SET_TRACKPAD_VISIBILITY" -> {
+
                     val visible = intent.getBooleanExtra("VISIBLE", true)
                     val menuDisplayId = intent.getIntExtra("MENU_DISPLAY_ID", -1)
                     if (visible) setTrackpadVisibility(true) 
                     else { if (menuDisplayId == -1 || menuDisplayId == currentDisplayId) setTrackpadVisibility(false) }
                 }
                 action == "SET_PREVIEW_MODE" -> setPreviewMode(intent.getBooleanExtra("PREVIEW_MODE", false))
+                // Just UI update (sent by triggerVoiceTyping)
                 action == "VOICE_TYPE_TRIGGERED" -> {
                     isVoiceActive = true
                     keyboardOverlay?.setVoiceActive(true)
                     setOverlayFocusable(false)
                     handler.postDelayed({ attemptRefocusInput() }, 300)
                 }
+                // Full Action Trigger (sent by Dock)
+                action == "REQUEST_VOICE_INPUT" -> {
+                    handler.post { Toast.makeText(context, "Voice Requested...", Toast.LENGTH_SHORT).show() }
+                    triggerVoiceTyping()
+                }
                 action == Intent.ACTION_SCREEN_ON -> {
+
                     // [FIX] Only trigger blocking if explicitly enabled in prefs.
                     // Previously, this ran unconditionally, causing the keyboard to vanish/block
                     // on the Beam Pro every time the screen turned on.
@@ -1314,6 +1338,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
             // IMMEDIATE UI UPDATE: Turn Mic Off
             keyboardOverlay?.setVoiceActive(false)
             
+            // Stop monitoring
+            micCheckHandler.removeCallbacks(micCheckRunnable)
+            
             // Standard Dismissal Logic (Back Button)
             Thread {
                 try {
@@ -1331,6 +1358,79 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 }
             }.start()
         }
+    }
+
+    // --- Voice Logic & Mic Check Loop ---
+    private val micCheckHandler = Handler(Looper.getMainLooper())
+    
+    private val micCheckRunnable = object : Runnable {
+        override fun run() {
+            try {
+                val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                
+                var isMicOn = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    if (audioManager.activeRecordingConfigurations.isNotEmpty()) {
+                        isMicOn = true
+                    }
+                }
+                
+                if (isMicOn) {
+                    // Still recording, check again in 1 second
+                    micCheckHandler.postDelayed(this, 1000)
+                } else {
+                    // Mic stopped, turn off the green light
+                    isVoiceActive = false
+                    keyboardOverlay?.setVoiceActive(false)
+                }
+            } catch (e: Exception) {
+                isVoiceActive = false
+                keyboardOverlay?.setVoiceActive(false)
+            }
+        }
+    }
+
+    private fun triggerVoiceTyping() {
+        if (shellService == null) return
+
+        // 1. UI: Turn Button Green Immediately
+        isVoiceActive = true
+        keyboardOverlay?.setVoiceActive(true)
+        setOverlayFocusable(false) // Ensure focus is passable
+        
+        // 2. Start Monitoring Loop
+        // Delay 3 seconds to allow the Voice IME to open and start recording
+        micCheckHandler.removeCallbacks(micCheckRunnable)
+        micCheckHandler.postDelayed(micCheckRunnable, 3000)
+
+        // 3. Perform IME Switch via Shell
+        Thread {
+            try {
+                // Fetch IME list and find Google Voice Typing
+                val output = shellService?.runCommand("ime list -a -s") ?: ""
+                val voiceIme = output.lines().find { it.contains("google", true) && it.contains("voice", true) } 
+                    ?: output.lines().find { it.contains("voice", true) }
+                
+                if (voiceIme != null) {
+                    shellService?.runCommand("ime set $voiceIme")
+                    // Try to refocus input
+                    handler.postDelayed({ attemptRefocusInput() }, 500)
+                } else {
+                    Log.w(TAG, "Voice IME not found")
+                    handler.post { 
+                        isVoiceActive = false
+                        keyboardOverlay?.setVoiceActive(false)
+                        showToast("Voice IME not found")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Voice Switch Failed", e)
+                handler.post { 
+                    isVoiceActive = false
+                    keyboardOverlay?.setVoiceActive(false)
+                }
+            }
+        }.start()
     }
 
     companion object {
@@ -1649,6 +1749,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                         addAction("SET_PREVIEW_MODE") 
                         addAction("OPEN_MENU")
                         addAction("VOICE_TYPE_TRIGGERED")
+                        addAction("REQUEST_VOICE_INPUT")
                         addAction(Intent.ACTION_SCREEN_ON)
 
                         // External commands (Old and New Prefixes)

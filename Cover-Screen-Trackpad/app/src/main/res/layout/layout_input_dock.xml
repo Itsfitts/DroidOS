@@ -2,70 +2,75 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/dock_container"
     android:layout_width="match_parent"
-    android:layout_height="50dp"
+    android:layout_height="32dp"
     android:orientation="horizontal"
     android:background="#1A1A1A"
     android:gravity="center_vertical"
     android:weightSum="5">
 
-    <!-- 1. DroidOS Keyboard Toggle (Green Plus/Add Icon) -->
+    <!-- 1. DroidOS Keyboard Toggle -->
     <ImageView
         android:id="@+id/btn_dock_keyboard"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:src="@android:drawable/ic_menu_add"
-        android:padding="14dp"
+        android:src="@drawable/ic_tab_keyboard"
+        android:padding="8dp"
         android:background="?android:attr/selectableItemBackground"
         android:contentDescription="Open DroidOS Keyboard"
+        android:scaleType="fitCenter"
         android:tint="#3DDC84"/>
 
-    <!-- 2. Voice Input (Mic Icon) -->
+    <!-- 2. Voice Input -->
     <ImageView
         android:id="@+id/btn_dock_voice"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:src="@android:drawable/ic_btn_speak_now"
-        android:padding="14dp"
+        android:padding="8dp"
         android:background="?android:attr/selectableItemBackground"
         android:contentDescription="Voice Input"
+        android:scaleType="fitCenter"
         android:tint="#FFFFFF"/>
 
-    <!-- 3. Paste Clipboard (Edit Icon) -->
+    <!-- 3. Paste Clipboard -->
     <ImageView
         android:id="@+id/btn_dock_paste"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:src="@android:drawable/ic_menu_edit"
-        android:padding="14dp"
+        android:padding="8dp"
         android:background="?android:attr/selectableItemBackground"
         android:contentDescription="Paste"
+        android:scaleType="fitCenter"
         android:tint="#FFFFFF"/>
 
-    <!-- 4. Switch IME (List/Sort Icon) -->
+    <!-- 4. Switch IME -->
     <ImageView
         android:id="@+id/btn_dock_switch"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:src="@android:drawable/ic_menu_sort_by_size"
-        android:padding="14dp"
+        android:padding="8dp"
         android:background="?android:attr/selectableItemBackground"
         android:contentDescription="Switch Keyboard"
+        android:scaleType="fitCenter"
         android:tint="#AAAAAA"/>
 
-    <!-- 5. Hide Dock (X/Close Icon) -->
+    <!-- 5. Hide Dock -->
     <ImageView
         android:id="@+id/btn_dock_hide"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:padding="14dp"
+        android:padding="8dp"
         android:background="?android:attr/selectableItemBackground"
         android:contentDescription="Hide Dock"
+        android:scaleType="fitCenter"
         android:tint="#FF5555"/>
 
 </LinearLayout>
