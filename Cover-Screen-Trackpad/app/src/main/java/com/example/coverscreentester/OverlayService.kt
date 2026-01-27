@@ -41,7 +41,9 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import android.view.VelocityTracker
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import android.os.PowerManager
@@ -1149,8 +1151,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     }
 
     private val volUpDoubleTapRunnable = Runnable {
+        // [FIX] Check count to determine action
+        // If count > 2, user is spamming keys (Panic?), so don't fire normal actions
         if (volUpTapCount == 1) {
             executeHardkeyAction(prefs.hardkeyVolUpTap, KeyEvent.ACTION_UP)
+        } else if (volUpTapCount == 2) {
+            executeHardkeyAction(prefs.hardkeyVolUpDouble, KeyEvent.ACTION_UP)
         }
         volUpTapCount = 0
     }
@@ -1928,38 +1934,59 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         val keyCode = event.keyCode
         
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            if (prefs.hardkeyVolUpTap == "none" && prefs.hardkeyVolUpHold == "none") return super.onKeyEvent(event)
-            
+            // [FIX] Allow panic detection even if "none" is selected
+            // We check logic inside to allow pass-through if count < 5 and action is none
+            val isConfigured = (prefs.hardkeyVolUpTap != "none" || prefs.hardkeyVolUpHold != "none")
+
             when (action) {
                 KeyEvent.ACTION_DOWN -> {
                     if (!isLeftKeyHeld) {
                         isLeftKeyHeld = true
                         volUpHoldTriggered = false
-                        handler.postDelayed(volUpHoldRunnable, prefs.holdDurationMs.toLong())
+                        if (isConfigured) handler.postDelayed(volUpHoldRunnable, prefs.holdDurationMs.toLong())
                     }
                 }
                 KeyEvent.ACTION_UP -> {
                     isLeftKeyHeld = false
                     handler.removeCallbacks(volUpHoldRunnable)
+
                     if (volUpHoldTriggered) {
-                        // RELEASE the hold action (Crucial for drag/click release)
-                        executeHardkeyAction(prefs.hardkeyVolUpHold, KeyEvent.ACTION_UP)
+                        // RELEASE the hold action
+                        if (isConfigured) executeHardkeyAction(prefs.hardkeyVolUpHold, KeyEvent.ACTION_UP)
+                        volUpTapCount = 0
                     } else {
                         val timeSinceLastTap = System.currentTimeMillis() - lastVolUpTime
                         lastVolUpTime = System.currentTimeMillis()
-                        if (timeSinceLastTap < prefs.doubleTapMs && volUpTapCount == 1) {
-                            handler.removeCallbacks(volUpDoubleTapRunnable)
-                            volUpTapCount = 0
-                            executeHardkeyAction(prefs.hardkeyVolUpDouble, KeyEvent.ACTION_UP)
+
+                        // [SAFETY] PANIC LOGIC: 5 Rapid Taps (< 400ms gap)
+                        if (timeSinceLastTap < 400) {
+                            volUpTapCount++
                         } else {
                             volUpTapCount = 1
-                            handler.removeCallbacks(volUpDoubleTapRunnable)
-                            handler.postDelayed(volUpDoubleTapRunnable, prefs.doubleTapMs.toLong())
+                        }
+
+                        // Remove pending double-tap action while we count up
+                        handler.removeCallbacks(volUpDoubleTapRunnable)
+
+                        if (volUpTapCount >= 5) {
+                            // !!! PANIC TRIGGERED !!!
+                            volUpTapCount = 0
+                            performEmergencyReset()
+                            return true // Always consume panic
+                        } else if (volUpTapCount == 2) {
+                            // Schedule Double Tap (cancellable if user keeps tapping for panic)
+                            if (isConfigured) handler.postDelayed(volUpDoubleTapRunnable, prefs.doubleTapMs.toLong())
+                        } else if (volUpTapCount == 1) {
+                            // Schedule Single Tap
+                            if (isConfigured) handler.postDelayed(volUpDoubleTapRunnable, prefs.doubleTapMs.toLong())
                         }
                     }
                 }
             }
-            return true
+
+            // If configured, consume event. If not, only consume if we are mid-panic-sequence (count > 0)
+            // This allows normal Volume Up to work if "none" is selected, until you tap fast enough to trigger panic logic
+            return isConfigured || volUpTapCount > 0
         }
 
         if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
@@ -2155,6 +2182,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         
         var initialX = 0; var initialY = 0; var initialTouchX = 0f; var initialTouchY = 0f; var isDrag = false
         var isLongPressHandled = false
+        var velocityTracker: VelocityTracker? = null
         val bubbleLongPressRunnable = Runnable {
             if (!isDrag) {
                 vibrate()
@@ -2165,27 +2193,58 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         }
 
         bubbleView?.setOnTouchListener { _, event ->
+            if (velocityTracker == null) velocityTracker = VelocityTracker.obtain()
+            velocityTracker?.addMovement(event)
+
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> { 
+                MotionEvent.ACTION_DOWN -> {
                     initialX = bubbleParams.x; initialY = bubbleParams.y
                     initialTouchX = event.rawX; initialTouchY = event.rawY
                     isDrag = false
                     isLongPressHandled = false
                     handler.postDelayed(bubbleLongPressRunnable, 600)
-                    true 
+                    true
                 }
-                MotionEvent.ACTION_MOVE -> { 
-                    if (abs(event.rawX - initialTouchX) > 10 || abs(event.rawY - initialTouchY) > 10) { 
+                MotionEvent.ACTION_MOVE -> {
+                    if (abs(event.rawX - initialTouchX) > 10 || abs(event.rawY - initialTouchY) > 10) {
                         isDrag = true
                         handler.removeCallbacks(bubbleLongPressRunnable)
                         bubbleParams.x = initialX + (event.rawX - initialTouchX).toInt()
                         bubbleParams.y = initialY + (event.rawY - initialTouchY).toInt()
-                        windowManager?.updateViewLayout(bubbleView, bubbleParams) 
+                        windowManager?.updateViewLayout(bubbleView, bubbleParams)
                     }
-                    true 
+                    true
                 }
-                MotionEvent.ACTION_UP -> { 
+                MotionEvent.ACTION_UP -> {
                     handler.removeCallbacks(bubbleLongPressRunnable)
+                    velocityTracker?.computeCurrentVelocity(1000)
+                    val vX = velocityTracker?.xVelocity ?: 0f
+                    val vY = velocityTracker?.yVelocity ?: 0f
+                    val totalVel = kotlin.math.hypot(vX.toDouble(), vY.toDouble())
+
+                    // [SAFETY] FLING RESET: Easier threshold (1500) + Full Recovery
+                    if (isDrag && totalVel > 1500) {
+                        showToast("Force Closing Trackpad...")
+
+                        // 1. Force Screen ON & Unblock Keyboard
+                        isScreenOff = false
+                        Thread {
+                            try { shellService?.setBrightness(128) } catch (e: Exception) {}
+                            try { shellService?.setScreenOff(0, false) } catch (e: Exception) {}
+                        }.start()
+                        setSoftKeyboardBlocking(false)
+                        if (Build.VERSION.SDK_INT >= 24) {
+                            try { softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO } catch(e: Exception){}
+                        }
+
+                        // 2. Kill Process
+                        forceExit() // This handles cleanup and kill
+
+                        velocityTracker?.recycle()
+                        velocityTracker = null
+                        return@setOnTouchListener true
+                    }
+
                     if (!isDrag && !isLongPressHandled) {
                         handleBubbleTap()
                     } else if (isDrag) {
@@ -2193,8 +2252,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                         prefs.prefBubbleY = bubbleParams.y
                         savePrefs()
                     }
+                    velocityTracker?.recycle()
+                    velocityTracker = null
                     handler.post { enforceZOrder() }
-                    true 
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    handler.removeCallbacks(bubbleLongPressRunnable)
+                    velocityTracker?.recycle()
+                    velocityTracker = null
+                    false
                 }
                 else -> false
             }
@@ -2399,9 +2466,49 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
 
     fun toggleKeyboardMode() { vibrate(); if (!isKeyboardMode) { isKeyboardMode = true; savedWindowX = trackpadParams.x; savedWindowY = trackpadParams.y; trackpadParams.x = uiScreenWidth - trackpadParams.width; trackpadParams.y = 0; windowManager?.updateViewLayout(trackpadLayout, trackpadParams); updateBorderColor(0xFFFF0000.toInt()) } else { isKeyboardMode = false; trackpadParams.x = savedWindowX; trackpadParams.y = savedWindowY; windowManager?.updateViewLayout(trackpadLayout, trackpadParams); updateBorderColor(currentBorderColor) } }
     
+    // [SAFETY] Emergency Reset (Panic Button)
+    // Triggered by tapping Volume Up 5 times rapidly
+    private fun performEmergencyReset() {
+        // Long Vibration Pattern (SOS-ish)
+        val v = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (Build.VERSION.SDK_INT >= 26) {
+            v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 100, 100, 100, 100, 500), -1))
+        } else {
+            @Suppress("DEPRECATION") v.vibrate(500)
+        }
+
+        showToast("!!! EMERGENCY RESET TRIGGERED !!!")
+        Log.w(TAG, "EMERGENCY RESET TRIGGERED BY HARDWARE KEYS")
+
+        // 1. Force Screen ON
+        isScreenOff = false
+        Thread {
+            try { shellService?.setBrightness(128) } catch (e: Exception) {}
+            try { shellService?.setScreenOff(0, false) } catch (e: Exception) {}
+        }.start()
+
+        // 2. Unblock Keyboard (Force Gboard/System default)
+        setSoftKeyboardBlocking(false)
+        if (Build.VERSION.SDK_INT >= 24) {
+            try { softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO } catch(e: Exception){}
+        }
+
+        // 3. Reset Overlays
+        resetTrackpadPosition()
+        keyboardOverlay?.resetPosition()
+        resetBubblePosition()
+
+        // 4. Disable Virtual Modes
+        if (prefs.prefVirtualMirrorMode) {
+            toggleVirtualMirrorMode() // This turns it OFF
+        }
+
+        // 5. Release Locks (handled by system on exit)
+    }
+
     // [FIX] Public so MenuManager can call it
-    fun toggleDebugMode() { 
-        isDebugMode = !isDebugMode 
+    fun toggleDebugMode() {
+        isDebugMode = !isDebugMode
         if (isDebugMode) { 
             showToast("Debug ON")
             updateBorderColor(0xFFFFFF00.toInt())

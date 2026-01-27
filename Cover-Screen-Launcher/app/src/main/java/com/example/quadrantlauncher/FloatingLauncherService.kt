@@ -1570,7 +1570,46 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> { initialX = bubbleParams.x; initialY = bubbleParams.y; initialTouchX = event.rawX; initialTouchY = event.rawY; isDrag = false; return true }
                     MotionEvent.ACTION_MOVE -> { if (Math.abs(event.rawX - initialTouchX) > 10 || Math.abs(event.rawY - initialTouchY) > 10) isDrag = true; if (isDrag) { bubbleParams.x = initialX + (event.rawX - initialTouchX).toInt(); bubbleParams.y = initialY + (event.rawY - initialTouchY).toInt(); windowManager.updateViewLayout(bubbleView, bubbleParams) }; return true }
-                    MotionEvent.ACTION_UP -> { velocityTracker?.computeCurrentVelocity(1000); val vX = velocityTracker?.xVelocity ?: 0f; val vY = velocityTracker?.yVelocity ?: 0f; val totalVel = hypot(vX.toDouble(), vY.toDouble()); if (isDrag && totalVel > 2500) { safeToast("Closing..."); stopSelf(); return true }; if (!isDrag) { if (!isBound && showShizukuWarning) { if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) { bindShizuku() } else { safeToast("Shizuku NOT Connected. Opening Shizuku..."); launchShizuku() } } else { toggleDrawer() } }; velocityTracker?.recycle(); velocityTracker = null; return true }
+                    MotionEvent.ACTION_UP -> {
+                        velocityTracker?.computeCurrentVelocity(1000)
+                        val vX = velocityTracker?.xVelocity ?: 0f
+                        val vY = velocityTracker?.yVelocity ?: 0f
+                        val totalVel = hypot(vX.toDouble(), vY.toDouble())
+
+                        // [SAFETY] FLING RESET: Easier threshold (1500) + Hard Kill
+                        if (isDrag && totalVel > 1500) {
+                            safeToast("Force Closing Launcher...")
+
+                            // 1. Force Screen On
+                            isScreenOffState = false
+                            wakeUp()
+
+                            // 2. Kill Process
+                            stopSelf()
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                android.os.Process.killProcess(android.os.Process.myPid())
+                                java.lang.System.exit(0)
+                            }, 200)
+
+                            return true
+                        }
+
+                        if (!isDrag) {
+                            if (!isBound && showShizukuWarning) {
+                                if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                                    bindShizuku()
+                                } else {
+                                    safeToast("Shizuku NOT Connected. Opening Shizuku...")
+                                    launchShizuku()
+                                }
+                            } else {
+                                toggleDrawer()
+                            }
+                        }
+                        velocityTracker?.recycle()
+                        velocityTracker = null
+                        return true
+                    }
                     MotionEvent.ACTION_CANCEL -> { velocityTracker?.recycle(); velocityTracker = null }
                 }
                 return false
@@ -2400,7 +2439,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         if (isExpanded) {
             Log.d(TAG, "Closing drawer")
             try { windowManager.removeView(drawerView) } catch(e: Exception) {}
-            bubbleView?.visibility = View.VISIBLE
+            // bubbleView?.visibility = View.VISIBLE // No need to toggle if always visible
             isExpanded = false
 
             // Auto-Restore Focus
@@ -2439,8 +2478,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     Log.e(TAG, "Failed to add drawer with fallback: ${e2.message}")
                 }
             }
-            
-            bubbleView?.visibility = View.GONE
+
+            // bubbleView?.visibility = View.GONE // Keep bubble visible
             isExpanded = true
             
             // [FIX] Reset all navigation/focus state to prevent ghost highlights

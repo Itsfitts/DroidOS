@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
 import android.widget.Toast
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import rikka.shizuku.Shizuku
 
@@ -33,7 +34,44 @@ class MainActivity : AppCompatActivity(), Shizuku.OnRequestPermissionResultListe
 
 override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
+        // [SAFETY] PANIC RESET: Tap App Icon 3 times in 5 seconds to Reset
+        val prefs = getSharedPreferences("PanicState", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val lastLaunch = prefs.getLong("last_launch", 0)
+        var count = prefs.getInt("launch_count", 0)
+
+        if (now - lastLaunch < 5000) {
+            count++
+        } else {
+            count = 1
+        }
+        prefs.edit().putLong("last_launch", now).putInt("launch_count", count).commit()
+
+        if (count >= 3) {
+            val v = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            if (Build.VERSION.SDK_INT >= 26) {
+                v.vibrate(android.os.VibrationEffect.createOneShot(500, 255))
+            } else { @Suppress("DEPRECATION") v.vibrate(500) }
+
+            Toast.makeText(this, "!!! TRACKPAD RESET !!!", Toast.LENGTH_LONG).show()
+
+            // Send Force Reset Broadcast (Unblocks Keyboard, Wakes Screen)
+            val resetIntent = Intent("com.example.coverscreentester.SOFT_RESTART")
+            sendBroadcast(resetIntent)
+
+            val stopIntent = Intent(this, OverlayService::class.java)
+            stopService(stopIntent)
+
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                android.os.Process.killProcess(android.os.Process.myPid())
+                System.exit(0)
+            }, 500)
+
+            finish()
+            return
+        }
+
         // DEBUG LOG
         val dId = intent.getIntExtra("displayId", -999)
         val force = intent.getBooleanExtra("force_start", false)

@@ -76,6 +76,49 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // [SAFETY] PANIC RESET: Tap App Icon 3 times in 5 seconds to Reset
+        val prefs = getSharedPreferences("PanicState", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val lastLaunch = prefs.getLong("last_launch", 0)
+        var count = prefs.getInt("launch_count", 0)
+
+        if (now - lastLaunch < 5000) {
+            count++
+        } else {
+            count = 1
+        }
+
+        // Use commit() for synchronous save
+        prefs.edit().putLong("last_launch", now).putInt("launch_count", count).commit()
+
+        if (count >= 3) {
+            // VIBRATE ALERT
+            val v = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            if (Build.VERSION.SDK_INT >= 26) {
+                v.vibrate(android.os.VibrationEffect.createOneShot(500, 255))
+            } else {
+                @Suppress("DEPRECATION") v.vibrate(500)
+            }
+
+            Toast.makeText(this, "!!! DROIDOS RESET !!!", Toast.LENGTH_LONG).show()
+
+            // 1. Reset State
+            prefs.edit().clear().commit()
+
+            // 2. Kill Service via Intent
+            val stopIntent = Intent(this, FloatingLauncherService::class.java)
+            stopService(stopIntent)
+
+            // 3. Force Kill Process
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                android.os.Process.killProcess(android.os.Process.myPid())
+                System.exit(0)
+            }, 500)
+
+            finish()
+            return
+        }
+
         // [NEW] Wallpaper Mode for Virtual Displays
         // Used as a "Desktop Background" to hold focus when apps are minimized.
         if (intent.getBooleanExtra("WALLPAPER_MODE", false)) {
