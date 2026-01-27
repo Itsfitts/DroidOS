@@ -1486,8 +1486,9 @@ private fun buildKeyboard() {
                         // If in Touch Mode, start the "Hold to Drag" timer
                         // This allows hold-to-drag behavior from ANY key when active
                         if (isTrackpadTouchMode) {
-                            handler.postDelayed(holdToDragRunnable, 300) // Wait 300ms to detect Hold
-                            android.util.Log.d("SpaceTrackpad", "Touch Mode: Started hold-to-drag timer")
+                            // [FIX] Increased to 500ms to prevent accidental drags while typing fast
+                            handler.postDelayed(holdToDragRunnable, 500) 
+                            android.util.Log.d("SpaceTrackpad", "Touch Mode: Started hold-to-drag timer (500ms)")
                         }
 
                         // Visual feedback: Always keep SPACE green, even if touching other keys
@@ -1640,6 +1641,9 @@ private fun buildKeyboard() {
                     if (tag != null) {
                         // Commit the input
                         onKeyUp(tag, it)
+                        
+                        // [FIX] Force visual reset immediately to prevent stuck green state
+                        setKeyVisual(it, false, tag)
                     }
                 }
                 currentActiveKey = null
@@ -1647,7 +1651,10 @@ private fun buildKeyboard() {
             MotionEvent.ACTION_CANCEL -> {
                 currentActiveKey?.let {
                     val tag = it.tag as? String
-                    if (tag != null) setKeyVisual(it, false, tag)
+                    if (tag != null) {
+                        // [FIX] Ensure visual reset on cancel
+                        setKeyVisual(it, false, tag)
+                    }
                 }
                 currentActiveKey = null
             }

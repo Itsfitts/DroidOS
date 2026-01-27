@@ -16,13 +16,23 @@ def find_file(filename):
     return matches[0], None
 
 def sanitize_text(text):
-    """Converts non-breaking spaces (\xa0) to regular spaces and strips padding."""
-    # Replace non-breaking spaces with regular spaces
-    text = text.replace('\xa0', ' ')
-    # Remove the generic code block markers if accidentally captured
-    text = re.sub(r"^```\w*\n", "", text)
-    text = text.rstrip("`").strip()
-    return text
+    """Cleans up spaces, markdown fences, and UI artifacts."""
+    text = text.replace('\xa0', ' ') # Fix non-breaking spaces
+    text = re.sub(r"^```\w*\n", "", text) # Remove opening fence
+    text = text.rstrip("`").strip() # Remove closing fence
+    
+    garbage_lines = {
+        "code kotlin", "code java", "code python", 
+        "downloadcontent_copy", "expand_less", "expand_more"
+    }
+    
+    lines = text.split('\n')
+    clean_lines = []
+    for line in lines:
+        if line.strip().lower() in garbage_lines: continue
+        clean_lines.append(line)
+        
+    return "\n".join(clean_lines)
 
 def apply_changes(plan_file):
     if not os.path.exists(plan_file): 
@@ -31,11 +41,11 @@ def apply_changes(plan_file):
     
     with open(plan_file, 'r', encoding='utf-8') as f: content = f.read()
 
-    # REGEX: Finds multiple FILE_UPDATE blocks in a row
     pattern = re.compile(
-        r"FILE_UPDATE:\s*(.+?)\n.*?"                 
-        r"SEARCH_BLOCK:\s*```\w*\n(.*?)\n\s*```\s*"  
-        r"REPLACE_BLOCK:\s*```\w*\n(.*?)\n\s*```",   
+        r"FILE_UPDATE:\s*(.+?)\n"
+        r".*?REASON:\s*(.+?)\n"
+        r".*?SEARCH_BLOCK:\s*(.*?)\n\s*"
+        r"REPLACE_BLOCK:\s*(.*?)(?=\nFILE_UPDATE:|$)",
         re.DOTALL
     )
 
@@ -45,38 +55,64 @@ def apply_changes(plan_file):
         print("⚠️  No updates found. Check syntax.")
         return
 
-    print(f"🔎 Found {len(matches)} updates...")
+    print(f"🔎 Scanning {len(matches)} updates...\n")
+    
+    applied_updates = []
+    failed_updates = []
 
-    for raw_filename, search_block, replace_block in matches:
+    for raw_filename, reason, search_block, replace_block in matches:
         raw_filename = raw_filename.strip()
+        reason = reason.strip()
+        
         full_path, error = find_file(raw_filename)
         
         if error:
             print(error)
+            failed_updates.append((raw_filename, reason, "File not found"))
             continue
 
-        # SANITIZE: Fixes the copy-paste space issues
         search_block = sanitize_text(search_block)
         replace_block = sanitize_text(replace_block)
 
         with open(full_path, 'r', encoding='utf-8') as f: file_content = f.read()
 
-        # 1. Exact Match
+        # Try Exact Match
         if search_block in file_content:
             new_content = file_content.replace(search_block, replace_block)
             with open(full_path, 'w', encoding='utf-8') as f: f.write(new_content)
-            print(f"✅ Updated: {os.path.basename(full_path)}")
+            print(f"✅ Applied: {os.path.basename(full_path)}")
+            applied_updates.append((os.path.basename(full_path), reason))
         
-        # 2. Fuzzy Match (Ignore leading/trailing whitespace difference)
+        # Try Fuzzy Match
         elif search_block.strip() in file_content:
             new_content = file_content.replace(search_block.strip(), replace_block)
             with open(full_path, 'w', encoding='utf-8') as f: f.write(new_content)
-            print(f"✅ Updated (Fuzzy): {os.path.basename(full_path)}")
+            print(f"✅ Applied (Fuzzy): {os.path.basename(full_path)}")
+            applied_updates.append((os.path.basename(full_path), reason))
             
         else:
-            print(f"❌ Anchor Mismatch: {os.path.basename(full_path)}")
-            print(f"   -> Could not find the SEARCH_BLOCK.")
-            print(f"   -> Start of block looked like: '{search_block[:50]}...'")
+            print(f"❌ FAILED: {os.path.basename(full_path)}")
+            failed_updates.append((os.path.basename(full_path), reason, "Anchor text not found"))
+
+    # --- SUMMARY REPORT ---
+    print("\n" + "="*50)
+    print("📝 GIT COMMIT SUMMARY (Successful)")
+    print("="*50)
+    if applied_updates:
+        for fname, reason in applied_updates:
+            print(f"* {fname}: {reason}")
+    else:
+        print("(No changes applied)")
+
+    if failed_updates:
+        print("\n" + "!"*50)
+        print("⚠️  MISSED UPDATES (Action Required)")
+        print("!"*50)
+        for fname, reason, error in failed_updates:
+            print(f"❌ {fname}")
+            print(f"   Reason: {reason}")
+            print(f"   Error:  {error}")
+            print("-" * 30)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: print("Usage: python builder.py <plan.md>")
