@@ -471,9 +471,22 @@ private var isSoftKeyboardSupport = false
                 }
             } else if (action == "com.katsuyamaki.DroidOSLauncher.REQUEST_KEYBINDS") {
                 broadcastKeybindsToKeyboard()
+            } else if (action == "com.katsuyamaki.DroidOSLauncher.SET_MARGIN_BOTTOM") {
+                val percent = intent?.getIntExtra("PERCENT", 0) ?: 0
+                bottomMarginPercent = percent
+                AppPreferences.setBottomMarginPercent(this, currentDisplayId, percent)
+                setupVisualQueue() // Recalc HUD pos
+                if (isInstantMode) applyLayoutImmediate()
+                
+                // Update UI if in settings mode
+                if (currentMode == MODE_SETTINGS) {
+                     drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+                }
+                safeToast("Margin Updated: $percent%")
             }
         }
     }
+
 
     private fun broadcastKeybindsToKeyboard() {
         val binds = ArrayList<String>()
@@ -5017,6 +5030,12 @@ else -> AppHolder(View(parent.context)) } }
                             bottomMarginPercent = progress
                             AppPreferences.setBottomMarginPercent(holder.itemView.context, currentDisplayId, progress)
                             safeToast("Bottom Margin: $progress% (Display $currentDisplayId)")
+                            
+                            // Broadcast change to Dock/Trackpad
+                            val intent = Intent("com.katsuyamaki.DroidOSLauncher.MARGIN_CHANGED")
+                            intent.putExtra("PERCENT", progress)
+                            intent.setPackage("com.katsuyamaki.DroidOSTrackpadKeyboard") // Explicit target
+                            sendBroadcast(intent)
                         }
                         
                         // Recalculate visual queue pos

@@ -55,25 +55,6 @@ class DockInputMethodService : InputMethodService() {
         }
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        val filter = IntentFilter().apply {
-            addAction(BROADCAST_ACTION_TEXT)
-            addAction(BROADCAST_ACTION_KEY)
-            addAction(BROADCAST_ACTION_DELETE)
-        }
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(inputReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(inputReceiver, filter)
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        try { unregisterReceiver(inputReceiver) } catch (e: Exception) {}
-    }
-
     override fun onWindowShown() {
         super.onWindowShown()
         loadDockPrefs()
@@ -144,14 +125,55 @@ class DockInputMethodService : InputMethodService() {
     private var prefAutoShowOverlay = false
     private var prefDockMode = false
     private var prefAutoResize = false
-    private var prefResizeScale = 50 // Default 50 (1.0x). Range 0-100 (0.0x - 2.0x)
+    private var prefResizeScale = 0 // Default 0% (Range 0-50%)
+    private var prefSyncMargin = false
     
+    private val ACTION_MARGIN_CHANGED = "com.katsuyamaki.DroidOSLauncher.MARGIN_CHANGED"
+    private val ACTION_SET_MARGIN = "com.katsuyamaki.DroidOSLauncher.SET_MARGIN_BOTTOM"
+
+    private val marginReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_MARGIN_CHANGED && prefSyncMargin) {
+                val percent = intent.getIntExtra("PERCENT", 0)
+                if (prefResizeScale != percent) {
+                    prefResizeScale = percent
+                    saveDockPrefs()
+                    updateInputViewHeight()
+                }
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        val filter = IntentFilter().apply {
+            addAction(BROADCAST_ACTION_TEXT)
+            addAction(BROADCAST_ACTION_KEY)
+            addAction(BROADCAST_ACTION_DELETE)
+            addAction(ACTION_MARGIN_CHANGED)
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(inputReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(marginReceiver, IntentFilter(ACTION_MARGIN_CHANGED), Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(inputReceiver, filter)
+            registerReceiver(marginReceiver, IntentFilter(ACTION_MARGIN_CHANGED))
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(inputReceiver) } catch (e: Exception) {}
+        try { unregisterReceiver(marginReceiver) } catch (e: Exception) {}
+    }
+
     private fun loadDockPrefs() {
         val prefs = getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE)
         prefAutoShowOverlay = prefs.getBoolean("auto_show_overlay", false)
         prefDockMode = prefs.getBoolean("dock_mode", false)
         prefAutoResize = prefs.getBoolean("auto_resize", false)
-        prefResizeScale = prefs.getInt("auto_resize_scale", 50)
+        prefResizeScale = prefs.getInt("auto_resize_scale", 0)
+        prefSyncMargin = prefs.getBoolean("sync_margin", false)
     }
     
     private fun saveDockPrefs() {
@@ -160,9 +182,11 @@ class DockInputMethodService : InputMethodService() {
             .putBoolean("dock_mode", prefDockMode)
             .putBoolean("auto_resize", prefAutoResize)
             .putInt("auto_resize_scale", prefResizeScale)
+            .putBoolean("sync_margin", prefSyncMargin)
             .apply()
     }
     // =================================================================================
+
     // END BLOCK: DOCK POPUP STATE
     // =================================================================================
 
@@ -326,6 +350,7 @@ class DockInputMethodService : InputMethodService() {
         val dividerResize = popupView.findViewById<View>(R.id.divider_resize)
         val textSliderLabel = popupView.findViewById<android.widget.TextView>(R.id.text_resize_label)
         val seekResize = popupView.findViewById<android.widget.SeekBar>(R.id.seekbar_resize_height)
+        val checkSync = popupView.findViewById<android.widget.CheckBox>(R.id.checkbox_sync_margin)
 
         fun updateToggleVisuals() {
             // Option 1 & 2 - always enabled
@@ -365,23 +390,47 @@ class DockInputMethodService : InputMethodService() {
         }
         updateToggleVisuals()
         
+        // Setup Sync Checkbox
+        checkSync?.isChecked = prefSyncMargin
+        checkSync?.setOnCheckedChangeListener { _, isChecked ->
+            prefSyncMargin = isChecked
+            saveDockPrefs()
+            
+            // If turned ON, broadcast current value immediately to sync Launcher
+            if (isChecked) {
+                val intent = Intent(ACTION_SET_MARGIN)
+                intent.putExtra("PERCENT", prefResizeScale)
+                // Use a generic display ID or 0/1 depending on context, using -1 implies active?
+                // Launcher handles logic.
+                sendBroadcast(intent)
+            }
+        }
+
         // Setup Slider
         seekResize?.progress = prefResizeScale
-        textSliderLabel?.text = "Height Adjustment: ${prefResizeScale * 2}%"
+        textSliderLabel?.text = "Bottom Margin: $prefResizeScale%"
         
         seekResize?.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
                     prefResizeScale = progress
-                    textSliderLabel?.text = "Height Adjustment: ${progress * 2}%"
+                    textSliderLabel?.text = "Bottom Margin: $progress%"
                 }
             }
             override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
                 saveDockPrefs()
                 updateInputViewHeight()
+                
+                // Sync to Launcher if enabled
+                if (prefSyncMargin) {
+                    val intent = Intent(ACTION_SET_MARGIN)
+                    intent.putExtra("PERCENT", prefResizeScale)
+                    sendBroadcast(intent)
+                }
             }
         })
+
         
         // Option 1: Auto-show overlay
 
@@ -487,30 +536,25 @@ class DockInputMethodService : InputMethodService() {
     // =================================================================================
     // FUNCTION: updateInputViewHeight
     // SUMMARY: Adjusts the IME input view height based on Auto Resize setting.
-    //          When enabled, adds transparent space above the toolbar to push apps up.
-    //          Applies a user-configurable scale factor (0% to 200%) to the empty space.
+    //          When enabled, calculates height as [Toolbar Height] + [Spacer Height].
+    //          Spacer Height is calculated as a percentage of Screen Height (0-50%),
+    //          matching the DroidOS Launcher Bottom Margin logic.
     // =================================================================================
     private fun updateInputViewHeight() {
         if (dockView == null) return
         
         if (prefAutoResize && prefDockMode) {
-            // Get overlay keyboard height from shared prefs (set by OverlayService)
-            val prefs = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
-            val density = resources.displayMetrics.density
-            val defaultKbHeight = (275 * density).toInt()
-            val overlayKbHeight = prefs.getInt("keyboard_height_d1", defaultKbHeight)
+            val metrics = resources.displayMetrics
+            val screenHeight = metrics.heightPixels
+            val density = metrics.density
             val toolbarHeight = (40 * density).toInt()
             
-            // Calculate base transparent space (overlay height - toolbar height)
-            val baseSpacerHeight = (overlayKbHeight - toolbarHeight).coerceAtLeast(0)
+            // Calculate spacer based on percentage (0-50%)
+            val spacerHeight = (screenHeight * (prefResizeScale / 100f)).toInt()
             
-            // Apply scale factor from slider (50 = 1.0x, 0 = 0.0x, 100 = 2.0x)
-            val scaleFactor = prefResizeScale / 50.0f
-            val scaledSpacerHeight = (baseSpacerHeight * scaleFactor).toInt()
+            val totalHeight = toolbarHeight + spacerHeight
             
-            val totalHeight = toolbarHeight + scaledSpacerHeight
-            
-            android.util.Log.d(TAG, "updateInputViewHeight: ON. Scale=$scaleFactor, Spacer=$scaledSpacerHeight, Total=$totalHeight")
+            android.util.Log.d(TAG, "updateInputViewHeight: ON. %=$prefResizeScale, Spacer=$spacerHeight, Total=$totalHeight")
             
             // Set the wrapped view (Transparent Header + Dock Footer)
             setInputView(createInputViewWrapper(totalHeight))
@@ -526,6 +570,7 @@ class DockInputMethodService : InputMethodService() {
             setInputView(dockView)
         }
     }
+
     
     // =================================================================================
     // FUNCTION: createInputViewWrapper
