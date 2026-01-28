@@ -508,6 +508,25 @@ class DockInputMethodService : InputMethodService() {
         ic.sendKeyEvent(upEvent)
     }
 
+    // [FIX] Force the system to resize the app behind the keyboard
+    override fun onComputeInsets(outInsets: InputMethodService.Insets) {
+        super.onComputeInsets(outInsets)
+        if (isInputViewShown && dockView != null) {
+            // contentTopInsets = 0 relative to the input view tells the system that
+            // the entire height of our view (including transparent spacer) is non-overlappable.
+            // This forces the app to resize (adjustResize) to fit in the remaining space above.
+            outInsets.contentTopInsets = 0
+            outInsets.visibleTopInsets = 0
+            outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_CONTENT
+        }
+    }
+
+    // [FIX] Prevent full-screen extraction mode (landscape/small screen)
+    // We always want to behave as a docked bar.
+    override fun onEvaluateFullscreenMode(): Boolean {
+        return false
+    }
+
     // Ensure we keep the connection active
     override fun onEvaluateInputViewShown(): Boolean {
         return true
