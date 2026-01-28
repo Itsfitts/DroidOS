@@ -90,39 +90,43 @@ class DockInputMethodService : InputMethodService() {
         }
     }
 
+    // =================================================================================
+    // FUNCTION: setupDockListeners
+    // SUMMARY: Sets up click handlers for all dock buttons.
+    //          Uses SHORT action names because OverlayService registers for exact
+    //          matches like "TOGGLE_CUSTOM_KEYBOARD", not prefixed versions.
+    // =================================================================================
     private fun setupDockListeners(view: View) {
-        val btnKeyboard = view.findViewById<ImageView>(R.id.btn_dock_keyboard)
-        val btnVoice = view.findViewById<ImageView>(R.id.btn_dock_voice)
-        val btnPaste = view.findViewById<ImageView>(R.id.btn_dock_paste)
-        val btnSwitch = view.findViewById<ImageView>(R.id.btn_dock_switch)
-        val btnHide = view.findViewById<ImageView>(R.id.btn_dock_hide)
+        val btnKeyboard = view.findViewById<View>(R.id.btn_dock_keyboard)
+        val btnVoice = view.findViewById<View>(R.id.btn_dock_voice)
+        val btnPaste = view.findViewById<View>(R.id.btn_dock_paste)
+        val btnSwitch = view.findViewById<View>(R.id.btn_dock_switch)
+        val btnHide = view.findViewById<View>(R.id.btn_dock_hide)
 
         // 1. Open DroidOS Overlay Keyboard
-        btnKeyboard.setOnClickListener {
-            val intent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.TOGGLE_CUSTOM_KEYBOARD")
+        // FIX: Use SHORT action - OverlayService listens for "TOGGLE_CUSTOM_KEYBOARD" not prefixed
+        btnKeyboard?.setOnClickListener {
+            android.util.Log.d(TAG, "Dock KB pressed -> TOGGLE_CUSTOM_KEYBOARD")
+            val intent = Intent("TOGGLE_CUSTOM_KEYBOARD")
             intent.setPackage(packageName)
-            intent.putExtra("FORCE_SHOW", true) // Tell Overlay to show, not just toggle
+            intent.putExtra("FORCE_SHOW", true)
             intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
             sendBroadcast(intent)
-            
-            // Force Z-Order update
-            val zIntent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.ENFORCE_ZORDER")
-            zIntent.setPackage(packageName)
-            zIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-            sendBroadcast(zIntent)
         }
 
-        // 2. Voice Input (Trigger Overlay Service Logic)
-        btnVoice.setOnClickListener {
-            val intent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.REQUEST_VOICE_INPUT")
+        // 2. Voice Input
+        // FIX: Use SHORT action - OverlayService listens for "REQUEST_VOICE_INPUT"
+        btnVoice?.setOnClickListener {
+            android.util.Log.d(TAG, "Dock MIC pressed -> REQUEST_VOICE_INPUT")
+            val intent = Intent("REQUEST_VOICE_INPUT")
             intent.setPackage(packageName)
             intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
             sendBroadcast(intent)
         }
 
-
-        // 3. Paste from Clipboard
-        btnPaste.setOnClickListener {
+        // 3. Paste
+        btnPaste?.setOnClickListener {
+            android.util.Log.d(TAG, "Dock PST pressed -> pasting clipboard")
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             if (clipboard.hasPrimaryClip()) {
                 val item = clipboard.primaryClip?.getItemAt(0)
@@ -133,17 +137,22 @@ class DockInputMethodService : InputMethodService() {
             }
         }
 
-        // 4. Switch IME (Escape Hatch)
-        btnSwitch.setOnClickListener {
+        // 4. Switch IME
+        btnSwitch?.setOnClickListener {
+            android.util.Log.d(TAG, "Dock IME pressed -> showing picker")
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showInputMethodPicker()
         }
 
-        // 5. Minimize / Hide Dock
-        btnHide.setOnClickListener {
-            requestHideSelf(0) // Standard API to hide the keyboard window
+        // 5. Hide Dock
+        btnHide?.setOnClickListener {
+            android.util.Log.d(TAG, "Dock X pressed -> hiding")
+            requestHideSelf(0)
         }
     }
+    // =================================================================================
+    // END BLOCK: setupDockListeners
+    // =================================================================================
 
     // Helper: Send key with meta state
     private fun sendKeyEventWithMeta(ic: InputConnection, keyCode: Int, metaState: Int) {

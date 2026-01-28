@@ -2,75 +2,86 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/dock_container"
     android:layout_width="match_parent"
-    android:layout_height="32dp"
+    android:layout_height="40dp"
+    android:minHeight="40dp"
     android:orientation="horizontal"
     android:background="#1A1A1A"
     android:gravity="center_vertical"
     android:weightSum="5">
 
-    <!-- 1. DroidOS Keyboard Toggle -->
-    <ImageView
+    <!-- 1. Keyboard Toggle -->
+    <TextView
         android:id="@+id/btn_dock_keyboard"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:src="@drawable/ic_tab_keyboard"
-        android:padding="8dp"
+        android:text="KB"
+        android:gravity="center"
+        android:textColor="#3DDC84"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
         android:background="?android:attr/selectableItemBackground"
-        android:contentDescription="Open DroidOS Keyboard"
-        android:scaleType="fitCenter"
-        android:tint="#3DDC84"/>
+        android:contentDescription="Open DroidOS Keyboard"/>
 
     <!-- 2. Voice Input -->
-    <ImageView
+    <TextView
         android:id="@+id/btn_dock_voice"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:src="@android:drawable/ic_btn_speak_now"
-        android:padding="8dp"
+        android:text="MIC"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
         android:background="?android:attr/selectableItemBackground"
-        android:contentDescription="Voice Input"
-        android:scaleType="fitCenter"
-        android:tint="#FFFFFF"/>
+        android:contentDescription="Voice Input"/>
 
-    <!-- 3. Paste Clipboard -->
-    <ImageView
+    <!-- 3. Paste -->
+    <TextView
         android:id="@+id/btn_dock_paste"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:src="@android:drawable/ic_menu_edit"
-        android:padding="8dp"
+        android:text="PST"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
         android:background="?android:attr/selectableItemBackground"
-        android:contentDescription="Paste"
-        android:scaleType="fitCenter"
-        android:tint="#FFFFFF"/>
+        android:contentDescription="Paste"/>
 
     <!-- 4. Switch IME -->
-    <ImageView
+    <TextView
         android:id="@+id/btn_dock_switch"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:src="@android:drawable/ic_menu_sort_by_size"
-        android:padding="8dp"
+        android:text="IME"
+        android:gravity="center"
+        android:textColor="#AAAAAA"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
         android:background="?android:attr/selectableItemBackground"
-        android:contentDescription="Switch Keyboard"
-        android:scaleType="fitCenter"
-        android:tint="#AAAAAA"/>
+        android:contentDescription="Switch Keyboard"/>
 
-    <!-- 5. Hide Dock -->
-    <ImageView
+    <!-- 5. Hide -->
+    <TextView
         android:id="@+id/btn_dock_hide"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:padding="8dp"
+        android:text="X"
+        android:gravity="center"
+        android:textColor="#FF5555"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
         android:background="?android:attr/selectableItemBackground"
-        android:contentDescription="Hide Dock"
-        android:scaleType="fitCenter"
-        android:tint="#FF5555"/>
+        android:contentDescription="Hide Dock"/>
 
 </LinearLayout>

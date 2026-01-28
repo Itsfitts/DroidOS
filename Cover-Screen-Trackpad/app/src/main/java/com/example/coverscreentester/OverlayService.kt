@@ -1206,14 +1206,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 action == "FORCE_KEYBOARD" || action == "TOGGLE_CUSTOM_KEYBOARD" -> {
                     val forceShow = intent.getBooleanExtra("FORCE_SHOW", false)
                     if (forceShow) {
-                        // Ensure it's shown even if internal state thinks it is
+                        // FORCE RESET LOGIC:
+                        // 1. Initialize if null
                         if (keyboardOverlay == null) initCustomKeyboard()
-                        if (keyboardOverlay?.isShowing() != true) {
-                            keyboardOverlay?.show()
-                            isCustomKeyboardVisible = true
-                        }
-                        keyboardOverlay?.bringToFront()
+                        
+                        // 2. Hide first to ensure clean state (fixes "stuck invisible" issues)
+                        keyboardOverlay?.hide()
+                        
+                        // 3. Show
+                        keyboardOverlay?.show()
+                        isCustomKeyboardVisible = true
+                        
+                        // 4. Force Z-Order refresh
                         enforceZOrder()
+                        
+                        handler.post { Toast.makeText(context, "Keyboard Opened", Toast.LENGTH_SHORT).show() }
                     } else {
                         toggleCustomKeyboard()
                     }
