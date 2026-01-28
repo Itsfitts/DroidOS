@@ -479,9 +479,22 @@ private var isSoftKeyboardSupport = false
                 setupVisualQueue() // Recalc HUD pos
                 if (isInstantMode) applyLayoutImmediate()
                 
-                // Update UI if in settings mode
+                // Update UI if in settings mode - TARGETED UPDATE
                 if (currentMode == MODE_SETTINGS) {
-                     switchMode(MODE_SETTINGS)
+                    uiHandler.post {
+                        val adapter = drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter
+                        if (adapter != null) {
+                            for (i in displayList.indices) {
+                                val item = displayList[i]
+                                if (item is MarginOption && item.type == 1) { // 1 = Bottom Margin
+                                    // Replace immutable data object
+                                    displayList[i] = MarginOption(1, percent)
+                                    adapter.notifyItemChanged(i)
+                                    break
+                                }
+                            }
+                        }
+                    }
                 }
                 safeToast("Margin Updated: $percent%")
             }
@@ -1212,8 +1225,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             addAction("com.katsuyamaki.DroidOSLauncher.REQUEST_CUSTOM_MOD_SYNC")
             addAction("com.katsuyamaki.DroidOSLauncher.REQUEST_KEYBINDS") // [FIX] Added this
             addAction("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
+            addAction("com.katsuyamaki.DroidOSLauncher.SET_MARGIN_BOTTOM") // [FIX] Sync Margin
         }
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(commandReceiver, filter, Context.RECEIVER_EXPORTED) else registerReceiver(commandReceiver, filter)
+
 
         // Shizuku setup
         try { Shizuku.addBinderReceivedListener(shizukuBinderListener); Shizuku.addRequestPermissionResultListener(shizukuPermissionListener) } catch (e: Exception) {}
