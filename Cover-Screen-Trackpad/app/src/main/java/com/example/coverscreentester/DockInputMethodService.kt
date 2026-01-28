@@ -558,26 +558,41 @@ class DockInputMethodService : InputMethodService() {
     // FUNCTION: updateInputViewHeight
     // SUMMARY: Adjusts the IME input view height based on Auto Resize setting.
     //          Calculates TOTAL height as percentage of REAL screen height.
-    //          Spacer = Total - Toolbar. This ensures 20% here matches 20% in Launcher.
+    //          SUBTRACTS Navigation Bar height to prevent overlap with Launcher tiles.
+    //          (Launcher tiles end at [Screen - Margin]. IME starts at [Screen - Nav - IME_H].
+    //           If IME_H = Margin, then IME overlaps tiles by Nav height. 
+    //           So we need IME_H = Margin - Nav).
     // =================================================================================
     private fun updateInputViewHeight() {
         if (dockView == null) return
         
         if (prefAutoResize && prefDockMode) {
             val wm = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+            
+            // 1. Get Real Screen Height (Physical pixels)
             val metrics = android.util.DisplayMetrics()
             wm.defaultDisplay.getRealMetrics(metrics)
-            
             val screenHeight = metrics.heightPixels
             
-            // Calculate TOTAL height based on percentage (0-50%)
-            // This matches Launcher's logic where margin is total excluded space
-            val totalHeight = (screenHeight * (prefResizeScale / 100f)).toInt()
+            // 2. Get Navigation Bar Height (Insets)
+            val windowMetrics = wm.currentWindowMetrics
+            val insets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(
+                android.view.WindowInsets.Type.navigationBars() or 
+                android.view.WindowInsets.Type.displayCutout()
+            )
+            val navHeight = insets.bottom
             
-            android.util.Log.d(TAG, "updateInputViewHeight: ON. %=$prefResizeScale, Total=$totalHeight (Screen=$screenHeight)")
+            // 3. Calculate Margin Height (Desired clear space)
+            val marginHeight = (screenHeight * (prefResizeScale / 100f)).toInt()
+            
+            // 4. Calculate IME Window Height
+            // Subtract nav height because IME sits ON TOP of nav bar, while margin is from physical bottom
+            val correctedHeight = (marginHeight - navHeight).coerceAtLeast(0)
+            
+            android.util.Log.d(TAG, "updateInputViewHeight: ON. Margin=$marginHeight, Nav=$navHeight -> IME Height=$correctedHeight")
             
             // Set the wrapped view (Transparent Header + Dock Footer)
-            setInputView(createInputViewWrapper(totalHeight))
+            setInputView(createInputViewWrapper(correctedHeight))
         } else {
 
             // Reset to normal - just the toolbar
