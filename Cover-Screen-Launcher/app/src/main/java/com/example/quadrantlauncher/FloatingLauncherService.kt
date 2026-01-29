@@ -320,7 +320,8 @@ private var isSoftKeyboardSupport = false
     
     // [NEW] Persist tiling info for Watchdog recovery
     private val packageRectCache = java.util.concurrent.ConcurrentHashMap<String, Rect>()
-    
+    private val packageTaskIdCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
     // [NEW] Prevent concurrent watchdog threads for the same package
     private val activeEnforcements = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     
@@ -495,7 +496,7 @@ private var isSoftKeyboardSupport = false
                             imeMarginOverrideActive = visible
                             imeRetileCooldownUntil = now + 1500
                             setupVisualQueue()
-                            if (isInstantMode) applyLayoutImmediate()
+                            retileExistingWindows()
                         }
                     }
                 }
@@ -3203,6 +3204,34 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
     private fun applyLayoutImmediate(focusPackage: String? = null) { executeLaunch(selectedLayoutType, closeDrawer = false, focusPackage = focusPackage) }
 
+    private fun retileExistingWindows() {
+        if (!isBound || shellService == null) return
+        Thread {
+            try {
+                val rects = getLayoutRects()
+                val activeApps = selectedAppsQueue.filter { !it.isMinimized }
+                val packages = mutableListOf<String>()
+                val boundsList = mutableListOf<Int>()
+                for (i in 0 until minOf(activeApps.size, rects.size)) {
+                    val app = activeApps[i]
+                    if (app.packageName == PACKAGE_BLANK) continue
+                    val basePkg = app.getBasePackage()
+                    val bounds = rects[i]
+                    packageRectCache[basePkg] = bounds
+                    packages.add(basePkg)
+                    boundsList.addAll(listOf(bounds.left, bounds.top, bounds.right, bounds.bottom))
+                }
+                if (packages.isNotEmpty()) {
+                    shellService?.batchResize(packages, boundsList.toIntArray())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "retileExistingWindows failed", e)
+            }
+        }.start()
+    }
+
+
+
     // === RESTORE QUEUE IMMEDIATE - START ===
     // Loads the saved queue from preferences immediately without checking shell/running state.
     // Ensures Visual Queue is populated even if the Drawer hasn't been opened yet.
@@ -3780,7 +3809,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         val finalTid = shellService?.getTaskId(basePkg, cls) ?: -1
                         if (finalTid != -1) {
                             shellService?.runCommand("am task resize $finalTid ${bounds.left} ${bounds.top} ${bounds.right} ${bounds.bottom}")
+                            packageTaskIdCache[basePkg] = finalTid
                         }
+
+
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Tile[$i]: Reposition failed", e)

@@ -11,6 +11,9 @@ interface IShellService {
     List<String> getAllRunningPackages();
     int getTaskId(String packageName, String className);
     void moveTaskToBack(int taskId);
+    void batchResize(in List<String> packages, in int[] bounds);
+
+
 
     // Brightness Control
     void setSystemBrightness(int brightness);

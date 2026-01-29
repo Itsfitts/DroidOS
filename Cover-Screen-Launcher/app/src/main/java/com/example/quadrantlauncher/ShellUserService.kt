@@ -806,7 +806,42 @@ override fun getWindowLayouts(displayId: Int): List<String> {
     }
 
     // Interface compliance stubs
+    override fun batchResize(packages: List<String>, bounds: IntArray) {
+        val token = Binder.clearCallingIdentity()
+        try {
+            val p = Runtime.getRuntime().exec(arrayOf("sh", "-c", "am stack list"))
+            val lines = BufferedReader(InputStreamReader(p.inputStream)).readLines()
+            p.waitFor()
+            val taskIds = mutableMapOf<String, Int>()
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (!trimmed.contains("taskId=")) continue
+                val match = Regex("taskId=(\\d+):").find(trimmed) ?: continue
+                val tid = match.groupValues[1].toIntOrNull() ?: continue
+                if (tid <= 0) continue
+                for (pkg in packages) {
+                    if (trimmed.contains("$pkg/")) {
+                        taskIds[pkg] = tid
+                    }
+                }
+            }
+            for (i in packages.indices) {
+                val tid = taskIds[packages[i]] ?: continue
+                val off = i * 4
+                if (off + 3 >= bounds.size) break
+                val cmd = "am task resize $tid ${bounds[off]} ${bounds[off+1]} ${bounds[off+2]} ${bounds[off+3]}"
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd)).waitFor()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "batchResize failed", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+
     override fun setSystemBrightness(brightness: Int) { execShellCommand("settings put system screen_brightness $brightness") }
+
+
     override fun getSystemBrightness(): Int = 128
     override fun getSystemBrightnessFloat(): Float = 0.5f
     override fun setAutoBrightness(enabled: Boolean) { execShellCommand("settings put system screen_brightness_mode ${if (enabled) 1 else 0}") }
