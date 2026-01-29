@@ -1750,15 +1750,13 @@ private fun buildKeyboard() {
     //          Set to ~20dp to cover typical key gaps without triggering from far away.
     // =================================================================================
     private fun findNearestKey(targetX: Float, targetY: Float): View? {
-        // Maximum distance threshold in pixels (~20dp covers gaps but not wild misses)
-        val maxThresholdPx = dpToPx(20).toFloat()
-        
         var nearestKey: View? = null
         var nearestDistance = Float.MAX_VALUE
         
-        // Collect all key views and their bounds
+        // Collect all key views and find the closest by edge distance.
+        // No threshold cap — every touch resolves to a key (zero dead zones).
         collectKeysWithDistance(this, targetX, targetY, 0f, 0f) { keyView, distance ->
-            if (distance < nearestDistance && distance < maxThresholdPx) {
+            if (distance < nearestDistance) {
                 nearestDistance = distance
                 nearestKey = keyView
             }
@@ -1799,15 +1797,20 @@ private fun buildKeyboard() {
             val childAbsY = offsetY + child.y
             
             if (child.tag != null) {
-                // This is a key - calculate distance from touch to key center
-                val keyCenterX = childAbsX + child.width / 2f
-                val keyCenterY = childAbsY + child.height / 2f
+                // This is a key - calculate distance from touch to key EDGE (not center)
+                // Edge distance = 0 when touch is inside the key, and the actual gap
+                // distance when outside. This eliminates dead zones between keys.
+                val keyLeft = childAbsX
+                val keyRight = childAbsX + child.width
+                val keyTop = childAbsY
+                val keyBottom = childAbsY + child.height
                 
-                val dx = targetX - keyCenterX
-                val dy = targetY - keyCenterY
+                val dx = maxOf(0f, maxOf(keyLeft - targetX, targetX - keyRight))
+                val dy = maxOf(0f, maxOf(keyTop - targetY, targetY - keyBottom))
                 val distance = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
                 
                 onKeyFound(child, distance)
+
             } else if (child is ViewGroup) {
                 // Recurse into child container (rows, etc.)
                 collectKeysWithDistance(child, targetX, targetY, childAbsX, childAbsY, onKeyFound)
