@@ -586,8 +586,10 @@ class DockInputMethodService : InputMethodService() {
             val marginHeight = (screenHeight * (prefResizeScale / 100f)).toInt()
             
             // 4. Calculate IME Window Height
-            // Subtract nav height because IME sits ON TOP of nav bar, while margin is from physical bottom
-            val correctedHeight = (marginHeight - navHeight).coerceAtLeast(0)
+            // Subtract nav height because IME sits ON TOP of nav bar, while margin is from physical bottom.
+            // [FIX] Subtract extra 2px safety buffer to handle rounding errors and ensure
+            // the IME window stays strictly below the Launcher's tiling line.
+            val correctedHeight = (marginHeight - navHeight - 2).coerceAtLeast(0)
             
             android.util.Log.d(TAG, "updateInputViewHeight: ON. Margin=$marginHeight, Nav=$navHeight -> IME Height=$correctedHeight")
             

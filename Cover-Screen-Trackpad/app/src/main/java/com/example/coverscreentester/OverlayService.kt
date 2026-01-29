@@ -3089,7 +3089,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         savePrefs() 
     }
     
-    // =================================================================================
+// =================================================================================
     // FUNCTION: applyDockMode
     // SUMMARY: Snaps the overlay keyboard to the bottom of the screen, full width.
     //          Used when "Dock KB to Bottom" is enabled in Dock IME popup.
@@ -3108,17 +3108,16 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         // Get current keyboard height or use default
         val kbHeight = keyboardOverlay?.getViewHeight() ?: ((275f * (prefs.prefKeyScale / 100f) * density).toInt())
         
-        // Position at bottom, full width with small margin
-        val marginX = (screenWidth * 0.02f).toInt()
-        val targetW = screenWidth - (marginX * 2)
+        // Position at bottom, full width (100%)
+        val targetW = screenWidth
         val targetY = screenHeight - kbHeight
         
-        keyboardOverlay?.setWindowBounds(marginX, targetY, targetW, kbHeight)
+        keyboardOverlay?.setWindowBounds(0, targetY, targetW, kbHeight)
         
         // Save keyboard height for Dock IME auto-resize feature
         saveKeyboardHeightForDock(kbHeight)
         
-        android.util.Log.d(TAG, "applyDockMode: x=$marginX, y=$targetY, w=$targetW, h=$kbHeight")
+        android.util.Log.d(TAG, "applyDockMode: x=0, y=$targetY, w=$targetW, h=$kbHeight")
         showToast("Keyboard docked to bottom")
     }
     
