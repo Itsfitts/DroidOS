@@ -2379,8 +2379,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                     val vY = velocityTracker?.yVelocity ?: 0f
                     val totalVel = kotlin.math.hypot(vX.toDouble(), vY.toDouble())
 
-                    // [SAFETY] FLING RESET: Easier threshold (1500) + Full Recovery
-                    if (isDrag && totalVel > 1500) {
+                    // [SAFETY] FLING RESET: Harder threshold (4000) to prevent accidental flings
+                    if (isDrag && totalVel > 4000) {
+
                         showToast("Force Closing Trackpad...")
 
                         // 1. Force Screen ON & Unblock Keyboard

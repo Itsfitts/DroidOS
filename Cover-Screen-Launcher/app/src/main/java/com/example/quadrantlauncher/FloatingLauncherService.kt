@@ -1663,8 +1663,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         val vY = velocityTracker?.yVelocity ?: 0f
                         val totalVel = hypot(vX.toDouble(), vY.toDouble())
 
-                        // [SAFETY] FLING RESET: Easier threshold (1500) + Hard Kill
-                        if (isDrag && totalVel > 1500) {
+                        // [SAFETY] FLING RESET: Harder threshold (4000) to prevent accidental flings
+                        if (isDrag && totalVel > 4000) {
                             safeToast("Force Closing Launcher...")
 
                             // 1. Force Screen On
