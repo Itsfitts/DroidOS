@@ -346,17 +346,16 @@ class TrackpadMenuManager(
         })
         // --- END ANCHOR TOGGLE ---
         
-        // Toggle Trackpad (Using correct icon
-        // Toggle Trackpad
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Trackpad", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.ACTION) {
-            service.toggleTrackpad()
-            hide()
+        // Toggle Trackpad — controls whether bubble hides/shows trackpad
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Trackpad", R.drawable.ic_cursor, TrackpadMenuAdapter.Type.TOGGLE,
+            if(p.prefBubbleIncludeTrackpad) 1 else 0) { v ->
+            service.updatePref("bubble_include_trackpad", v)
         })
 
-
-        list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.ACTION) { 
-            if (service.isCustomKeyboardVisible) service.performSmartHide()
-            else service.toggleCustomKeyboard()
+        // Toggle Keyboard — controls whether bubble hides/shows keyboard
+        list.add(TrackpadMenuAdapter.MenuItem("Toggle Keyboard", R.drawable.ic_tab_keyboard, TrackpadMenuAdapter.Type.TOGGLE,
+            if(p.prefBubbleIncludeKeyboard) 1 else 0) { v ->
+            service.updatePref("bubble_include_keyboard", v)
         })
         list.add(TrackpadMenuAdapter.MenuItem("Reset Cursor", android.R.drawable.ic_menu_rotate, TrackpadMenuAdapter.Type.ACTION) { service.resetCursorCenter() })
         

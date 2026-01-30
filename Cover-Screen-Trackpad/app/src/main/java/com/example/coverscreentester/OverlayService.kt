@@ -342,8 +342,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         var prefBubbleIconIndex = 0     
         var prefBubbleAlpha = 255       
         var prefPersistentService = false 
+        var prefBubbleIncludeTrackpad = true
+        var prefBubbleIncludeKeyboard = true
 
         var prefBlockSoftKeyboard = false
+
 
         // =================================================================================
         // PREDICTION AGGRESSION (Precision vs Shape)
@@ -2535,13 +2538,14 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     }
     
     private fun handleBubbleTap() {
-        val anythingVisible = isTrackpadVisible || isCustomKeyboardVisible
+        val anythingVisible = (prefs.prefBubbleIncludeTrackpad && isTrackpadVisible) || (prefs.prefBubbleIncludeKeyboard && isCustomKeyboardVisible)
         if (anythingVisible) {
             performSmartHide()
         } else {
             performSmartRestore()
         }
     }
+
     
     private fun executeHardkeyAction(actionId: String, keyEventAction: Int = KeyEvent.ACTION_UP) {
         val isUp = (keyEventAction == KeyEvent.ACTION_UP)
@@ -3022,7 +3026,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
             "bubble_icon" -> cycleBubbleIcon()
             "bubble_alpha" -> updateBubbleAlpha(value as Int)
             "persistent_service" -> prefs.prefPersistentService = parseBoolean(value)
-            "block_soft_kb" -> { 
+            "bubble_include_trackpad" -> prefs.prefBubbleIncludeTrackpad = parseBoolean(value)
+            "bubble_include_keyboard" -> prefs.prefBubbleIncludeKeyboard = parseBoolean(value)
+            "block_soft_kb" -> {
+ 
                 prefs.prefBlockSoftKeyboard = parseBoolean(value)
                 // Only activate blocking if on cover screen (display 1)
                 if (currentDisplayId == 1) {
@@ -3186,7 +3193,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 prefs.prefBubbleIconIndex = p.getInt("bubble_icon_index", 0)
                 prefs.prefBubbleAlpha = p.getInt("bubble_alpha", 255)
                 prefs.prefPersistentService = p.getBoolean("persistent_service", false)
+                prefs.prefBubbleIncludeTrackpad = p.getBoolean("bubble_include_trackpad", true)
+                prefs.prefBubbleIncludeKeyboard = p.getBoolean("bubble_include_keyboard", true)
                 prefs.prefBlockSoftKeyboard = p.getBoolean("block_soft_kb", false)
+
                 
                 prefs.prefPredictionAggression = p.getFloat("prediction_aggression", 0.8f)
                 // Apply to Engine on startup
@@ -3323,7 +3333,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         e.putInt("bubble_alpha", prefs.prefBubbleAlpha)
         
         e.putBoolean("persistent_service", prefs.prefPersistentService)
+        e.putBoolean("bubble_include_trackpad", prefs.prefBubbleIncludeTrackpad)
+        e.putBoolean("bubble_include_keyboard", prefs.prefBubbleIncludeKeyboard)
         e.putBoolean("block_soft_kb", prefs.prefBlockSoftKeyboard)
+
         e.putFloat("prediction_aggression", prefs.prefPredictionAggression)
 
         // =================================================================================
@@ -3678,25 +3691,27 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         pendingRestoreKeyboard = isCustomKeyboardVisible
         hasPendingRestore = true
         
-        // Hide components (Automation logic inside toggleCustomKeyboard will handle screen off if enabled)
-        if (isCustomKeyboardVisible) toggleCustomKeyboard()
-        if (isTrackpadVisible) toggleTrackpad()
+        // Hide only bubble-included components
+        if (prefs.prefBubbleIncludeKeyboard && isCustomKeyboardVisible) toggleCustomKeyboard()
+        if (prefs.prefBubbleIncludeTrackpad && isTrackpadVisible) toggleTrackpad()
         
         handler.post { Toast.makeText(this, "Hidden (Tap Bubble to Restore)", Toast.LENGTH_SHORT).show() }
     }
 
+
     fun performSmartRestore() {
         if (!hasPendingRestore) {
             // Fallback: Just show Trackpad if no state saved
-            if (!isTrackpadVisible) toggleTrackpad()
+            if (prefs.prefBubbleIncludeTrackpad && !isTrackpadVisible) toggleTrackpad()
             return
         }
         
-        if (pendingRestoreTrackpad && !isTrackpadVisible) toggleTrackpad()
-        if (pendingRestoreKeyboard && !isCustomKeyboardVisible) toggleCustomKeyboard()
+        if (prefs.prefBubbleIncludeTrackpad && pendingRestoreTrackpad && !isTrackpadVisible) toggleTrackpad()
+        if (prefs.prefBubbleIncludeKeyboard && pendingRestoreKeyboard && !isCustomKeyboardVisible) toggleCustomKeyboard()
         
         hasPendingRestore = false
     }
+
 
     private fun moveWindow(event: MotionEvent): Boolean { if (prefs.prefAnchored) return true; if (event.action == MotionEvent.ACTION_MOVE) { trackpadParams.x += (event.rawX - lastTouchX).toInt(); trackpadParams.y += (event.rawY - lastTouchY).toInt(); windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }; lastTouchX = event.rawX; lastTouchY = event.rawY; return true }
     private fun resizeWindow(event: MotionEvent): Boolean { if (prefs.prefAnchored) return true; if (event.action == MotionEvent.ACTION_MOVE) { trackpadParams.width += (event.rawX - lastTouchX).toInt(); trackpadParams.height += (event.rawY - lastTouchY).toInt(); windowManager?.updateViewLayout(trackpadLayout, trackpadParams) }; lastTouchX = event.rawX; lastTouchY = event.rawY; return true }
