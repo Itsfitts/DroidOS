@@ -104,9 +104,13 @@ class KeyboardView @JvmOverloads constructor(
     private var vibrationEnabled = true
 
     private var isCtrlActive = false
+    private var isCtrlLocked = false
     private var isAltActive = false
+    private var isAltLocked = false
 
 private var isMetaActive = false // For Windows/Command key
+    private var isMetaLocked = false
+
 
 
     private var isVoiceActive = false
@@ -214,6 +218,8 @@ private var customModKeyCode = 0
     
     // Caps Lock Logic
     private var capsLockPending = false
+    private var lastShiftTapTime = 0L
+
     private val capsHandler = Handler(Looper.getMainLooper())
 
     private val repeatRunnable = object : Runnable {
@@ -1948,10 +1954,18 @@ private fun buildKeyboard() {
              handleKeyPress(key, fromRepeat = false)
         }
 
-        // SHIFT toggle handling
+        // SHIFT toggle handling — double-press for caps lock
         if (key == "SHIFT") {
             capsHandler.removeCallbacks(capsLockRunnable)
-            if (!capsLockPending) toggleShift()
+            if (!capsLockPending) {
+                val now = System.currentTimeMillis()
+                if (now - lastShiftTapTime < 400 && currentState == KeyboardState.UPPERCASE) {
+                    toggleCapsLock()
+                } else {
+                    toggleShift()
+                }
+                lastShiftTapTime = now
+            }
             capsLockPending = false
         }
     }
@@ -2034,10 +2048,13 @@ private fun buildKeyboard() {
     }
 
     private fun getKeyColor(key: String): Int {
+        if (key == "CTRL" && isCtrlLocked) return Color.parseColor("#4FC3F7")
         if (key == "CTRL" && isCtrlActive) return Color.parseColor("#3DDC84")
+        if (key == "ALT" && isAltLocked) return Color.parseColor("#4FC3F7")
         if (key == "ALT" && isAltActive) return Color.parseColor("#3DDC84")
-
+        if (key == "META" && isMetaLocked) return Color.parseColor("#4FC3F7")
 if (key == "META" && isMetaActive) return Color.parseColor("#3DDC84")
+
         
         // NEW: Voice Active Indicator
         // UPDATED: Voice Key Color
@@ -2200,12 +2217,13 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                             android.util.Log.d(TAG, "Broadcasting Remote Key: $key ($keyCode) (Latched: $isCustomModLatchedLocal)")
                         }
 
-                        // Reset ALL modifiers (One-shot)
-                        isCtrlActive = false
-                        isAltActive = false
-                        isMetaActive = false
+                        // Reset unlocked modifiers (One-shot). Locked modifiers stay active.
+                        if (!isCtrlLocked) isCtrlActive = false
+                        if (!isAltLocked) isAltActive = false
+                        if (!isMetaLocked) isMetaActive = false
                         isCustomModLatchedLocal = false
                         buildKeyboard()
+
 
                         // Only block system shortcut if:
                         // 1. Override is enabled
@@ -2223,10 +2241,26 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
             // 5. INTERNAL KEY LOGIC (Toggles)
             // ... (Keep existing switch(key) logic) ...
             when (key) {
-                "CTRL" -> { if (!fromRepeat) { isCtrlActive = !isCtrlActive; buildKeyboard() } }
-                "ALT" -> { if (!fromRepeat) { isAltActive = !isAltActive; buildKeyboard() } }
+                "CTRL" -> { if (!fromRepeat) {
+                    if (isCtrlActive && !isCtrlLocked) { isCtrlLocked = true }
+                    else if (isCtrlLocked) { isCtrlActive = false; isCtrlLocked = false }
+                    else { isCtrlActive = true }
+                    buildKeyboard()
+                } }
+                "ALT" -> { if (!fromRepeat) {
+                    if (isAltActive && !isAltLocked) { isAltLocked = true }
+                    else if (isAltLocked) { isAltActive = false; isAltLocked = false }
+                    else { isAltActive = true }
+                    buildKeyboard()
+                } }
                 
-                "META" -> { if (!fromRepeat) { isMetaActive = !isMetaActive; buildKeyboard() } }            "SHIFT" -> { /* Handled in onKeyUp/Down */ }
+                "META" -> { if (!fromRepeat) {
+                    if (isMetaActive && !isMetaLocked) { isMetaLocked = true }
+                    else if (isMetaLocked) { isMetaActive = false; isMetaLocked = false }
+                    else { isMetaActive = true }
+                    buildKeyboard()
+                } }            "SHIFT" -> { /* Handled in onKeyUp/Down */ }
+
                 
                 "BKSP" -> listener?.onSpecialKey(SpecialKey.BACKSPACE, meta)
                 "ENTER" -> { if (!fromRepeat) listener?.onSpecialKey(SpecialKey.ENTER, meta) }
@@ -2299,7 +2333,8 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
     
             if (!fromRepeat && key != "CTRL" && key != "ALT" && key != "SHIFT" && key != "META") {
                 if (isCtrlActive || isAltActive || isMetaActive) {
-                    isCtrlActive = false; isAltActive = false; isMetaActive = false; buildKeyboard()
+                    isCtrlActive = false; isCtrlLocked = false; isAltActive = false; isAltLocked = false; isMetaActive = false; isMetaLocked = false; buildKeyboard()
+
                 }
             }
         }

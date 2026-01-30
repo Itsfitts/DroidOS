@@ -3703,12 +3703,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     fun performSmartRestore() {
         if (!hasPendingRestore) {
             // Fallback: Just show Trackpad if no state saved
-            if (prefs.prefBubbleIncludeTrackpad && !isTrackpadVisible) toggleTrackpad()
+            if (!isTrackpadVisible) toggleTrackpad()
             return
         }
         
-        if (prefs.prefBubbleIncludeTrackpad && pendingRestoreTrackpad && !isTrackpadVisible) toggleTrackpad()
-        if (prefs.prefBubbleIncludeKeyboard && pendingRestoreKeyboard && !isCustomKeyboardVisible) toggleCustomKeyboard()
+        if (pendingRestoreTrackpad && !isTrackpadVisible) toggleTrackpad()
+        if (pendingRestoreKeyboard && !isCustomKeyboardVisible) toggleCustomKeyboard()
         
         hasPendingRestore = false
     }

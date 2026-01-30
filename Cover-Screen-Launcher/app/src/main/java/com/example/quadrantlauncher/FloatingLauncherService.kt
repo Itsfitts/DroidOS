@@ -352,6 +352,9 @@ private var isSoftKeyboardSupport = false
     
     // [FIX] Map to track manual minimize toggles to prevent auto-refresh overwriting them
     private val manualStateOverrides = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    // [FULLSCREEN] Track when tiled apps are auto-minimized for a full-screen app
+    private var tiledAppsAutoMinimized = false
+
     private val TAB_ORDER = listOf(
         MODE_SEARCH, 
         MODE_LAYOUTS, 
@@ -1223,10 +1226,88 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         }
                         activePackageName = detectedPkg
 
+                        // [FULLSCREEN] Auto-minimize/restore tiled apps
+                        // Only react to actual app window changes, not system overlays
+                        val isSystemOverlay = detectedPkg.contains("systemui") ||
+                            detectedPkg.contains("launcher") ||
+                            detectedPkg.contains("cocktail") ||
+                            detectedPkg.contains("edge") ||
+                            detectedPkg.contains("samsung.android.app.routines") ||
+                            detectedPkg.contains("android.providers") ||
+                            detectedPkg.contains("permissioncontroller")
+                        val isTiledApp = selectedAppsQueue.any { it.getBasePackage() == detectedPkg || it.packageName == detectedPkg }
+                        if (!isSystemOverlay && !isTiledApp && selectedAppsQueue.any { !it.isMinimized } && !tiledAppsAutoMinimized &&
+                            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                            // Full-screen app opened — minimize all tiled windows
+                            tiledAppsAutoMinimized = true
+
+                            Thread {
+                                try {
+                                    for (app in selectedAppsQueue) {
+                                        if (!app.isMinimized) {
+                                            val tid = shellService?.getTaskId(app.getBasePackage(), null) ?: -1
+                                            if (tid != -1) shellService?.moveTaskToBack(tid)
+                                        }
+                                    }
+                                } catch (e: Exception) { Log.e(TAG, "Auto-minimize failed", e) }
+                            }.start()
+                            Log.d(TAG, "FULLSCREEN: Auto-minimized tiled apps for $detectedPkg")
+                        } else if (isTiledApp && tiledAppsAutoMinimized) {
+                            // Returning to a tiled app — restore all
+                            tiledAppsAutoMinimized = false
+                            retileExistingWindows()
+                            Log.d(TAG, "FULLSCREEN: Auto-restored tiled apps for $detectedPkg")
+                        }
+
                         // Update UI to show underline for new focus
                         uiHandler.post { updateAllUIs() }
                     }
                 }
+            }
+
+            // [FULLSCREEN] Detect tiled app maximized via native window toolbar
+            // When TYPE_WINDOWS_CHANGED fires, check if any tiled app now covers ~full screen
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED && 
+                selectedAppsQueue.size > 1 && selectedAppsQueue.any { !it.isMinimized } && !tiledAppsAutoMinimized) {
+                try {
+                    val dm = android.util.DisplayMetrics()
+                    windowManager.defaultDisplay.getRealMetrics(dm)
+                    val screenArea = dm.widthPixels.toLong() * dm.heightPixels.toLong()
+                    val boundsRect = android.graphics.Rect()
+                    
+                    for (window in windows) {
+                        if (window.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                        val node = window.root ?: continue
+                        val windowPkg = node.packageName?.toString()
+                        node.recycle()
+                        if (windowPkg == null) continue
+                        
+                        val isTiled = selectedAppsQueue.any { it.getBasePackage() == windowPkg || it.packageName == windowPkg }
+                        if (!isTiled) continue
+                        
+                        window.getBoundsInScreen(boundsRect)
+                        val windowArea = boundsRect.width().toLong() * boundsRect.height().toLong()
+                        if (windowArea >= screenArea * 85 / 100) {
+                            // This tiled app has been maximized — minimize all others
+                            Log.d(TAG, "FULLSCREEN: Tiled app $windowPkg maximized (${boundsRect.width()}x${boundsRect.height()} vs ${dm.widthPixels}x${dm.heightPixels})")
+                            tiledAppsAutoMinimized = true
+                            val maximizedPkg = windowPkg
+                            Thread {
+                                try {
+                                    for (app in selectedAppsQueue) {
+                                        val basePkg = app.getBasePackage()
+                                        if (basePkg == maximizedPkg || app.packageName == maximizedPkg) continue
+                                        if (!app.isMinimized) {
+                                            val tid = shellService?.getTaskId(basePkg, null) ?: -1
+                                            if (tid != -1) shellService?.moveTaskToBack(tid)
+                                        }
+                                    }
+                                } catch (e: Exception) { Log.e(TAG, "Auto-minimize others failed", e) }
+                            }.start()
+                            break
+                        }
+                    }
+                } catch (e: Exception) { /* ignore bounds check errors */ }
             }
         } catch (e: Exception) {
             // Fallback: Event-based detection if windows API fails

@@ -805,7 +805,32 @@ override fun getWindowLayouts(displayId: Int): List<String> {
         return true
     }
 
+    override fun isTaskFreeform(packageName: String): Boolean {
+        val token = Binder.clearCallingIdentity()
+        try {
+            val p = Runtime.getRuntime().exec(arrayOf("sh", "-c", "am stack list"))
+            val lines = BufferedReader(InputStreamReader(p.inputStream)).readLines()
+            p.waitFor()
+            var currentStackFreeform = false
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (trimmed.startsWith("Stack #") || trimmed.startsWith("RootTask #")) {
+                    currentStackFreeform = trimmed.contains("type=freeform") || trimmed.contains("windowing-mode=freeform") || trimmed.contains("windowingMode=5")
+                }
+                if (trimmed.contains("taskId=") && trimmed.contains("$packageName/")) {
+                    if (currentStackFreeform) return true
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "isTaskFreeform failed", e)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+        return false
+    }
+
     override fun batchResize(packages: List<String>, bounds: IntArray) {
+
         val token = Binder.clearCallingIdentity()
         try {
             val p = Runtime.getRuntime().exec(arrayOf("sh", "-c", "am stack list"))
