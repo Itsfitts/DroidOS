@@ -61,8 +61,8 @@ def copy_to_clipboard(text):
         print(f"⚠️  Clipboard copy failed: {e}")
 
 def get_project_prefix(path):
-    if "Cover-Screen-Launcher" in path: return "Launcher: "
-    if "Cover-Screen-Trackpad" in path: return "Trackpad: "
+    if "DroidOSLauncher" in path: return "Launcher: "
+    if "DroidOSKeyboardTrackpad" in path: return "Trackpad: "
     return ""
 
 def process_plan(plan_file):
@@ -166,16 +166,16 @@ def process_plan(plan_file):
         # --- AUTO-BUILD & INSTALL ENGINE ---
         
         # Detect Changes
-        launcher_changed = any("Cover-Screen-Launcher" in item[0] for item in actions_log)
-        trackpad_changed = any("Cover-Screen-Trackpad" in item[0] for item in actions_log)
+        launcher_changed = any("DroidOSLauncher" in item[0] for item in actions_log)
+        trackpad_changed = any("DroidOSKeyboardTrackpad" in item[0] for item in actions_log)
 
         if launcher_changed or trackpad_changed:
             target_str = "BOTH" if (launcher_changed and trackpad_changed) else ("Launcher" if launcher_changed else "Trackpad")
             user_input = input(f"\nBuild and install {target_str} APK(s)? (Y/n): ").strip().lower()
             
             if user_input in ["", "y", "yes"]:
-                launcher_dir = os.path.join(PROJECT_ROOT, "Cover-Screen-Launcher")
-                trackpad_dir = os.path.join(PROJECT_ROOT, "Cover-Screen-Trackpad")
+                launcher_dir = os.path.join(PROJECT_ROOT, "DroidOSLauncher")
+                trackpad_dir = os.path.join(PROJECT_ROOT, "DroidOSKeyboardTrackpad")
                 apk_rel_path = "app/build/outputs/apk/debug/app-debug.apk"
 
                 # PHASE 1: BUILD (Fail fast if error)

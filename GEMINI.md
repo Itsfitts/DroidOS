@@ -46,6 +46,6 @@ You must output your actions using these specific tags. This allows the CLI to e
   ⎿ 2054: private fun handleKeyPress(key: String, fromRepeat: Boolean = false) {
 
 build and install with:
-cd ~/projects/DroidOS/Cover-Screen-Launcher && ./gradlew clean assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk
-CleanBuildLauncher='cd ~/projects/DroidOS/Cover-Screen-Trackpad && ./gradlew clean assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk
+cd ~/projects/DroidOS/DroidOSLauncher && ./gradlew clean assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk
+CleanBuildLauncher='cd ~/projects/DroidOS/DroidOSKeyboardTrackpad && ./gradlew clean assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk
 

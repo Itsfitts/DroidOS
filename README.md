@@ -67,7 +67,7 @@ You can download the latest APKs for both modules from the Releases page.
 We welcome contributions! 
 
 Please note that this is a Monorepo.
- * If you are fixing a bug in the Launcher, make your Pull Request against the Cover-Screen-Launcher directory.
+ * If you are fixing a bug in the Launcher, make your Pull Request against the DroidOSLauncher directory.
  * If you are improving the Trackpad, work within the Cover-Screen-Trackpad directory.
 
 <br>
@@ -167,8 +167,8 @@ This repository is a Monorepo containing two distinct but complementary Android 
 > 
 | Project | Description | Path |
 |---|---|---|
-| DroidOS Launcher | An advanced tiling window manager and app launcher. Bypasses cover screen restrictions and manages multi-window layouts. | /Cover-Screen-Launcher |
-| DroidOS Trackpad Keyboard | A virtual mouse trackpad and custom keyboard overlay. Turns your phone into a precision input device for external displays. | /Cover-Screen-Trackpad |
+| DroidOS Launcher | An advanced tiling window manager and app launcher. Bypasses cover screen restrictions and manages multi-window layouts. | /DroidOSLauncher |
+| DroidOS Trackpad Keyboard | A virtual mouse trackpad and custom keyboard overlay. Turns your phone into a precision input device for external displays. | /DroidOSKeyboardTrackpad |
 
 
 📄 License

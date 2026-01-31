@@ -21,7 +21,7 @@ dependencyResolutionManagement {
         maven { url = uri("https://maven.rikka.dev/versioned") }
     }
 }
-rootProject.name = "CoverScreenLauncher"
+rootProject.name = "DroidOSLauncher"
 include(":app")
 
 // DELETE ALL LINES BELOW THIS ONE

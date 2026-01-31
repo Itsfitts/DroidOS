@@ -2,14 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(./gradlew compileDebugKotlin:*)",
-      "Bash(SHELL=/bin/bash /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Trackpad/gradlew:*)",
-      "Bash(SHELL=/bin/bash /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher/gradlew:*)",
+      "Bash(SHELL=/bin/bash /data/data/com.termux/files/home/projects/DroidOS/DroidOSKeyboardTrackpad/gradlew:*)",
+      "Bash(SHELL=/bin/bash /data/data/com.termux/files/home/projects/DroidOS/DroidOSLauncher/gradlew:*)",
       "Bash(grep:*)",
       "Bash(./gradlew assembleDebug:*)",
       "Bash(adb install:*)",
-      "Bash(bash -c \"cd /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher && SHELL=/bin/bash ./gradlew assembleDebug\")",
-      "Bash(bash -c \"cd /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Launcher && git status\")",
-      "Bash(bash -c \"cd /data/data/com.termux/files/home/projects/DroidOS/Cover-Screen-Trackpad && SHELL=/bin/bash ./gradlew assembleDebug\")",
+      "Bash(bash -c \"cd /data/data/com.termux/files/home/projects/DroidOS/DroidOSLauncher && SHELL=/bin/bash ./gradlew assembleDebug\")",
+      "Bash(bash -c \"cd /data/data/com.termux/files/home/projects/DroidOS/DroidOSLauncher && git status\")",
+      "Bash(bash -c \"cd /data/data/com.termux/files/home/projects/DroidOS/DroidOSKeyboardTrackpad && SHELL=/bin/bash ./gradlew assembleDebug\")",
       "Bash(rg:*)",
       "Bash(find:*)"
     ]

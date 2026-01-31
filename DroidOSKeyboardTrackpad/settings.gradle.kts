@@ -21,5 +21,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CoverScreenTrackpad"
+rootProject.name = "DroidOSKeyboardTrackpad"
 include(":app")
