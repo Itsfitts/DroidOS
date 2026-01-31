@@ -129,7 +129,9 @@ override fun onCreate(savedInstanceState: Bundle?) {
 
         // Click Listeners
         containerRestricted.setOnClickListener { openAppInfo() }
-        containerAccessibility.setOnClickListener { openAccessibilitySettings() }
+        containerAccessibility.setOnClickListener { showAccessibilityDisclosure() }
+
+
 
         containerShizuku.setOnClickListener {
             if (!isShizukuReady()) {
@@ -368,7 +370,21 @@ override fun onCreate(savedInstanceState: Bundle?) {
     // =================================================================================
     // HELPER FUNCTIONS: Open Settings Pages
     // =================================================================================
+    private fun showAccessibilityDisclosure() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Accessibility Service Disclosure")
+            .setMessage("DroidOS Trackpad uses the AccessibilityService API to inject touch gestures (clicks and swipes) onto the screen and to monitor window focus for the 'Mouse Cursor' overlay.\n\n" +
+                        "This allows you to control remote displays and apps using your phone as a trackpad. No personal data, keystrokes, or screen content is stored or transmitted.")
+            .setPositiveButton("Agree") { _, _ ->
+                openAccessibilitySettings()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun openAccessibilitySettings() {
+
+
         try {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         } catch (e: Exception) {

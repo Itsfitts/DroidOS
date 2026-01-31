@@ -120,17 +120,19 @@ class PermissionActivity : Activity(), Shizuku.OnRequestPermissionResultListener
     private fun showAccessibilityDisclosure() {
         AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
             .setTitle("Accessibility Service Required")
-            .setMessage("This app uses the Accessibility Service API to display floating windows and perform global actions (like Home/Back) on top of other apps.\n\n" +
-                        "No data is collected, stored, or shared. This permission is strictly used for the launcher functionality.")
-            .setPositiveButton("Agree & Grant") { _, _ ->
+            .setMessage("DroidOS Launcher uses the AccessibilityService API to detect the currently active app package and perform global actions (like Home/Back) for window management.\n\n" +
+                        "This data is processed locally to enable the 'Window Tiling' and 'Taskbar' features. DroidOS does not collect, store, or transmit any personal user data or keystrokes through this service.")
+            .setPositiveButton("Agree & Go to Settings") { _, _ ->
                 val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 startActivity(intent)
-                Toast.makeText(this, "Find 'Quadrant Launcher' and enable it", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Find 'DroidOS Launcher' and enable it", Toast.LENGTH_LONG).show()
             }
-            .setNegativeButton("Not Now", null)
+            .setNegativeButton("No Thanks", null)
             .show()
     }
+
+
 
     override fun onResume() {
         super.onResume()

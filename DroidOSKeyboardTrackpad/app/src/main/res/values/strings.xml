@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">DroidOS Trackpad</string>
-    <string name="accessibility_service_description">DroidOS Input Service</string>
+    <string name="accessibility_service_description">Enables DroidOS to perform window management and inject mouse cursor inputs. Required for Desktop Mode functionality.</string>
+
 </resources>
