@@ -1210,7 +1210,7 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
 
                 // --- BOOSTS (Original) ---
                 val rank = template.rank
-                val freqBonus = 1.0f / (1.0f + 0.15f * ln((rank + 1).toFloat()))
+                val freqBonus = 1.0f / (1.0f + 0.3f * ln((rank + 1).toFloat()))
                 
                 // CHANGED: Reset user history boost to neutral (1.0f). 
                 // This stops user-added words (like "texting") from overriding better geometric matches (like "testing").
@@ -1528,9 +1528,12 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 // END DWELL & CONTEXT
                 // =======================================================================
 
-                // LENGTH MISMATCH PENALTY: Penalize words longer than the path suggests.
-                val expectedLen = pathKeys.size.coerceAtLeast(2)
-                val lengthPenalty = (word.length - expectedLen).coerceAtLeast(0) * 0.4f
+                // LENGTH MISMATCH PENALTY: Use turn count + 2 (start/end) as estimated
+                // intended word length. Turns are intentional direction changes; transit
+                // keys (like 'e' between 'h' and 'a') inflate pathKeys but not turns.
+                val turnBasedLen = (inputTurns.size + 2).coerceAtLeast(2)
+                val expectedLen = minOf(pathKeys.size, turnBasedLen).coerceAtLeast(2)
+                val lengthPenalty = (word.length - expectedLen).coerceAtLeast(0) * 0.5f
 
                 val integrationScore = (shapeScore * SHAPE_WEIGHT) +
                                        (locScore * LOCATION_WEIGHT) +
@@ -1540,7 +1543,7 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                                        lengthPenalty
                 
                 val rank = template.rank
-                val freqBonus = 1.0f / (1.0f + 0.15f * ln((rank + 1).toFloat()))
+                val freqBonus = 1.0f / (1.0f + 0.3f * ln((rank + 1).toFloat()))
                 
                 var userBoost = 1.0f
                 
@@ -1576,6 +1579,10 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 // Apply dwell boost - words matching user's lingered keys score better
                 userBoost *= dwellBoost
 
+                // CAP: Prevent wild boost swings (0.28 to 2.35 observed) that make
+                // the winner random when geometry is near-identical (what vs wheat).
+                userBoost = userBoost.coerceIn(0.5f, 2.0f)
+
                 var finalScore = (integrationScore * (1.0f - 0.5f * freqBonus)) / userBoost
 
                 // APPLY PENALTY
@@ -1588,9 +1595,54 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
             }
         
         // =======================================================================
+        // COMMON WORD PROMOTION: If a top-200 word appears anywhere in the top 5
+        // candidates and the current winner is much rarer (rank 10x+ worse),
+        // promote the common word to #1. This handles noisy pathKeyScore giving
+        // "wheat" (rank 5953) a big geometry advantage over "what" (rank 56)
+        // despite identical swipe paths.
+        // =======================================================================
+        val allSorted = scored.sortedBy { it.second }.distinctBy { it.first }
+        
+        // COMMON WORD RESCUE: Find the most common word (by rank) in ALL scored
+        // candidates, not just top 5. If it's top-200 and the winner is 10x rarer,
+        // inject it into the results.
+        val topFive = allSorted.take(5).toMutableList()
+        val winner = topFive.firstOrNull()
+        val winnerRank = if (winner != null) getWordRank(winner.first) else 0
+        
+        // Search full list for ultra-common words not already in top 5,
+        // but only if they're similar length to the winner (within 1 letter)
+        val winnerLen = winner?.first?.length ?: 0
+        val commonRescue = allSorted.firstOrNull { candidate ->
+            val r = getWordRank(candidate.first)
+            val lenOk = kotlin.math.abs(candidate.first.length - winnerLen) <= 1
+            r < 200 && lenOk && !topFive.any { it.first == candidate.first }
+        }
+        if (commonRescue != null) {
+            topFive.add(commonRescue)
+        }
+        
+        // Now promote: if a top-200 word exists and winner is much rarer, swap
+        val tiebroken = if (topFive.size >= 2) {
+            val top = topFive.first()
+            val topRank2 = getWordRank(top.first)
+            val commonCandidate = topFive.minByOrNull { getWordRank(it.first) }
+            val commonRank = if (commonCandidate != null) getWordRank(commonCandidate.first) else Int.MAX_VALUE
+            
+            val lenDiff = kotlin.math.abs(commonCandidate?.first?.length?.minus(top.first.length) ?: 99)
+            if (commonCandidate != null && commonRank < 200 && topRank2 > commonRank * 10 && commonCandidate.first != top.first && lenDiff <= 1) {
+                android.util.Log.d("DroidOS_Tiebreak", "PROMOTE: '${commonCandidate.first}'(rank=$commonRank) over '${top.first}'(rank=$topRank2) lenDiff=$lenDiff")
+                val mutable = topFive.toMutableList()
+                mutable.remove(commonCandidate)
+                mutable.add(0, commonCandidate)
+                mutable
+            } else topFive
+        } else topFive
+
+        // =======================================================================
         // POST-PROCESS: Apply display forms and apostrophe variants
         // =======================================================================
-        val results = scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
+        val results = tiebroken.take(3).map { it.first }
         
         return results.map { word ->
             val apostropheVariant = findApostropheVariant(word)
@@ -2960,8 +3012,9 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 val pathKeyScore = calculatePathKeyScore(pathKeys, word) // Added Path Key Score
 
                 // LENGTH MISMATCH PENALTY (same as Precise algorithm)
-                val expectedLen = pathKeys.size.coerceAtLeast(2)
-                val lengthPenalty = (word.length - expectedLen).coerceAtLeast(0) * 0.4f
+                val turnBasedLen = (inputTurns.size + 2).coerceAtLeast(2)
+                val expectedLen = minOf(pathKeys.size, turnBasedLen).coerceAtLeast(2)
+                val lengthPenalty = (word.length - expectedLen).coerceAtLeast(0) * 0.5f
 
                 // Integration
                 val geometryScore = (shapeScore * SHAPE_CONTEXT_SHAPE_WEIGHT) +
@@ -2994,7 +3047,7 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 
                 // Frequency
                 val rank = template.rank
-                val freqBonus = 1.0f / (1.0f + 0.15f * ln((rank + 1).toFloat()))
+                val freqBonus = 1.0f / (1.0f + 0.3f * ln((rank + 1).toFloat()))
                 
                 var userBoost = 1.0f
                 synchronized(userFrequencyMap) {
@@ -3129,16 +3182,31 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         var finalWinner = if (usePrecise) preciseResults else shapeResults
         var finalLoser = if (usePrecise) shapeResults else preciseResults
         
-        // Override: If Shape would win but Precise has a shorter/equal, more common word
-        if (!usePrecise && preciseTop != null && shapeTop != null) {
-            val preciseWord = preciseTop.word.lowercase(Locale.ROOT)
+        // Override: When Shape wins, check if Precise found a significantly more
+        // common word ANYWHERE in its results (not just #1). If so, promote it.
+        // This handles "what" vs "wheat" where Precise sometimes ranks "wheat" #1
+        // but always has "what" in its top 3.
+        if (!usePrecise && shapeTop != null && preciseResults.isNotEmpty()) {
             val shapeWord = shapeTop.word.lowercase(Locale.ROOT)
-            if (preciseWord != shapeWord) {
-                val preciseRank = getWordRank(preciseWord)
-                val shapeRank = getWordRank(shapeWord)
-                // Precise wins if its word is shorter/equal AND more common (lower rank)
-                if (preciseWord.length <= shapeWord.length && preciseRank < shapeRank) {
-                    android.util.Log.d("DroidOS_Dual", "OVERRIDE: Precise '${preciseWord}'(rank=$preciseRank, len=${preciseWord.length}) beats Shape '${shapeWord}'(rank=$shapeRank, len=${shapeWord.length})")
+            val shapeRank = getWordRank(shapeWord)
+            
+            // Find a more common word in Precise's results, but only within 1 letter of Shape's length
+            val betterPrecise = preciseResults.firstOrNull { pr ->
+                val pw = pr.word.lowercase(Locale.ROOT)
+                pw != shapeWord && pw.length >= shapeWord.length - 1 && pw.length <= shapeWord.length && getWordRank(pw) < shapeRank / 5
+            }
+            
+            if (betterPrecise != null) {
+                val bw = betterPrecise.word.lowercase(Locale.ROOT)
+                android.util.Log.d("DroidOS_Dual", "OVERRIDE: Precise '${bw}'(rank=${getWordRank(bw)}) promotes over Shape '${shapeWord}'(rank=$shapeRank)")
+                // Rebuild Precise results with the better word first
+                val reordered = mutableListOf(betterPrecise)
+                reordered.addAll(preciseResults.filter { it.word.lowercase(Locale.ROOT) != bw })
+                finalWinner = reordered
+                finalLoser = shapeResults
+            } else if (preciseTop != null) {
+                val preciseWord = preciseTop.word.lowercase(Locale.ROOT)
+                if (preciseWord != shapeWord && preciseWord.length <= shapeWord.length) {
                     finalWinner = preciseResults
                     finalLoser = shapeResults
                 }
