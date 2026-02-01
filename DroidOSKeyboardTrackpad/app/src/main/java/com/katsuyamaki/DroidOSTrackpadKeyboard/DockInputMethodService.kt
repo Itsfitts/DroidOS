@@ -32,6 +32,14 @@ class DockInputMethodService : InputMethodService() {
 
     private var dockView: View? = null
 
+    private var launcherTiledActive = false
+
+    private val tiledStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            launcherTiledActive = intent?.getBooleanExtra("TILED_ACTIVE", false) ?: false
+        }
+    }
+
     // Receiver to handle text injection from the Overlay Trackpad
     private val inputReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -188,12 +196,15 @@ class DockInputMethodService : InputMethodService() {
             addAction(BROADCAST_ACTION_DELETE)
             addAction(ACTION_MARGIN_CHANGED)
         }
+        val tiledFilter = IntentFilter("com.katsuyamaki.DroidOSTrackpadKeyboard.TILED_STATE")
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(inputReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             registerReceiver(marginReceiver, IntentFilter(ACTION_MARGIN_CHANGED), Context.RECEIVER_EXPORTED)
+            registerReceiver(tiledStateReceiver, tiledFilter, Context.RECEIVER_EXPORTED)
         } else {
             registerReceiver(inputReceiver, filter)
             registerReceiver(marginReceiver, IntentFilter(ACTION_MARGIN_CHANGED))
+            registerReceiver(tiledStateReceiver, tiledFilter)
         }
     }
 
@@ -201,6 +212,7 @@ class DockInputMethodService : InputMethodService() {
         super.onDestroy()
         try { unregisterReceiver(inputReceiver) } catch (e: Exception) {}
         try { unregisterReceiver(marginReceiver) } catch (e: Exception) {}
+        try { unregisterReceiver(tiledStateReceiver) } catch (e: Exception) {}
     }
 
 
@@ -753,21 +765,18 @@ class DockInputMethodService : InputMethodService() {
         ic.sendKeyEvent(upEvent)
     }
 
-    // [FIX] Force the system to resize the app behind the keyboard
+    // Suppress insets for tiled apps (Launcher handles resize), report normally for fullscreen
     override fun onComputeInsets(outInsets: InputMethodService.Insets) {
         super.onComputeInsets(outInsets)
         if (isInputViewShown && dockView != null) {
-            if (prefAutoResize && prefDockMode) {
-                // When auto-resize is active the Launcher retiles windows with its own
-                // bottom-margin logic.  We must NOT also report content insets or the
-                // system's adjustResize will shrink apps a second time (double-apply).
-                // Use TOUCHABLE_INSETS_FRAME so the full IME window stays interactive.
+            if (prefAutoResize && prefDockMode && launcherTiledActive) {
+                // Tiled: Launcher handles resize, suppress insets to avoid double-resize
                 val viewH = window?.window?.decorView?.height ?: 0
                 outInsets.contentTopInsets = viewH
                 outInsets.visibleTopInsets = viewH
                 outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_FRAME
             } else {
-                // Normal mode – let the system resize apps above the IME.
+                // Fullscreen or no auto-resize: let system resize app above IME
                 outInsets.contentTopInsets = 0
                 outInsets.visibleTopInsets = 0
                 outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_CONTENT

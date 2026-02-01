@@ -1254,6 +1254,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             detectedPkg.contains("android.providers") ||
                             detectedPkg.contains("permissioncontroller")
                         val isTiledApp = selectedAppsQueue.any { it.getBasePackage() == detectedPkg || it.packageName == detectedPkg }
+                        // Notify IME whether the focused app is tiled (suppress insets) or fullscreen (normal insets)
+                        if (!isSystemOverlay) {
+                            sendBroadcast(Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.TILED_STATE").setPackage("com.katsuyamaki.DroidOSTrackpadKeyboard").putExtra("TILED_ACTIVE", isTiledApp))
+                        }
                         if (!isSystemOverlay && !isTiledApp && selectedAppsQueue.any { !it.isMinimized } && !tiledAppsAutoMinimized &&
                             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                             // Full-screen app opened — minimize all tiled windows
