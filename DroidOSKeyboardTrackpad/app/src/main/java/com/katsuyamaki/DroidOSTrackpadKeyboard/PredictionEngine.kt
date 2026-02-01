@@ -1487,8 +1487,8 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 val tLen = getPathLength(template.rawPoints)
                 val ratio = tLen / inputLength
                 
-                val maxRatio = if (inputLength < 150f) 1.5f else 5.0f
-                if (ratio > maxRatio || ratio < 0.4f) return@mapNotNull null
+                val maxRatio = if (inputLength < 150f) 3.0f else 5.0f
+                if (ratio > maxRatio || ratio < 0.3f) return@mapNotNull null
 
                 // FIX: Check ALL cached properties, not just sampledPoints
                 // Old cache entries may have sampledPoints but not directionVectors
@@ -1538,7 +1538,7 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 // LENGTH MISMATCH PENALTY
                 val turnBasedLen = (inputTurns.size + 2).coerceAtLeast(2)
                 val expectedLen = minOf(pathKeys.size, turnBasedLen).coerceAtLeast(2)
-                val lengthPenalty = (word.length - expectedLen).coerceAtLeast(0) * 0.5f
+                val lengthPenalty = abs(word.length - expectedLen) * 0.5f
 
                 // SHORT WORD SCORING: For words ≤5 letters, use pathKey-dominant
                 // formula. Short swipes lack geometry for shape/turn to be reliable.
@@ -1554,52 +1554,38 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                     (locScore * LOCATION_WEIGHT) +
                     (dirScore * DIRECTION_WEIGHT) +
                     (turnScore * TURN_WEIGHT) +
-                    (pathKeyScore * 0.8f) +
+                    (pathKeyScore * 1.2f) +
                     lengthPenalty
                 }
                 
                 val rank = template.rank
                 val freqBonus = 1.0f / (1.0f + 0.3f * ln((rank + 1).toFloat()))
                 
+                // SIMPLIFIED BOOST: Mirror the preview's simple formula.
+                // Context/grammar boosts caused "popup" to beat "pretty" and "you"
+                // to beat "good". Keep only geometric match boosts.
                 var userBoost = 1.0f
                 
+                if (startKey != null && word.startsWith(startKey, ignoreCase = true)) userBoost *= 1.2f
+                if (endKey != null && word.endsWith(endKey, ignoreCase = true)) userBoost *= 1.2f
+
+                // Apostrophe variant boost (keep — this is user intent signal)
+                val wordWithApostrophe = findApostropheVariant(word)
+                if (wordWithApostrophe != null) {
+                    userBoost *= 1.3f
+                }
+
+                // Dwell boost only for double-letter detection (to/too, god/good)
                 val hasEndDouble = word.length >= 3 && 
                     word.last().lowercaseChar() == word[word.length - 2].lowercaseChar()
-                
                 if (hasEndDouble && isDwellingAtEnd) {
                     userBoost *= (1.10f + dwellScore * 0.15f)
                 }
-                
-                if (startKey != null && word.startsWith(startKey, ignoreCase = true)) userBoost *= 1.15f
-                if (endKey != null && word.endsWith(endKey, ignoreCase = true)) userBoost *= 1.15f
-                if (word.length >= 6) userBoost *= 1.15f
 
-                // =======================================================================
-                // APOSTROPHE VARIANT BOOST
-                // If user has a custom word with apostrophe (don't) and we're matching
-                // the base form (dont), boost the apostrophe version significantly.
-                // This makes swiping "dont" return "don't" if learned.
-                // =======================================================================
-                val wordWithApostrophe = findApostropheVariant(word)
-                if (wordWithApostrophe != null) {
-                    userBoost *= 1.5f  // Strong boost for apostrophe variants
-                    android.util.Log.d("DroidOS_Apostrophe", "Boosting '$word' -> '$wordWithApostrophe'")
-                }
-                // =======================================================================
-                // END BLOCK: APOSTROPHE VARIANT BOOST
-                // =======================================================================
+                // NO context/grammar/general dwell/length boosts — they overwhelm geometry
+                userBoost = userBoost.coerceIn(0.8f, 1.5f)
 
-                // Apply Context Boost
-                userBoost *= totalContextBoost
-
-                // Apply dwell boost - words matching user's lingered keys score better
-                userBoost *= dwellBoost
-
-                // CAP: Prevent wild boost swings (0.28 to 2.35 observed) that make
-                // the winner random when geometry is near-identical (what vs wheat).
-                userBoost = userBoost.coerceIn(0.5f, 2.0f)
-
-                var finalScore = (integrationScore * (1.0f - 0.5f * freqBonus)) / userBoost
+                var finalScore = (integrationScore * (1.0f - 0.15f * freqBonus)) / userBoost
 
                 // APPLY PENALTY
                 val penaltyEnd = temporaryPenalties[word] ?: 0L
@@ -1625,17 +1611,17 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         // =======================================================================
         val previewAge = System.currentTimeMillis() - lastPreviewTimestamp
         if (lastPreviewWords.isNotEmpty() && previewAge < 500L) {
-            val fullDecodeTop5 = scored.sortedBy { it.second }.take(5).map { it.first.lowercase() }
+            val fullDecodeTop2 = scored.sortedBy { it.second }.take(2).map { it.first.lowercase() }
             val previewTop = lastPreviewWords.firstOrNull()?.lowercase() ?: ""
-            if (previewTop in fullDecodeTop5) {
-                android.util.Log.d("DroidOS_Preview", "VALIDATED PREVIEW: $lastPreviewWords (top '$previewTop' found in full decode top-5: $fullDecodeTop5)")
+            if (previewTop in fullDecodeTop2) {
+                android.util.Log.d("DroidOS_Preview", "VALIDATED PREVIEW: $lastPreviewWords (top '$previewTop' found in full decode top-2: $fullDecodeTop2)")
                 return lastPreviewWords.map { word ->
                     val apostropheVariant = findApostropheVariant(word)
                     val base = apostropheVariant ?: word
                     getDisplayForm(base)
                 }
             } else {
-                android.util.Log.d("DroidOS_Preview", "REJECTED PREVIEW: '$previewTop' NOT in full decode top-5: $fullDecodeTop5 — using full decode")
+                android.util.Log.d("DroidOS_Preview", "REJECTED PREVIEW: '$previewTop' NOT in full decode top-2: $fullDecodeTop2")
             }
         }
 
