@@ -544,7 +544,7 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                         }
                         current.isEndOfWord = true
                         current.word = word
-                        current.rank = 0 // High priority
+                        current.rank = 50 // Moderate priority — compete on geometry, not just frequency
 
                         if (word.length >= 2) {
                             val firstChar = word.first()
@@ -2983,14 +2983,16 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 synchronized(userFrequencyMap) {
                     val userCount = userFrequencyMap[word] ?: 0
                     if (userCount > 0) {
-                        userBoost *= (1.0f + 0.1f * min(userCount, 10))
+                        userBoost *= (1.0f + 0.05f * min(userCount, 10))
                     }
                 }
+                // Cap usage boost before applying context so it can't dominate geometry
+                userBoost = userBoost.coerceAtMost(1.5f)
                 userBoost *= totalContextBoost
                 
                                 // FINAL CALCULATION
-                                // FREQUENCY WEIGHT INCREASED (0.4 -> 0.7) to help "run" beat "rub"
-                                var finalScore = (geometryScore + penalty) * (1.0f - 0.7f * freqBonus) / userBoost
+                                // FREQUENCY WEIGHT BALANCED (0.7 -> 0.45) so geometry can disambiguate custom words
+                                var finalScore = (geometryScore + penalty) * (1.0f - 0.45f * freqBonus) / userBoost
                                 
                                 // APPLY PENALTY
                                 val penaltyEnd = temporaryPenalties[word] ?: 0L
