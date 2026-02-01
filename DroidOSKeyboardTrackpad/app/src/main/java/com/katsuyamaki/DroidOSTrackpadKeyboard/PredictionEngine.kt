@@ -198,6 +198,10 @@ class PredictionEngine {
         android.util.Log.d("DroidOS_Prediction", "PENALIZED: '$clean' (Score x10 for 60s)")
     }
     private var lastSwipePath: List<TimedPoint>? = null // Cache last path to learn from
+    
+    // Cache last preview result — preview is more accurate than full decode for short words
+    @Volatile private var lastPreviewWords: List<String> = emptyList()
+    @Volatile private var lastPreviewTimestamp: Long = 0L
 
 
 
@@ -1528,19 +1532,27 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 // END DWELL & CONTEXT
                 // =======================================================================
 
-                // LENGTH MISMATCH PENALTY: Use turn count + 2 (start/end) as estimated
-                // intended word length. Turns are intentional direction changes; transit
-                // keys (like 'e' between 'h' and 'a') inflate pathKeys but not turns.
+                // LENGTH MISMATCH PENALTY
                 val turnBasedLen = (inputTurns.size + 2).coerceAtLeast(2)
                 val expectedLen = minOf(pathKeys.size, turnBasedLen).coerceAtLeast(2)
                 val lengthPenalty = (word.length - expectedLen).coerceAtLeast(0) * 0.5f
 
-                val integrationScore = (shapeScore * SHAPE_WEIGHT) +
-                                       (locScore * LOCATION_WEIGHT) +
-                                       (dirScore * DIRECTION_WEIGHT) +
-                                       (turnScore * TURN_WEIGHT) +
-                                       (pathKeyScore * 0.8f) +
-                                       lengthPenalty
+                // SHORT WORD SCORING: For words ≤5 letters, use preview-style
+                // pathKey-dominant formula. Short swipes lack geometry for shape/turn
+                // to be reliable — they just add noise.
+                val integrationScore = if (word.length <= 5) {
+                    (locScore * 0.4f) +
+                    (dirScore * 0.2f) +
+                    (pathKeyScore * 0.6f) +
+                    lengthPenalty
+                } else {
+                    (shapeScore * SHAPE_WEIGHT) +
+                    (locScore * LOCATION_WEIGHT) +
+                    (dirScore * DIRECTION_WEIGHT) +
+                    (turnScore * TURN_WEIGHT) +
+                    (pathKeyScore * 0.8f) +
+                    lengthPenalty
+                }
                 
                 val rank = template.rank
                 val freqBonus = 1.0f / (1.0f + 0.3f * ln((rank + 1).toFloat()))
@@ -1601,6 +1613,22 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         // "wheat" (rank 5953) a big geometry advantage over "what" (rank 56)
         // despite identical swipe paths.
         // =======================================================================
+        // =======================================================================
+        // PREVIEW PRIORITY: If a recent preview exists (within 500ms), use it
+        // directly. The preview is consistently more accurate because it uses a
+        // simpler formula without the noisy boost layers, and operates on the
+        // mid-swipe path before finger-release drift corrupts the endpoint.
+        // =======================================================================
+        val previewAge = System.currentTimeMillis() - lastPreviewTimestamp
+        if (lastPreviewWords.isNotEmpty() && previewAge < 500L) {
+            android.util.Log.d("DroidOS_Preview", "USING CACHED PREVIEW: $lastPreviewWords (age=${previewAge}ms)")
+            return lastPreviewWords.map { word ->
+                val apostropheVariant = findApostropheVariant(word)
+                val base = apostropheVariant ?: word
+                getDisplayForm(base)
+            }
+        }
+
         val allSorted = scored.sortedBy { it.second }.distinctBy { it.first }
         
         // COMMON WORD RESCUE: Find the most common word (by rank) in ALL scored
@@ -1882,12 +1910,17 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         // =======================================================================
         val results = scored.sortedBy { it.second }.distinctBy { it.first }.take(3).map { it.first }
         
-        return results.map { word ->
+        val finalResults = results.map { word ->
             val withApostrophe = findApostropheVariant(word)
             val baseWord = withApostrophe ?: word
-            // Apply display form for custom words (preserves DroidOS, iPhone, etc.)
             getDisplayForm(baseWord)
         }
+        
+        // Cache preview result for use by final decode
+        lastPreviewWords = finalResults
+        lastPreviewTimestamp = System.currentTimeMillis()
+        
+        return finalResults
         // =======================================================================
         // END BLOCK: Display form application
         // =======================================================================
@@ -3179,39 +3212,11 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         val preciseTop = preciseResults.firstOrNull()
         val shapeTop = shapeResults.firstOrNull()
         
-        var finalWinner = if (usePrecise) preciseResults else shapeResults
-        var finalLoser = if (usePrecise) shapeResults else preciseResults
-        
-        // Override: When Shape wins, check if Precise found a significantly more
-        // common word ANYWHERE in its results (not just #1). If so, promote it.
-        // This handles "what" vs "wheat" where Precise sometimes ranks "wheat" #1
-        // but always has "what" in its top 3.
-        if (!usePrecise && shapeTop != null && preciseResults.isNotEmpty()) {
-            val shapeWord = shapeTop.word.lowercase(Locale.ROOT)
-            val shapeRank = getWordRank(shapeWord)
-            
-            // Find a more common word in Precise's results, but only within 1 letter of Shape's length
-            val betterPrecise = preciseResults.firstOrNull { pr ->
-                val pw = pr.word.lowercase(Locale.ROOT)
-                pw != shapeWord && pw.length >= shapeWord.length - 1 && pw.length <= shapeWord.length && getWordRank(pw) < shapeRank / 5
-            }
-            
-            if (betterPrecise != null) {
-                val bw = betterPrecise.word.lowercase(Locale.ROOT)
-                android.util.Log.d("DroidOS_Dual", "OVERRIDE: Precise '${bw}'(rank=${getWordRank(bw)}) promotes over Shape '${shapeWord}'(rank=$shapeRank)")
-                // Rebuild Precise results with the better word first
-                val reordered = mutableListOf(betterPrecise)
-                reordered.addAll(preciseResults.filter { it.word.lowercase(Locale.ROOT) != bw })
-                finalWinner = reordered
-                finalLoser = shapeResults
-            } else if (preciseTop != null) {
-                val preciseWord = preciseTop.word.lowercase(Locale.ROOT)
-                if (preciseWord != shapeWord && preciseWord.length <= shapeWord.length) {
-                    finalWinner = preciseResults
-                    finalLoser = shapeResults
-                }
-            }
-        }
+        // ALWAYS use Precise as primary for slot #1. Precise's path-key-heavy
+        // scoring consistently matches mid-swipe preview (which users trust).
+        // Shape results fill remaining slots as alternatives.
+        var finalWinner = preciseResults
+        var finalLoser = shapeResults
 
         val merged = mutableListOf<SwipeResult>()
         val maxLen = maxOf(finalWinner.size, finalLoser.size)
