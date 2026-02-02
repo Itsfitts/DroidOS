@@ -26,3 +26,5 @@ CLAUDE.md
 # --- Other ---
 DroidOSDownloads.csv
 droid_stats.py
+wrapper.sh
+debug_cron.log
