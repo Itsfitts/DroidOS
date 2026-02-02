@@ -1229,7 +1229,15 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 
                 // EXACT KEY MATCH BONUS
                 if (startKey != null && word.startsWith(startKey, ignoreCase = true)) userBoost *= 1.15f
-                if (endKey != null && word.endsWith(endKey, ignoreCase = true)) userBoost *= 1.15f
+                if (endKey != null && word.endsWith(endKey, ignoreCase = true)) {
+                    userBoost *= 1.3f
+                } else if (endKey != null) {
+                    val endChar = endKey.first().lowercaseChar()
+                    val wordEnd = word.last().lowercaseChar()
+                    if (!areKeysAdjacent(endChar, wordEnd)) {
+                        userBoost *= 0.7f
+                    }
+                }
                 
                 // LONG WORD BONUS
                 if (word.length >= 6) userBoost *= 1.15f
@@ -1572,7 +1580,15 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
                 }
                 
                 if (startKey != null && word.startsWith(startKey, ignoreCase = true)) userBoost *= 1.15f
-                if (endKey != null && word.endsWith(endKey, ignoreCase = true)) userBoost *= 1.15f
+                if (endKey != null && word.endsWith(endKey, ignoreCase = true)) {
+                    userBoost *= 1.3f
+                } else if (endKey != null) {
+                    val endChar = endKey.first().lowercaseChar()
+                    val wordEnd = word.last().lowercaseChar()
+                    if (!areKeysAdjacent(endChar, wordEnd)) {
+                        userBoost *= 0.7f
+                    }
+                }
                 if (word.length >= 6) userBoost *= 1.15f
 
                 // =======================================================================
@@ -1626,7 +1642,7 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         // =======================================================================
         val previewAge = System.currentTimeMillis() - lastPreviewTimestamp
         val pathCoverage = if (inputLength > 0f) lastPreviewPathLength / inputLength else 0f
-        if (lastPreviewWords.isNotEmpty() && previewAge < 500L && pathCoverage >= 0.65f) {
+        if (lastPreviewWords.isNotEmpty() && previewAge < 500L && pathCoverage >= 0.90f && inputLength > 200f) {
             android.util.Log.d("DroidOS_Preview", "USING PREVIEW (coverage=${String.format("%.0f", pathCoverage * 100)}%): $lastPreviewWords")
             return lastPreviewWords.map { word ->
                 val apostropheVariant = findApostropheVariant(word)
