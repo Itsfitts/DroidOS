@@ -25,11 +25,18 @@ Unlike proprietary solutions locked to specific brands, DroidOS provides a deskt
 🕶️ AR Glasses & Virtual Screens
 Optimized for users of XREAL, Rokid, Viture, and other AR glasses:
  * "Headless" Mode: Turn off your phone's physical screen to save battery and reduce heat while the system continues running on the glasses.
- * Blind Navigation: The Trackpad module allows you to control the AR interface without looking at your phone.
+ * Blind Navigation: The Keyboard/Trackpad module allows you to control the AR interface without looking at your phone.
+ * Keyboard Navigation: Use your keyboard and set custom keybinds to to open, move, hide, kill, any app, plus more.
 📱 Foldable & Cover Screen Enhancements
 Unleash the full power of your Galaxy Z Flip, Fold, or other foldable devices:
- * Unrestricted Launching: Launch any app on the cover screen, bypassing system "Good Lock" allowlists.
+ * Unrestricted Launching: Launch any app on a flip phone covercreen (tested with Samsung Flip 7), bypassing system "Good Lock" allowlists.
  * Orientation Control: Force landscape or portrait orientations on screens that don't natively support them.
+
+<br>
+<br>
+
+---
+
 🛠️ How It Works
 DroidOS utilizes Shizuku to access elevated system APIs without requiring root access. This allows it to:
  * Inject raw input events (Mouse/Keyboard) directly into the system input stream.
@@ -52,7 +59,7 @@ You can download the latest APKs for both modules from the Releases page.
  * Install DroidOS Launcher to manage your apps and windows.
  * Install DroidOS Trackpad Keyboard to control the cursor.
  * Grant Shizuku permissions when prompted in each app.
- * I reccomend this fork of shizuku https://github.com/thedjchi/Shizuku once you set it up. It has a watchdog feature to autorestart whenever it gets turned off. Once you turn it on, even if you lose wireless adb you can still turn shizuku back on without it. Also has an auto start on boot feature. Does not require root.
+ * I recommend this fork of shizuku https://github.com/thedjchi/Shizuku once you set it up. It has a watchdog feature to autorestart whenever it gets turned off. Once you turn it on, even if you lose wireless adb you can still turn shizuku back on without it. Also has an auto start on boot feature. Does not require root.
  * Grant accessibility permissions to the trackpad when prompted.
 
  * DroidOS Launcher can be exited by swiping the bubble icon away.
@@ -116,12 +123,12 @@ You can ensure an app lands in a specific tile by dragging it to the correspondi
 
 🕶️ DroidOS Virtual Display Setup
 
-This guide outlines the steps to activate and control a virtual, tiled desktop environment when using AR glasses (such as XREAL) connected to your Android device. This process relies on having Shizuku running with permissions granted to both the CoverScreen Launcher and CoverScreen Trackpad applications.
+This guide outlines the steps to activate and control a virtual, tiled desktop environment when using AR glasses (such as XREAL) connected to your Android device. This process relies on having Shizuku running with permissions granted to both the DroidOS Launcher and DroidOS Keyboard Trackpad applications.
 
 Part 1: Create and Switch to Virtual Display (Launcher App)
 The goal of this phase is to create a new virtual screen and move the Launcher's target focus from your physical phone screen to that new screen.
  * Set Initial Resolution (Optional but Recommended):
-   * Open the CoverScreen Launcher floating bubble.
+   * Open the DroidOS Launcher floating bubble.
    * Navigate to the Resolution Mode (Icon: Rectangle with dots) tab.
    * Select "Default (Reset)".
    * Note: The developer often sets a custom resolution (like 1080p) here to ensure the display from the glasses (e.g., Beam Pro) is usable, as the physical screen itself may be too tiny for the mirrored content.
@@ -135,13 +142,13 @@ The goal of this phase is to create a new virtual screen and move the Launcher's
 Part 2: Gaining Cursor Control (Trackpad App)
 Now that the system is outputting to the glasses, you must redirect your phone's touch input to control the cursor on the remote screen.
  * Launch Trackpad App:
-   * Open the CoverScreen Trackpad application on your physical phone screen.
+   * Open the DroidOS Keyboard Trackpad application on your physical phone screen.
    * Note: The trackpad functions as an overlay on your physical phone screen, allowing you to use your phone's surface to control the larger remote display.
  * Redirect Input:
    * Press the "Target: Switch Local/Remote" button.
    * Result: You should now see a cursor moving on the glasses display corresponding to your touch input on the phone.
  * Activate Headless/Extinguish Mode (Optional):
-   * Return to the CoverScreen Launcher (Settings Tab).
+   * Return to the DroidOS Launcher (Settings Tab).
    * Toggle "Display Off (Touch on)" to turn off the physical screen entirely.
 🖱️ Trackpad Overlay Controls
 The Trackpad overlay provides dedicated controls accessible through its corners and edges:

@@ -22,5 +22,7 @@ GEMINI.md
 restore.py.md
 planhistory.md
 CLAUDE.md
-DroidOS/lib64
+
+# --- Other ---
 DroidOSDownloads.csv
+droid_stats.py
