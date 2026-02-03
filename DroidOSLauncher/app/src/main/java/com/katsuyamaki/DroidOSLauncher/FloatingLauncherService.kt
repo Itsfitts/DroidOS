@@ -500,9 +500,12 @@ private var isSoftKeyboardSupport = false
             } else if (action == "com.katsuyamaki.DroidOSLauncher.IME_VISIBILITY") {
                 if (autoAdjustMarginForIME) {
                     val visible = intent?.getBooleanExtra("VISIBLE", false) ?: false
+                    val isTiled = intent?.getBooleanExtra("IS_TILED", true) ?: true
                     imeMarginOverrideActive = visible
                     val newEffective = effectiveBottomMarginPercent()
-                    if (newEffective != lastAppliedEffectiveMargin) {
+                    // [FIX] Always process for tiled apps, and force retile for fullscreen apps
+                    val shouldRetile = (newEffective != lastAppliedEffectiveMargin) || (!isTiled && visible)
+                    if (shouldRetile) {
                         val now = System.currentTimeMillis()
                         // Cancel any stale deferred retile
                         pendingImeRetileRunnable?.let { uiHandler.removeCallbacks(it) }
@@ -511,7 +514,12 @@ private var isSoftKeyboardSupport = false
                             lastAppliedEffectiveMargin = newEffective
                             imeRetileCooldownUntil = now + 500
                             setupVisualQueue()
-                            retileExistingWindows()
+                            // [FIX] For fullscreen apps, use longer delay to let Android handle insets first
+                            if (!isTiled) {
+                                uiHandler.postDelayed({ retileExistingWindows() }, 100)
+                            } else {
+                                retileExistingWindows()
+                            }
                         } else {
                             Log.d(TAG, "IME_VISIBILITY ($visible) deferred (cooldown)")
                             val runnable = Runnable {
@@ -537,14 +545,15 @@ private var isSoftKeyboardSupport = false
             } else if (action == "com.katsuyamaki.DroidOSLauncher.SET_MARGIN_BOTTOM") {
                 val percent = intent?.getIntExtra("PERCENT", 0) ?: 0
                 bottomMarginPercent = percent
-                // Fix: Use outer context 'this@FloatingLauncherService'
-
-
-
-
                 AppPreferences.setBottomMarginPercent(this@FloatingLauncherService, currentDisplayId, percent)
                 setupVisualQueue() // Recalc HUD pos
-                if (isInstantMode) applyLayoutImmediate()
+                // [FIX] Always retile when margin changes while IME is visible
+                // This ensures slider changes in DockIME take effect immediately
+                if (autoAdjustMarginForIME && imeMarginOverrideActive) {
+                    retileExistingWindows()
+                } else if (isInstantMode) {
+                    applyLayoutImmediate()
+                }
                 
                 // Update UI if in settings mode - TARGETED UPDATE
                 if (currentMode == MODE_SETTINGS) {
@@ -4253,11 +4262,24 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 displayList.add(WidthOption(currentDrawerWidthPercent))
                 displayList.add(MarginOption(0, topMarginPercent)) // 0 = Top
                 displayList.add(MarginOption(1, bottomMarginPercent)) // 1 = Bottom
-                displayList.add(ToggleOption("Auto-Adjust Margin for IME", autoAdjustMarginForIME) {
-                    autoAdjustMarginForIME = it
-                    AppPreferences.setAutoAdjustMarginForIME(this, it)
-                    if (!it) imeMarginOverrideActive = false
-                })
+                // [FIX] Check if DroidOS IME is active before allowing auto-adjust toggle
+                val isDroidOsImeActive = try {
+                    val currentIme = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.DEFAULT_INPUT_METHOD)
+                    currentIme?.contains("DroidOSTrackpadKeyboard") == true || currentIme?.contains("DockInputMethodService") == true
+                } catch (e: Exception) { false }
+                
+                if (isDroidOsImeActive) {
+                    displayList.add(ToggleOption("Auto-Adjust Margin for IME", autoAdjustMarginForIME) {
+                        autoAdjustMarginForIME = it
+                        AppPreferences.setAutoAdjustMarginForIME(this, it)
+                        if (!it) imeMarginOverrideActive = false
+                    })
+                } else {
+                    // Greyed out option when DroidOS IME not active
+                    displayList.add(ToggleOption("Auto-Adjust Margin for IME (Requires DroidOS IME)", false) {
+                        safeToast("Enable DroidOS IME first")
+                    })
+                }
 
 
                 displayList.add(ToggleOption("Auto-Shrink for Keyboard", autoResizeEnabled) { autoResizeEnabled = it; AppPreferences.setAutoResizeKeyboard(this, it) })

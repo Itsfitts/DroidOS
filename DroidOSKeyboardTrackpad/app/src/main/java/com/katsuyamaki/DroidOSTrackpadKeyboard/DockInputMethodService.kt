@@ -76,7 +76,13 @@ class DockInputMethodService : InputMethodService() {
         val imeShowIntent = Intent("com.katsuyamaki.DroidOSLauncher.IME_VISIBILITY")
         imeShowIntent.setPackage("com.katsuyamaki.DroidOSLauncher")
         imeShowIntent.putExtra("VISIBLE", true)
+        imeShowIntent.putExtra("IS_TILED", launcherTiledActive)
         sendBroadcast(imeShowIntent)
+        
+        // [FIX] Force inset recomputation when window shown
+        if (prefAutoResize && prefDockMode) {
+            window?.window?.decorView?.requestLayout()
+        }
         
         // Auto-show overlay keyboard if enabled
         if (prefAutoShowOverlay) {
@@ -117,13 +123,15 @@ class DockInputMethodService : InputMethodService() {
         val imeHideIntent = Intent("com.katsuyamaki.DroidOSLauncher.IME_VISIBILITY")
         imeHideIntent.setPackage("com.katsuyamaki.DroidOSLauncher")
         imeHideIntent.putExtra("VISIBLE", false)
+        imeHideIntent.putExtra("IS_TILED", launcherTiledActive)
         sendBroadcast(imeHideIntent)
         
+        // [FIX] Force inset recomputation when window hidden
+        if (prefAutoResize && prefDockMode) {
+            window?.window?.decorView?.requestLayout()
+        }
+        
         // Auto-hide overlay keyboard if enabled
-
-
-
-
 
 
         if (prefAutoShowOverlay) {
@@ -782,8 +790,16 @@ class DockInputMethodService : InputMethodService() {
                 outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_FRAME
             } else {
                 // Fullscreen or no auto-resize: let system resize app above IME
-                outInsets.contentTopInsets = 0
-                outInsets.visibleTopInsets = 0
+                // [FIX] For fullscreen apps, report the actual IME height so Android resizes the app
+                val viewH = window?.window?.decorView?.height ?: 0
+                if (prefAutoResize && prefDockMode && viewH > 0) {
+                    // Report our custom height so fullscreen app resizes correctly
+                    outInsets.contentTopInsets = 0
+                    outInsets.visibleTopInsets = 0
+                } else {
+                    outInsets.contentTopInsets = 0
+                    outInsets.visibleTopInsets = 0
+                }
                 outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_CONTENT
             }
         }
