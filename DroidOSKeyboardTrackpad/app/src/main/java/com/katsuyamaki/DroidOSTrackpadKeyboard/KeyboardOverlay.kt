@@ -280,6 +280,56 @@ class KeyboardOverlay(
                 .apply()
         }
     }
+    
+    // =================================================================================
+    // FUNCTION: setWindowBoundsWithScale
+    // SUMMARY: Atomically sets window bounds AND key scale to prevent desync.
+    //          The scale is calculated from the target height to ensure keys fit perfectly.
+    //          Base height at 100% scale = 300dp.
+    // =================================================================================
+    fun setWindowBoundsWithScale(x: Int, y: Int, width: Int, height: Int) {
+        val density = context.resources.displayMetrics.density
+        val baseHeightPx = 300f * density
+        
+        // Calculate scale from target height (keys should fit the window perfectly)
+        val targetScale = (height.toFloat() / baseHeightPx).coerceIn(0.3f, 1.5f)
+        
+        // Update internal scale and key view
+        internalScale = targetScale
+        keyboardView?.setScale(targetScale)
+        
+        // Update window bounds
+        keyboardWidth = width
+        keyboardHeight = height
+        
+        if (isVisible && keyboardParams != null) {
+            keyboardParams?.x = x
+            keyboardParams?.y = y
+            keyboardParams?.width = width
+            keyboardParams?.height = height
+            try { 
+                windowManager.updateViewLayout(keyboardContainer, keyboardParams)
+                saveKeyboardPosition()
+                saveKeyboardSize()
+                saveKeyboardScale() // Save scale with size to keep them in sync
+            } catch (e: Exception) {}
+        } else {
+            // Save bounds and scale even if hidden
+            val prefs = context.getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putInt("keyboard_x_d$currentDisplayId", x)
+                .putInt("keyboard_y_d$currentDisplayId", y)
+                .putInt("keyboard_width_d$currentDisplayId", width)
+                .putInt("keyboard_height_d$currentDisplayId", height)
+                .putInt("keyboard_key_scale", (targetScale * 100).toInt())
+                .apply()
+        }
+        
+        Log.d(TAG, "setWindowBoundsWithScale: h=$height, scale=$targetScale")
+    }
+    // =================================================================================
+    // END BLOCK: setWindowBoundsWithScale
+    // =================================================================================
    
     fun setAnchored(anchored: Boolean) {
         isAnchored = anchored

@@ -3182,7 +3182,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     // =================================================================================
     // FUNCTION: applyDockModeWithMargin
     // SUMMARY: Docks keyboard to bottom and resizes it to fit the specified margin %.
-    //          The keyboard height is calculated from the margin percentage.
+    //          Uses setWindowBoundsWithScale() to atomically set window size AND key scale
+    //          so they stay perfectly in sync.
     // =================================================================================
     private fun applyDockModeWithMargin(marginPercent: Int) {
         if (keyboardOverlay == null) initCustomKeyboard()
@@ -3198,13 +3199,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         // Calculate keyboard height from margin percentage
         val dockToolbarHeight = if (prefs.prefShowKBAboveDock) (40 * density).toInt() else 0
         val marginHeight = (screenHeight * (marginPercent / 100f)).toInt()
-        val kbHeight = (marginHeight - dockToolbarHeight).coerceAtLeast((100 * density).toInt()) // Min 100dp
+        val kbHeight = (marginHeight - dockToolbarHeight).coerceAtLeast((90 * density).toInt()) // Min 90dp
         
         // Position at bottom (above dock toolbar if enabled)
         val targetW = screenWidth
         val targetY = screenHeight - kbHeight - dockToolbarHeight
         
-        keyboardOverlay?.setWindowBounds(0, targetY, targetW, kbHeight)
+        // Use atomic method that sets BOTH window bounds AND key scale together
+        // This prevents desync between window size and key scale
+        keyboardOverlay?.setWindowBoundsWithScale(0, targetY, targetW, kbHeight)
+        
+        // Update local prefs to match (base height is 300dp)
+        val baseKbHeight = 300f * density
+        prefs.prefKeyScale = ((kbHeight.toFloat() / baseKbHeight) * 100).toInt().coerceIn(30, 150)
         
         // Save keyboard height for Dock IME auto-resize feature
         saveKeyboardHeightForDock(kbHeight)
