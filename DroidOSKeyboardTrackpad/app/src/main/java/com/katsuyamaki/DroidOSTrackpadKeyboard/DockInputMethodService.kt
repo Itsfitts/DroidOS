@@ -81,7 +81,15 @@ class DockInputMethodService : InputMethodService() {
         super.onWindowShown()
         loadDockPrefs()
         
-        android.util.Log.w(TAG, ">>> onWindowShown: tiled=$launcherTiledActive, autoResize=$prefAutoResize, dockMode=$prefDockMode, scale=$prefResizeScale")
+        // [FIX] Reset to fullscreen by default on every window show.
+        // If the app is actually tiled, the TILED_STATE broadcast will arrive shortly
+        // and override this. This prevents stale tiled=true state from blocking
+        // fullscreen app resizing.
+        val wasTiled = launcherTiledActive
+        launcherTiledActive = false
+        forceFullUpdate = wasTiled // Force full update if we were previously tiled
+        
+        android.util.Log.w(TAG, ">>> onWindowShown: tiled=$launcherTiledActive (was $wasTiled), autoResize=$prefAutoResize, dockMode=$prefDockMode, scale=$prefResizeScale")
         
         // Notify Launcher that IME is now visible
         val imeShowIntent = Intent("com.katsuyamaki.DroidOSLauncher.IME_VISIBILITY")
