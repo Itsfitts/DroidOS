@@ -3703,10 +3703,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         }
         sendBroadcast(imeIntent)
         
-        // [FIX] For fullscreen apps: when manually hiding overlay KB, also hide DockIME
-        // so Android recalculates insets and app resizes to full height
+        // [FIX] For fullscreen apps: sync DockIME visibility with overlay
         if (!isNowVisible) {
-            isDockIMEVisible = false // DockIME will be hidden too
+            // Hide: also hide DockIME so Android recalculates insets
+            isDockIMEVisible = false
             val hideIntent = android.content.Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.HIDE_DOCK_IME")
             hideIntent.setPackage(packageName)
             sendBroadcast(hideIntent)

@@ -34,6 +34,7 @@ class DockInputMethodService : InputMethodService() {
 
     private var launcherTiledActive = false
     private var forceFullUpdate = false // Flag to force full setInputView() on next update
+    private var lastTiledStateTime = 0L // Timestamp of last TILED_STATE broadcast
 
     private val tiledStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -51,6 +52,7 @@ class DockInputMethodService : InputMethodService() {
                 return
             }
             
+            lastTiledStateTime = System.currentTimeMillis()
             if (newState != launcherTiledActive) {
                 val wasTransitionToFullscreen = launcherTiledActive && !newState
                 launcherTiledActive = newState
@@ -93,10 +95,15 @@ class DockInputMethodService : InputMethodService() {
         super.onWindowShown()
         loadDockPrefs()
         
-        // Don't reset launcherTiledActive here - the TILED_STATE broadcast 
-        // sets the correct value. Resetting would override legitimate broadcasts
-        // that arrive just before onWindowShown.
-        // The tiledStateReceiver handles blocking invalid state transitions.
+        // Check if TILED_STATE is stale (more than 1 second old).
+        // This handles manual keyboard show where no TILED_STATE is sent.
+        // If stale and currently tiled, reset to fullscreen.
+        val timeSinceLastState = System.currentTimeMillis() - lastTiledStateTime
+        if (launcherTiledActive && timeSinceLastState > 1000) {
+            android.util.Log.w(TAG, ">>> onWindowShown: TILED_STATE stale (${timeSinceLastState}ms), resetting to fullscreen")
+            launcherTiledActive = false
+            forceFullUpdate = true
+        }
         
         android.util.Log.w(TAG, ">>> onWindowShown: tiled=$launcherTiledActive, autoResize=$prefAutoResize, dockMode=$prefDockMode, scale=$prefResizeScale")
         
