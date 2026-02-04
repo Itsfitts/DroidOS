@@ -40,12 +40,14 @@ class DockInputMethodService : InputMethodService() {
             val newState = intent?.getBooleanExtra("TILED_ACTIVE", false) ?: false
             android.util.Log.w(TAG, ">>> TILED_STATE received: $newState (was $launcherTiledActive, inputShown=$isInputViewShown)")
             
-            // [FIX] Don't change tiled state while IME is visible - this prevents
-            // race conditions where TILED_STATE=true arrives after we've already
-            // set up fullscreen insets, breaking the app resize.
-            // Only accept state changes when IME is hidden.
-            if (isInputViewShown) {
-                android.util.Log.w(TAG, ">>> TILED_STATE: IGNORED (IME visible, state locked)")
+            // [FIX] When IME is visible, only ignore state changes that would break
+            // fullscreen app resizing. Specifically:
+            // - Allow tiled=true to come in (for tiled apps)
+            // - Block tiled=true if we already set up fullscreen insets (would break resize)
+            // The key insight: if we've done a FULL UPDATE with tiled=false, don't let
+            // a late TILED_STATE=true switch us to tiled mode mid-session.
+            if (isInputViewShown && newState && !launcherTiledActive && lastCalculatedHeight > 0) {
+                android.util.Log.w(TAG, ">>> TILED_STATE: IGNORED (fullscreen insets active, blocking switch to tiled)")
                 return
             }
             
@@ -91,15 +93,12 @@ class DockInputMethodService : InputMethodService() {
         super.onWindowShown()
         loadDockPrefs()
         
-        // [FIX] Reset to fullscreen by default on every window show.
-        // If the app is actually tiled, the TILED_STATE broadcast will arrive shortly
-        // and override this. This prevents stale tiled=true state from blocking
-        // fullscreen app resizing.
-        val wasTiled = launcherTiledActive
-        launcherTiledActive = false
-        forceFullUpdate = wasTiled // Force full update if we were previously tiled
+        // Don't reset launcherTiledActive here - the TILED_STATE broadcast 
+        // sets the correct value. Resetting would override legitimate broadcasts
+        // that arrive just before onWindowShown.
+        // The tiledStateReceiver handles blocking invalid state transitions.
         
-        android.util.Log.w(TAG, ">>> onWindowShown: tiled=$launcherTiledActive (was $wasTiled), autoResize=$prefAutoResize, dockMode=$prefDockMode, scale=$prefResizeScale")
+        android.util.Log.w(TAG, ">>> onWindowShown: tiled=$launcherTiledActive, autoResize=$prefAutoResize, dockMode=$prefDockMode, scale=$prefResizeScale")
         
         // Notify Launcher that IME is now visible
         val imeShowIntent = Intent("com.katsuyamaki.DroidOSLauncher.IME_VISIBILITY")
