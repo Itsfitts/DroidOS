@@ -282,6 +282,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     var inputTargetDisplayId = 0
     var isTrackpadVisible = false // Changed: Default OFF
     private var lastForceShowTime = 0L // Debounce IME FORCE_SHOW/FORCE_HIDE flicker
+    private var isDockIMEVisible = false // Track whether DockIME toolbar is currently showing
 
 
     var isCustomKeyboardVisible = true // Changed: Default ON
@@ -1230,6 +1231,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                     val forceShow = intent.getBooleanExtra("FORCE_SHOW", false)
                     val forceHide = intent.getBooleanExtra("FORCE_HIDE", false)
                     
+                    // Track DockIME visibility based on FORCE commands
+                    if (forceShow) isDockIMEVisible = true
+                    if (forceHide) isDockIMEVisible = false
+                    
                     if (forceHide) {
                         // Force hide from Dock IME auto-sync
                         // Debounce: ignore FORCE_HIDE within 1s of FORCE_SHOW (IME flicker)
@@ -1251,16 +1256,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                             hasPendingRestore = true
                         }
                     } else if (forceShow) {
-                        // FORCE RESET LOGIC:
+                        // FORCE RESET LOGIC - DockIME is showing
                         lastForceShowTime = System.currentTimeMillis()
+                        isDockIMEVisible = true
                         if (keyboardOverlay == null) initCustomKeyboard()
-
 
                         keyboardOverlay?.hide()
                         keyboardOverlay?.show()
                         isCustomKeyboardVisible = true
+                        // Reapply dock mode positioning with IME toolbar offset
+                        if (prefs.prefShowKBAboveDock) {
+                            applyDockMode()
+                        }
                         enforceZOrder()
                     } else {
+                        // Manual toggle - DockIME may not be visible
                         toggleCustomKeyboard()
                     }
                 }
@@ -3164,8 +3174,9 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         val targetW = screenWidth
         var targetY = screenHeight - kbHeight
         
-        // If "Show KB Above Dock" is enabled, position above the DockIME toolbar (40dp)
-        if (prefs.prefShowKBAboveDock) {
+        // If "Show KB Above Dock" is enabled AND DockIME is actually visible,
+        // position above the DockIME toolbar (40dp). Otherwise position at true bottom.
+        if (prefs.prefShowKBAboveDock && isDockIMEVisible) {
             val dockToolbarHeight = (40 * density).toInt()
             targetY = screenHeight - kbHeight - dockToolbarHeight
         }
@@ -3197,11 +3208,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         val screenHeight = uiScreenHeight
         
         // Calculate keyboard height from margin percentage
-        val dockToolbarHeight = if (prefs.prefShowKBAboveDock) (40 * density).toInt() else 0
+        // Only account for dock toolbar if it's enabled AND DockIME is actually visible
+        val dockToolbarHeight = if (prefs.prefShowKBAboveDock && isDockIMEVisible) (40 * density).toInt() else 0
         val marginHeight = (screenHeight * (marginPercent / 100f)).toInt()
         val kbHeight = (marginHeight - dockToolbarHeight).coerceAtLeast((90 * density).toInt()) // Min 90dp
         
-        // Position at bottom (above dock toolbar if enabled)
+        // Position at bottom (above dock toolbar only if it's visible)
         val targetW = screenWidth
         val targetY = screenHeight - kbHeight - dockToolbarHeight
         
@@ -3669,6 +3681,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         }
         
         isCustomKeyboardVisible = isNowVisible
+        
+        // [FIX] When manually showing, reapply dock mode positioning
+        // This ensures correct position based on whether DockIME is actually visible
+        if (isNowVisible && prefs.prefShowKBAboveDock) {
+            applyDockMode()
+        }
+        
         enforceZOrder()
 
         // Notify launcher so auto-adjust margin retiles apps when KB is toggled
@@ -3687,6 +3706,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         // [FIX] For fullscreen apps: when manually hiding overlay KB, also hide DockIME
         // so Android recalculates insets and app resizes to full height
         if (!isNowVisible) {
+            isDockIMEVisible = false // DockIME will be hidden too
             val hideIntent = android.content.Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.HIDE_DOCK_IME")
             hideIntent.setPackage(packageName)
             sendBroadcast(hideIntent)
