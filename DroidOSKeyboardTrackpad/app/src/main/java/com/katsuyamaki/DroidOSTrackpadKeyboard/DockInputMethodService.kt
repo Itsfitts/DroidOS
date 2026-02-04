@@ -38,7 +38,17 @@ class DockInputMethodService : InputMethodService() {
     private val tiledStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val newState = intent?.getBooleanExtra("TILED_ACTIVE", false) ?: false
-            android.util.Log.w(TAG, ">>> TILED_STATE received: $newState (was $launcherTiledActive)")
+            android.util.Log.w(TAG, ">>> TILED_STATE received: $newState (was $launcherTiledActive, inputShown=$isInputViewShown)")
+            
+            // [FIX] Don't change tiled state while IME is visible - this prevents
+            // race conditions where TILED_STATE=true arrives after we've already
+            // set up fullscreen insets, breaking the app resize.
+            // Only accept state changes when IME is hidden.
+            if (isInputViewShown) {
+                android.util.Log.w(TAG, ">>> TILED_STATE: IGNORED (IME visible, state locked)")
+                return
+            }
+            
             if (newState != launcherTiledActive) {
                 val wasTransitionToFullscreen = launcherTiledActive && !newState
                 launcherTiledActive = newState
