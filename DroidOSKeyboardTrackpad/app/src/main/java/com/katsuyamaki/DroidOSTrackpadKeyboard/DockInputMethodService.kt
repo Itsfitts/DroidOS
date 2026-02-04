@@ -37,10 +37,16 @@ class DockInputMethodService : InputMethodService() {
     private val tiledStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val newState = intent?.getBooleanExtra("TILED_ACTIVE", false) ?: false
+            android.util.Log.w(TAG, ">>> TILED_STATE received: $newState (was $launcherTiledActive)")
             if (newState != launcherTiledActive) {
                 launcherTiledActive = newState
                 // Force the system to recompute insets with the new tiled state
                 window?.window?.decorView?.requestLayout()
+                // [FIX] If switched to fullscreen, force full update to recalculate insets
+                if (!newState && prefAutoResize && prefDockMode) {
+                    android.util.Log.w(TAG, ">>> TILED_STATE: Switched to FULLSCREEN, forcing updateInputViewHeight")
+                    updateInputViewHeight()
+                }
             }
         }
     }
@@ -72,17 +78,14 @@ class DockInputMethodService : InputMethodService() {
         super.onWindowShown()
         loadDockPrefs()
         
+        android.util.Log.w(TAG, ">>> onWindowShown: tiled=$launcherTiledActive, autoResize=$prefAutoResize, dockMode=$prefDockMode, scale=$prefResizeScale")
+        
         // Notify Launcher that IME is now visible
         val imeShowIntent = Intent("com.katsuyamaki.DroidOSLauncher.IME_VISIBILITY")
         imeShowIntent.setPackage("com.katsuyamaki.DroidOSLauncher")
         imeShowIntent.putExtra("VISIBLE", true)
         imeShowIntent.putExtra("IS_TILED", launcherTiledActive)
         sendBroadcast(imeShowIntent)
-        
-        // [FIX] Force inset recomputation when window shown
-        if (prefAutoResize && prefDockMode) {
-            window?.window?.decorView?.requestLayout()
-        }
         
         // Auto-show overlay keyboard if enabled
         if (prefAutoShowOverlay) {
@@ -668,38 +671,41 @@ class DockInputMethodService : InputMethodService() {
             // the IME window stays strictly below the Launcher's tiling line.
             val correctedHeight = (marginHeight - navHeight - 2).coerceAtLeast(0)
             
-            android.util.Log.d(TAG, "updateInputViewHeight: ON. Margin=$marginHeight, Nav=$navHeight -> IME Height=$correctedHeight")
+            android.util.Log.d(TAG, "updateInputViewHeight: ON. Margin=$marginHeight, Nav=$navHeight -> IME Height=$correctedHeight, tiled=$launcherTiledActive")
             
             // [FIX] Check if we already have a wrapper with the same height structure
             // If the wrapper exists and is attached, just request a layout update instead of setInputView()
             // This prevents Android from triggering ADJUST_RESIZE on tiled windows
+            // BUT for fullscreen apps (!launcherTiledActive), we NEED Android to recalculate insets
             val existingWrapper = currentInputWrapper
-            if (existingWrapper != null && 
+            val canSoftUpdate = existingWrapper != null && 
                 existingWrapper.parent != null && 
                 isInputViewShown &&
-                lastCalculatedHeight > 0) {
+                lastCalculatedHeight > 0 &&
+                launcherTiledActive // Only soft update for tiled apps
                 
+            if (canSoftUpdate) {
                 // Update the existing wrapper's height via layout params
                 // This is a "soft" update that doesn't trigger IME inset recalculation
                 val density = resources.displayMetrics.density
                 val toolbarHeight = (40 * density).toInt()
                 val safeTotalHeight = correctedHeight.coerceAtLeast(toolbarHeight)
                 
-                existingWrapper.layoutParams?.let { params ->
+                existingWrapper!!.layoutParams?.let { params ->
                     params.height = safeTotalHeight
                     existingWrapper.layoutParams = params
                 }
                 existingWrapper.requestLayout()
                 lastCalculatedHeight = correctedHeight
                 
-                android.util.Log.d(TAG, "updateInputViewHeight: SOFT UPDATE (no setInputView) h=$safeTotalHeight")
+                android.util.Log.d(TAG, "updateInputViewHeight: SOFT UPDATE (tiled) h=$safeTotalHeight")
             } else {
-                // First time or wrapper not attached - do full setInputView()
+                // First time, wrapper not attached, OR fullscreen app - do full setInputView()
                 val wrapper = createInputViewWrapper(correctedHeight)
                 currentInputWrapper = wrapper
                 lastCalculatedHeight = correctedHeight
                 setInputView(wrapper)
-                android.util.Log.d(TAG, "updateInputViewHeight: FULL UPDATE (setInputView) h=$correctedHeight")
+                android.util.Log.d(TAG, "updateInputViewHeight: FULL UPDATE (setInputView) h=$correctedHeight fullscreen=${!launcherTiledActive}")
             }
         } else {
             // Reset to normal - just the toolbar
@@ -782,26 +788,33 @@ class DockInputMethodService : InputMethodService() {
     override fun onComputeInsets(outInsets: InputMethodService.Insets) {
         super.onComputeInsets(outInsets)
         if (isInputViewShown && dockView != null) {
+            val viewH = window?.window?.decorView?.height ?: 0
+            val wrapperH = currentInputWrapper?.height ?: -1
+            android.util.Log.w(TAG, ">>> onComputeInsets: tiled=$launcherTiledActive, autoResize=$prefAutoResize, dockMode=$prefDockMode, viewH=$viewH, wrapperH=$wrapperH, lastCalcH=$lastCalculatedHeight")
+            
             if (prefAutoResize && prefDockMode && launcherTiledActive) {
                 // Tiled: Launcher handles resize, suppress insets to avoid double-resize
-                val viewH = window?.window?.decorView?.height ?: 0
                 outInsets.contentTopInsets = viewH
                 outInsets.visibleTopInsets = viewH
                 outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_FRAME
-            } else {
-                // Fullscreen or no auto-resize: let system resize app above IME
-                // [FIX] For fullscreen apps, report the actual IME height so Android resizes the app
-                val viewH = window?.window?.decorView?.height ?: 0
-                if (prefAutoResize && prefDockMode && viewH > 0) {
-                    // Report our custom height so fullscreen app resizes correctly
-                    outInsets.contentTopInsets = 0
-                    outInsets.visibleTopInsets = 0
-                } else {
-                    outInsets.contentTopInsets = 0
-                    outInsets.visibleTopInsets = 0
-                }
+                android.util.Log.w(TAG, ">>> onComputeInsets: TILED MODE - suppressing insets (contentTop=$viewH)")
+            } else if (prefAutoResize && prefDockMode) {
+                // [FIX] Fullscreen: Let Android use our wrapper's actual height for insets
+                // Setting contentTopInsets=0 means "content starts at top of IME frame"
+                // Android will measure our wrapper and resize the app accordingly
+                outInsets.contentTopInsets = 0
+                outInsets.visibleTopInsets = 0
                 outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_CONTENT
+                android.util.Log.w(TAG, ">>> onComputeInsets: FULLSCREEN MODE - using default insets (wrapper=$wrapperH)")
+            } else {
+                // No auto-resize: minimal toolbar only
+                outInsets.contentTopInsets = 0
+                outInsets.visibleTopInsets = 0
+                outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_CONTENT
+                android.util.Log.w(TAG, ">>> onComputeInsets: NO AUTO-RESIZE - minimal toolbar")
             }
+        } else {
+            android.util.Log.w(TAG, ">>> onComputeInsets: SKIPPED (inputViewShown=${isInputViewShown}, dockView=${dockView != null})")
         }
     }
 
