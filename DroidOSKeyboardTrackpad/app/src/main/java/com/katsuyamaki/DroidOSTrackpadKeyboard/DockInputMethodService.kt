@@ -40,28 +40,18 @@ class DockInputMethodService : InputMethodService() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val newState = intent?.getBooleanExtra("TILED_ACTIVE", false) ?: false
             android.util.Log.w(TAG, ">>> TILED_STATE received: $newState (was $launcherTiledActive, inputShown=$isInputViewShown)")
-            
-            // [FIX] When IME is visible, only ignore state changes that would break
-            // fullscreen app resizing. Specifically:
-            // - Allow tiled=true to come in (for tiled apps)
-            // - Block tiled=true if we already set up fullscreen insets (would break resize)
-            // The key insight: if we've done a FULL UPDATE with tiled=false, don't let
-            // a late TILED_STATE=true switch us to tiled mode mid-session.
-            if (isInputViewShown && newState && !launcherTiledActive && lastCalculatedHeight > 0) {
-                android.util.Log.w(TAG, ">>> TILED_STATE: IGNORED (fullscreen insets active, blocking switch to tiled)")
-                return
-            }
-            
+
             lastTiledStateTime = System.currentTimeMillis()
             if (newState != launcherTiledActive) {
-                val wasTransitionToFullscreen = launcherTiledActive && !newState
                 launcherTiledActive = newState
+                android.util.Log.w(TAG, ">>> TILED_STATE: changed to $newState, recomputing")
                 // Force the system to recompute insets with the new tiled state
                 window?.window?.decorView?.requestLayout()
-                // If switched to fullscreen, set flag to force full update
-                if (wasTransitionToFullscreen && prefAutoResize && prefDockMode) {
-                    android.util.Log.w(TAG, ">>> TILED_STATE: Switched to FULLSCREEN, setting forceFullUpdate flag")
-                    forceFullUpdate = true
+                if (prefAutoResize && prefDockMode) {
+                    // Switching to fullscreen needs full setInputView() for insets
+                    if (!newState) {
+                        forceFullUpdate = true
+                    }
                     updateInputViewHeight()
                 }
             }
@@ -95,15 +85,8 @@ class DockInputMethodService : InputMethodService() {
         super.onWindowShown()
         loadDockPrefs()
         
-        // Check if TILED_STATE is stale (more than 1 second old).
-        // This handles manual keyboard show where no TILED_STATE is sent.
-        // If stale and currently tiled, reset to fullscreen.
-        val timeSinceLastState = System.currentTimeMillis() - lastTiledStateTime
-        if (launcherTiledActive && timeSinceLastState > 1000) {
-            android.util.Log.w(TAG, ">>> onWindowShown: TILED_STATE stale (${timeSinceLastState}ms), resetting to fullscreen")
-            launcherTiledActive = false
-            forceFullUpdate = true
-        }
+        // Trust the current launcherTiledActive value - TILED_STATE broadcasts 
+        // keep it accurate. Don't reset it here.
         
         android.util.Log.w(TAG, ">>> onWindowShown: tiled=$launcherTiledActive, autoResize=$prefAutoResize, dockMode=$prefDockMode, scale=$prefResizeScale")
         

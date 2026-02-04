@@ -3228,7 +3228,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         // Save keyboard height for Dock IME auto-resize feature
         saveKeyboardHeightForDock(kbHeight)
         
-        android.util.Log.d(TAG, "applyDockModeWithMargin: margin=$marginPercent%, y=$targetY, h=$kbHeight, aboveDock=${prefs.prefShowKBAboveDock}")
+        android.util.Log.w(TAG, ">>> applyDockModeWithMargin: screenH=$screenHeight, density=$density, margin%=$marginPercent, marginPx=$marginHeight, navToolbar=$dockToolbarHeight, kbH=$kbHeight, y=$targetY, aboveDock=${prefs.prefShowKBAboveDock}, dockIMEVisible=$isDockIMEVisible")
     }
     // =================================================================================
     // END BLOCK: applyDockModeWithMargin
