@@ -3739,9 +3739,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         isCustomKeyboardVisible = isNowVisible
         
         // [FIX] When manually showing, reapply dock mode positioning
-        // Only when DockIME is actually visible — not with Gboard or other IMEs
-        // Use margin-adjusted sizing only if auto resize is active (lastDockMarginPercent >= 0)
-        if (isNowVisible && prefs.prefShowKBAboveDock && isDockIMEVisible) {
+        // isDockIMEVisible: DockIME toolbar is on screen (text field focused)
+        // lastDockMarginPercent >= 0: DockIME sent APPLY_DOCK_MODE this session (covers manual show via bubble)
+        // Gboard never sets lastDockMarginPercent, so it stays -1 — no dock snapping
+        if (isNowVisible && prefs.prefShowKBAboveDock && (isDockIMEVisible || lastDockMarginPercent >= 0)) {
             if (lastDockMarginPercent >= 0) {
                 applyDockModeWithMargin(lastDockMarginPercent)
             } else {
