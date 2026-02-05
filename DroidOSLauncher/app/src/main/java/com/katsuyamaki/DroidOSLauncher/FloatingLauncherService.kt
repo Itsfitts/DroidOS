@@ -356,6 +356,8 @@ private var isSoftKeyboardSupport = false
     private var tiledAppsAutoMinimized = false
     // [FULLSCREEN] Cooldown to prevent TYPE_WINDOWS_CHANGED from re-minimizing right after restore
     private var tiledAppsRestoredAt = 0L
+    // [FULLSCREEN] Track when user explicitly launched tiled apps - skip auto-minimize during cooldown
+    private var lastExplicitTiledLaunchAt = 0L
 
 
 
@@ -1304,7 +1306,15 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                 .setPackage("com.katsuyamaki.DroidOSTrackpadKeyboard")
                                 .putExtra("TILED_ACTIVE", shouldSuppressInsets))
                         }
-                        if (!isSystemOverlay && !isTiledApp && selectedAppsQueue.any { !it.isMinimized } && !tiledAppsAutoMinimized &&
+                        // [FULLSCREEN] Skip auto-minimize during cooldown after explicit tiled app launch.
+                        // This prevents newly launched tiled apps from being immediately hidden.
+                        val inExplicitLaunchCooldown = System.currentTimeMillis() - lastExplicitTiledLaunchAt < 2000
+                        
+                        // [FULLSCREEN] Key insight: Only auto-minimize if the FOCUSED app is NOT managed.
+                        // If the focused app IS managed (user opened a tiled app via hotkey/sidebar),
+                        // we should tile together, not minimize the tiled app.
+                        if (!isSystemOverlay && !isManagedApp && !isTiledApp && selectedAppsQueue.any { !it.isMinimized } && !tiledAppsAutoMinimized &&
+                            !inExplicitLaunchCooldown &&
                             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                             // Full-screen app opened — minimize all tiled windows
                             // But first verify it actually covers the screen (skip small freeform/popup windows)
@@ -1345,6 +1355,52 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             }.start()
                             Log.d(TAG, "FULLSCREEN: Auto-minimized tiled apps for $detectedPkg")
                             } // end if (coversScreen)
+                        } else if (isManagedApp && !isTiledApp && tiledAppsAutoMinimized) {
+                            // [FULLSCREEN] Managed app gained focus while tiled apps were auto-minimized.
+                            // This means user opened a tiled app via hotkey/sidebar while fullscreen was active.
+                            // Restore tiled state - the managed app will be shown.
+                            tiledAppsAutoMinimized = false
+                            tiledAppsRestoredAt = System.currentTimeMillis()
+                            retileExistingWindows()
+                            Log.d(TAG, "FULLSCREEN: Restored tiled apps for managed app $detectedPkg")
+                        } else if (isManagedApp && !isTiledApp && !tiledAppsAutoMinimized &&
+                            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                            // [FULLSCREEN] Managed app opened while fullscreen app is visible (not previously auto-minimized).
+                            // Check if there's a fullscreen app covering the screen - if so, add it to queue and tile together.
+                            var fullscreenPkg: String? = null
+                            try {
+                                val dm = android.util.DisplayMetrics()
+                                windowManager.defaultDisplay.getRealMetrics(dm)
+                                val screenArea = dm.widthPixels.toLong() * dm.heightPixels.toLong()
+                                val boundsRect = android.graphics.Rect()
+                                val queuePackages = selectedAppsQueue.map { it.getBasePackage() }.toSet()
+                                for (window in windows) {
+                                    if (window.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                                    val node = window.root ?: continue
+                                    val windowPkg = node.packageName?.toString()
+                                    node.recycle()
+                                    if (windowPkg != null && windowPkg !in queuePackages && windowPkg != detectedPkg &&
+                                        windowPkg != packageName && !windowPkg.contains("systemui")) {
+                                        window.getBoundsInScreen(boundsRect)
+                                        val windowArea = boundsRect.width().toLong() * boundsRect.height().toLong()
+                                        if (windowArea >= screenArea * 85 / 100) {
+                                            fullscreenPkg = windowPkg
+                                            break
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) { /* ignore */ }
+                            
+                            if (fullscreenPkg != null) {
+                                // Found a fullscreen app not in queue - add it and tile together
+                                val fsAppInfo = allAppsList.find { it.packageName == fullscreenPkg || it.getBasePackage() == fullscreenPkg }
+                                if (fsAppInfo != null) {
+                                    selectedAppsQueue.add(fsAppInfo.copy())
+                                    Log.d(TAG, "FULLSCREEN: Added fullscreen app $fullscreenPkg to queue, tiling with $detectedPkg")
+                                    uiHandler.post { updateAllUIs() }
+                                    retileExistingWindows()
+                                }
+                            }
                         } else if (isTiledApp && tiledAppsAutoMinimized) {
                             // Returning to a tiled app — restore all
                             tiledAppsAutoMinimized = false
@@ -3883,6 +3939,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             return
         }
 
+        // [FULLSCREEN] When user explicitly launches tiled apps, reset auto-minimize state
+        // and set cooldown to prevent fullscreen detection from immediately re-hiding them.
+        tiledAppsAutoMinimized = false
+        lastExplicitTiledLaunchAt = System.currentTimeMillis()
+
         isExecuting = true
         pendingExecutionNeeded = false // Reset pending flag for THIS run
 
@@ -3891,6 +3952,22 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             ?.mapNotNull { pkgName -> allAppsList.find { it.packageName == pkgName } }
             ?.filter { it.packageName != packageName && it.packageName != PACKAGE_TRACKPAD }
             ?: emptyList()
+
+        // [FULLSCREEN] If there's a visible app not in the queue (fullscreen app), add it to the queue.
+        // This converts the fullscreen app into a tiled app, placing the user's selected apps on top.
+        // Without this, the fullscreen app detection would minimize the newly launched tiled apps.
+        val queuePackages = selectedAppsQueue.map { it.getBasePackage() }.toSet()
+        val fullscreenApps = activeApps.filter { it.getBasePackage() !in queuePackages && !it.isMinimized }
+        if (fullscreenApps.isNotEmpty() && selectedAppsQueue.any { !it.isMinimized }) {
+            for (fsApp in fullscreenApps) {
+                // Add fullscreen app to END of queue (bottom position in layout)
+                // The user's selected apps will be on top
+                selectedAppsQueue.add(fsApp.copy())
+                Log.d(TAG, "executeLaunch: Added fullscreen app ${fsApp.packageName} to queue for tiling")
+            }
+            // Update UI to show the new queue
+            uiHandler.post { updateAllUIs() }
+        }
 
         if (closeDrawer) toggleDrawer()
         refreshDisplayId()
