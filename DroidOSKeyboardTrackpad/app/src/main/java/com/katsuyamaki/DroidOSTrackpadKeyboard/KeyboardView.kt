@@ -923,9 +923,14 @@ private fun buildKeyboard() {
         removeAllViews()
 
         // --- 1. SUGGESTION STRIP ---
+        // [FIX] Use dpToPx() like key rows so suggestion strip scales consistently.
+        // Previously used raw pixels (35 * scaleFactor) which caused strip to become
+        // extremely small when keyboard was resized, while key rows stayed usable.
+        // Height is 28dp (80% of key row's 35dp) for a slightly more compact look.
+        val suggestionHeight = dpToPx((28 * scaleFactor).toInt())
         suggestionStrip = LinearLayout(context).apply {
             orientation = HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, (35 * scaleFactor).toInt(), 1f)
+            layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, suggestionHeight, 1f)
             setBackgroundColor(Color.parseColor("#222222"))
             setPadding(0, 0, 0, 4)
             
