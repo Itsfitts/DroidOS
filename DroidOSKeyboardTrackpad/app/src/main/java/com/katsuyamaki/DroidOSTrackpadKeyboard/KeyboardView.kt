@@ -592,7 +592,7 @@ private var customModKeyCode = 0
     init {
         orientation = VERTICAL
         setBackgroundColor(Color.parseColor("#1A1A1A"))
-        setPadding(4, 4, 4, 4)
+        setPadding(4, 4, 4, 0)
         buildKeyboard()
     }
 

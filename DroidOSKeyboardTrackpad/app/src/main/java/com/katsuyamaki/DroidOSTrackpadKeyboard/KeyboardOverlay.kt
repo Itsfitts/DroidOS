@@ -248,7 +248,7 @@ class KeyboardOverlay(
             if (bg != null) {
                 val fillColor = (alpha shl 24) or (0x1A1A1A)
                 bg.setColor(fillColor)
-                bg.setStroke(2, Color.parseColor("#44FFFFFF"))
+
             }
             val normalizedAlpha = alpha / 255f
             keyboardView?.alpha = normalizedAlpha
@@ -1145,7 +1145,6 @@ fun setCustomModKey(keyCode: Int) {
         val fillColor = (currentAlpha shl 24) or (0x1A1A1A)
         containerBg.setColor(fillColor)
         containerBg.cornerRadius = 16f
-        containerBg.setStroke(2, Color.parseColor("#44FFFFFF"))
         keyboardContainer?.background = containerBg
         
         keyboardContainer?.isFocusable = true

@@ -1342,6 +1342,22 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                         }
                     }
                 }
+                
+                action == "DOCK_POPUP_VISIBLE" -> {
+                    val popupVisible = intent.getBooleanExtra("VISIBLE", false)
+                    if (popupVisible) {
+                        // Temporarily hide overlay KB so DockIME popup is visible
+                        if (isCustomKeyboardVisible) {
+                            keyboardOverlay?.hide()
+                        }
+                    } else {
+                        // Popup dismissed - restore overlay KB
+                        if (isCustomKeyboardVisible) {
+                            keyboardOverlay?.show()
+                            enforceZOrder()
+                        }
+                    }
+                }
 
 
                 action == "OPEN_MENU" -> { menuManager?.show(); enforceZOrder() }
@@ -1874,6 +1890,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                         addAction("TOGGLE_CUSTOM_KEYBOARD")
                         addAction("DOCK_PREF_CHANGED")
                         addAction("APPLY_DOCK_MODE")
+                        addAction("DOCK_POPUP_VISIBLE")
                         addAction("SET_TRACKPAD_VISIBILITY")
                         addAction("SET_PREVIEW_MODE") 
                         addAction("OPEN_MENU")

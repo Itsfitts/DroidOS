@@ -700,10 +700,23 @@ class DockInputMethodService : InputMethodService() {
             sendBroadcast(launcherIntent)
         }
 
+        // Notify OverlayService to temporarily hide keyboard so popup is visible
+        popupWindow?.setOnDismissListener {
+            onMarginUpdatedCallback = null
+            val hideIntent = Intent("DOCK_POPUP_VISIBLE")
+            hideIntent.setPackage(packageName)
+            hideIntent.putExtra("VISIBLE", false)
+            sendBroadcast(hideIntent)
+        }
+
         // Initial Show
         positionAndShow()
 
-
+        // Notify OverlayService that popup is now showing (overlay KB must hide)
+        val showIntent = Intent("DOCK_POPUP_VISIBLE")
+        showIntent.setPackage(packageName)
+        showIntent.putExtra("VISIBLE", true)
+        sendBroadcast(showIntent)
     }
     // =================================================================================
     // END BLOCK: showDockPopup
