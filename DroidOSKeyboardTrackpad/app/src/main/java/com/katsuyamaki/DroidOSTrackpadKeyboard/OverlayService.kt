@@ -3161,6 +3161,29 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
             // END BLOCK: SPACEBAR MOUSE EXTENDED MODE UPDATE
             // =================================================================================
             "keyboard_alpha" -> { prefs.prefKeyboardAlpha = value as Int; keyboardOverlay?.updateAlpha(prefs.prefKeyboardAlpha) }
+            "dock_to_bottom" -> {
+                val newDockMode = parseBoolean(value)
+                val dockPrefs = getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE)
+                if (newDockMode) {
+                    // Auto-enable show_kb_above_dock on first enable
+                    if (!dockPrefs.contains("show_kb_above_dock")) {
+                        prefs.prefShowKBAboveDock = true
+                        savePrefs()
+                    }
+                    dockPrefs.edit().putBoolean("dock_mode", true).apply()
+                    if (isCustomKeyboardVisible) {
+                        if (lastDockMarginPercent >= 0) applyDockModeWithMargin(lastDockMarginPercent)
+                        else applyDockMode()
+                    }
+                } else {
+                    dockPrefs.edit()
+                        .putBoolean("dock_mode", false)
+                        .putBoolean("auto_resize", false)
+                        .apply()
+                    lastDockMarginPercent = -1
+                    showToast("Dock mode disabled")
+                }
+            }
 
             "hardkey_vol_up_tap" -> prefs.hardkeyVolUpTap = value as String
             "hardkey_vol_up_double" -> prefs.hardkeyVolUpDouble = value as String
@@ -3687,20 +3710,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         // END BLOCK: PHYSICAL KEYBOARD SIZE/POSITION CHANGE CALLBACK
         // =================================================================================
 
-        // FIX: Restore Saved Layout (fixes reset/aspect ratio issue)
-        if (savedKbW > 0 && savedKbH > 0) {
-            keyboardOverlay?.updatePosition(savedKbX, savedKbY)
-            keyboardOverlay?.updateSize(savedKbW, savedKbH)
-        } else {
-            // [Fixed] Default Size: Calculate height based on scale + 20dp buffer
-            val density = resources.displayMetrics.density
-            // Add 20dp padding so the scale fits comfortably without clipping
-            val buffer = 20 * density
-            val defaultH = ((275f * (prefs.prefKeyScale / 100f) * density) + buffer).toInt()
-            
-            keyboardOverlay?.updatePosition(0, uiScreenHeight - defaultH)
-            keyboardOverlay?.updateSize(uiScreenWidth, defaultH)
-        }
+        // Position and size are handled by KeyboardOverlay.createKeyboardWindow() on show(),
+        // which loads per-display prefs (keyboard_x_d$displayId, etc.).
+        // Profile restore writes correct values via setWindowBounds() directly.
+        // Do NOT override position here — it corrupts per-display prefs when display changes
+        // (savedKb* from old display gets written to new display's prefs).
 
         // [REMOVED] Do not force scale here. 
         // KeyboardOverlay loads the fresh "keyboard_key_scale" from disk automatically.
@@ -3747,10 +3761,13 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         isCustomKeyboardVisible = isNowVisible
         
         // [FIX] When manually showing, reapply dock mode positioning
-        // isDockIMEVisible: DockIME toolbar is on screen (text field focused)
-        // lastDockMarginPercent >= 0: DockIME sent APPLY_DOCK_MODE this session (covers manual show via bubble)
-        // Gboard never sets lastDockMarginPercent, so it stays -1 — no dock snapping
-        if (isNowVisible && prefs.prefShowKBAboveDock && (isDockIMEVisible || lastDockMarginPercent >= 0)) {
+        // Only dock if DockIME is the current default input method AND dock_mode is enabled.
+        // This prevents: (1) Gboard triggering dock snapping via stale state,
+        // (2) Bubble icon docking when dock mode is toggled off in overlay menu.
+        val currentIme = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.DEFAULT_INPUT_METHOD)
+        val isDockIMEConfigured = currentIme?.contains("DroidOSTrackpadKeyboard") == true
+        val isDockModeEnabled = getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE).getBoolean("dock_mode", false)
+        if (isNowVisible && prefs.prefShowKBAboveDock && isDockIMEConfigured && isDockModeEnabled) {
             if (lastDockMarginPercent >= 0) {
                 applyDockModeWithMargin(lastDockMarginPercent)
             } else {

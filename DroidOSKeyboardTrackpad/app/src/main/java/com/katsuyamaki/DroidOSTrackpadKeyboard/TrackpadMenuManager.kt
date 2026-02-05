@@ -323,6 +323,16 @@ class TrackpadMenuManager(
             }
         })
 
+        // Dock KB to Bottom — mirrors the dock_mode setting from DockIME popup.
+        // Allows controlling dock mode on cover screen where One UI hides the DockIME toolbar.
+        val dockPrefs = context.getSharedPreferences("DockIMEPrefs", android.content.Context.MODE_PRIVATE)
+        val isDockMode = dockPrefs.getBoolean("dock_mode", false)
+        list.add(TrackpadMenuAdapter.MenuItem("Dock KB to Bottom", R.drawable.ic_dock_keyboard, TrackpadMenuAdapter.Type.TOGGLE,
+            if(isDockMode) 1 else 0) { v ->
+            service.updatePref("dock_to_bottom", v)
+            loadTab(TAB_MAIN) // Refresh to update toggle state
+        })
+
         // Subheading for bubble tap behavior
         list.add(TrackpadMenuAdapter.MenuItem("WHEN BUBBLE ICON TAPPED:", 0, TrackpadMenuAdapter.Type.SUBHEADER))
 
