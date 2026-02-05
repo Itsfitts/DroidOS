@@ -248,7 +248,6 @@ class KeyboardOverlay(
             if (bg != null) {
                 val fillColor = (alpha shl 24) or (0x1A1A1A)
                 bg.setColor(fillColor)
-
             }
             val normalizedAlpha = alpha / 255f
             keyboardView?.alpha = normalizedAlpha
@@ -1257,13 +1256,13 @@ fun setCustomModKey(keyCode: Int) {
         keyboardView?.alpha = currentAlpha / 255f
 
         val kbParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        kbParams.setMargins(6, 28, 6, 6)
+        kbParams.setMargins(2, 28, 2, 0)
         keyboardContainer?.addView(keyboardView, kbParams)
 
         // 2. The Swipe Trail Overlay
         val trailView = SwipeTrailView(context)
         val trailParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        trailParams.setMargins(6, 28, 6, 6)
+        trailParams.setMargins(2, 28, 2, 0)
         keyboardContainer?.addView(trailView, trailParams)
         keyboardView?.attachTrailView(trailView)
 
@@ -1274,7 +1273,7 @@ fun setCustomModKey(keyCode: Int) {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         )
-        orientTrailParams.setMargins(6, 28, 6, 6)
+        orientTrailParams.setMargins(2, 28, 2, 0)
         keyboardContainer?.addView(orientationTrailView, orientTrailParams)
 
 

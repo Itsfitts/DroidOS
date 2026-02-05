@@ -591,7 +591,6 @@ private var customModKeyCode = 0
 
     init {
         orientation = VERTICAL
-        gravity = Gravity.BOTTOM
         setBackgroundColor(Color.parseColor("#1A1A1A"))
         setPadding(4, 0, 4, 0)
         buildKeyboard()
@@ -926,7 +925,7 @@ private fun buildKeyboard() {
         // --- 1. SUGGESTION STRIP ---
         suggestionStrip = LinearLayout(context).apply {
             orientation = HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, (35 * scaleFactor).toInt()) 
+            layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, (35 * scaleFactor).toInt(), 1f)
             setBackgroundColor(Color.parseColor("#222222"))
             setPadding(0, 0, 0, 4)
             
@@ -1009,7 +1008,7 @@ private fun buildKeyboard() {
         
         val bottomContainer = LinearLayout(context)
         bottomContainer.orientation = HORIZONTAL
-        bottomContainer.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+        bottomContainer.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, 1f)
         
         val leftCol = LinearLayout(context)
         leftCol.orientation = VERTICAL
@@ -1056,7 +1055,7 @@ private fun buildKeyboard() {
         val row = LinearLayout(context)
         row.orientation = HORIZONTAL
         row.gravity = Gravity.CENTER
-        row.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, dpToPx(keyHeight)).apply {
+        row.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, dpToPx(keyHeight), 1f).apply {
             setMargins(0, dpToPx(keySpacing), 0, 0)
         }
         if (rowIndex == 1) row.setPadding(dpToPx((12 * scaleFactor).toInt()), 0, dpToPx((12 * scaleFactor).toInt()), 0)
