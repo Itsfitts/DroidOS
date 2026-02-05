@@ -3221,15 +3221,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         // Get current keyboard height or use default
         val kbHeight = keyboardOverlay?.getViewHeight() ?: ((275f * (prefs.prefKeyScale / 100f) * density).toInt())
         
+        // Nav bar height — overlay uses full-screen coords but DockIME sits above nav bar
+        val navResId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        val navBarHeight = if (navResId > 0) resources.getDimensionPixelSize(navResId) else 0
+        
         // Position at bottom, full width (100%)
         val targetW = screenWidth
         var targetY = screenHeight - kbHeight
         
         // If "Show KB Above Dock" is enabled AND DockIME is actually visible,
-        // position above the DockIME toolbar (40dp). Otherwise position at true bottom.
+        // position above the DockIME toolbar (40dp) and nav bar. Otherwise position at true bottom.
         if (prefs.prefShowKBAboveDock && isDockIMEVisible) {
             val dockToolbarHeight = (40 * density).toInt()
-            targetY = screenHeight - kbHeight - dockToolbarHeight
+            targetY = screenHeight - kbHeight - dockToolbarHeight - navBarHeight
         }
         
         keyboardOverlay?.setWindowBounds(0, targetY, targetW, kbHeight)
@@ -3263,15 +3267,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         val screenWidth = uiScreenWidth
         val screenHeight = uiScreenHeight
         
+        // Nav bar height — overlay uses full-screen coords but DockIME sits above nav bar
+        val navResId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        val navBarHeight = if (navResId > 0) resources.getDimensionPixelSize(navResId) else 0
+        
         // Calculate keyboard height from margin percentage
         // Only account for dock toolbar if it's enabled AND DockIME is actually visible
         val dockToolbarHeight = if (prefs.prefShowKBAboveDock && isDockIMEVisible) (40 * density).toInt() else 0
         val marginHeight = (screenHeight * (marginPercent / 100f)).toInt()
-        val kbHeight = (marginHeight - dockToolbarHeight).coerceAtLeast((90 * density).toInt()) // Min 90dp
+        val kbHeight = (marginHeight - dockToolbarHeight - navBarHeight).coerceAtLeast((90 * density).toInt()) // Min 90dp
         
-        // Position at bottom (above dock toolbar only if it's visible)
+        // Position at bottom (above dock toolbar and nav bar only if dock is visible)
         val targetW = screenWidth
-        val targetY = screenHeight - kbHeight - dockToolbarHeight
+        val targetY = screenHeight - kbHeight - dockToolbarHeight - navBarHeight
         
         // Use atomic method that sets BOTH window bounds AND key scale together
         // This prevents desync between window size and key scale
