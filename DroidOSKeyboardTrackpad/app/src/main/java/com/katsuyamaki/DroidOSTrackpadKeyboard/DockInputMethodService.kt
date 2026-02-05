@@ -282,10 +282,17 @@ class DockInputMethodService : InputMethodService() {
 
 
 
+    private fun getImeDisplayId(): Int {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            display?.displayId ?: 0
+        } else { 0 }
+    }
+
     private fun loadDockPrefs() {
         val prefs = getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE)
+        val displayId = getImeDisplayId()
         prefAutoShowOverlay = prefs.getBoolean("auto_show_overlay", false)
-        prefDockMode = prefs.getBoolean("dock_mode", false)
+        prefDockMode = prefs.getBoolean("dock_mode_d$displayId", prefs.getBoolean("dock_mode", false))
         prefAutoResize = prefs.getBoolean("auto_resize", false)
         prefResizeScale = prefs.getInt("auto_resize_scale", 0)
         prefSyncMargin = prefs.getBoolean("sync_margin", false)
@@ -293,8 +300,10 @@ class DockInputMethodService : InputMethodService() {
     }
     
     private fun saveDockPrefs() {
+        val displayId = getImeDisplayId()
         getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE).edit()
             .putBoolean("auto_show_overlay", prefAutoShowOverlay)
+            .putBoolean("dock_mode_d$displayId", prefDockMode)
             .putBoolean("dock_mode", prefDockMode)
             .putBoolean("auto_resize", prefAutoResize)
             .putInt("auto_resize_scale", prefResizeScale)

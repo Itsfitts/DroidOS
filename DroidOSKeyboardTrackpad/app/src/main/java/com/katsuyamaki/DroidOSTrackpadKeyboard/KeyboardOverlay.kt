@@ -128,7 +128,21 @@ class KeyboardOverlay(
     private var screenHeight = 748
     private var currentRotation = 0
     private var currentAlpha = 200
-    private var currentDisplayId = 0
+    private var currentDisplayId = targetDisplayId
+
+    init {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.currentWindowMetrics.bounds
+            screenWidth = bounds.width()
+            screenHeight = bounds.height()
+        } else {
+            val metrics = android.util.DisplayMetrics()
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealMetrics(metrics)
+            screenWidth = metrics.widthPixels
+            screenHeight = metrics.heightPixels
+        }
+    }
 
 
     // Callbacks to talk back to OverlayService
@@ -1020,6 +1034,12 @@ fun setCustomModKey(keyCode: Int) {
 
 
     private fun createKeyboardWindow() {
+        // Defensive cleanup — remove old container if still attached
+        if (keyboardContainer != null) {
+            try { windowManager.removeView(keyboardContainer) } catch (e: Exception) {}
+            keyboardContainer = null; keyboardView = null
+        }
+
         // [FIX] Use custom FrameLayout to intercept ALL touches.
         keyboardContainer = object : FrameLayout(context) {
             
@@ -1302,9 +1322,18 @@ fun setCustomModKey(keyCode: Int) {
         val savedX = prefs.getInt("keyboard_x_d$currentDisplayId", defaultX)
         val savedY = prefs.getInt("keyboard_y_d$currentDisplayId", defaultY)
 
-        // 4. Set Fields
-        keyboardWidth = savedW
-        keyboardHeight = savedH
+        // 4. Bounds validation — clamp so KB is visible on this display
+        val clampedW = savedW.coerceIn(100, screenWidth)
+        val clampedH = savedH.coerceIn(100, screenHeight)
+        val clampedX = savedX.coerceIn(-clampedW + 50, screenWidth - 50)
+        val clampedY = savedY.coerceIn(-clampedH + 50, screenHeight - 50)
+        val offScreenThreshold = screenWidth / 2
+        val useDefaults = (kotlin.math.abs(savedX - clampedX) > offScreenThreshold ||
+                          kotlin.math.abs(savedY - clampedY) > offScreenThreshold)
+
+        // 5. Set Fields
+        keyboardWidth = if (useDefaults) defaultWidth else clampedW
+        keyboardHeight = if (useDefaults) defaultHeight else clampedH
 
         keyboardParams = WindowManager.LayoutParams(
             keyboardWidth,
@@ -1317,8 +1346,8 @@ fun setCustomModKey(keyCode: Int) {
             PixelFormat.TRANSLUCENT
         )
         keyboardParams?.gravity = Gravity.TOP or Gravity.LEFT
-        keyboardParams?.x = savedX
-        keyboardParams?.y = savedY
+        keyboardParams?.x = if (useDefaults) defaultX else clampedX
+        keyboardParams?.y = if (useDefaults) defaultY else clampedY
 
 windowManager.addView(keyboardContainer, keyboardParams)
         updateAlpha(currentAlpha)

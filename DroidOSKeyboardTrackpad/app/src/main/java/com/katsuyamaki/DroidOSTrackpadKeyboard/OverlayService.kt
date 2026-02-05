@@ -2299,15 +2299,15 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 }
             }
         }
-        // Clean up keyboard and menu
-        try {
-            keyboardOverlay?.hide()
-            keyboardOverlay = null
-            menuManager?.hide()
-            menuManager = null
-        } catch (e: Exception) {
-            android.util.Log.e("OverlayService", "Failed to cleanup keyboard/menu", e)
+        // Clean up keyboard and menu — each independently so one failure doesn't block others
+        try { keyboardOverlay?.hide() } catch (e: Exception) {
+            android.util.Log.e("OverlayService", "Failed to hide keyboard", e)
         }
+        keyboardOverlay = null
+        try { menuManager?.hide() } catch (e: Exception) {
+            android.util.Log.e("OverlayService", "Failed to hide menu", e)
+        }
+        menuManager = null
         // Clean up BT mouse capture overlay
         removeBtMouseCaptureOverlay()
         // Nullify references to ensure setup functions create fresh instances
@@ -3165,18 +3165,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 val newDockMode = parseBoolean(value)
                 val dockPrefs = getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE)
                 if (newDockMode) {
-                    // Auto-enable show_kb_above_dock on first enable
                     if (!dockPrefs.contains("show_kb_above_dock")) {
                         prefs.prefShowKBAboveDock = true
                         savePrefs()
                     }
-                    dockPrefs.edit().putBoolean("dock_mode", true).apply()
+                    dockPrefs.edit()
+                        .putBoolean("dock_mode_d$currentDisplayId", true)
+                        .putBoolean("dock_mode", true)
+                        .apply()
                     if (isCustomKeyboardVisible) {
                         if (lastDockMarginPercent >= 0) applyDockModeWithMargin(lastDockMarginPercent)
                         else applyDockMode()
                     }
                 } else {
                     dockPrefs.edit()
+                        .putBoolean("dock_mode_d$currentDisplayId", false)
                         .putBoolean("dock_mode", false)
                         .putBoolean("auto_resize", false)
                         .apply()
@@ -3475,7 +3478,12 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         settingsStr.append("${prefs.prefPredictionAggression};")
 
         // Physical Keyboard Bounds
-        settingsStr.append("$currentKbX;$currentKbY;$currentKbW;$currentKbH")
+        settingsStr.append("$currentKbX;$currentKbY;$currentKbW;$currentKbH;")
+
+        // Dock Mode (per-display)
+        val dockSavePrefs = getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE)
+        val saveDockMode = dockSavePrefs.getBoolean("dock_mode_d$currentDisplayId", dockSavePrefs.getBoolean("dock_mode", false))
+        settingsStr.append("${if(saveDockMode) 1 else 0}")
 
         p.putString("SETTINGS_$key", settingsStr.toString())
 
@@ -3628,6 +3636,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     private fun initCustomKeyboard() { 
         if (appWindowManager == null || shellService == null) return
         
+        // Defensive cleanup — prevent orphaned windows
+        try { keyboardOverlay?.hide() } catch (e: Exception) {}
+        keyboardOverlay = null
+        
         keyboardOverlay = KeyboardOverlay(
             this, 
             appWindowManager!!, 
@@ -3766,7 +3778,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         // (2) Bubble icon docking when dock mode is toggled off in overlay menu.
         val currentIme = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.DEFAULT_INPUT_METHOD)
         val isDockIMEConfigured = currentIme?.contains("DroidOSTrackpadKeyboard") == true
-        val isDockModeEnabled = getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE).getBoolean("dock_mode", false)
+        val dockModePrefs = getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE)
+        val isDockModeEnabled = dockModePrefs.getBoolean("dock_mode_d$currentDisplayId", dockModePrefs.getBoolean("dock_mode", false))
         if (isNowVisible && prefs.prefShowKBAboveDock && isDockIMEConfigured && isDockModeEnabled) {
             if (lastDockMarginPercent >= 0) {
                 applyDockModeWithMargin(lastDockMarginPercent)
@@ -4328,6 +4341,21 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                      keyboardOverlay?.setWindowBounds(savedKbX, savedKbY, savedKbW, savedKbH)
                      keyboardUpdated = true
                 } catch (e: Exception) { }
+
+                // Load Dock Mode from profile (appended after KB bounds in newest profiles)
+                if (parts.size > kbIndex + 4) {
+                    try {
+                        val profileDockMode = parts[kbIndex + 4] == "1"
+                        getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE).edit()
+                            .putBoolean("dock_mode_d$currentDisplayId", profileDockMode)
+                            .putBoolean("dock_mode", profileDockMode)
+                            .apply()
+                        if (profileDockMode && isCustomKeyboardVisible) {
+                            if (lastDockMarginPercent >= 0) applyDockModeWithMargin(lastDockMarginPercent)
+                            else applyDockMode()
+                        }
+                    } catch (e: Exception) {}
+                }
 
                 // Apply Visuals
                 updateBorderColor(currentBorderColor); updateScrollSize(); updateHandleSize()
