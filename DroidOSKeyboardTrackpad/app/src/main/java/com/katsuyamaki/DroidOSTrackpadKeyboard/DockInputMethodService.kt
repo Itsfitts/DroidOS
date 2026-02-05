@@ -32,9 +32,11 @@ class DockInputMethodService : InputMethodService() {
 
     private var dockView: View? = null
 
-    // [FIX] Default to true so that managed apps (tiled) have insets suppressed 
-    // immediately on window show, preventing the "double margin" race.
-    private var launcherTiledActive = true
+    // Default to false so fullscreen apps resize correctly via insets.
+    // Launcher will send TILED_STATE(true) for managed apps, triggering inset suppression.
+    // The slight delay before receiving the broadcast is acceptable - fullscreen (default)
+    // behavior is safer than breaking fullscreen apps entirely.
+    private var launcherTiledActive = false
     private var forceFullUpdate = false // Flag to force full setInputView() on next update
     private var lastTiledStateTime = 0L // Timestamp of last TILED_STATE broadcast
     private var windowShownTime = 0L // Timestamp of last onWindowShown
@@ -936,13 +938,13 @@ class DockInputMethodService : InputMethodService() {
             val viewH = window?.window?.decorView?.height ?: 0
             val wrapperH = currentInputWrapper?.height ?: -1
             
-            // Read launcher_has_managed_apps from SharedPreferences for reliability.
-            // launcherTiledActive (from broadcasts) can have timing issues during IME transitions.
-            val prefs = getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE)
-            val launcherHasManagedApps = prefs.getBoolean("launcher_has_managed_apps", false)
-            val shouldSuppressInsets = launcherTiledActive || launcherHasManagedApps
+            // launcherTiledActive (from TILED_STATE broadcast) tells us if focused app is managed.
+            // - true: focused app is managed by Launcher, suppress insets (Launcher handles resize)
+            // - false: focused app is fullscreen/independent, use insets (Android handles resize)
+            // SharedPrefs fallback removed - it was causing fullscreen apps to not resize.
+            val shouldSuppressInsets = launcherTiledActive
             
-            android.util.Log.w(TAG, ">>> onComputeInsets: tiled=$launcherTiledActive, managedApps=$launcherHasManagedApps, autoResize=$prefAutoResize, dockMode=$prefDockMode, viewH=$viewH, wrapperH=$wrapperH, lastCalcH=$lastCalculatedHeight")
+            android.util.Log.w(TAG, ">>> onComputeInsets: tiled=$launcherTiledActive, autoResize=$prefAutoResize, dockMode=$prefDockMode, viewH=$viewH, wrapperH=$wrapperH, lastCalcH=$lastCalculatedHeight")
             
             if (prefAutoResize && prefDockMode && shouldSuppressInsets) {
                 // TILED/MANAGED: Launcher handles resize via retileExistingWindows().

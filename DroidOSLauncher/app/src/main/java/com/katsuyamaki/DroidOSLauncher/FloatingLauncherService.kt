@@ -1290,21 +1290,21 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         // ===================================================================================
                         // WARNING: DOUBLE-MARGIN BUG - SEE processWindowManagerCommand() FOR FULL EXPLANATION
                         // ===================================================================================
-                        // This broadcast is SUPPLEMENTARY. The primary fix is in processWindowManagerCommand()
-                        // where we write launcher_has_managed_apps to SharedPreferences.
+                        // Broadcast tells DockIME if FOCUSED app is managed (suppress insets) or not (use insets).
+                        // - Tiled/Managed apps: Launcher handles resize, suppress insets to avoid double-resize
+                        // - Fullscreen apps: Android handles resize via insets, don't suppress
                         //
-                        // DO NOT change shouldSuppressInsets logic without testing:
-                        // 1. Open 2 tiled apps (top/bottom layout)
-                        // 2. Tap text field to show IME
-                        // 3. Verify NO blank gap between bottom app and keyboard
-                        // 4. Hide/show IME multiple times rapidly
-                        // 5. Switch focus between the two apps while IME is visible
+                        // The SharedPrefs flag (launcher_has_managed_apps) is a fallback for timing issues
+                        // but ONLY for tiled apps. Fullscreen apps must NOT suppress insets.
+                        //
+                        // TEST PROCEDURE:
+                        // 1. Open 2 tiled apps (top/bottom layout), tap text field - NO blank gap
+                        // 2. Open fullscreen app, tap text field - app should resize for keyboard
                         // ===================================================================================
-                        val shouldSuppressInsets = (autoAdjustMarginForIME && activeNonMinimized.isNotEmpty()) || isManagedApp
                         if (!isSystemOverlay) {
                             sendBroadcast(Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.TILED_STATE")
                                 .setPackage("com.katsuyamaki.DroidOSTrackpadKeyboard")
-                                .putExtra("TILED_ACTIVE", shouldSuppressInsets))
+                                .putExtra("TILED_ACTIVE", isManagedApp))
                         }
                         // [FULLSCREEN] Skip auto-minimize during cooldown after explicit tiled app launch.
                         // This prevents newly launched tiled apps from being immediately hidden.
@@ -1318,11 +1318,14 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                             // Full-screen app opened — minimize all tiled windows
                             // But first verify it actually covers the screen (skip small freeform/popup windows)
+                            // [FIX] Also check that window starts at top of screen (y near 0).
+                            // One UI popup/sidebar apps have offset from top and shouldn't trigger auto-minimize.
                             var coversScreen = false
                             try {
                                 val dm = android.util.DisplayMetrics()
                                 windowManager.defaultDisplay.getRealMetrics(dm)
                                 val screenArea = dm.widthPixels.toLong() * dm.heightPixels.toLong()
+                                val screenHeight = dm.heightPixels
                                 val boundsRect = android.graphics.Rect()
                                 for (window in windows) {
                                     if (window.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue
@@ -1332,13 +1335,16 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                     if (windowPkg == detectedPkg) {
                                         window.getBoundsInScreen(boundsRect)
                                         val windowArea = boundsRect.width().toLong() * boundsRect.height().toLong()
-                                        if (windowArea >= screenArea * 85 / 100) {
+                                        // Must cover 95% of screen area AND start near top (within 5% of screen height)
+                                        // This filters out One UI popup/freeform windows which have offset from top
+                                        val startsAtTop = boundsRect.top < screenHeight * 5 / 100
+                                        if (windowArea >= screenArea * 95 / 100 && startsAtTop) {
                                             coversScreen = true
                                         }
                                         break
                                     }
                                 }
-                            } catch (e: Exception) { coversScreen = true } // fallback to old behavior on error
+                            } catch (e: Exception) { /* Don't auto-minimize on error - safer default */ }
 
                             if (coversScreen) {
                             tiledAppsAutoMinimized = true
@@ -5108,14 +5114,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 .putBoolean("launcher_has_managed_apps", hasManagedApps)
                 .apply()
 
-            // Broadcast is kept for backward compatibility but DockIME primarily uses SharedPrefs
+            // Broadcast tells DockIME if focused app is managed (for inset suppression)
             if (activePackageName != null) {
                 val isGeminiFocused = activePackageName == "com.google.android.googlequicksearchbox"
                 val isManaged = activeNonMinimized.any { it.getBasePackage() == activePackageName || it.packageName == activePackageName || (isGeminiFocused && it.getBasePackage() == "com.google.android.apps.bard") }
-                val shouldSuppressInsets = hasManagedApps || isManaged
                 sendBroadcast(Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.TILED_STATE")
                     .setPackage("com.katsuyamaki.DroidOSTrackpadKeyboard")
-                    .putExtra("TILED_ACTIVE", shouldSuppressInsets))
+                    .putExtra("TILED_ACTIVE", isManaged))
             }
 
             safeToast(msg)
