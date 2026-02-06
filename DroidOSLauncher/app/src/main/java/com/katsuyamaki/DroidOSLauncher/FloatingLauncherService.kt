@@ -4825,6 +4825,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     private fun handleWindowManagerCommand(intent: Intent) {
         val cmd = intent.getStringExtra("COMMAND")?.uppercase(Locale.ROOT) ?: return
         
+        // [FIX] Sync display context before executing commands to prevent stale state
+        refreshDisplayId()
+        
         // CONVERT 1-BASED INDEX TO 0-BASED INTERNAL INDEX
         // If user sends 1, we get 0. If user sends 0 or nothing (-1), it stays invalid (-1).
         val rawIndex = intent.getIntExtra("INDEX", -1)
