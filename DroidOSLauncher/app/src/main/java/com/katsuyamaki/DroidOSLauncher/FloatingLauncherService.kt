@@ -1592,6 +1592,17 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     // AccessibilityService entry point - called when user enables service in Settings
     override fun onServiceConnected() {
         super.onServiceConnected()
+        
+        // [STATE SYNC] Reset DockIMEPrefs on startup to prevent stale state.
+        // The launcher will send correct TILED_STATE broadcasts as apps gain focus.
+        getSharedPreferences("DockIMEPrefs", Context.MODE_PRIVATE).edit()
+            .putBoolean("launcher_has_managed_apps", false)
+            .apply()
+        // Also broadcast initial TILED_STATE(false) to reset keyboard
+        sendBroadcast(Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.TILED_STATE")
+            .setPackage("com.katsuyamaki.DroidOSTrackpadKeyboard")
+            .putExtra("TILED_ACTIVE", false))
+        Log.d(TAG, "onServiceConnected: Reset DockIMEPrefs and TILED_STATE to prevent stale sync")
         Log.d(TAG, "Accessibility Service Connected")
 
         // Initialize WindowManager
