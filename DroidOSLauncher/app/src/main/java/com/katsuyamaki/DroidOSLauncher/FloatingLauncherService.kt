@@ -328,6 +328,9 @@ private var isSoftKeyboardSupport = false
     // [NEW] Prevent concurrent watchdog threads for the same package
     private val activeEnforcements = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     
+    // [NEW] Track recently killed apps so watchdog doesn't try to recover them
+    private val recentlyKilledApps = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private lateinit var drawerParams: WindowManager.LayoutParams
 
@@ -676,8 +679,12 @@ private var isSoftKeyboardSupport = false
             if (pos != RecyclerView.NO_POSITION) { 
                 val app = selectedAppsQueue[pos]
                 if (app.packageName != PACKAGE_BLANK) { 
-                    removeFromFocusHistory(app.packageName) // Clean up history
-                    Thread { try { shellService?.forceStop(app.packageName) } catch(e: Exception) {} }.start()
+                    val basePkg = app.getBasePackage()
+                    removeFromFocusHistory(basePkg) // Clean up history
+                    // Mark as recently killed so watchdog doesn't try to recover
+                    recentlyKilledApps.add(basePkg)
+                    uiHandler.postDelayed({ recentlyKilledApps.remove(basePkg) }, 5000)
+                    Thread { try { shellService?.forceStop(basePkg) } catch(e: Exception) {} }.start()
                     safeToast("Killed ${app.label}") 
                 }
                 selectedAppsQueue.removeAt(pos)
@@ -1236,13 +1243,14 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         if (currentDisplayId >= 2 && event.displayId == 1) {
             val pkg = event.packageName?.toString()
             
-            // Filter out safe system apps
+            // Filter out safe system apps and recently killed apps
             if (!pkg.isNullOrEmpty() && 
                 pkg != packageName && 
                 pkg != PACKAGE_TRACKPAD && 
                 pkg != "com.android.systemui" && 
                 pkg != "com.sec.android.app.launcher" && 
-                !pkg.contains("inputmethod")) {
+                !pkg.contains("inputmethod") &&
+                !recentlyKilledApps.contains(pkg)) {
                 
                 // Only act on state changes (app opening/resuming)
                 if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -4112,8 +4120,12 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         // [FULLSCREEN] If there's a visible app not in the queue (fullscreen app), add it to the queue.
         // This converts the fullscreen app into a tiled app, placing the user's selected apps on top.
         // Without this, the fullscreen app detection would minimize the newly launched tiled apps.
+        // [FIX] Also exclude recently killed apps - they may still be visible while force-stop completes.
         val queuePackages = selectedAppsQueue.map { it.getBasePackage() }.toSet()
-        val fullscreenApps = activeApps.filter { it.getBasePackage() !in queuePackages && !it.isMinimized }
+        val fullscreenApps = activeApps.filter { 
+            val basePkg = it.getBasePackage()
+            basePkg !in queuePackages && !it.isMinimized && !recentlyKilledApps.contains(basePkg)
+        }
         if (fullscreenApps.isNotEmpty() && selectedAppsQueue.any { !it.isMinimized }) {
             for (fsApp in fullscreenApps) {
                 // Add fullscreen app to END of queue (bottom position in layout)
@@ -4848,6 +4860,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     if (app.packageName != PACKAGE_BLANK) {
                         val basePkg = app.getBasePackage()
                         removeFromFocusHistory(basePkg) // Clean up history
+                        // Mark as recently killed so watchdog doesn't try to recover
+                        recentlyKilledApps.add(basePkg)
+                        uiHandler.postDelayed({ recentlyKilledApps.remove(basePkg) }, 5000)
                         Thread { try { shellService?.forceStop(basePkg) } catch(e: Exception){} }.start()
                     }
                     selectedAppsQueue.removeAt(index)
