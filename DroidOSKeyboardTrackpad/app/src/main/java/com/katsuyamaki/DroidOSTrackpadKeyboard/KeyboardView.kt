@@ -115,6 +115,7 @@ private var isMetaActive = false // For Windows/Command key
 
     private var isVoiceActive = false
     private var isInputCaptureActive = false
+    private var shortcutCooldownUntil = 0L  // Prevents key leakage after triggering a Launcher shortcut
 
 private var customModKeyCode = 0
     private var isCustomModLatchedLocal = false
@@ -126,7 +127,7 @@ private var customModKeyCode = 0
     //          Only block shortcuts that exist in this set when overrideSystemShortcuts is true.
     //          Empty set = block nothing (allow all shortcuts through to system)
     // =================================================================================
-    private var launcherBlockedShortcuts: Set<String> = emptySet()
+    private var launcherBlockedShortcuts: Map<String, Int> = emptyMap()
     // =================================================================================
     // END BLOCK: LAUNCHER BLOCKED SHORTCUTS SET
     // =================================================================================
@@ -621,6 +622,7 @@ private var customModKeyCode = 0
 
     fun setInputCaptureMode(active: Boolean) {
         isInputCaptureActive = active
+        if (!active) shortcutCooldownUntil = 0  // Clear cooldown when capture explicitly disabled
         // Visual feedback? maybe dim the keyboard slightly or change border
         if (active) setBackgroundColor(Color.parseColor("#330000")) // Subtle Red tint
         else setBackgroundColor(Color.parseColor("#1A1A1A"))
@@ -637,9 +639,18 @@ private var customModKeyCode = 0
     //          will be blocked; others pass through to the system.
     // @param shortcuts - Set of "modifier|keyCode" strings from Launcher
     // =================================================================================
-    fun setLauncherBlockedShortcuts(shortcuts: Set<String>) {
-        launcherBlockedShortcuts = shortcuts
-        android.util.Log.d(TAG, "KeyboardView: Updated blocked shortcuts: ${shortcuts.size} entries")
+    fun setLauncherBlockedShortcuts(shortcuts: Collection<String>) {
+        val map = mutableMapOf<String, Int>()
+        for (entry in shortcuts) {
+            val parts = entry.split("|")
+            if (parts.size >= 2) {
+                val key = "${parts[0]}|${parts[1]}"
+                val argCount = if (parts.size >= 3) parts[2].toIntOrNull() ?: 0 else 0
+                map[key] = argCount
+            }
+        }
+        launcherBlockedShortcuts = map
+        android.util.Log.d(TAG, "KeyboardView: Updated blocked shortcuts: ${map.size} entries")
     }
     // =================================================================================
     // END FUNCTION: setLauncherBlockedShortcuts
@@ -2165,8 +2176,11 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
 
                                 return
                             }            // 3. INPUT CAPTURE REDIRECT (For Launcher Commands)
+            // Also redirect during shortcut cooldown to prevent key leakage in the race window
+            // between the Launcher sending SET_INPUT_CAPTURE and us receiving it.
             val isLayerKey = key in setOf("SYM", "SYM1", "SYM2", "ABC", "SHIFT", "CAPS")
-            if (isInputCaptureActive && !isLayerKey) {
+            val inShortcutCooldown = System.currentTimeMillis() < shortcutCooldownUntil
+            if ((isInputCaptureActive || inShortcutCooldown) && !isLayerKey) {
                 var finalCode = 0
 
                 // Handle Digits (0-9) with reliable math
@@ -2206,14 +2220,24 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                     val isModifierKey = key in setOf("SHIFT", "CTRL", "ALT", "META", "SYM", "SYM1", "SYM2", "ABC", "CAPS")
 
                     if (!fromRepeat && (isAltActive || isCtrlActive || isMetaActive || isCustomModLatchedLocal) && !isModifierKey) {
-                        // Build the shortcut key string to check against blocked set
+                        // Build the shortcut key string to check against blocked map
                         val shortcutKey = "$meta|$keyCode"
-                        val isShortcutRegistered = launcherBlockedShortcuts.contains(shortcutKey)
+                        val isShortcutRegistered = launcherBlockedShortcuts.containsKey(shortcutKey)
+                        val shortcutArgCount = launcherBlockedShortcuts[shortcutKey] ?: 0
 
-                        android.util.Log.d(TAG, "Shortcut check: $shortcutKey, registered=$isShortcutRegistered, override=$overrideSystemShortcuts")
+                        android.util.Log.d(TAG, "Shortcut check: $shortcutKey, registered=$isShortcutRegistered, argCount=$shortcutArgCount, override=$overrideSystemShortcuts")
 
                         // Only broadcast to Launcher if this shortcut is registered there
                         if (isShortcutRegistered && keyCode != 0) {
+                            // [FIX] If this command needs input (argCount > 0), it will open the visual queue.
+                            // Pre-set capture mode SYNCHRONOUSLY so subsequent key presses don't leak to the app.
+                            // This eliminates the cross-process SET_INPUT_CAPTURE broadcast race condition.
+                            if (shortcutArgCount > 0) {
+                                isInputCaptureActive = true
+                                shortcutCooldownUntil = System.currentTimeMillis() + 5000
+                                android.util.Log.d(TAG, "Pre-set capture mode for command with argCount=$shortcutArgCount")
+                            }
+                            
                             val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
                             intent.setPackage("com.katsuyamaki.DroidOSLauncher")
                             intent.putExtra("keyCode", keyCode)
@@ -2230,11 +2254,9 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                         buildKeyboard()
 
 
-                        // Only block system shortcut if:
-                        // 1. Override is enabled
-                        // 2. This specific shortcut is registered in the Launcher
-                        if (overrideSystemShortcuts && isShortcutRegistered) {
-                            android.util.Log.d(TAG, "Blocking system shortcut: $shortcutKey")
+                        // Always block key from reaching app if it's a registered DroidOS shortcut.
+                        if (isShortcutRegistered) {
+                            android.util.Log.d(TAG, "Blocking registered shortcut: $shortcutKey")
                             return
                         }
                         // If shortcut is NOT registered, let it pass through to the system

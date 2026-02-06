@@ -309,7 +309,7 @@ class TrackpadMenuManager(
         // --- END ANCHOR TOGGLE ---
 
         // NEW: Launch Proxy Activity for Picker (moved from Keyboard Settings tab)
-        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Picker\nSelect 'DroidOS Input Dock'\nFor More Features", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
+        list.add(TrackpadMenuAdapter.MenuItem("Keyboard Picker\nSelect 'DroidOS Keyboard Toolbar'\nFor More Features", android.R.drawable.ic_menu_agenda, TrackpadMenuAdapter.Type.ACTION) { 
             service.forceSystemKeyboardVisible()
 
             hide() // Close menu

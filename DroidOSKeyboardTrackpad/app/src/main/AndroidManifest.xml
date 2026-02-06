@@ -111,7 +111,7 @@
 
         <service
             android:name=".DockInputMethodService"
-            android:label="DroidOS Input Dock"
+            android:label="DroidOS Keyboard Toolbar"
             android:permission="android.permission.BIND_INPUT_METHOD"
             android:exported="true">
             <intent-filter>

@@ -159,6 +159,7 @@ class FloatingLauncherService : AccessibilityService() {
     // Command State Machine
     private var pendingCommandId: String? = null
     private var vqCursorIndex: Int = 0  // Arrow-key cursor for visual queue HUD
+    private var vqTextWatcher: android.text.TextWatcher? = null
 
 // Custom Modifier State
     private val MOD_CUSTOM = -999 // Internal ID for custom modifier
@@ -597,8 +598,9 @@ private var isSoftKeyboardSupport = false
         for (cmd in AVAILABLE_COMMANDS) {
             val bind = AppPreferences.getKeybind(this, cmd.id)
             if (bind.second != 0) { // Valid keyCode
-                // Format: "modifier|keyCode"
-                binds.add("${bind.first}|${bind.second}")
+                // Format: "modifier|keyCode|argCount"
+                // argCount tells the keyboard if this command needs input (opens visual queue)
+                binds.add("${bind.first}|${bind.second}|${cmd.argCount}")
             }
         }
 
@@ -1148,6 +1150,19 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         return when (code) {
             in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> code - KeyEvent.KEYCODE_0
             in KeyEvent.KEYCODE_NUMPAD_0..KeyEvent.KEYCODE_NUMPAD_9 -> code - KeyEvent.KEYCODE_NUMPAD_0
+            // [FIX] QWERTY top-row fallback: When the overlay keyboard hasn't switched to the
+            // number layer yet (SET_NUM_LAYER broadcast race), it sends letter keycodes.
+            // Map QWERTY top row to their number equivalents so command input still works.
+            KeyEvent.KEYCODE_Q -> 1
+            KeyEvent.KEYCODE_W -> 2
+            KeyEvent.KEYCODE_E -> 3
+            KeyEvent.KEYCODE_R -> 4
+            KeyEvent.KEYCODE_T -> 5
+            KeyEvent.KEYCODE_Y -> 6
+            KeyEvent.KEYCODE_U -> 7
+            KeyEvent.KEYCODE_I -> 8
+            KeyEvent.KEYCODE_O -> 9
+            KeyEvent.KEYCODE_P -> 0
             else -> -1
         }
     }
@@ -2813,6 +2828,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             } else {
                 holder.highlight.visibility = View.GONE
             }
+
+            // [FIX] Tap-to-select: Directly handle touch input in Launcher process.
+            // This bypasses the overlay keyboard entirely, avoiding the cross-process
+            // SET_INPUT_CAPTURE broadcast race that causes key leakage.
+            holder.itemView.setOnClickListener {
+                handleCommandInput(slotNum) // slotNum is 1-based
+            }
         }
         override fun getItemCount() = selectedAppsQueue.size
     }
@@ -3356,6 +3378,27 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         }
     }
     // === LAUNCH VIA SHELL - END ===
+
+    // [CURSOR] Send cursor to center of app bounds when focusing via DroidOS
+    // Bounds from getLayoutRects() are in layout-relative coordinates (top margin = y:0),
+    // so we add the top margin offset to get actual screen coordinates.
+    private fun sendCursorToAppCenter(bounds: Rect?) {
+        if (bounds == null) return
+        val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val display = dm.getDisplay(currentDisplayId) ?: return
+        val metrics = DisplayMetrics()
+        display.getRealMetrics(metrics)
+        val h = metrics.heightPixels
+        val topPx = (h * topMarginPercent / 100f).toInt()
+        val centerX = (bounds.left + bounds.right) / 2f
+        val centerY = (bounds.top + bounds.bottom) / 2f + topPx
+        val intent = Intent("SET_CURSOR_POS")
+        intent.setPackage(PACKAGE_TRACKPAD)
+        intent.putExtra("X", centerX)
+        intent.putExtra("Y", centerY)
+        sendBroadcast(intent)
+        Log.d(TAG, "CURSOR: Sent cursor to ($centerX, $centerY) topPx=$topPx bounds=$bounds")
+    }
 
     
     private fun toggleVirtualDisplay() {
@@ -4995,10 +5038,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         } else {
                             // Drawer Closed: Perform Actual Launch
                             val rects = getLayoutRects()
-                            val bounds = if (index < rects.size) rects[index] else null
+                            // Layout rects only include non-minimized slots, so find the layout index
+                            val layoutIdx = selectedAppsQueue.take(index).count { !it.isMinimized }
+                            val bounds = if (layoutIdx < rects.size) rects[layoutIdx] else null
                             Thread {
                                  launchViaShell(app.getBasePackage(), app.className, bounds)
                             }.start()
+                            sendCursorToAppCenter(bounds)
                             safeToast("Focused: ${app.label}")
                         }
                     }
@@ -5025,10 +5071,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             // Drawer Closed: Perform Actual Launch
                             val idx = selectedAppsQueue.indexOf(app)
                             val rects = getLayoutRects()
-                            val bounds = if (idx >= 0 && idx < rects.size) rects[idx] else null
+                            // Layout rects only include non-minimized slots, so find the layout index
+                            val layoutIdx = if (idx >= 0) selectedAppsQueue.take(idx).count { !it.isMinimized } else -1
+                            val bounds = if (layoutIdx >= 0 && layoutIdx < rects.size) rects[layoutIdx] else null
                             Thread {
                                  launchViaShell(app.getBasePackage(), app.className, bounds)
                             }.start()
+                            sendCursorToAppCenter(bounds)
                             safeToast("Focused: ${app.label}")
                         }
                     } else {

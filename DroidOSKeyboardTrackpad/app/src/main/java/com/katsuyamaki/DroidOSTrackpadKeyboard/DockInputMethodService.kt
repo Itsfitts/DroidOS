@@ -16,7 +16,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.ImageView
 
 /**
- * DroidOS Input Dock (formerly Null Keyboard).
+ * DroidOS Keyboard Toolbar (formerly Null Keyboard).
  * Provides a minimal toolbar for essential actions while keeping the screen clear.
  * Acts as the injection target for the DroidOS Overlay Trackpad/Keyboard.
  */

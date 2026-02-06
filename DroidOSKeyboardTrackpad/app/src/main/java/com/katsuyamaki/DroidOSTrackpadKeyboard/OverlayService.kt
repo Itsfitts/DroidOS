@@ -118,7 +118,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 if (keybinds != null) {
                     launcherBlockedShortcuts.clear()
                     launcherBlockedShortcuts.addAll(keybinds)
-                    // Sync to KeyboardOverlay/KeyboardView
+                    // Sync to KeyboardOverlay/KeyboardView (now parses "modifier|keyCode|argCount")
                     keyboardOverlay?.setLauncherBlockedShortcuts(launcherBlockedShortcuts)
                     Log.d("OverlayService", "Blocked shortcuts updated: $launcherBlockedShortcuts")
                 }
@@ -937,6 +937,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     private var targetScreenHeight = 1080
     private var cursorX = 300f
     private var cursorY = 300f
+    private var cursorFadeRunnable: Runnable? = null
+    private val CURSOR_FADE_TIMEOUT = 5000L // 5 seconds
     private var rotationAngle = 0
     private var lastTouchX = 0f
     private var lastTouchY = 0f
@@ -1228,6 +1230,11 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 action == "SWITCH_DISPLAY" -> switchDisplay()
                 action == "CYCLE_INPUT_TARGET" -> cycleInputTarget()
                 action == "RESET_CURSOR" -> resetCursorCenter()
+                action == "SET_CURSOR_POS" -> {
+                    val x = intent.getFloatExtra("X", -1f)
+                    val y = intent.getFloatExtra("Y", -1f)
+                    if (x >= 0 && y >= 0) setCursorPosition(x, y)
+                }
                 action == "TOGGLE_DEBUG" -> toggleDebugMode()
                 action == "FORCE_KEYBOARD" || action == "TOGGLE_CUSTOM_KEYBOARD" -> {
                     val forceShow = intent.getBooleanExtra("FORCE_SHOW", false)
@@ -1885,6 +1892,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
 
                         addAction("CYCLE_INPUT_TARGET")
                         addAction("RESET_CURSOR")
+                        addAction("SET_CURSOR_POS")
                         addAction("TOGGLE_DEBUG")
                         addAction("FORCE_KEYBOARD")
                         addAction("TOGGLE_CUSTOM_KEYBOARD")
@@ -4032,6 +4040,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
             remoteCursorParams.y = cursorY.toInt()
             try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch (e: Exception) {}
         }
+        showCursorAndResetFade()
 
         // =======================================================================
         // BLUETOOTH MOUSE DISPLAY SYNC
@@ -4143,7 +4152,33 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
     }
 
     fun performClick(right: Boolean) { if (shellService == null) return; Thread { try { if (right) shellService?.execRightClick(cursorX, cursorY, inputTargetDisplayId) else shellService?.execClick(cursorX, cursorY, inputTargetDisplayId) } catch(e: Exception){} }.start() }
-    fun resetCursorCenter() { cursorX = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth/2f else uiScreenWidth/2f; cursorY = if (inputTargetDisplayId != currentDisplayId) targetScreenHeight/2f else uiScreenHeight/2f; if (inputTargetDisplayId == currentDisplayId) { cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); windowManager?.updateViewLayout(cursorLayout, cursorParams) } else { remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt(); try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception){} } }
+    fun resetCursorCenter() { cursorX = if (inputTargetDisplayId != currentDisplayId) targetScreenWidth/2f else uiScreenWidth/2f; cursorY = if (inputTargetDisplayId != currentDisplayId) targetScreenHeight/2f else uiScreenHeight/2f; if (inputTargetDisplayId == currentDisplayId) { cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt(); windowManager?.updateViewLayout(cursorLayout, cursorParams) } else { remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt(); try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception){} }; showCursorAndResetFade() }
+    
+    private fun setCursorPosition(x: Float, y: Float) {
+        cursorX = x; cursorY = y
+        if (inputTargetDisplayId == currentDisplayId) {
+            cursorParams.x = cursorX.toInt(); cursorParams.y = cursorY.toInt()
+            try { windowManager?.updateViewLayout(cursorLayout, cursorParams) } catch(e: Exception) {}
+        } else {
+            remoteCursorParams.x = cursorX.toInt(); remoteCursorParams.y = cursorY.toInt()
+            try { remoteWindowManager?.updateViewLayout(remoteCursorLayout, remoteCursorParams) } catch(e: Exception) {}
+        }
+        showCursorAndResetFade()
+    }
+
+    private fun showCursorAndResetFade() {
+        // Make cursor visible
+        val target = if (inputTargetDisplayId == currentDisplayId) cursorView else remoteCursorView
+        target?.alpha = 1f
+        target?.visibility = View.VISIBLE
+        // Cancel existing fade timer and start new one
+        cursorFadeRunnable?.let { handler.removeCallbacks(it) }
+        cursorFadeRunnable = Runnable {
+            target?.animate()?.alpha(0f)?.setDuration(500)?.start()
+        }
+        handler.postDelayed(cursorFadeRunnable!!, CURSOR_FADE_TIMEOUT)
+    }
+
     fun performRotation() { rotationAngle = (rotationAngle + 90) % 360; cursorView?.rotation = rotationAngle.toFloat() }
 
     // =================================================================================
