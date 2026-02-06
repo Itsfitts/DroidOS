@@ -2915,6 +2915,18 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(et, InputMethodManager.SHOW_IMPLICIT)
             }
+            
+            // [FIX] Ensure overlay keyboard stays visible when drawer opens.
+            // The drawer's focus change can cause the DockIME to cycle (hidden->shown),
+            // which triggers FORCE_HIDE on the overlay. Send FORCE_SHOW after a delay
+            // to beat the race and update the debounce timestamp in OverlayService.
+            uiHandler.postDelayed({
+                val keepKbIntent = Intent("TOGGLE_CUSTOM_KEYBOARD")
+                keepKbIntent.setPackage(PACKAGE_TRACKPAD)
+                keepKbIntent.putExtra("FORCE_SHOW", true)
+                sendBroadcast(keepKbIntent)
+            }, 300)
+            
             updateSelectedAppsDock()
             
             // Show current queue state in debug view when drawer opens
