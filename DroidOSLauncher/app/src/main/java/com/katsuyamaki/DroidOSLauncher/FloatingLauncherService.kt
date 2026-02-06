@@ -328,9 +328,6 @@ private var isSoftKeyboardSupport = false
     // [NEW] Prevent concurrent watchdog threads for the same package
     private val activeEnforcements = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     
-    // [NEW] Track recently killed apps so watchdog doesn't try to recover them
-    private val recentlyKilledApps = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-    
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private lateinit var drawerParams: WindowManager.LayoutParams
 
@@ -679,12 +676,8 @@ private var isSoftKeyboardSupport = false
             if (pos != RecyclerView.NO_POSITION) { 
                 val app = selectedAppsQueue[pos]
                 if (app.packageName != PACKAGE_BLANK) { 
-                    val basePkg = app.getBasePackage()
-                    removeFromFocusHistory(basePkg) // Clean up history
-                    // Mark as recently killed so watchdog doesn't try to recover
-                    recentlyKilledApps.add(basePkg)
-                    uiHandler.postDelayed({ recentlyKilledApps.remove(basePkg) }, 5000)
-                    Thread { try { shellService?.forceStop(basePkg) } catch(e: Exception) {} }.start()
+                    removeFromFocusHistory(app.packageName) // Clean up history
+                    Thread { try { shellService?.forceStop(app.packageName) } catch(e: Exception) {} }.start()
                     safeToast("Killed ${app.label}") 
                 }
                 selectedAppsQueue.removeAt(pos)
@@ -1243,14 +1236,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         if (currentDisplayId >= 2 && event.displayId == 1) {
             val pkg = event.packageName?.toString()
             
-            // Filter out safe system apps and recently killed apps
+            // Filter out safe system apps
             if (!pkg.isNullOrEmpty() && 
                 pkg != packageName && 
                 pkg != PACKAGE_TRACKPAD && 
                 pkg != "com.android.systemui" && 
                 pkg != "com.sec.android.app.launcher" && 
-                !pkg.contains("inputmethod") &&
-                !recentlyKilledApps.contains(pkg)) {
+                !pkg.contains("inputmethod")) {
                 
                 // Only act on state changes (app opening/resuming)
                 if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -2527,11 +2519,55 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             emptyList()
         }
         
-        // We will update the adapter with the live list asynchronously to avoid UI freeze
+        // Detect fullscreen app and ensure it's at position #1 before showing queue
         Thread {
             val visible = shellService?.getVisiblePackages(currentDisplayId) ?: emptyList()
+            
+            // Find the fullscreen app (first visible non-system app)
+            var fullscreenPkg: String? = null
+            for (pkgName in visible) {
+                val pkg = if (pkgName.contains(":")) pkgName.substringBefore(":") else pkgName
+                // Skip DroidOS packages and system UI
+                if (pkg == packageName || pkg == PACKAGE_TRACKPAD ||
+                    pkg.contains("DroidOS") || pkg.contains("katsuyamaki") ||
+                    pkg.contains("systemui") || pkg.contains("inputmethod") ||
+                    pkg.contains("ThumbsUp") || pkg.contains("NavigationBar") ||
+                    pkg.contains("Wallpaper") || pkg.contains("wallpaper") ||
+                    pkg.startsWith("com.android.") || pkg.startsWith("com.samsung.") ||
+                    !pkg.contains(".")) {
+                    continue
+                }
+                fullscreenPkg = pkg
+                break
+            }
+            
             uiHandler.post {
+                // Move/add fullscreen app to position #1
+                if (fullscreenPkg != null) {
+                    val currentFirst = selectedAppsQueue.getOrNull(0)?.getBasePackage()
+                    if (currentFirst != fullscreenPkg) {
+                        val existingIndex = selectedAppsQueue.indexOfFirst { it.getBasePackage() == fullscreenPkg }
+                        if (existingIndex > 0) {
+                            // Move from current position to #1
+                            val app = selectedAppsQueue.removeAt(existingIndex)
+                            selectedAppsQueue.add(0, app)
+                        } else if (existingIndex == -1) {
+                            // Not in queue - add to #1
+                            var appInfo = allAppsList.find { it.getBasePackage() == fullscreenPkg }
+                            if (appInfo == null) {
+                                val label = try {
+                                    packageManager.getApplicationLabel(packageManager.getApplicationInfo(fullscreenPkg, 0)).toString()
+                                } catch (e: Exception) { fullscreenPkg }
+                                appInfo = MainActivity.AppInfo(label, fullscreenPkg, null, false, false)
+                            }
+                            selectedAppsQueue.add(0, appInfo.copy())
+                        }
+                    }
+                }
+                
+                // Update adapter with visibility info
                 val recycler = visualQueueView?.findViewById<RecyclerView>(R.id.visual_queue_recycler)
+                recycler?.adapter = VisualQueueAdapter(highlightSlot0Based)
                 (recycler?.adapter as? VisualQueueAdapter)?.updateVisibility(visible)
             }
         }.start()
@@ -2539,6 +2575,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         val promptView = visualQueueView?.findViewById<TextView>(R.id.visual_queue_prompt)
         promptView?.text = prompt
 
+        // Set placeholder adapter immediately (will be replaced by thread above)
         val recycler = visualQueueView?.findViewById<RecyclerView>(R.id.visual_queue_recycler)
         recycler?.adapter = VisualQueueAdapter(highlightSlot0Based)
 
@@ -4120,12 +4157,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         // [FULLSCREEN] If there's a visible app not in the queue (fullscreen app), add it to the queue.
         // This converts the fullscreen app into a tiled app, placing the user's selected apps on top.
         // Without this, the fullscreen app detection would minimize the newly launched tiled apps.
-        // [FIX] Also exclude recently killed apps - they may still be visible while force-stop completes.
         val queuePackages = selectedAppsQueue.map { it.getBasePackage() }.toSet()
-        val fullscreenApps = activeApps.filter { 
-            val basePkg = it.getBasePackage()
-            basePkg !in queuePackages && !it.isMinimized && !recentlyKilledApps.contains(basePkg)
-        }
+        val fullscreenApps = activeApps.filter { it.getBasePackage() !in queuePackages && !it.isMinimized }
         if (fullscreenApps.isNotEmpty() && selectedAppsQueue.any { !it.isMinimized }) {
             for (fsApp in fullscreenApps) {
                 // Add fullscreen app to END of queue (bottom position in layout)
@@ -4860,9 +4893,6 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     if (app.packageName != PACKAGE_BLANK) {
                         val basePkg = app.getBasePackage()
                         removeFromFocusHistory(basePkg) // Clean up history
-                        // Mark as recently killed so watchdog doesn't try to recover
-                        recentlyKilledApps.add(basePkg)
-                        uiHandler.postDelayed({ recentlyKilledApps.remove(basePkg) }, 5000)
                         Thread { try { shellService?.forceStop(basePkg) } catch(e: Exception){} }.start()
                     }
                     selectedAppsQueue.removeAt(index)
