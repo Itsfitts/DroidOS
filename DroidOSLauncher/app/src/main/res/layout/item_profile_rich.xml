@@ -22,7 +22,7 @@
             android:text="Profile Name"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
-            android:textSize="16sp"
+            android:textSize="@dimen/text_size_16sp"
             android:background="@null"
             android:singleLine="true"
             android:imeOptions="actionDone"
@@ -54,6 +54,6 @@
         android:layout_height="wrap_content"
         android:text="Details"
         android:textColor="#AAAAAA"
-        android:textSize="12sp" />
+        android:textSize="@dimen/text_size_12sp" />
 
 </LinearLayout>

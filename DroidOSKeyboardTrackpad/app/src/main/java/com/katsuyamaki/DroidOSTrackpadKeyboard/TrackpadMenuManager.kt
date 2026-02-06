@@ -468,7 +468,7 @@ class TrackpadMenuManager(
             
         if (isKeyboard) {
             val p = service.prefs
-            list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha) { v ->
+            list.add(TrackpadMenuAdapter.MenuItem("Keyboard Opacity", R.drawable.ic_tab_tune, TrackpadMenuAdapter.Type.SLIDER, p.prefKeyboardAlpha, 255) { v ->
                 service.updatePref("keyboard_alpha", v)
             })
         }

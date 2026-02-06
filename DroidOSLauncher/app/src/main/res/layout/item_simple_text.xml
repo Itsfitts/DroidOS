@@ -6,6 +6,6 @@
     android:padding="16dp"
     android:text="Key Name"
     android:textColor="#FFFFFF"
-    android:textSize="16sp"
+    android:textSize="@dimen/text_size_16sp"
     android:background="@drawable/bg_item_press"
     android:gravity="center_vertical"/>

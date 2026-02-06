@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:text="Select Key"
         android:textColor="#FFFFFF"
-        android:textSize="18sp"
+        android:textSize="@dimen/text_size_18sp"
         android:textStyle="bold"
         android:gravity="center"
         android:layout_marginBottom="12dp"/>

@@ -21,7 +21,7 @@
         android:layout_weight="1"
         android:text="App Name"
         android:textColor="#FFFFFF"
-        android:textSize="16sp" />
+        android:textSize="@dimen/text_size_16sp" />
 
     <ImageView
         android:id="@+id/rofi_app_star"

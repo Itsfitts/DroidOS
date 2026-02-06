@@ -71,7 +71,7 @@
             android:layout_gravity="center"
             android:text="No apps found"
             android:visibility="gone"
-            android:textSize="18sp"
+            android:textSize="@dimen/text_size_18sp"
             android:textColor="#AAAAAA"/>
 
     </FrameLayout>

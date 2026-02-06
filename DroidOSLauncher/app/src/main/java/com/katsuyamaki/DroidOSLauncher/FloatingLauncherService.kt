@@ -2111,7 +2111,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             debugStatusView = TextView(context)
             debugStatusView?.text = "Ready"
             debugStatusView?.setTextColor(Color.GREEN)
-            debugStatusView?.textSize = 10f
+            debugStatusView?.textSize = currentFontSize * 0.8f // Scale down for debug view
             debugStatusView?.gravity = Gravity.CENTER
             
             // [FIX] Hide Debug View by Default
@@ -2823,6 +2823,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
             holder.underline.visibility = if (isFocused) View.VISIBLE else View.GONE
             holder.badge.text = slotNum.toString()
+            holder.badge.setScaledTextSize(currentFontSize, 0.625f) // Corresponds to 10sp for slot number
 
             if (app.packageName == PACKAGE_BLANK) {
                 holder.icon.setImageResource(R.drawable.ic_box_outline)
@@ -3015,7 +3016,12 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         }
     }
     // === SHOW QUEUE DEBUG STATE - END ===
-    private fun updateGlobalFontSize() { val searchBar = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); searchBar?.textSize = currentFontSize; drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged() }
+    private fun updateGlobalFontSize() { 
+        val searchBar = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)
+        searchBar?.textSize = currentFontSize
+        debugStatusView?.textSize = currentFontSize * 0.8f // Update debug view as well
+        drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged() 
+    }
 
 // This ensures that the internal list always has two separate entries for the Google package.
 // We force the standard one to be "Google" and the assistant one to be "Gemini".
@@ -4654,6 +4660,12 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             val isFocused = (app.packageName == activePackageName) ||
                             (app.packageName == "com.google.android.apps.bard" && activePackageName == "com.google.android.googlequicksearchbox")
             holder.underline.visibility = if (isFocused) View.VISIBLE else View.GONE
+            // If the SelectedAppsAdapter has any TextViews with content, their size should also be scaled.
+            // Based on item_selected_app.xml, it only has an ImageView, but if text is added in the future,
+            // this is where it would be applied. Currently, no explicit text to scale here.
+            // If the SelectedAppsAdapter has any TextViews with content, their size should also be scaled.
+            // Based on item_selected_app.xml, it only has an ImageView, but if text is added in the future,
+            // this is where it would be applied. Currently, no explicit text to scale here.
 
             // === KEYBOARD NAVIGATION HIGHLIGHT ===
             // 1. Is this the currently selected slot?
@@ -5373,9 +5385,9 @@ else -> AppHolder(View(parent.context)) } }
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
             val item = displayList[position]
-            if (holder is AppHolder) holder.text.textSize = currentFontSize
-            if (holder is LayoutHolder) holder.nameInput.textSize = currentFontSize
-            if (holder is ProfileRichHolder) holder.name.textSize = currentFontSize
+            if (holder is AppHolder) holder.text.setScaledTextSize(currentFontSize, 1.0f) // Corresponds to 16sp
+            if (holder is LayoutHolder) holder.nameInput.setScaledTextSize(currentFontSize, 1.0f) // Corresponds to 16sp
+            if (holder is ProfileRichHolder) holder.name.setScaledTextSize(currentFontSize, 1.0f) // Corresponds to 16sp
 
             // --- VISUAL HIGHLIGHT LOGIC ---
             // If row is selected via keyboard, force active background.
@@ -5482,6 +5494,10 @@ else -> AppHolder(View(parent.context)) } }
                                         
                                         startRename(holder.nameInput)
                                     }
+                                    // Ensure buttons also scale their text
+                                    (holder.btnEdit as? TextView)?.setScaledTextSize(currentFontSize, 0.875f) // Adjust as needed
+                                    (holder.btnSave as? TextView)?.setScaledTextSize(currentFontSize, 0.875f)
+                                    (holder.btnExtinguish as? TextView)?.setScaledTextSize(currentFontSize, 0.875f)
                 
                                     // SAVE LOGIC
                                     val saveAction = { 
@@ -5529,17 +5545,19 @@ else -> AppHolder(View(parent.context)) } }
                                         if (!hasFocus) saveAction() 
                                     } 
                                 }                else if (item is ResolutionOption) { 
-                    holder.nameInput.setText(item.name); if (item.index >= 100) { holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.itemView.setOnLongClickListener { startRename(holder.nameInput); true }; val saveResName = { val newName = holder.nameInput.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameCustomResolution(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_RESOLUTION) } }; endRename(holder.nameInput) }; holder.nameInput.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveResName(); true } else false }; holder.nameInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) saveResName() } } else { holder.nameInput.isEnabled = false; holder.nameInput.isFocusable = false; holder.nameInput.setTextColor(Color.WHITE) }; val isSelected = (item.index == selectedResolutionIndex); if (isSelected || isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { applyResolution(item) } 
+                    holder.nameInput.setText(item.name); if (item.index >= 100) { holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.itemView.setOnLongClickListener { startRename(holder.nameInput); true }; val saveResName = { val newName = holder.nameInput.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameCustomResolution(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_RESOLUTION) } }; endRename(holder.nameInput) }; holder.nameInput.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveResName(); true } else false };                                     holder.nameInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) saveResName() } } else { holder.nameInput.isEnabled = false; holder.nameInput.isFocusable = false; holder.nameInput.setTextColor(Color.WHITE) }; 
+                    holder.nameInput.setScaledTextSize(currentFontSize, 1.0f) // Set default text size for consistency
+                    val isSelected = (item.index == selectedResolutionIndex); if (isSelected || isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { applyResolution(item) }  
                 }
-                else if (item is IconOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); if(isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { pickIcon() } }
-                else if (item is ToggleOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); if (item.isEnabled || isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); item.isEnabled = !item.isEnabled; item.onToggle(item.isEnabled); notifyItemChanged(position) } } 
-                else if (item is ActionOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); if(isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); item.action() } }
+                else if (item is IconOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.nameInput.setScaledTextSize(currentFontSize, 1.0f); if(isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { pickIcon() } }
+                else if (item is ToggleOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.nameInput.setScaledTextSize(currentFontSize, 1.0f); if (item.isEnabled || isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); item.isEnabled = !item.isEnabled; item.onToggle(item.isEnabled); notifyItemChanged(position) } } 
+                else if (item is ActionOption) { holder.nameInput.setText(item.name); holder.nameInput.isEnabled = false; holder.nameInput.setTextColor(Color.WHITE); holder.nameInput.setScaledTextSize(currentFontSize, 1.0f); if(isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) else holder.itemView.setBackgroundResource(R.drawable.bg_item_press); holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); item.action() } }
             }
             else if (holder is HeaderHolder && item is RefreshHeaderOption) {
                 holder.nameInput.setText(item.text)
                 holder.nameInput.isEnabled = false
                 holder.nameInput.setTextColor(Color.GREEN)
-                holder.nameInput.textSize = 16f
+                holder.nameInput.setScaledTextSize(currentFontSize, 1.0f) // Corresponds to 16sp
                 holder.nameInput.gravity = Gravity.CENTER
                 holder.itemView.setBackgroundResource(0)
                 holder.btnSave.visibility = View.GONE
@@ -5555,7 +5573,8 @@ else -> AppHolder(View(parent.context)) } }
                 holder.nameInput.isEnabled = false
                 holder.btnSave.visibility = View.GONE
                 holder.btnExtinguish.visibility = View.GONE
-                
+                holder.nameInput.setScaledTextSize(currentFontSize, 1.0f) // Set default text size
+
                 if (item.isAvailable) {
                     // Available rate - normal styling
                     if (item.isSelected) {
@@ -5590,6 +5609,8 @@ else -> AppHolder(View(parent.context)) } }
             // END REFRESH ITEM OPTION BINDING
             // =================================================================================
             else if (holder is CustomResInputHolder) {
+                holder.inputW.setScaledTextSize(currentFontSize, 1.0f)
+                holder.inputH.setScaledTextSize(currentFontSize, 1.0f)
                 holder.btnSave.setOnClickListener { val wStr = holder.inputW.text.toString().trim(); val hStr = holder.inputH.text.toString().trim(); if (wStr.isNotEmpty() && hStr.isNotEmpty()) { val w = wStr.toIntOrNull(); val h = hStr.toIntOrNull(); if (w != null && h != null && w > 0 && h > 0) { val gcdVal = calculateGCD(w, h); val wRatio = w / gcdVal; val hRatio = h / gcdVal; val resString = "${w}x${h}"; val name = "$wRatio:$hRatio Custom ($resString)"; AppPreferences.saveCustomResolution(holder.itemView.context, name, resString); safeToast("Added $name"); dismissKeyboardAndRestore(); switchMode(MODE_RESOLUTION) } else { safeToast("Invalid numbers") } } else { safeToast("Input W and H") } }
                 holder.inputW.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }; holder.inputH.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }
             }
@@ -5599,6 +5620,7 @@ else -> AppHolder(View(parent.context)) } }
                 // Set initial values
                 val safeDpi = if (item.currentDpi > 0) item.currentDpi else 0
                 holder.input.setText(safeDpi.toString())
+                holder.input.setScaledTextSize(currentFontSize, 1.0f) // Set default text size
                 holder.slider.progress = safeDpi
 
                 // Slider Listener
@@ -5655,12 +5677,14 @@ else -> AppHolder(View(parent.context)) } }
                 }
             }
 
-            else if (holder is FontSizeHolder && item is FontSizeOption) { holder.textVal.text = item.currentSize.toInt().toString(); holder.btnMinus.setOnClickListener { changeFontSize(item.currentSize - 1) }; holder.btnPlus.setOnClickListener { changeFontSize(item.currentSize + 1) } }
-            else if (holder is HeightHolder && item is HeightOption) { holder.textVal.text = item.currentPercent.toString(); holder.btnMinus.setOnClickListener { changeDrawerHeight(-5) }; holder.btnPlus.setOnClickListener { changeDrawerHeight(5) } }
-            else if (holder is WidthHolder && item is WidthOption) { holder.textVal.text = item.currentPercent.toString(); holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }; holder.btnPlus.setOnClickListener { changeDrawerWidth(5) } }
+            else if (holder is FontSizeHolder && item is FontSizeOption) { holder.textVal.text = item.currentSize.toInt().toString(); holder.textVal.setScaledTextSize(currentFontSize, 1.125f); holder.btnMinus.setOnClickListener { changeFontSize(item.currentSize - 1) }; holder.btnPlus.setOnClickListener { changeFontSize(item.currentSize + 1) } }
+            else if (holder is HeightHolder && item is HeightOption) { holder.textVal.text = item.currentPercent.toString(); holder.textVal.setScaledTextSize(currentFontSize, 1.125f); holder.btnMinus.setOnClickListener { changeDrawerHeight(-5) }; holder.btnPlus.setOnClickListener { changeDrawerHeight(5) } }
+            else if (holder is WidthHolder && item is WidthOption) { holder.textVal.text = item.currentPercent.toString(); holder.textVal.setScaledTextSize(currentFontSize, 1.125f); holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }; holder.btnPlus.setOnClickListener { changeDrawerWidth(5) } }
             else if (holder is MarginHolder && item is MarginOption) {
                 holder.label.text = if (item.type == 0) "Top Margin:" else "Bottom Margin:"
+                holder.label.setScaledTextSize(currentFontSize, 1.0f)
                 holder.text.text = "${item.currentPercent}%"
+                holder.text.setScaledTextSize(currentFontSize, 1.125f)
                 holder.slider.progress = item.currentPercent
                 
                 holder.slider.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
@@ -5704,6 +5728,7 @@ else -> AppHolder(View(parent.context)) } }
                 })
             }
             else if (holder is CustomModHolder && item is CustomModConfigOption) {
+                holder.input.setScaledTextSize(currentFontSize, 1.0f) // Set default text size
                 // Set current value
                 val currentStr = getCharFromKeyCode(item.currentKeyCode)
                 if (holder.input.text.toString() != currentStr) {
@@ -5738,7 +5763,9 @@ sendCustomModToTrackpad() // Sync immediately
             }
             else if (holder is KeybindHolder && item is KeybindOption) {
                 holder.title.text = item.def.label
+                holder.title.setScaledTextSize(currentFontSize, 1.0f) // Corresponds to 16sp
                 holder.desc.text = item.def.description
+                holder.desc.setScaledTextSize(currentFontSize, 0.75f) // Corresponds to 12sp
 
                 // Modifier Button (FORCE AT LEAST ONE)
                 val modText = when (item.modifier) {
@@ -5756,6 +5783,7 @@ sendCustomModToTrackpad() // Sync immediately
                 else holder.btnMod.setTextColor(Color.GREEN)
                 
                 holder.btnMod.text = modText
+                holder.btnMod.setScaledTextSize(currentFontSize, 0.875f) // Corresponds to 14sp
                 holder.btnMod.setOnClickListener {
                     item.modifier = when (item.modifier) {
                         0 -> KeyEvent.META_ALT_ON
@@ -5775,6 +5803,7 @@ sendCustomModToTrackpad() // Sync immediately
                 // Key Button (Opens Picker)
                 val keyName = SUPPORTED_KEYS.entries.find { it.value == item.keyCode }?.key ?: "?"
                 holder.btnKey.text = keyName
+                holder.btnKey.setScaledTextSize(currentFontSize, 0.875f) // Corresponds to 14sp
                 holder.btnKey.setOnClickListener {
                     // If modifier is NONE, force ALT before picking key
                     var safeMod = item.modifier
@@ -5831,5 +5860,10 @@ sendCustomModToTrackpad() // Sync immediately
         if (code == 0) return ""
         val str = KeyEvent.keyCodeToString(code)
         return str.replace("KEYCODE_", "")
+    }
+
+    // Helper extension function to set scaled text size
+    private fun TextView.setScaledTextSize(baseFontSize: Float, scaleFactor: Float = 1.0f) {
+        this.textSize = baseFontSize * scaleFactor
     }
 }

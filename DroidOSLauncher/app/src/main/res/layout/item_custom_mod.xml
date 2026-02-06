@@ -19,7 +19,7 @@
             android:layout_height="wrap_content"
             android:text="Custom Modifier (Sticky)"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="@dimen/text_size_14sp"
             android:textStyle="bold"/>
             
         <TextView
@@ -27,7 +27,7 @@
             android:layout_height="wrap_content"
             android:text="Type a single key (e.g. ` or ~)"
             android:textColor="#888888"
-            android:textSize="10sp"/>
+            android:textSize="@dimen/text_size_10sp"/>
     </LinearLayout>
 
     <EditText
@@ -37,7 +37,7 @@
         android:background="#333333"
         android:padding="8dp"
         android:textColor="#00FFFF"
-        android:textSize="16sp"
+        android:textSize="@dimen/text_size_16sp"
         android:textStyle="bold"
         android:gravity="center"
         android:maxLength="1"

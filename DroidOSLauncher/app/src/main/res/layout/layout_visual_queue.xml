@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:text="COMMAND"
         android:textColor="#00FF00"
-        android:textSize="10sp"
+        android:textSize="@dimen/text_size_10sp"
         android:textStyle="normal"
         android:background="@null"
         android:layout_marginBottom="4dp"/>

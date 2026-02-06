@@ -22,7 +22,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="DroidOS Launcher"
-            android:textSize="28sp"
+            android:textSize="@dimen/text_size_28sp"
             android:textStyle="bold"
             android:textColor="#FFFFFF"
             android:layout_marginBottom="8dp" />
@@ -31,7 +31,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Required Permissions"
-            android:textSize="14sp"
+            android:textSize="@dimen/text_size_14sp"
             android:textColor="#AAAAAA"
             android:layout_marginBottom="30dp" />
 
@@ -57,14 +57,14 @@
                     android:layout_height="wrap_content"
                     android:text="1. Unlock Restrictions"
                     android:textColor="#FF9800"
-                    android:textSize="16sp"
+                    android:textSize="@dimen/text_size_16sp"
                     android:textStyle="bold"/>
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Tap → 3-dots (top right) → Allow Restricted"
                     android:textColor="#888888"
-                    android:textSize="12sp"/>
+                    android:textSize="@dimen/text_size_12sp"/>
             </LinearLayout>
             <ImageView
                 android:id="@+id/icon_status_restricted"
@@ -96,14 +96,14 @@
                     android:layout_height="wrap_content"
                     android:text="2. Display Over Apps"
                     android:textColor="#FFFFFF"
-                    android:textSize="16sp"
+                    android:textSize="@dimen/text_size_16sp"
                     android:textStyle="bold"/>
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Required for Floating Bubble"
                     android:textColor="#888888"
-                    android:textSize="12sp"/>
+                    android:textSize="@dimen/text_size_12sp"/>
             </LinearLayout>
             <ImageView
                 android:id="@+id/icon_status_overlay"
@@ -134,14 +134,14 @@
                     android:layout_height="wrap_content"
                     android:text="3. Accessibility Service"
                     android:textColor="#FFFFFF"
-                    android:textSize="16sp"
+                    android:textSize="@dimen/text_size_16sp"
                     android:textStyle="bold"/>
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Required for App Switching"
                     android:textColor="#888888"
-                    android:textSize="12sp"/>
+                    android:textSize="@dimen/text_size_12sp"/>
             </LinearLayout>
             <ImageView
                 android:id="@+id/icon_status_accessibility"
@@ -172,14 +172,14 @@
                     android:layout_height="wrap_content"
                     android:text="4. Shizuku Access"
                     android:textColor="#FFFFFF"
-                    android:textSize="16sp"
+                    android:textSize="@dimen/text_size_16sp"
                     android:textStyle="bold"/>
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Required for Window Control"
                     android:textColor="#888888"
-                    android:textSize="12sp"/>
+                    android:textSize="@dimen/text_size_12sp"/>
             </LinearLayout>
             <ImageView
                 android:id="@+id/icon_status_shizuku"
