@@ -154,6 +154,7 @@ class FloatingLauncherService : AccessibilityService() {
     // === KEYBIND SYSTEM ===
     private var visualQueueView: View? = null
     private var visualQueueParams: WindowManager.LayoutParams? = null
+    private var visualQueueWindowManager: WindowManager? = null  // Track WM used to add view
     private var isVisualQueueVisible = false
 
     // Command State Machine
@@ -2529,8 +2530,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
         if (!isVisualQueueVisible) {
             try {
-                // Use display-specific WM
+                // Use display-specific WM and store reference for reliable removal
                 val targetWM = displayContext?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: windowManager
+                visualQueueWindowManager = targetWM
                 targetWM.addView(visualQueueView, visualQueueParams)
                 isVisualQueueVisible = true
                 Log.d(TAG, "Visual Queue Added to Display $currentDisplayId")
@@ -2561,11 +2563,41 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
     private fun hideVisualQueue() {
         if (isVisualQueueVisible && visualQueueView != null) {
-            try {
-                val targetWM = displayContext?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: windowManager
-                targetWM.removeView(visualQueueView)
+            var removed = false
+            // Try stored WM first (most reliable)
+            visualQueueWindowManager?.let { wm ->
+                try {
+                    wm.removeView(visualQueueView)
+                    removed = true
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to remove VQ from stored WM: ${e.message}")
+                }
+            }
+            // Fallback: try displayContext WM
+            if (!removed) {
+                try {
+                    val targetWM = displayContext?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+                    targetWM?.removeView(visualQueueView)
+                    removed = true
+                } catch (e: Exception) {}
+            }
+            // Last resort: try base windowManager
+            if (!removed) {
+                try {
+                    windowManager.removeView(visualQueueView)
+                    removed = true
+                } catch (e: Exception) {}
+            }
+            if (removed) {
                 isVisualQueueVisible = false
-            } catch (e: Exception) {}
+                visualQueueWindowManager = null
+            } else {
+                Log.e(TAG, "CRITICAL: Failed to remove Visual Queue from ALL WindowManagers!")
+                // Force cleanup to prevent stuck state
+                visualQueueView = null
+                isVisualQueueVisible = false
+                visualQueueWindowManager = null
+            }
         }
         uiHandler.removeCallbacks(commandTimeoutRunnable)
 
@@ -3500,9 +3532,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
         // Clear cached auxiliary views using CURRENT (Old) WM before switching context
         if (visualQueueView != null) {
-            try { windowManager.removeView(visualQueueView) } catch(e: Exception){}
+            // Try stored WM first, then fallback
+            try { visualQueueWindowManager?.removeView(visualQueueView) } catch(e: Exception){
+                try { windowManager.removeView(visualQueueView) } catch(e2: Exception){}
+            }
             visualQueueView = null
             isVisualQueueVisible = false
+            visualQueueWindowManager = null
         }
         if (keyPickerView != null) {
             try { windowManager.removeView(keyPickerView) } catch(e: Exception){}
