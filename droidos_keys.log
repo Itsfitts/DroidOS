@@ -1,0 +1,788 @@
+02-06 05:08:41.049  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:41.049  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:41.049  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:41.150  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:41.150  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:41.150  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:41.251  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:41.251  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:41.251  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:41.493  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:41.493  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:41.493  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:42.094  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:42.094  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:42.094  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:42.292  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:42.292  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:42.292  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:42.394  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:42.394  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:42.394  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:42.494  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:42.494  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:42.494  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:42.498 15305 11124 I NotificationManager: com.paget96.batteryguru: notify(1, null, Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE color=0x00000000 groupKey=silent vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0)) as user
+02-06 05:08:42.537  7811  7811 D DroidOS_Debug: handleKeyPress: key='ALT' customModKeyCode=0
+02-06 05:08:42.537  7811  7811 D DroidOS_Debug: Resolved KeyCode: 0
+02-06 05:08:42.598  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:42.598  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:42.598  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:42.700  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:42.700  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:42.700  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:42.714  1415  1415 I EdgeLightingManager: showForNotificationScreenOn Alert once notification. sbn: StatusBarNotification(pkg=com.paget96.batteryguru user=UserHandle{0} id=1 tag=null key=0|com.paget96.batteryguru|1|null|10326: Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|NO_CLEAR|FOREGROUND_SERVICE|SILENT color=0x00000000 vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0))
+02-06 05:08:42.760  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSTrackpadKeyboard, isNight = true
+02-06 05:08:42.761  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSLauncher, isNight = true
+02-06 05:08:42.800  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:42.800  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:42.801  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:43.100  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:43.100  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:43.100  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:43.171  7811  7811 D DroidOS_Debug: handleKeyPress: key='f' customModKeyCode=0
+02-06 05:08:43.171  7811  7811 D DroidOS_Debug: Resolved KeyCode: 34
+02-06 05:08:43.171  7811  7811 D KeyboardView: Shortcut check: 2|34, registered=true, argCount=1, override=true
+02-06 05:08:43.171  7811  7811 D KeyboardView: Pre-set capture mode for command with argCount=1
+02-06 05:08:43.172  7811  7811 D KeyboardView: Broadcasting Remote Key: f (34) (Latched: false)
+02-06 05:08:43.174  7873  7873 D DroidOS_Keys: RECEIVER: handleRemoteKeyEvent called with 34 (Meta: 2)
+02-06 05:08:43.174  7873  7873 D DroidOS_Keys: REMOTE INPUT: Key=KEYCODE_F(34) Meta=Meta(2)(2)
+02-06 05:08:43.174  7873  7873 D DroidOS_Keys:     MATCH! Triggering via Remote...
+02-06 05:08:43.176  7873  7873 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.LinearLayout{daa2533 V.E...... ......I. 0,0-412,168}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.showVisualQueue:2534 com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.triggerCommand:1182 
+02-06 05:08:43.180  1027  1336 I SurfaceFlinger: id=23712 createSurf, flag=84004, 3fcad58 com.katsuyamaki.DroidOSLauncher#23712
+02-06 05:08:43.180  1415  1636 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:43.187  1027  1027 I SurfaceFlinger: [3fcad58 com.katsuyamaki.DroidOSLauncher#23712] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{8bd12d7 type=2032 android.os.Binder@eba7256}#21724 parentId=39 z=4} 2 children}
+02-06 05:08:43.189  7811  7811 D KeyboardView: Blocking registered shortcut: 2|34
+02-06 05:08:43.195  1027  1027 I SurfaceFlinger: RequestedLayer [3fcad58 com.katsuyamaki.DroidOSLauncher#23712] hidden!! flag  from(1) --> to(0)
+02-06 05:08:43.200  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:43.200  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:43.200  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:43.203  7811  7811 D OverlayService: Input Capture Set: true
+02-06 05:08:43.300  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:43.300  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:43.300  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:43.357  1415  2122 I WindowManager: Relayout Window{3fcad58 u0 com.katsuyamaki.DroidOSLauncher}: viewVisibility=0 req=412x168 ty=2032 d0
+02-06 05:08:43.360  1415  1636 D CoreBackPreview: Window{3fcad58 u0 com.katsuyamaki.DroidOSLauncher}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@c007934, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:43.371  1027  1027 I SurfaceFlinger: [$_7873#23713] attach to parent LayerHierarchy{RequestedLayerState{3fcad58 com.katsuyamaki.DroidOSLauncher#23712 parentId=21724 z=1} 1 children}
+02-06 05:08:43.374  1415  2122 D WindowManager: finishDrawingWindow: Window{3fcad58 u0 com.katsuyamaki.DroidOSLauncher} mDrawState=DRAW_PENDING seqId=0
+02-06 05:08:43.375  1415  1548 V WindowManager: performShowLocked: mDrawState=HAS_DRAWN in Window{3fcad58 u0 com.katsuyamaki.DroidOSLauncher}
+02-06 05:08:43.400  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:43.400  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:43.400  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:43.500  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:43.500  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:43.500  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:43.601  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:43.601  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:43.601  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:43.824  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:43.824  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:43.824  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:43.924  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:43.924  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:43.924  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.025  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.025  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.025  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.125  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.125  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.125  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.225  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.225  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.225  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.331  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.332  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.332  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.432  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.432  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.432  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.532  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.532  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.532  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.632  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.632  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.632  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.733  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.733  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.733  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.840  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.840  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.840  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.941  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:44.941  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:44.941  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:44.981  7811  7811 D DroidOS_Debug: handleKeyPress: key='2' customModKeyCode=0
+02-06 05:08:44.981  7811  7811 D DroidOS_Debug: Resolved KeyCode: 9
+02-06 05:08:44.982  7811  7811 D KeyboardView: Capture Mode: Sent 9 for key 2
+02-06 05:08:44.992  7873  7873 D DroidOS_Keys: RECEIVER: handleRemoteKeyEvent called with 9 (Meta: 0)
+02-06 05:08:44.992  7873  7873 D DroidOS_Keys: REMOTE INPUT: Key=KEYCODE_2(9) Meta=None(0)
+02-06 05:08:44.994  7873  7873 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.LinearLayout{daa2533 V.E...... ........ 0,0-412,168}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.hideVisualQueue:2566 
+02-06 05:08:44.996  1415  4620 I WindowManager: Relayout Window{4840449 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=0 req=50x50 ty=2032 d0
+02-06 05:08:45.005  7811  7811 D OverlayService: Input Capture Set: false
+02-06 05:08:45.006  7873  7873 I Toast   : show: caller = com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.safeToast$lambda$31:1880 
+02-06 05:08:45.007  1415  4620 E NotificationService: Suppressing toast from package com.katsuyamaki.DroidOSLauncher by user request.
+02-06 05:08:45.009  1415  4620 D CoreBackPreview: Window{3fcad58 u0 com.katsuyamaki.DroidOSLauncher}: Setting back callback null
+02-06 05:08:45.010  1415  4620 V WindowManager: Remove Window{3fcad58 u0 com.katsuyamaki.DroidOSLauncher}: mSurfaceControl=Surface(name=$_7873)/@0xadcc9c9 mAnimatingExit=false mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:45.019  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{3fcad58 com.katsuyamaki.DroidOSLauncher#23712 z=1} 1 children}] reparent to OffscreenRoot
+02-06 05:08:45.019  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{3fcad58 com.katsuyamaki.DroidOSLauncher#23712 z=1} 1 children}] RelativeParent to null
+02-06 05:08:45.020  1027  1027 I SurfaceFlinger: id=23712 Removed 3fcad58 com.katsuyamaki.DroidOSLauncher#23712 (244)
+02-06 05:08:45.027  1027  1027 I SurfaceFlinger: destroyed 3fcad58 com.katsuyamaki.DroidOSLauncher#23712
+02-06 05:08:45.028  1027  1027 I Layer   : id=23712 Destroyed 3fcad58 com.katsuyamaki.DroidOSLauncher#23712
+02-06 05:08:45.041  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:45.041  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:45.041  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:45.055  2028  2028 D NavigationBarControllerImpl: setNavigationBarShortcut requestClass : com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews : null, position : 0, priority : 11
+02-06 05:08:45.055  2028  2028 D RemoteViewPack: OnSetRemoteView RemoteViewShortcut(requestClass=com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews=null, position=0, priority=11)
+02-06 05:08:45.056  2028  2028 D NavigationBarControllerImpl: setNavigationBarShortcut requestClass : com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews : null, position : 0, priority : 11
+02-06 05:08:45.056  2028  2028 D RemoteViewPack: OnSetRemoteView RemoteViewShortcut(requestClass=com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews=null, position=0, priority=11)
+02-06 05:08:45.056  2028  2028 D NavigationBarControllerImpl: setNavigationBarShortcut requestClass : com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews : null, position : 0, priority : 11
+02-06 05:08:45.056  2028  2028 D RemoteViewPack: OnSetRemoteView RemoteViewShortcut(requestClass=com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews=null, position=0, priority=11)
+02-06 05:08:45.062  1415  4615 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:45.066  2028  2028 D NavigationBarControllerImpl: setNavigationBarShortcut requestClass : com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews : null, position : 0, priority : 11
+02-06 05:08:45.066  2028  2028 D RemoteViewPack: OnSetRemoteView RemoteViewShortcut(requestClass=com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews=null, position=0, priority=11)
+02-06 05:08:45.069  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1{f87c144 VFE...... ........ 0,0-1080,539}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.hide:599 
+02-06 05:08:45.085  7811  7811 D KeyboardView: KeyboardView: Updated blocked shortcuts: 10 entries
+02-06 05:08:45.085  7811  7811 D KeyboardOverlay: Applied 10 blocked shortcuts to new KeyboardView
+02-06 05:08:45.096  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1{6ab635 VFE...... ......I. 0,0-0,0}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.createKeyboardWindow:1352 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.show:575 
+02-06 05:08:45.098  1027  1337 I SurfaceFlinger: id=23714 createSurf, flag=84004, 605e0e3 com.katsuyamaki.DroidOSTrackpadKeyboard#23714
+02-06 05:08:45.098  1415  4627 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:45.100  7811  7811 I VRI[]@2f1eaca: setView = com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1@6ab635 IsHRR=false mFlingFrameRateChange=0 TM=true
+02-06 05:08:45.100  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.FrameLayout{cf8acdc G.E...... ......ID 0,0-400,300}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:174 
+02-06 05:08:45.101  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.FrameLayout{cf8acdc G.E...... ......ID 0,0-400,300}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:175 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService$switchReceiver$1.onReceive:1280 
+02-06 05:08:45.101  1415  4627 D CoreBackPreview: Window{c63bfa2 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback null
+02-06 05:08:45.102  1415  2707 V WindowManager: Remove Window{c63bfa2 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=null mAnimatingExit=false mRemoveOnExit=false mHasSurface=false surfaceShowing=false animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:45.102  1027  1027 I SurfaceFlinger: [605e0e3 com.katsuyamaki.DroidOSTrackpadKeyboard#23714] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 5 children}
+02-06 05:08:45.106  1027  2359 I SurfaceFlinger: id=23715 createSurf, flag=84004, a573d28 com.katsuyamaki.DroidOSTrackpadKeyboard#23715
+02-06 05:08:45.106  1415  2707 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:45.109  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1{6ab635 VFE...... ......I. 0,0-0,0}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.bringToFront:2361 
+02-06 05:08:45.109  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1{6ab635 VFE...... ......I. 0,0-0,0}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.bringToFront:2362 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:184 
+02-06 05:08:45.110  1415  2256 V WindowManager: Remove Window{605e0e3 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=null mAnimatingExit=false mRemoveOnExit=false mHasSurface=false surfaceShowing=false animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:45.111  1027  1027 I SurfaceFlinger: RequestedLayer [605e0e3 com.katsuyamaki.DroidOSTrackpadKeyboard#23714] hidden!! flag  from(1) --> to(0)
+02-06 05:08:45.111  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{c63bfa2 com.katsuyamaki.DroidOSTrackpadKeyboard#23705} no children}] reparent to OffscreenRoot
+02-06 05:08:45.111  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{c63bfa2 com.katsuyamaki.DroidOSTrackpadKeyboard#23705} no children}] RelativeParent to null
+02-06 05:08:45.111  1027  1027 I SurfaceFlinger: [a573d28 com.katsuyamaki.DroidOSTrackpadKeyboard#23715] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 5 children}
+02-06 05:08:45.111  1027  1027 I SurfaceFlinger: id=23705 Removed c63bfa2 com.katsuyamaki.DroidOSTrackpadKeyboard#23705 (244)
+02-06 05:08:45.114  1027  1082 I SurfaceFlinger: id=23716 createSurf, flag=84004, ecef96c com.katsuyamaki.DroidOSTrackpadKeyboard#23716
+02-06 05:08:45.115  1415  2707 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:45.116  7811  7811 I VRI[]@9cf2104: setView = com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1@6ab635 IsHRR=false mFlingFrameRateChange=0 TM=true
+02-06 05:08:45.116  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.FrameLayout{76ee9a4 VFE...C.. ........ 0,0-99,99}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:195 
+02-06 05:08:45.117  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.FrameLayout{76ee9a4 VFE...C.. ........ 0,0-99,99}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:196 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService$switchReceiver$1.onReceive:1280 
+02-06 05:08:45.118  1415  1636 D CoreBackPreview: Window{805d09b u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback null
+02-06 05:08:45.118  1415  2707 V WindowManager: Remove Window{805d09b u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=Surface(name=$_7811)/@0x916f07a mAnimatingExit=false mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:45.119  1027  1027 I SurfaceFlinger: RequestedLayer [a573d28 com.katsuyamaki.DroidOSTrackpadKeyboard#23715] hidden!! flag  from(1) --> to(0)
+02-06 05:08:45.119  1027  1027 I SurfaceFlinger: destroyed c63bfa2 com.katsuyamaki.DroidOSTrackpadKeyboard#23705
+02-06 05:08:45.119  1027  1027 I SurfaceFlinger: [ecef96c com.katsuyamaki.DroidOSTrackpadKeyboard#23716] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 6 children}
+02-06 05:08:45.119  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{605e0e3 com.katsuyamaki.DroidOSTrackpadKeyboard#23714 z=3} no children}] reparent to OffscreenRoot
+02-06 05:08:45.119  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{605e0e3 com.katsuyamaki.DroidOSTrackpadKeyboard#23714 z=3} no children}] RelativeParent to null
+02-06 05:08:45.119  1027  1027 I Layer   : id=23705 Destroyed c63bfa2 com.katsuyamaki.DroidOSTrackpadKeyboard#23705
+02-06 05:08:45.119  1027  1027 I SurfaceFlinger: id=23714 Removed 605e0e3 com.katsuyamaki.DroidOSTrackpadKeyboard#23714 (244)
+02-06 05:08:45.123  1027  1082 I SurfaceFlinger: id=23717 createSurf, flag=84004, 9039a22 com.katsuyamaki.DroidOSTrackpadKeyboard#23717
+02-06 05:08:45.123  1415  1636 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:45.125  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.FrameLayout{f26309 V.E...... ........ 0,0-50,50}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:205 
+02-06 05:08:45.127  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.FrameLayout{f26309 V.E...... ........ 0,0-50,50}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:206 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService$switchReceiver$1.onReceive:1280 
+02-06 05:08:45.127  1415  1636 D CoreBackPreview: Window{4840449 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback null
+02-06 05:08:45.127  1027  1027 I SurfaceFlinger: RequestedLayer [ecef96c com.katsuyamaki.DroidOSTrackpadKeyboard#23716] hidden!! flag  from(1) --> to(0)
+02-06 05:08:45.127  1027  1027 I SurfaceFlinger: destroyed 605e0e3 com.katsuyamaki.DroidOSTrackpadKeyboard#23714
+02-06 05:08:45.127  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{805d09b com.katsuyamaki.DroidOSTrackpadKeyboard#23707 z=1} no children}] reparent to OffscreenRoot
+02-06 05:08:45.127  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{805d09b com.katsuyamaki.DroidOSTrackpadKeyboard#23707 z=1} no children}] RelativeParent to null
+02-06 05:08:45.127  1027  1027 I SurfaceFlinger: [9039a22 com.katsuyamaki.DroidOSTrackpadKeyboard#23717] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 5 children}
+02-06 05:08:45.128  1027  1027 I Layer   : id=23714 Destroyed 605e0e3 com.katsuyamaki.DroidOSTrackpadKeyboard#23714
+02-06 05:08:45.128  1027  1027 I SurfaceFlinger: id=23707 Removed 805d09b com.katsuyamaki.DroidOSTrackpadKeyboard#23707 (244)
+02-06 05:08:45.129  1415  2256 V WindowManager: Remove Window{4840449 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=Surface(name=$_7811)/@0x612729c mAnimatingExit=false mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:45.136  1027  1027 I SurfaceFlinger: RequestedLayer [9039a22 com.katsuyamaki.DroidOSTrackpadKeyboard#23717] hidden!! flag  from(1) --> to(0)
+02-06 05:08:45.136  1027  1027 I SurfaceFlinger: destroyed 805d09b com.katsuyamaki.DroidOSTrackpadKeyboard#23707
+02-06 05:08:45.136  1027  1027 I Layer   : id=23707 Destroyed 805d09b com.katsuyamaki.DroidOSTrackpadKeyboard#23707
+02-06 05:08:45.137  1027  1337 I SurfaceFlinger: id=23718 createSurf, flag=84004, 186f88 com.katsuyamaki.DroidOSTrackpadKeyboard#23718
+02-06 05:08:45.138  1415  2256 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:45.139  7811  7811 D OverlayService: Z-Order Enforced: Trackpad -> Keyboard -> Cursor -> BT Capture
+02-06 05:08:45.139  7811  7811 D DroidOS_Debug: handleKeyPress: key='w' customModKeyCode=0
+02-06 05:08:45.140  7811  7811 D DroidOS_Debug: Resolved KeyCode: 51
+02-06 05:08:45.145  1027  1027 I SurfaceFlinger: RequestedLayer [186f88 com.katsuyamaki.DroidOSTrackpadKeyboard#23718] hidden!! flag  from(1) --> to(0)
+02-06 05:08:45.145  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{4840449 com.katsuyamaki.DroidOSTrackpadKeyboard#23708 z=1} 1 children}] reparent to OffscreenRoot
+02-06 05:08:45.145  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{4840449 com.katsuyamaki.DroidOSTrackpadKeyboard#23708 z=1} 1 children}] RelativeParent to null
+02-06 05:08:45.145  1027  1027 I SurfaceFlinger: [186f88 com.katsuyamaki.DroidOSTrackpadKeyboard#23718] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 5 children}
+02-06 05:08:45.145  1027  1027 I SurfaceFlinger: id=23708 Removed 4840449 com.katsuyamaki.DroidOSTrackpadKeyboard#23708 (243)
+02-06 05:08:45.146  7811  7811 D DroidOS_Suggest: Updated: [w(new=true,custom=false), working(new=false,custom=false), what(new=false,custom=false), workflow(new=false,custom=false)]
+02-06 05:08:45.151  1415  2256 D CoreBackPreview: Window{6518108 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback null
+02-06 05:08:45.152  1415  2256 V WindowManager: Remove Window{6518108 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=Surface(name=$_7811)/@0xc221c88 mAnimatingExit=false mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:45.153  1027  1027 I SurfaceFlinger: destroyed 4840449 com.katsuyamaki.DroidOSTrackpadKeyboard#23708
+02-06 05:08:45.153  1415  2256 D CoreBackPreview: Window{a573d28 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@1c2171e, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:45.153  1027  1027 I Layer   : id=23708 Destroyed 4840449 com.katsuyamaki.DroidOSTrackpadKeyboard#23708
+02-06 05:08:45.153  1415  2342 I WindowManager: Relayout Window{a573d28 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=8 req=400x300 ty=2032 d0
+02-06 05:08:45.155  1415  2342 D CoreBackPreview: Window{ecef96c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@1e32bff, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:45.158  1415  2342 I WindowManager: Relayout Window{ecef96c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=0 req=1080x539 ty=2032 d0
+02-06 05:08:45.162  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{6518108 com.katsuyamaki.DroidOSTrackpadKeyboard#23706} no children}] reparent to OffscreenRoot
+02-06 05:08:45.162  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{6518108 com.katsuyamaki.DroidOSTrackpadKeyboard#23706} no children}] RelativeParent to null
+02-06 05:08:45.162  1027  1027 I SurfaceFlinger: [$_7811#23719] attach to parent LayerHierarchy{RequestedLayerState{ecef96c com.katsuyamaki.DroidOSTrackpadKeyboard#23716 parentId=23513 z=1} 1 children}
+02-06 05:08:45.162  1027  1027 I SurfaceFlinger: id=23706 Removed 6518108 com.katsuyamaki.DroidOSTrackpadKeyboard#23706 (242)
+02-06 05:08:45.168  7811  7811 D DroidOS_Swipe: Keys mapped: 26 (Unique Letters)
+02-06 05:08:45.168  7811  7811 D DroidOS_Swipe: Example 'H': PointF(651.0, 169.0)
+02-06 05:08:45.170  1027  1027 I SurfaceFlinger: destroyed 6518108 com.katsuyamaki.DroidOSTrackpadKeyboard#23706
+02-06 05:08:45.171  1027  1027 I Layer   : id=23706 Destroyed 6518108 com.katsuyamaki.DroidOSTrackpadKeyboard#23706
+02-06 05:08:45.173  1415  2707 D WindowManager: finishDrawingWindow: Window{ecef96c u0 com.katsuyamaki.DroidOSTrackpadKeyboard} mDrawState=DRAW_PENDING seqId=0
+02-06 05:08:45.174  1415  2256 I WindowManager: Relayout Window{9039a22 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=0 req=99x99 ty=2032 d0
+02-06 05:08:45.174  1415  2256 V WindowManager: performShowLocked: mDrawState=HAS_DRAWN in Window{ecef96c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}
+02-06 05:08:45.175  1415  2707 D CoreBackPreview: Window{9039a22 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@7de8815, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:45.178  1027  1027 I SurfaceFlinger: [$_7811#23720] attach to parent LayerHierarchy{RequestedLayerState{9039a22 com.katsuyamaki.DroidOSTrackpadKeyboard#23717 parentId=23513 z=2} 1 children}
+02-06 05:08:45.178  1415  2342 D WindowManager: finishDrawingWindow: Window{9039a22 u0 com.katsuyamaki.DroidOSTrackpadKeyboard} mDrawState=DRAW_PENDING seqId=0
+02-06 05:08:45.179  1415  1548 V WindowManager: performShowLocked: mDrawState=HAS_DRAWN in Window{9039a22 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}
+02-06 05:08:45.179  1415  2342 D CoreBackPreview: Window{186f88 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@c74872a, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:45.179  1415  2707 I WindowManager: Relayout Window{186f88 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=0 req=50x50 ty=2032 d0
+02-06 05:08:45.185  1415  2256 D WindowManager: finishDrawingWindow: Window{186f88 u0 com.katsuyamaki.DroidOSTrackpadKeyboard} mDrawState=DRAW_PENDING seqId=0
+02-06 05:08:45.186  1415  1548 V WindowManager: performShowLocked: mDrawState=HAS_DRAWN in Window{186f88 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}
+02-06 05:08:45.186  1027  1027 I SurfaceFlinger: [$_7811#23721] attach to parent LayerHierarchy{RequestedLayerState{186f88 com.katsuyamaki.DroidOSTrackpadKeyboard#23718 parentId=23513 z=3} 1 children}
+02-06 05:08:45.187  1415  2342 D WindowManager: finishDrawingWindow: Window{186f88 u0 com.katsuyamaki.DroidOSTrackpadKeyboard} mDrawState=HAS_DRAWN seqId=0
+02-06 05:08:45.212  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:45.212  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:45.212  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:45.313  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:45.313  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:45.313  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:45.414  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:45.414  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:45.414  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:45.514  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:45.514  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:45.514  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:45.614  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:45.614  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:45.614  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:45.714  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:45.714  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:45.714  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:45.815  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:45.815  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:45.815  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:45.915  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:45.915  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:45.915  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:46.015  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:46.015  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:46.015  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:46.121  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:46.122  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:46.122  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:46.222  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:46.222  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:46.222  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:46.322  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:46.323  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:46.323  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:46.423  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:46.423  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:46.423  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:46.523  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:46.523  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:46.523  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:46.656  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:46.657  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:46.657  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:46.758  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:46.758  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:46.758  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:46.899  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:46.899  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:46.899  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:47.206  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:47.206  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:47.206  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:47.402  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:47.402  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:47.402  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:47.477  7811  7811 D DroidOS_Debug: handleKeyPress: key='ALT' customModKeyCode=0
+02-06 05:08:47.477  7811  7811 D DroidOS_Debug: Resolved KeyCode: 0
+02-06 05:08:47.510  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:47.510  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:47.510  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:47.613  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:47.613  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:47.613  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:47.713  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:47.713  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:47.713  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:48.004  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:48.004  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:48.004  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:48.075  7811  7811 D DroidOS_Debug: handleKeyPress: key='f' customModKeyCode=0
+02-06 05:08:48.075  7811  7811 D DroidOS_Debug: Resolved KeyCode: 34
+02-06 05:08:48.075  7811  7811 D KeyboardView: Shortcut check: 2|34, registered=true, argCount=1, override=true
+02-06 05:08:48.075  7811  7811 D KeyboardView: Pre-set capture mode for command with argCount=1
+02-06 05:08:48.076  7811  7811 D KeyboardView: Broadcasting Remote Key: f (34) (Latched: false)
+02-06 05:08:48.079  7873  7873 D DroidOS_Keys: RECEIVER: handleRemoteKeyEvent called with 34 (Meta: 2)
+02-06 05:08:48.079  7873  7873 D DroidOS_Keys: REMOTE INPUT: Key=KEYCODE_F(34) Meta=Meta(2)(2)
+02-06 05:08:48.080  7873  7873 D DroidOS_Keys:     MATCH! Triggering via Remote...
+02-06 05:08:48.082  7873  7873 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.LinearLayout{daa2533 V.E...... ......I. 0,0-412,168}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.showVisualQueue:2534 com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.triggerCommand:1182 
+02-06 05:08:48.088  1027  1082 I SurfaceFlinger: id=23722 createSurf, flag=84004, cfee28a com.katsuyamaki.DroidOSLauncher#23722
+02-06 05:08:48.088  1415  2707 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:48.092  1027  1027 I SurfaceFlinger: [cfee28a com.katsuyamaki.DroidOSLauncher#23722] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{8bd12d7 type=2032 android.os.Binder@eba7256}#21724 parentId=39 z=4} 2 children}
+02-06 05:08:48.095  7811  7811 D KeyboardView: Blocking registered shortcut: 2|34
+02-06 05:08:48.101  1027  1027 I SurfaceFlinger: RequestedLayer [cfee28a com.katsuyamaki.DroidOSLauncher#23722] hidden!! flag  from(1) --> to(0)
+02-06 05:08:48.109  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:48.109  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:48.109  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:48.110  7811  7811 D OverlayService: Input Capture Set: true
+02-06 05:08:48.209  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:48.209  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:48.209  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:48.266  1415  2342 D CoreBackPreview: Window{cfee28a u0 com.katsuyamaki.DroidOSLauncher}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@2710867, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:48.266  1415  2707 I WindowManager: Relayout Window{cfee28a u0 com.katsuyamaki.DroidOSLauncher}: viewVisibility=0 req=412x168 ty=2032 d0
+02-06 05:08:48.275  1027  1027 I SurfaceFlinger: [$_7873#23723] attach to parent LayerHierarchy{RequestedLayerState{cfee28a com.katsuyamaki.DroidOSLauncher#23722 parentId=21724 z=1} 1 children}
+02-06 05:08:48.284  1415  2707 D WindowManager: finishDrawingWindow: Window{cfee28a u0 com.katsuyamaki.DroidOSLauncher} mDrawState=DRAW_PENDING seqId=0
+02-06 05:08:48.287  1415  1548 V WindowManager: performShowLocked: mDrawState=HAS_DRAWN in Window{cfee28a u0 com.katsuyamaki.DroidOSLauncher}
+02-06 05:08:48.312  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:48.312  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:48.312  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:48.412  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:48.413  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:48.413  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:48.424  1415  1975 D NetdEventListenerService: DNS Requested by 104, 10115(com.microsoft.skydrive), 4(FAIL), isBlocked=true, 0ms
+02-06 05:08:48.448 15305  8440 I NotificationManager: com.paget96.batteryguru: notify(1, null, Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE color=0x00000000 groupKey=silent vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0)) as user
+02-06 05:08:48.513  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:48.513  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:48.513  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:48.665  1415  1415 I EdgeLightingManager: showForNotificationScreenOn Alert once notification. sbn: StatusBarNotification(pkg=com.paget96.batteryguru user=UserHandle{0} id=1 tag=null key=0|com.paget96.batteryguru|1|null|10326: Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|NO_CLEAR|FOREGROUND_SERVICE|SILENT color=0x00000000 vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0))
+02-06 05:08:48.697  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSTrackpadKeyboard, isNight = true
+02-06 05:08:48.698  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSLauncher, isNight = true
+02-06 05:08:48.704  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:48.705  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:48.705  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:48.805  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:48.805  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:48.805  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:49.055  7811  7811 D DroidOS_Debug: handleKeyPress: key='1' customModKeyCode=0
+02-06 05:08:49.055  7811  7811 D DroidOS_Debug: Resolved KeyCode: 8
+02-06 05:08:49.056  7811  7811 D KeyboardView: Capture Mode: Sent 8 for key 1
+02-06 05:08:49.060  7873  7873 D DroidOS_Keys: RECEIVER: handleRemoteKeyEvent called with 8 (Meta: 0)
+02-06 05:08:49.060  7873  7873 D DroidOS_Keys: REMOTE INPUT: Key=KEYCODE_1(8) Meta=None(0)
+02-06 05:08:49.062  7873  7873 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.LinearLayout{daa2533 V.E...... ........ 0,0-412,168}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.hideVisualQueue:2566 
+02-06 05:08:49.067  1415  2342 I WindowManager: Relayout Window{186f88 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=0 req=50x50 ty=2032 d0
+02-06 05:08:49.068  7873  7873 I Toast   : show: caller = com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.safeToast$lambda$31:1880 
+02-06 05:08:49.069  7811  7811 D OverlayService: Input Capture Set: false
+02-06 05:08:49.071  1415  3253 E NotificationService: Suppressing toast from package com.katsuyamaki.DroidOSLauncher by user request.
+02-06 05:08:49.073  1415  2707 D CoreBackPreview: Window{cfee28a u0 com.katsuyamaki.DroidOSLauncher}: Setting back callback null
+02-06 05:08:49.074  1415  3253 V WindowManager: Remove Window{cfee28a u0 com.katsuyamaki.DroidOSLauncher}: mSurfaceControl=Surface(name=$_7873)/@0xb7a7421 mAnimatingExit=false mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:49.084  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{cfee28a com.katsuyamaki.DroidOSLauncher#23722 z=1} 1 children}] reparent to OffscreenRoot
+02-06 05:08:49.084  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{cfee28a com.katsuyamaki.DroidOSLauncher#23722 z=1} 1 children}] RelativeParent to null
+02-06 05:08:49.084  1027  1027 I SurfaceFlinger: id=23722 Removed cfee28a com.katsuyamaki.DroidOSLauncher#23722 (244)
+02-06 05:08:49.092  1027  1027 I SurfaceFlinger: destroyed cfee28a com.katsuyamaki.DroidOSLauncher#23722
+02-06 05:08:49.092  1027  1027 I Layer   : id=23722 Destroyed cfee28a com.katsuyamaki.DroidOSLauncher#23722
+02-06 05:08:49.100  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:49.100  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:49.100  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:49.114  2028  2028 D NavigationBarControllerImpl: setNavigationBarShortcut requestClass : com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews : null, position : 0, priority : 11
+02-06 05:08:49.114  2028  2028 D RemoteViewPack: OnSetRemoteView RemoteViewShortcut(requestClass=com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews=null, position=0, priority=11)
+02-06 05:08:49.114  2028  2028 D NavigationBarControllerImpl: setNavigationBarShortcut requestClass : com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews : null, position : 0, priority : 11
+02-06 05:08:49.114  2028  2028 D RemoteViewPack: OnSetRemoteView RemoteViewShortcut(requestClass=com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews=null, position=0, priority=11)
+02-06 05:08:49.114  2028  2028 D NavigationBarControllerImpl: setNavigationBarShortcut requestClass : com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews : null, position : 0, priority : 11
+02-06 05:08:49.114  2028  2028 D RemoteViewPack: OnSetRemoteView RemoteViewShortcut(requestClass=com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews=null, position=0, priority=11)
+02-06 05:08:49.123  1415  2256 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:49.125  2028  2028 D NavigationBarControllerImpl: setNavigationBarShortcut requestClass : com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews : null, position : 0, priority : 11
+02-06 05:08:49.125  2028  2028 D RemoteViewPack: OnSetRemoteView RemoteViewShortcut(requestClass=com.android.wm.shell.controlpanel.activity.FlexPanelActivity, remoteViews=null, position=0, priority=11)
+02-06 05:08:49.128  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1{6ab635 VFE...... ........ 0,0-1080,539}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.hide:599 
+02-06 05:08:49.138  7811  7811 D KeyboardView: KeyboardView: Updated blocked shortcuts: 10 entries
+02-06 05:08:49.138  7811  7811 D KeyboardOverlay: Applied 10 blocked shortcuts to new KeyboardView
+02-06 05:08:49.146  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1{ead97b5 VFE...... ......I. 0,0-0,0}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.createKeyboardWindow:1352 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.show:575 
+02-06 05:08:49.148  1027  2359 I SurfaceFlinger: id=23724 createSurf, flag=84004, ecddb16 com.katsuyamaki.DroidOSTrackpadKeyboard#23724
+02-06 05:08:49.148  1415  2342 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:49.149  1027  1027 I SurfaceFlinger: [ecddb16 com.katsuyamaki.DroidOSTrackpadKeyboard#23724] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 5 children}
+02-06 05:08:49.150  7811  7811 I VRI[]@f20ee4a: setView = com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1@ead97b5 IsHRR=false mFlingFrameRateChange=0 TM=true
+02-06 05:08:49.150  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.FrameLayout{cf8acdc G.E...... ......ID 0,0-400,300}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:174 
+02-06 05:08:49.151  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.FrameLayout{cf8acdc G.E...... ......ID 0,0-400,300}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:175 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService$switchReceiver$1.onReceive:1280 
+02-06 05:08:49.152  1415  2342 D CoreBackPreview: Window{a573d28 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback null
+02-06 05:08:49.152  1415  2342 V WindowManager: Remove Window{a573d28 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=null mAnimatingExit=false mRemoveOnExit=false mHasSurface=false surfaceShowing=false animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:49.155  1027  2359 I SurfaceFlinger: id=23725 createSurf, flag=84004, 441867c com.katsuyamaki.DroidOSTrackpadKeyboard#23725
+02-06 05:08:49.155  1415  2342 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:49.156  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1{ead97b5 VFE...... ......I. 0,0-0,0}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.bringToFront:2361 
+02-06 05:08:49.157  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1{ead97b5 VFE...... ......I. 0,0-0,0}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay.bringToFront:2362 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:184 
+02-06 05:08:49.157  1415  4627 V WindowManager: Remove Window{ecddb16 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=null mAnimatingExit=false mRemoveOnExit=false mHasSurface=false surfaceShowing=false animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:49.157  1027  1027 I SurfaceFlinger: RequestedLayer [ecddb16 com.katsuyamaki.DroidOSTrackpadKeyboard#23724] hidden!! flag  from(1) --> to(0)
+02-06 05:08:49.157  1027  1027 I SurfaceFlinger: [441867c com.katsuyamaki.DroidOSTrackpadKeyboard#23725] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 6 children}
+02-06 05:08:49.160  1027  1337 I SurfaceFlinger: id=23726 createSurf, flag=84004, a6992f3 com.katsuyamaki.DroidOSTrackpadKeyboard#23726
+02-06 05:08:49.160  1415  4627 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:49.161  7811  7811 I VRI[]@fba0884: setView = com.katsuyamaki.DroidOSTrackpadKeyboard.KeyboardOverlay$createKeyboardWindow$1@ead97b5 IsHRR=false mFlingFrameRateChange=0 TM=true
+02-06 05:08:49.161  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.FrameLayout{76ee9a4 VFE...C.. ........ 0,0-99,99}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:195 
+02-06 05:08:49.162  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.FrameLayout{76ee9a4 VFE...C.. ........ 0,0-99,99}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:196 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService$switchReceiver$1.onReceive:1280 
+02-06 05:08:49.162  1415  2342 D CoreBackPreview: Window{9039a22 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback null
+02-06 05:08:49.163  1415  2256 V WindowManager: Remove Window{9039a22 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=Surface(name=$_7811)/@0xd5d023a mAnimatingExit=false mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:49.166  1027  1337 I SurfaceFlinger: id=23727 createSurf, flag=84004, cd51886 com.katsuyamaki.DroidOSTrackpadKeyboard#23727
+02-06 05:08:49.166  1415  2342 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:49.166  1027  1027 I SurfaceFlinger: RequestedLayer [441867c com.katsuyamaki.DroidOSTrackpadKeyboard#23725] hidden!! flag  from(1) --> to(0)
+02-06 05:08:49.166  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{a573d28 com.katsuyamaki.DroidOSTrackpadKeyboard#23715} no children}] reparent to OffscreenRoot
+02-06 05:08:49.166  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{a573d28 com.katsuyamaki.DroidOSTrackpadKeyboard#23715} no children}] RelativeParent to null
+02-06 05:08:49.166  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{ecddb16 com.katsuyamaki.DroidOSTrackpadKeyboard#23724 z=3} no children}] reparent to OffscreenRoot
+02-06 05:08:49.166  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{ecddb16 com.katsuyamaki.DroidOSTrackpadKeyboard#23724 z=3} no children}] RelativeParent to null
+02-06 05:08:49.166  1027  1027 I SurfaceFlinger: [a6992f3 com.katsuyamaki.DroidOSTrackpadKeyboard#23726] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 5 children}
+02-06 05:08:49.166  1027  1027 I SurfaceFlinger: [cd51886 com.katsuyamaki.DroidOSTrackpadKeyboard#23727] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 6 children}
+02-06 05:08:49.166  1027  1027 I SurfaceFlinger: id=23724 Removed ecddb16 com.katsuyamaki.DroidOSTrackpadKeyboard#23724 (246)
+02-06 05:08:49.166  1027  1027 I SurfaceFlinger: id=23715 Removed a573d28 com.katsuyamaki.DroidOSTrackpadKeyboard#23715 (246)
+02-06 05:08:49.168  7811  7811 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.FrameLayout{f26309 V.E...... ........ 0,0-50,50}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:205 
+02-06 05:08:49.169  7811  7811 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.FrameLayout{f26309 V.E...... ........ 0,0-50,50}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService.enforceZOrder:206 com.katsuyamaki.DroidOSTrackpadKeyboard.OverlayService$switchReceiver$1.onReceive:1280 
+02-06 05:08:49.169  1415  4627 D CoreBackPreview: Window{186f88 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback null
+02-06 05:08:49.169  1415  2342 V WindowManager: Remove Window{186f88 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=Surface(name=$_7811)/@0xacc3e5c mAnimatingExit=false mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:49.172  1027  1337 I SurfaceFlinger: id=23728 createSurf, flag=84004, 68dcb0c com.katsuyamaki.DroidOSTrackpadKeyboard#23728
+02-06 05:08:49.172  1415  2342 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:49.173  7811  7811 D OverlayService: Z-Order Enforced: Trackpad -> Keyboard -> Cursor -> BT Capture
+02-06 05:08:49.174  1027  1027 I SurfaceFlinger: RequestedLayer [a6992f3 com.katsuyamaki.DroidOSTrackpadKeyboard#23726] hidden!! flag  from(1) --> to(0)
+02-06 05:08:49.174  1027  1027 I SurfaceFlinger: RequestedLayer [cd51886 com.katsuyamaki.DroidOSTrackpadKeyboard#23727] hidden!! flag  from(1) --> to(0)
+02-06 05:08:49.174  1027  1027 I SurfaceFlinger: destroyed a573d28 com.katsuyamaki.DroidOSTrackpadKeyboard#23715
+02-06 05:08:49.174  1027  1027 I SurfaceFlinger: destroyed ecddb16 com.katsuyamaki.DroidOSTrackpadKeyboard#23724
+02-06 05:08:49.174  1027  1027 I SurfaceFlinger: [68dcb0c com.katsuyamaki.DroidOSTrackpadKeyboard#23728] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{81873ce type=2032 android.os.Binder@e373ab8}#23513 parentId=39 z=5} 7 children}
+02-06 05:08:49.174  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{9039a22 com.katsuyamaki.DroidOSTrackpadKeyboard#23717 z=1} 1 children}] reparent to OffscreenRoot
+02-06 05:08:49.174  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{9039a22 com.katsuyamaki.DroidOSTrackpadKeyboard#23717 z=1} 1 children}] RelativeParent to null
+02-06 05:08:49.175  1027  1027 I Layer   : id=23715 Destroyed a573d28 com.katsuyamaki.DroidOSTrackpadKeyboard#23715
+02-06 05:08:49.175  1027  1027 I Layer   : id=23724 Destroyed ecddb16 com.katsuyamaki.DroidOSTrackpadKeyboard#23724
+02-06 05:08:49.175  1027  1027 I SurfaceFlinger: id=23717 Removed 9039a22 com.katsuyamaki.DroidOSTrackpadKeyboard#23717 (245)
+02-06 05:08:49.180  1415  4627 D CoreBackPreview: Window{441867c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@6a06fa4, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:49.180  1415  2342 I WindowManager: Relayout Window{441867c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=8 req=400x300 ty=2032 d0
+02-06 05:08:49.181  1415  2342 D CoreBackPreview: Window{a6992f3 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@12bb10d, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:49.182  1027  1027 I SurfaceFlinger: RequestedLayer [68dcb0c com.katsuyamaki.DroidOSTrackpadKeyboard#23728] hidden!! flag  from(1) --> to(0)
+02-06 05:08:49.182  1027  1027 I SurfaceFlinger: destroyed 9039a22 com.katsuyamaki.DroidOSTrackpadKeyboard#23717
+02-06 05:08:49.182  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{186f88 com.katsuyamaki.DroidOSTrackpadKeyboard#23718 z=1} 1 children}] reparent to OffscreenRoot
+02-06 05:08:49.182  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{186f88 com.katsuyamaki.DroidOSTrackpadKeyboard#23718 z=1} 1 children}] RelativeParent to null
+02-06 05:08:49.183  1027  1027 I Layer   : id=23717 Destroyed 9039a22 com.katsuyamaki.DroidOSTrackpadKeyboard#23717
+02-06 05:08:49.183  1027  1027 I SurfaceFlinger: id=23718 Removed 186f88 com.katsuyamaki.DroidOSTrackpadKeyboard#23718 (243)
+02-06 05:08:49.184  1415  2342 I WindowManager: Relayout Window{a6992f3 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=0 req=1080x539 ty=2032 d0
+02-06 05:08:49.189  7811  7811 D DroidOS_Swipe: Keys mapped: 26 (Unique Letters)
+02-06 05:08:49.189  7811  7811 D DroidOS_Swipe: Example 'H': PointF(651.0, 169.0)
+02-06 05:08:49.191  1027  1027 I SurfaceFlinger: destroyed 186f88 com.katsuyamaki.DroidOSTrackpadKeyboard#23718
+02-06 05:08:49.191  1027  1027 I SurfaceFlinger: [$_7811#23729] attach to parent LayerHierarchy{RequestedLayerState{a6992f3 com.katsuyamaki.DroidOSTrackpadKeyboard#23726 parentId=23513 z=2} 1 children}
+02-06 05:08:49.191  1027  1027 I Layer   : id=23718 Destroyed 186f88 com.katsuyamaki.DroidOSTrackpadKeyboard#23718
+02-06 05:08:49.192  1415  4627 D WindowManager: finishDrawingWindow: Window{a6992f3 u0 com.katsuyamaki.DroidOSTrackpadKeyboard} mDrawState=DRAW_PENDING seqId=0
+02-06 05:08:49.193  1415  2342 I WindowManager: Relayout Window{cd51886 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=0 req=99x99 ty=2032 d0
+02-06 05:08:49.193  1415  2342 V WindowManager: performShowLocked: mDrawState=HAS_DRAWN in Window{a6992f3 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}
+02-06 05:08:49.194  1415  4627 D CoreBackPreview: Window{cd51886 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@c9a88c2, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:49.196  1415  2342 D WindowManager: finishDrawingWindow: Window{cd51886 u0 com.katsuyamaki.DroidOSTrackpadKeyboard} mDrawState=DRAW_PENDING seqId=0
+02-06 05:08:49.196  1415  4627 I WindowManager: Relayout Window{68dcb0c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: viewVisibility=0 req=50x50 ty=2032 d0
+02-06 05:08:49.197  1415  4627 V WindowManager: performShowLocked: mDrawState=HAS_DRAWN in Window{cd51886 u0 com.katsuyamaki.DroidOSTrackpadKeyboard}
+02-06 05:08:49.198  1415  2342 D CoreBackPreview: Window{68dcb0c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@b8386d3, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:49.199  1027  1027 I SurfaceFlinger: [$_7811#23730] attach to parent LayerHierarchy{RequestedLayerState{cd51886 com.katsuyamaki.DroidOSTrackpadKeyboard#23727 parentId=23513 z=3} 1 children}
+02-06 05:08:49.199  1027  1027 I SurfaceFlinger: [$_7811#23731] attach to parent LayerHierarchy{RequestedLayerState{68dcb0c com.katsuyamaki.DroidOSTrackpadKeyboard#23728 parentId=23513 z=4} 1 children}
+02-06 05:08:49.200  1415  2707 D WindowManager: finishDrawingWindow: Window{68dcb0c u0 com.katsuyamaki.DroidOSTrackpadKeyboard} mDrawState=DRAW_PENDING seqId=0
+02-06 05:08:49.200  7811  7811 D DroidOS_Debug: handleKeyPress: key='q' customModKeyCode=0
+02-06 05:08:49.200  7811  7811 D DroidOS_Debug: Resolved KeyCode: 45
+02-06 05:08:49.200  1415  1548 V WindowManager: performShowLocked: mDrawState=HAS_DRAWN in Window{68dcb0c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}
+02-06 05:08:49.201  7811  7811 D DroidOS_Suggest: Updated: [wq(new=true,custom=false)]
+02-06 05:08:49.202  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:49.202  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:49.202  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:49.202  1415  4627 D CoreBackPreview: Window{ecef96c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: Setting back callback null
+02-06 05:08:49.203  1415  2707 V WindowManager: Remove Window{ecef96c u0 com.katsuyamaki.DroidOSTrackpadKeyboard}: mSurfaceControl=Surface(name=$_7811)/@0xf0ce448 mAnimatingExit=false mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:08:49.208  1415  4627 D WindowManager: finishDrawingWindow: Window{68dcb0c u0 com.katsuyamaki.DroidOSTrackpadKeyboard} mDrawState=HAS_DRAWN seqId=0
+02-06 05:08:49.216  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{ecef96c com.katsuyamaki.DroidOSTrackpadKeyboard#23716} no children}] reparent to OffscreenRoot
+02-06 05:08:49.216  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{ecef96c com.katsuyamaki.DroidOSTrackpadKeyboard#23716} no children}] RelativeParent to null
+02-06 05:08:49.216  1027  1027 I SurfaceFlinger: id=23716 Removed ecef96c com.katsuyamaki.DroidOSTrackpadKeyboard#23716 (244)
+02-06 05:08:49.224  1027  1027 I SurfaceFlinger: destroyed ecef96c com.katsuyamaki.DroidOSTrackpadKeyboard#23716
+02-06 05:08:49.224  1027  1027 I Layer   : id=23716 Destroyed ecef96c com.katsuyamaki.DroidOSTrackpadKeyboard#23716
+02-06 05:08:49.302  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:49.302  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:49.302  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:49.402  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:49.402  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:49.402  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:49.503  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:49.503  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:49.503  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:49.719  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:49.720  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:49.720  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:50.318  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:50.318  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:50.318  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:50.929  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:50.929  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:50.929  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:51.532  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:51.532  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:51.532  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:51.578  7811  7811 D DroidOS_Debug: handleKeyPress: key='CTRL' customModKeyCode=0
+02-06 05:08:51.578  7811  7811 D DroidOS_Debug: Resolved KeyCode: 0
+02-06 05:08:51.634  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:51.634  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:51.634  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:51.734  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:51.734  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:51.734  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:51.835  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:51.835  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:51.835  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:52.127  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:52.127  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:52.127  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:52.726  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:52.727  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:52.727  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:53.327  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:53.327  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:53.327  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:53.455 15305  8440 I NotificationManager: com.paget96.batteryguru: notify(1, null, Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE color=0x00000000 groupKey=silent vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0)) as user
+02-06 05:08:53.514  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:53.514  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:53.514  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:53.579  7811  7811 D DroidOS_Debug: handleKeyPress: key='f' customModKeyCode=0
+02-06 05:08:53.580  7811  7811 D DroidOS_Debug: Resolved KeyCode: 34
+02-06 05:08:53.580  7811  7811 D KeyboardView: Shortcut check: 4096|34, registered=false, argCount=0, override=true
+02-06 05:08:53.599  7811  7811 D DroidOS_Suggest: Updated: [wqf(new=true,custom=false)]
+02-06 05:08:53.614  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:53.614  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:53.614  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:53.676  1415  1415 I EdgeLightingManager: showForNotificationScreenOn Alert once notification. sbn: StatusBarNotification(pkg=com.paget96.batteryguru user=UserHandle{0} id=1 tag=null key=0|com.paget96.batteryguru|1|null|10326: Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|NO_CLEAR|FOREGROUND_SERVICE|SILENT color=0x00000000 vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0))
+02-06 05:08:53.715  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:53.715  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:53.715  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:53.715  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSTrackpadKeyboard, isNight = true
+02-06 05:08:53.715  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSLauncher, isNight = true
+02-06 05:08:53.815  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:53.815  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:53.815  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:53.936  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:53.936  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:53.936  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:54.101  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:54.101  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:54.101  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:54.207  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:54.207  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:54.207  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:54.307  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:54.307  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:54.307  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:54.349  1415  1975 D NetdEventListenerService: DNS Requested by 104, 10115(com.microsoft.skydrive), 4(FAIL), isBlocked=true, 0ms
+02-06 05:08:54.407  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:54.407  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:54.407  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:54.508  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:54.508  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:54.508  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:54.608  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:54.608  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:54.608  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:55.133  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:55.133  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:55.133  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:55.486  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:55.486  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:55.487  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:55.584  7811  7811 D DroidOS_Debug: handleKeyPress: key='j' customModKeyCode=0
+02-06 05:08:55.584  7811  7811 D DroidOS_Debug: Resolved KeyCode: 38
+02-06 05:08:55.587  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:55.587  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:55.587  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:55.587  7811  7811 D DroidOS_Suggest: Updated: [wqfj(new=true,custom=false)]
+02-06 05:08:55.688  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:55.688  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:55.688  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:55.789  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:55.789  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:55.789  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:55.890  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:55.890  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:55.890  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:56.333  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:56.333  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:56.333  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:56.940  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:56.940  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:56.940  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:57.532  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:57.532  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:57.532  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:57.876  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:57.876  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:57.876  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:57.940  7811  7811 D DroidOS_Debug: handleKeyPress: key='ALT' customModKeyCode=0
+02-06 05:08:57.940  7811  7811 D DroidOS_Debug: Resolved KeyCode: 0
+02-06 05:08:57.984  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:57.984  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:57.984  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:58.086  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:58.086  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:58.086  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:58.187  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:58.187  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:58.187  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:58.461 15305  8440 I NotificationManager: com.paget96.batteryguru: notify(1, null, Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE color=0x00000000 groupKey=silent vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0)) as user
+02-06 05:08:58.681  1415  1415 I EdgeLightingManager: showForNotificationScreenOn Alert once notification. sbn: StatusBarNotification(pkg=com.paget96.batteryguru user=UserHandle{0} id=1 tag=null key=0|com.paget96.batteryguru|1|null|10326: Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|NO_CLEAR|FOREGROUND_SERVICE|SILENT color=0x00000000 vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0))
+02-06 05:08:58.719  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSTrackpadKeyboard, isNight = true
+02-06 05:08:58.719  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSLauncher, isNight = true
+02-06 05:08:58.729  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:58.729  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:58.729  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:58.829  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:58.829  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:58.829  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:59.339  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:59.339  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:59.339  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:59.610  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:59.610  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:59.610  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:59.698  7811  7811 D DroidOS_Debug: handleKeyPress: key='f' customModKeyCode=0
+02-06 05:08:59.698  7811  7811 D DroidOS_Debug: Resolved KeyCode: 34
+02-06 05:08:59.698  7811  7811 D KeyboardView: Shortcut check: 2|34, registered=true, argCount=1, override=true
+02-06 05:08:59.698  7811  7811 D KeyboardView: Pre-set capture mode for command with argCount=1
+02-06 05:08:59.699  7811  7811 D KeyboardView: Broadcasting Remote Key: f (34) (Latched: false)
+02-06 05:08:59.702  7873  7873 D DroidOS_Keys: RECEIVER: handleRemoteKeyEvent called with 34 (Meta: 2)
+02-06 05:08:59.703  7873  7873 D DroidOS_Keys: REMOTE INPUT: Key=KEYCODE_F(34) Meta=Meta(2)(2)
+02-06 05:08:59.703  7873  7873 D DroidOS_Keys:     MATCH! Triggering via Remote...
+02-06 05:08:59.704  7873  7873 I WindowManager: WindowManagerGlobal#addView, ty=2032, view=android.widget.LinearLayout{daa2533 V.E...... ......I. 0,0-412,168}, caller=android.view.WindowManagerImpl.addView:158 com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.showVisualQueue:2534 com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.triggerCommand:1182 
+02-06 05:08:59.712  1027  2359 I SurfaceFlinger: id=23732 createSurf, flag=84004, 93c9ef8 com.katsuyamaki.DroidOSLauncher#23732
+02-06 05:08:59.712  1415  2342 D RestrictionPolicy: isScreenCaptureEnabled : ret=true userId=0
+02-06 05:08:59.715  1027  1027 I SurfaceFlinger: [93c9ef8 com.katsuyamaki.DroidOSLauncher#23732] attach to parent LayerHierarchy{RequestedLayerState{WindowToken{8bd12d7 type=2032 android.os.Binder@eba7256}#21724 parentId=39 z=4} 2 children}
+02-06 05:08:59.717  1415  4627 D CoreBackPreview: Window{93c9ef8 u0 com.katsuyamaki.DroidOSLauncher}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@fca9a0e, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+02-06 05:08:59.718  7811  7811 D KeyboardView: Blocking registered shortcut: 2|34
+02-06 05:08:59.722  1415  2707 I WindowManager: Relayout Window{93c9ef8 u0 com.katsuyamaki.DroidOSLauncher}: viewVisibility=0 req=412x168 ty=2032 d0
+02-06 05:08:59.724  1027  1027 I SurfaceFlinger: RequestedLayer [93c9ef8 com.katsuyamaki.DroidOSLauncher#23732] hidden!! flag  from(1) --> to(0)
+02-06 05:08:59.724  1027  1027 I SurfaceFlinger: [$_7873#23733] attach to parent LayerHierarchy{RequestedLayerState{93c9ef8 com.katsuyamaki.DroidOSLauncher#23732 parentId=21724 z=1} 1 children}
+02-06 05:08:59.732  7811  7811 D OverlayService: Input Capture Set: true
+02-06 05:08:59.749  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:59.749  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:59.749  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:59.834   740   740 D io_stats: !@ Read_top(KB): .gms.persistent:high(2766) 600 android.youtube:low(24365) 276 DroidOSLauncher:high(7873) 64
+02-06 05:08:59.850  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:59.850  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:59.850  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:08:59.893  1415  1696 D WindowManager: finishDrawingWindow: Window{93c9ef8 u0 com.katsuyamaki.DroidOSLauncher} mDrawState=DRAW_PENDING seqId=0
+02-06 05:08:59.903  1415  1548 V WindowManager: performShowLocked: mDrawState=HAS_DRAWN in Window{93c9ef8 u0 com.katsuyamaki.DroidOSLauncher}
+02-06 05:08:59.951  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:08:59.951  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:08:59.951  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:00.052  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:00.052  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:00.052  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:00.152  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:00.152  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:00.152  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:00.546  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:00.546  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:00.546  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:01.146  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:01.146  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:01.146  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:01.210  7811  7811 D DroidOS_Debug: handleKeyPress: key='*' customModKeyCode=0
+02-06 05:09:01.210  7811  7811 D DroidOS_Debug: Resolved KeyCode: 15
+02-06 05:09:01.212  7811  7811 D KeyboardView: Capture Mode: Sent 15 for key *
+02-06 05:09:01.222  7873  7873 D DroidOS_Keys: RECEIVER: handleRemoteKeyEvent called with 15 (Meta: 0)
+02-06 05:09:01.222  7873  7873 D DroidOS_Keys: REMOTE INPUT: Key=KEYCODE_8(15) Meta=None(0)
+02-06 05:09:01.222  7873  7873 I WindowManager: WindowManagerGlobal#removeView, ty=2032, view=android.widget.LinearLayout{daa2533 V.E...... ........ 0,0-412,168}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeView:211 com.katsuyamaki.DroidOSLauncher.FloatingLauncherService.hideVisualQueue:2566 
+02-06 05:09:01.227  7811  7811 D OverlayService: Input Capture Set: false
+02-06 05:09:01.227  1415  2707 D CoreBackPreview: Window{93c9ef8 u0 com.katsuyamaki.DroidOSLauncher}: Setting back callback null
+02-06 05:09:01.229  1415  2707 V WindowManager: Remove Window{93c9ef8 u0 com.katsuyamaki.DroidOSLauncher}: mSurfaceControl=Surface(name=$_7873)/@0x4600cd4 mAnimatingExit=false mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false callers=com.android.server.wm.Session.remove:16 android.view.IWindowSession$Stub.onTransact:804 com.android.server.wm.Session.onTransact:1 android.os.Binder.execTransactInternal:1457 android.os.Binder.execTransact:1401 <bottom of call stack> 
+02-06 05:09:01.239  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{93c9ef8 com.katsuyamaki.DroidOSLauncher#23732 z=1} 1 children}] reparent to OffscreenRoot
+02-06 05:09:01.239  1027  1027 I SurfaceFlinger: [LayerHierarchy{RequestedLayerState{93c9ef8 com.katsuyamaki.DroidOSLauncher#23732 z=1} 1 children}] RelativeParent to null
+02-06 05:09:01.239  1027  1027 I SurfaceFlinger: id=23732 Removed 93c9ef8 com.katsuyamaki.DroidOSLauncher#23732 (244)
+02-06 05:09:01.247  1027  1027 I SurfaceFlinger: destroyed 93c9ef8 com.katsuyamaki.DroidOSLauncher#23732
+02-06 05:09:01.247  1027  1027 I Layer   : id=23732 Destroyed 93c9ef8 com.katsuyamaki.DroidOSLauncher#23732
+02-06 05:09:01.251  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:01.251  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:01.251  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:01.287  7811  7811 D DroidOS_Debug: handleKeyPress: key='z' customModKeyCode=0
+02-06 05:09:01.287  7811  7811 D DroidOS_Debug: Resolved KeyCode: 54
+02-06 05:09:01.290  7811  7811 D DroidOS_Suggest: Updated: [wqfjz(new=true,custom=false)]
+02-06 05:09:01.351  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:01.351  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:01.351  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:01.438  1415  1975 D NetdEventListenerService: DNS Requested by 104, 10115(com.microsoft.skydrive), 4(FAIL), isBlocked=true, 0ms
+02-06 05:09:01.451  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:01.451  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:01.451  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:01.552  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:01.552  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:01.552  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:01.745  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:01.746  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:01.746  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:02.343  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:02.343  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:02.343  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:02.944  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:02.944  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:02.944  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:03.468 15305 11124 I NotificationManager: com.paget96.batteryguru: notify(1, null, Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE color=0x00000000 groupKey=silent vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0)) as user
+02-06 05:09:03.542  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:03.542  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:03.542  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:03.689  1415  1415 I EdgeLightingManager: showForNotificationScreenOn Alert once notification. sbn: StatusBarNotification(pkg=com.paget96.batteryguru user=UserHandle{0} id=1 tag=null key=0|com.paget96.batteryguru|1|null|10326: Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|NO_CLEAR|FOREGROUND_SERVICE|SILENT color=0x00000000 vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0))
+02-06 05:09:03.732  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:03.732  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:03.732  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:03.796  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSTrackpadKeyboard, isNight = true
+02-06 05:09:03.804  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSLauncher, isNight = true
+02-06 05:09:03.832  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:03.832  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:03.833  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:04.150  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:04.150  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:04.150  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:04.755  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:04.755  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:04.755  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:05.350  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:05.350  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:05.350  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:05.953  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:05.953  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:05.953  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:06.553  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:06.553  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:06.553  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:07.165  1415  1975 D NetdEventListenerService: DNS Requested by 104, 10115(com.microsoft.skydrive), 4(FAIL), isBlocked=true, 0ms
+02-06 05:09:07.168  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:07.169  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:07.169  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:07.767  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:07.767  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:07.767  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:07.776  2766 11770 I FusedLocation: (REDACTED) location delivery to %s blocked - too close
+02-06 05:09:07.783  2766 11770 I FusedLocation: (REDACTED) location delivery to %s blocked - too close
+02-06 05:09:07.784  2766 11770 I FusedLocation: (REDACTED) location delivery to %s blocked - too close
+02-06 05:09:07.785  2766 11770 I FusedLocation: (REDACTED) location delivery to %s blocked - too fast
+02-06 05:09:07.788  2766 11770 I FusedLocation: (REDACTED) location delivery to %s blocked - too fast
+02-06 05:09:07.870  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:07.870  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:07.870  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:07.972  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:07.972  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:07.972  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:08.080  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:08.080  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:08.080  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:08.182  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:08.182  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:08.182  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:08.289  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:08.289  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:08.289  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:08.389  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:08.390  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:08.390  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:08.486 15305 11124 I NotificationManager: com.paget96.batteryguru: notify(1, null, Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE color=0x00000000 groupKey=silent vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0)) as user
+02-06 05:09:08.610  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:08.611  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:08.611  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:08.710  1415  1415 I EdgeLightingManager: showForNotificationScreenOn Alert once notification. sbn: StatusBarNotification(pkg=com.paget96.batteryguru user=UserHandle{0} id=1 tag=null key=0|com.paget96.batteryguru|1|null|10326: Notification(channel=battery_info_high shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|NO_CLEAR|FOREGROUND_SERVICE|SILENT color=0x00000000 vis=PUBLIC semFlags=0x0 semPriority=0 semMissedCount=0))
+02-06 05:09:08.748  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSTrackpadKeyboard, isNight = true
+02-06 05:09:08.748  8203  8203 I AppIconSolution: return adaptive icon for com.katsuyamaki.DroidOSLauncher, isNight = true
+02-06 05:09:08.826  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:08.826  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:08.826  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:09.035  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:09.035  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:09.035  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:09.127  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:09.127  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:09.127  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:09.228  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:09.228  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:09.228  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:09.396  1027  1204 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:09.396  1027  1204 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:09.396  1027  1204 I SurfaceFlinger: Capture layer list: 	 InputMethod$_7811#23673(seamlessTransition:0)
+02-06 05:09:09.454  1415  5998 I SurfaceComposerClient: captureDisplay:Display-4633128672291735937
+02-06 05:09:09.457  1027  1337 I SurfaceFlinger: Capture layer list: 	 Wallpaper BBQ wrapper 7_systemlock#110(seamlessTransition:0)
+02-06 05:09:09.457  1027  1337 I SurfaceFlinger: Capture layer list: 	 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity$_2708#23130(seamlessTransition:0)
+02-06 05:09:09.457  1027  1337 I SurfaceFlinger: Capture layer list: 	 Task=26749#2494(seamlessTransition:0)
+02-06 05:09:09.457  1027  1337 I SurfaceFlinger: Capture layer list: 	 com.discord/com.discord.main.MainDefault$_9170#23646(seamlessTransition:0)
+02-06 05:09:09.457  1027  1337 I SurfaceFlinger: Capture layer list: 	 Additional window of Task=26749 (Freeform Outline)#23642(seamlessTransition:0)
+02-06 05:09:09.457  1027  1337 I SurfaceFlinger: Capture layer list: 	 Caption of Task=26749#14663(seamlessTransition:0)
+02-06 05:09:09.457  1027  1337 I SurfaceFlinger: Capture layer list: 	 Task=26748#1547(seamlessTransition:0)
+02-06 05:09:09.457  1027  1337 I SurfaceFlinger: Capture

@@ -622,7 +622,8 @@ private var customModKeyCode = 0
 
     fun setInputCaptureMode(active: Boolean) {
         isInputCaptureActive = active
-        if (!active) shortcutCooldownUntil = 0  // Clear cooldown when capture explicitly disabled
+        // [FIX] Don't clear shortcutCooldownUntil here - let the cooldown run its natural course
+        // to block any lingering key presses that arrive after the command completes.
         // Visual feedback? maybe dim the keyboard slightly or change border
         if (active) setBackgroundColor(Color.parseColor("#330000")) // Subtle Red tint
         else setBackgroundColor(Color.parseColor("#1A1A1A"))
@@ -2178,7 +2179,8 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                             }            // 3. INPUT CAPTURE REDIRECT (For Launcher Commands)
             // Also redirect during shortcut cooldown to prevent key leakage in the race window
             // between the Launcher sending SET_INPUT_CAPTURE and us receiving it.
-            val isLayerKey = key in setOf("SYM", "SYM1", "SYM2", "ABC", "SHIFT", "CAPS")
+            // [FIX] Include ALT/CTRL/META as excluded keys so they still set modifier state
+            val isLayerKey = key in setOf("SYM", "SYM1", "SYM2", "ABC", "SHIFT", "CAPS", "ALT", "CTRL", "META")
             val inShortcutCooldown = System.currentTimeMillis() < shortcutCooldownUntil
             if ((isInputCaptureActive || inShortcutCooldown) && !isLayerKey) {
                 var finalCode = 0
