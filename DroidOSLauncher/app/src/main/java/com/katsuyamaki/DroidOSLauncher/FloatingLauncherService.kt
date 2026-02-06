@@ -3207,21 +3207,21 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         
         return when(type) { 
             LAYOUT_FULL -> "1 App - Full"
-            LAYOUT_SIDE_BY_SIDE -> "2 Apps - Split"
-            LAYOUT_TOP_BOTTOM -> "2 Apps - Top/Bot"
-            LAYOUT_TRI_EVEN -> "3 Apps - Even"
-            LAYOUT_CORNERS -> "4 Apps - Quadrant"
+            LAYOUT_SIDE_BY_SIDE -> "2 Apps - Even Row"
+            LAYOUT_TOP_BOTTOM -> "2 Apps - Even Column" // Corrected from "Even Column"
+            LAYOUT_TRI_EVEN -> "3 Apps - Even Row"
+            LAYOUT_CORNERS -> "4 Apps - Corners" // Corrected from "Corners"
             LAYOUT_TRI_SIDE_MAIN_SIDE -> "3 Apps - Side/Main/Side"
-            LAYOUT_QUAD_ROW_EVEN -> "4 Apps - Row"
+            LAYOUT_QUAD_ROW_EVEN -> "4 Apps - Even Row"
             LAYOUT_QUAD_TALL_SHORT -> "4 Apps - 2 Tall / 2 Short"
             LAYOUT_HEX_TALL_SHORT -> "6 Apps - 3 Tall / 3 Short"
             LAYOUT_CUSTOM_DYNAMIC -> "Custom"
             else -> "Unknown" 
         } 
     }
-    private fun getRatioName(index: Int): String { return when(index) { 1 -> "1:1"; 2 -> "16:9"; 3 -> "32:9"; else -> "Default" } }
-    private fun getTargetDimensions(index: Int): Pair<Int, Int>? { return when(index) { 1 -> 1422 to 1500; 2 -> 1920 to 1080; 3 -> 3840 to 1080; else -> null } }
-    private fun getResolutionCommand(index: Int): String { return when(index) { 1 -> "wm size 1422x1500 -d $currentDisplayId"; 2 -> "wm size 1920x1080 -d $currentDisplayId"; 3 -> "wm size 3840x1080 -d $currentDisplayId"; else -> "wm size reset -d $currentDisplayId" } }
+    private fun getRatioName(index: Int): String { return when(index) { 1 -> "1:1"; 2 -> "16:9"; 4 -> "16:10"; 3 -> "32:9"; else -> "Default" } }
+    private fun getTargetDimensions(index: Int): Pair<Int, Int>? { return when(index) { 1 -> 1422 to 1500; 2 -> 1920 to 1080; 4 -> 1920 to 1200; 3 -> 3840 to 1080; else -> null } }
+    private fun getResolutionCommand(index: Int): String { return when(index) { 1 -> "wm size 1422x1500 -d $currentDisplayId"; 2 -> "wm size 1920x1080 -d $currentDisplayId"; 4 -> "wm size 1920x1200 -d $currentDisplayId"; 3 -> "wm size 3840x1080 -d $currentDisplayId"; else -> "wm size reset -d $currentDisplayId" } }
 
 // Sorts active apps to front and minimized to back.
             // Maintains relative order (Stable Sort), ensuring newly minimized apps
@@ -4411,7 +4411,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 } 
             }
             MODE_RESOLUTION -> {
-                searchBar.hint = "Select Resolution"; displayList.add(CustomResInputOption); val savedResNames = AppPreferences.getCustomResolutionNames(this).sorted(); for (name in savedResNames) { val value = AppPreferences.getCustomResolutionValue(this, name) ?: continue; displayList.add(ResolutionOption(name, "wm size  -d $currentDisplayId", 100 + savedResNames.indexOf(name))) }; displayList.add(ResolutionOption("Default (Reset)", "wm size reset -d $currentDisplayId", 0)); displayList.add(ResolutionOption("1:1 Square (1422x1500)", "wm size 1422x1500 -d $currentDisplayId", 1)); displayList.add(ResolutionOption("16:9 Landscape (1920x1080)", "wm size 1920x1080 -d $currentDisplayId", 2)); displayList.add(ResolutionOption("32:9 Ultrawide (3840x1080)", "wm size 3840x1080 -d $currentDisplayId", 3))
+                searchBar.hint = "Select Resolution"; displayList.add(CustomResInputOption); val savedResNames = AppPreferences.getCustomResolutionNames(this).sorted(); for (name in savedResNames) { val value = AppPreferences.getCustomResolutionValue(this, name) ?: continue; displayList.add(ResolutionOption(name, "wm size  -d $currentDisplayId", 100 + savedResNames.indexOf(name))) }; displayList.add(ResolutionOption("Default (Reset)", "wm size reset -d $currentDisplayId", 0)); displayList.add(ResolutionOption("1:1 Square (1422x1500)", "wm size 1422x1500 -d $currentDisplayId", 1)); displayList.add(ResolutionOption("16:9 Landscape (1920x1080)", "wm size 1920x1080 -d $currentDisplayId", 2)); displayList.add(ResolutionOption("16:10 Landscape (1920x1200)", "wm size 1920x1200 -d $currentDisplayId", 4)); displayList.add(ResolutionOption("32:9 Ultrawide (3840x1080)", "wm size 3840x1080 -d $currentDisplayId", 3))
             }
 
 // =================================================================================
@@ -4459,7 +4459,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 displayList.add(RefreshHeaderOption(headerText))
                 
                 // 4. Add rate options with availability status
-                val rates = listOf(30f, 60f, 90f, 120f)
+                val rates = listOf(30f, 60f, 72f, 90f, 120f)
                 for (rate in rates) {
                     val rateInt = rate.toInt()
                     val isHardwareSupported = supportedRates.any { Math.abs(it - rateInt) <= 1 }
@@ -4670,6 +4670,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             val isFocused = (app.packageName == activePackageName) ||
                             (app.packageName == "com.google.android.apps.bard" && activePackageName == "com.google.android.googlequicksearchbox")
             holder.underline.visibility = if (isFocused) View.VISIBLE else View.GONE
+            // If the SelectedAppsAdapter has any TextViews with content, their size should also be scaled.
+            // Based on item_selected_app.xml, it only has an ImageView, but if text is added in the future,
+            // this is where it would be applied. Currently, no explicit text to scale here.
             // If the SelectedAppsAdapter has any TextViews with content, their size should also be scaled.
             // Based on item_selected_app.xml, it only has an ImageView, but if text is added in the future,
             // this is where it would be applied. Currently, no explicit text to scale here.
@@ -5364,11 +5367,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
         inner class DpiHolder(v: View) : RecyclerView.ViewHolder(v) { val slider: android.widget.SeekBar = v.findViewById(R.id.sb_dpi_slider); val input: EditText = v.findViewById(R.id.input_dpi_value) }
 
-        inner class FontSizeHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_font_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_font_plus); val textVal: TextView = v.findViewById(R.id.text_font_value) }
-        inner class HeightHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_height_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_height_plus); val textVal: TextView = v.findViewById(R.id.text_height_value) }
-        inner class WidthHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_width_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_width_plus); val textVal: TextView = v.findViewById(R.id.text_width_value) }
+        inner class FontSizeHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_font_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_font_plus); val textVal: TextView = v.findViewById(R.id.text_font_value); val textLabel: TextView = v.findViewById(R.id.text_font_label); val textUnit: TextView = v.findViewById(R.id.text_font_unit) }
+        inner class HeightHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_height_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_height_plus); val textVal: TextView = v.findViewById(R.id.text_height_value); val textLabel: TextView = v.findViewById(R.id.text_height_label); val textUnit: TextView = v.findViewById(R.id.text_height_unit) }
+        inner class WidthHolder(v: View) : RecyclerView.ViewHolder(v) { val btnMinus: ImageView = v.findViewById(R.id.btn_width_minus); val btnPlus: ImageView = v.findViewById(R.id.btn_width_plus); val textVal: TextView = v.findViewById(R.id.text_width_value); val textLabel: TextView = v.findViewById(R.id.text_width_label); val textUnit: TextView = v.findViewById(R.id.text_width_unit) }
         inner class ProfileRichHolder(v: View) : RecyclerView.ViewHolder(v) { val name: EditText = v.findViewById(R.id.profile_name_text); val details: TextView = v.findViewById(R.id.profile_details_text); val iconsContainer: LinearLayout = v.findViewById(R.id.profile_icons_container); val btnSave: ImageView = v.findViewById(R.id.btn_save_profile_rich) }
-        inner class IconSettingHolder(v: View) : RecyclerView.ViewHolder(v) { val preview: ImageView = v.findViewById(R.id.icon_setting_preview) }
+        inner class IconSettingHolder(v: View) : RecyclerView.ViewHolder(v) { val preview: ImageView = v.findViewById(R.id.icon_setting_preview); val text: TextView = v.findViewById(R.id.icon_setting_text) }
         inner class CustomResInputHolder(v: View) : RecyclerView.ViewHolder(v) { val inputW: EditText = v.findViewById(R.id.input_res_w); val inputH: EditText = v.findViewById(R.id.input_res_h); val btnSave: ImageView = v.findViewById(R.id.btn_save_res) }
         inner class KeybindHolder(v: View) : RecyclerView.ViewHolder(v) { val title: TextView = v.findViewById(R.id.kb_title); val desc: TextView = v.findViewById(R.id.kb_desc); val btnMod: android.widget.Button = v.findViewById(R.id.btn_mod); val btnKey: android.widget.Button = v.findViewById(R.id.btn_key) }
         inner class CustomModHolder(v: View) : RecyclerView.ViewHolder(v) { 
@@ -5508,6 +5511,10 @@ else -> AppHolder(View(parent.context)) } }
                                     (holder.btnEdit as? TextView)?.setScaledTextSize(currentFontSize, 0.875f) // Adjust as needed
                                     (holder.btnSave as? TextView)?.setScaledTextSize(currentFontSize, 0.875f)
                                     (holder.btnExtinguish as? TextView)?.setScaledTextSize(currentFontSize, 0.875f)
+                                    // Ensure buttons also scale their text
+                                    (holder.btnEdit as? TextView)?.setScaledTextSize(currentFontSize, 0.875f) // Adjust as needed
+                                    (holder.btnSave as? TextView)?.setScaledTextSize(currentFontSize, 0.875f)
+                                    (holder.btnExtinguish as? TextView)?.setScaledTextSize(currentFontSize, 0.875f)
                 
                                     // SAVE LOGIC
                                     val saveAction = { 
@@ -5624,7 +5631,20 @@ else -> AppHolder(View(parent.context)) } }
                 holder.btnSave.setOnClickListener { val wStr = holder.inputW.text.toString().trim(); val hStr = holder.inputH.text.toString().trim(); if (wStr.isNotEmpty() && hStr.isNotEmpty()) { val w = wStr.toIntOrNull(); val h = hStr.toIntOrNull(); if (w != null && h != null && w > 0 && h > 0) { val gcdVal = calculateGCD(w, h); val wRatio = w / gcdVal; val hRatio = h / gcdVal; val resString = "${w}x${h}"; val name = "$wRatio:$hRatio Custom ($resString)"; AppPreferences.saveCustomResolution(holder.itemView.context, name, resString); safeToast("Added $name"); dismissKeyboardAndRestore(); switchMode(MODE_RESOLUTION) } else { safeToast("Invalid numbers") } } else { safeToast("Input W and H") } }
                 holder.inputW.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }; holder.inputH.setOnFocusChangeListener { _, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus) }
             }
-            else if (holder is IconSettingHolder && item is IconOption) { try { val uriStr = AppPreferences.getIconUri(holder.itemView.context); if (uriStr != null) { val uri = Uri.parse(uriStr); val input = contentResolver.openInputStream(uri); val bitmap = BitmapFactory.decodeStream(input); input?.close(); holder.preview.setImageBitmap(bitmap) } else { holder.preview.setImageResource(R.drawable.ic_launcher_bubble) } } catch(e: Exception) { holder.preview.setImageResource(R.drawable.ic_launcher_bubble) }; holder.itemView.setOnClickListener { pickIcon() } }
+            else if (holder is IconSettingHolder && item is IconOption) { 
+                holder.text.setScaledTextSize(currentFontSize, 1.0f) // "Launcher Icon" (16sp)
+                try { 
+                    val uriStr = AppPreferences.getIconUri(holder.itemView.context); 
+                    if (uriStr != null) { 
+                        val uri = Uri.parse(uriStr); val input = contentResolver.openInputStream(uri); val bitmap = BitmapFactory.decodeStream(input); input?.close(); holder.preview.setImageBitmap(bitmap) 
+                    } else { 
+                        holder.preview.setImageResource(R.drawable.ic_launcher_bubble) 
+                    } 
+                } catch(e: Exception) { 
+                    holder.preview.setImageResource(R.drawable.ic_launcher_bubble) 
+                }; 
+                holder.itemView.setOnClickListener { pickIcon() } 
+            }
 
             else if (holder is DpiHolder && item is DpiOption) { 
                 // Set initial values
@@ -5687,9 +5707,30 @@ else -> AppHolder(View(parent.context)) } }
                 }
             }
 
-            else if (holder is FontSizeHolder && item is FontSizeOption) { holder.textVal.text = item.currentSize.toInt().toString(); holder.textVal.setScaledTextSize(currentFontSize, 1.125f); holder.btnMinus.setOnClickListener { changeFontSize(item.currentSize - 1) }; holder.btnPlus.setOnClickListener { changeFontSize(item.currentSize + 1) } }
-            else if (holder is HeightHolder && item is HeightOption) { holder.textVal.text = item.currentPercent.toString(); holder.textVal.setScaledTextSize(currentFontSize, 1.125f); holder.btnMinus.setOnClickListener { changeDrawerHeight(-5) }; holder.btnPlus.setOnClickListener { changeDrawerHeight(5) } }
-            else if (holder is WidthHolder && item is WidthOption) { holder.textVal.text = item.currentPercent.toString(); holder.textVal.setScaledTextSize(currentFontSize, 1.125f); holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }; holder.btnPlus.setOnClickListener { changeDrawerWidth(5) } }
+            else if (holder is FontSizeHolder && item is FontSizeOption) { 
+                holder.textLabel.setScaledTextSize(currentFontSize, 1.0f) // "Font Size:" (16sp)
+                holder.textVal.text = item.currentSize.toInt().toString()
+                holder.textVal.setScaledTextSize(currentFontSize, 1.125f) // Font value (18sp)
+                holder.textUnit.setScaledTextSize(currentFontSize, 0.75f) // "sp" unit (12sp)
+                holder.btnMinus.setOnClickListener { changeFontSize(item.currentSize - 1) }
+                holder.btnPlus.setOnClickListener { changeFontSize(item.currentSize + 1) } 
+            }
+            else if (holder is HeightHolder && item is HeightOption) { 
+                holder.textLabel.setScaledTextSize(currentFontSize, 1.0f) // "Height:" (16sp)
+                holder.textVal.text = item.currentPercent.toString()
+                holder.textVal.setScaledTextSize(currentFontSize, 1.125f) // Height value (18sp)
+                holder.textUnit.setScaledTextSize(currentFontSize, 0.75f) // "%" unit (12sp)
+                holder.btnMinus.setOnClickListener { changeDrawerHeight(-5) }
+                holder.btnPlus.setOnClickListener { changeDrawerHeight(5) } 
+            }
+            else if (holder is WidthHolder && item is WidthOption) { 
+                holder.textLabel.setScaledTextSize(currentFontSize, 1.0f) // "Width:" (16sp)
+                holder.textVal.text = item.currentPercent.toString()
+                holder.textVal.setScaledTextSize(currentFontSize, 1.125f) // Width value (18sp)
+                holder.textUnit.setScaledTextSize(currentFontSize, 0.75f) // "%" unit (12sp)
+                holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }
+                holder.btnPlus.setOnClickListener { changeDrawerWidth(5) } 
+            }
             else if (holder is MarginHolder && item is MarginOption) {
                 holder.label.text = if (item.type == 0) "Top Margin:" else "Bottom Margin:"
                 holder.label.setScaledTextSize(currentFontSize, 1.0f)
