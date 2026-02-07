@@ -368,6 +368,10 @@ private var isSoftKeyboardSupport = false
     private var tiledAppsRestoredAt = 0L
     // [FULLSCREEN] Track when user explicitly launched tiled apps - skip auto-minimize during cooldown
     private var lastExplicitTiledLaunchAt = 0L
+    // [FIX] Track recently killed/hidden packages to prevent them from being re-added as fullscreen apps
+    // Key = package name, Value = timestamp when removed. Entries older than 3s are ignored.
+    private val recentlyRemovedPackages = mutableMapOf<String, Long>()
+    private val REMOVED_PACKAGE_COOLDOWN_MS = 3000L
 
 
 
@@ -4271,7 +4275,15 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         // This converts the fullscreen app into a tiled app, placing the user's selected apps on top.
         // Without this, the fullscreen app detection would minimize the newly launched tiled apps.
         val queuePackages = selectedAppsQueue.map { it.getBasePackage() }.toSet()
-        val fullscreenApps = activeApps.filter { it.getBasePackage() !in queuePackages && !it.isMinimized }
+        // [FIX] Clean up old entries and exclude recently removed packages from fullscreen detection
+        val now = System.currentTimeMillis()
+        recentlyRemovedPackages.entries.removeIf { now - it.value > REMOVED_PACKAGE_COOLDOWN_MS }
+        val fullscreenApps = activeApps.filter { 
+            val basePkg = it.getBasePackage()
+            basePkg !in queuePackages && 
+            !it.isMinimized && 
+            !recentlyRemovedPackages.containsKey(basePkg)
+        }
         if (fullscreenApps.isNotEmpty() && selectedAppsQueue.any { !it.isMinimized }) {
             for (fsApp in fullscreenApps) {
                 // Add fullscreen app to END of queue (bottom position in layout)
@@ -5016,6 +5028,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     val app = selectedAppsQueue[index]
                     if (app.packageName != PACKAGE_BLANK) {
                         val basePkg = app.getBasePackage()
+                        // [FIX] Record killed package to prevent re-adding as fullscreen app
+                        recentlyRemovedPackages[basePkg] = System.currentTimeMillis()
                         removeFromFocusHistory(basePkg) // Clean up history
                         Thread { try { shellService?.forceStop(basePkg) } catch(e: Exception){} }.start()
                     }
@@ -5221,6 +5235,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                 // 1. Force Minimize the visual window
                                 val basePkg = targetApp.getBasePackage()
                                 val cls = targetApp.className
+                                
+                                // [FIX] Record hidden package to prevent re-adding as fullscreen app
+                                recentlyRemovedPackages[basePkg] = System.currentTimeMillis()
                                 
                                 // [FIX] Clear focus if hiding the active app
                                 val isGemini = basePkg == "com.google.android.apps.bard"
