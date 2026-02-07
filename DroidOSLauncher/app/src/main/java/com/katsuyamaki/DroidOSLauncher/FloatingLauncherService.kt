@@ -5097,6 +5097,27 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         }
                     }
 
+                    // [FIX] If apps were auto-minimized by fullscreen detection but isMinimized
+                    // was never set, UNMINIMIZE would see isMinimized=false and skip.
+                    // Detect this state: mark all OTHER apps as truly minimized so the
+                    // restored app gets slot 1. Then fall through to normal restore logic.
+                    if (tiledAppsAutoMinimized && (cmd == "UNMINIMIZE" || cmd == "TOGGLE_MINIMIZE") && !app.isMinimized) {
+                        tiledAppsAutoMinimized = false
+                        lastExplicitTiledLaunchAt = System.currentTimeMillis()
+                        // Mark all OTHER queue apps as minimized (they were already moved to back)
+                        for (other in selectedAppsQueue) {
+                            if (other !== app && !other.isMinimized && other.packageName != PACKAGE_BLANK) {
+                                other.isMinimized = true
+                                minimizedAtTimestamps[other.getBasePackage()] = System.currentTimeMillis()
+                            }
+                        }
+                        // The target app stays isMinimized=false → it will be the only active app → slot 1
+                        Log.d(TAG, "WM Command: Auto-minimize state synced, restoring ${app.label} to slot 1")
+                        // Now retile to launch only this app in slot 1
+                        refreshQueueAndLayout("Restored ${app.label}", forceRetile = true, retileDelayMs = 300L)
+                        return
+                    }
+
                     val newState = when (cmd) {
                         "MINIMIZE" -> true
                         "UNMINIMIZE" -> false
