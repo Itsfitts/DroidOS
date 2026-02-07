@@ -260,6 +260,16 @@ object AppPreferences {
         return getPrefs(context).getString(KEY_ICON_URI, null)
     }
     
+    private const val KEY_BUBBLE_SIZE = "bubble_size_percent"
+    
+    fun saveBubbleSize(context: Context, percent: Int) {
+        getPrefs(context).edit().putInt(KEY_BUBBLE_SIZE, percent).apply()
+    }
+    
+    fun getBubbleSize(context: Context): Int {
+        return getPrefs(context).getInt(KEY_BUBBLE_SIZE, 100)
+    }
+    
     fun setDrawerHeightPercent(context: Context, percent: Int) {
         getPrefs(context).edit().putInt(KEY_DRAWER_HEIGHT, percent).apply()
     }

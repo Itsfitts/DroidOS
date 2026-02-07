@@ -343,6 +343,7 @@ private var isSoftKeyboardSupport = false
     private lateinit var drawerParams: WindowManager.LayoutParams
 
     private var isExpanded = false
+    private var bubbleSizePercent = 100
     private val selectedAppsQueue = mutableListOf<MainActivity.AppInfo>()
     private val allAppsList = mutableListOf<MainActivity.AppInfo>()
     private val displayList = mutableListOf<Any>()
@@ -1667,6 +1668,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         // Load preferences
         loadInstalledApps(); currentFontSize = AppPreferences.getFontSize(this)
         killAppOnExecute = AppPreferences.getKillOnExecute(this); targetDisplayIndex = AppPreferences.getTargetDisplayIndex(this)
+    bubbleSizePercent = AppPreferences.getBubbleSize(this)
         autoRestartTrackpad = AppPreferences.getAutoRestartTrackpad(this) // NEW LOAD
         isInstantMode = AppPreferences.getInstantMode(this); showShizukuWarning = AppPreferences.getShowShizukuWarning(this)
         useAltScreenOff = AppPreferences.getUseAltScreenOff(this); isReorderDragEnabled = AppPreferences.getReorderDrag(this)
@@ -2107,8 +2109,36 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 Log.e(TAG, "Error adding bubble", e2)
             }
         }
+        // [FIX] Apply saved bubble size after view is added
+        if (bubbleSizePercent != 100) applyBubbleSize()
     }
     
+    private fun changeBubbleSize(delta: Int) {
+        bubbleSizePercent = (bubbleSizePercent + delta).coerceIn(50, 200)
+        AppPreferences.saveBubbleSize(this, bubbleSizePercent)
+        applyBubbleSize()
+        if (currentMode == MODE_SETTINGS) switchMode(MODE_SETTINGS)
+    }
+
+    private fun applyBubbleSize() {
+        if (bubbleView == null) return
+        val scale = bubbleSizePercent / 100f
+        val density = resources.displayMetrics.density
+        bubbleParams.width = (60 * scale * density).toInt()
+        bubbleParams.height = (60 * scale * density).toInt()
+        try { 
+            val wm = attachedWindowManager ?: windowManager
+            wm.updateViewLayout(bubbleView, bubbleParams) 
+        } catch (e: Exception) {}
+        val iconView = bubbleView?.findViewById<ImageView>(R.id.bubble_icon)
+        iconView?.let {
+            val lp = it.layoutParams
+            lp.width = (52 * scale * density).toInt()
+            lp.height = (52 * scale * density).toInt()
+            it.layoutParams = lp
+        }
+    }
+
     private fun updateBubbleIcon() { val iconView = bubbleView?.findViewById<ImageView>(R.id.bubble_icon) ?: return; if (!isBound && showShizukuWarning) { uiHandler.post { iconView.setImageResource(android.R.drawable.ic_dialog_alert); iconView.setColorFilter(Color.RED); iconView.imageTintList = null }; return }; uiHandler.post { try { val uriStr = AppPreferences.getIconUri(this); if (uriStr != null) { val uri = Uri.parse(uriStr); val input = contentResolver.openInputStream(uri); val bitmap = BitmapFactory.decodeStream(input); input?.close(); if (bitmap != null) { iconView.setImageBitmap(bitmap); iconView.imageTintList = null; iconView.clearColorFilter() } else { iconView.setImageResource(R.drawable.ic_launcher_bubble); iconView.imageTintList = null; iconView.clearColorFilter() } } else { iconView.setImageResource(R.drawable.ic_launcher_bubble); iconView.imageTintList = null; iconView.clearColorFilter() } } catch (e: Exception) { iconView.setImageResource(R.drawable.ic_launcher_bubble); iconView.imageTintList = null; iconView.clearColorFilter() } } }
     private fun dismissKeyboardAndRestore() { val searchBar = drawerView?.findViewById<EditText>(R.id.rofi_search_bar); if (searchBar != null && searchBar.hasFocus()) { searchBar.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(searchBar.windowToken, 0) }; val dpiInput = drawerView?.findViewById<EditText>(R.id.input_dpi_value); if (dpiInput != null && dpiInput.hasFocus()) { dpiInput.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(dpiInput.windowToken, 0) }; updateDrawerHeight(false) }
 
@@ -4771,6 +4801,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
                 displayList.add(FontSizeOption(currentFontSize))
                 displayList.add(IconOption("Launcher Icon (Tap to Change)"))
+                displayList.add(BubbleSizeOption(bubbleSizePercent))
                 displayList.add(ToggleOption("Reorder: Drag & Drop", isReorderDragEnabled) { isReorderDragEnabled = it; AppPreferences.setReorderDrag(this, it) })
                 displayList.add(ToggleOption("Reorder: Tap to Swap (Long Press)", isReorderTapEnabled) { isReorderTapEnabled = it; AppPreferences.setReorderTap(this, it) })
                 displayList.add(ToggleOption("Instant Mode (Live Changes)", isInstantMode) { isInstantMode = it; AppPreferences.setInstantMode(this, it); executeBtn.visibility = if (it) View.GONE else View.VISIBLE; if (it) fetchRunningApps() })
@@ -4855,6 +4886,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     data class WidthOption(val currentPercent: Int)
     data class MarginOption(val type: Int, val currentPercent: Int) // type: 0=Top, 1=Bottom
     data class IconOption(val name: String)
+    data class BubbleSizeOption(val currentPercent: Int)
     data class ActionOption(val name: String, val action: () -> Unit)
     data class ToggleOption(val name: String, var isEnabled: Boolean, val onToggle: (Boolean) -> Unit)
     data class TimeoutOption(val seconds: Int)
@@ -5677,7 +5709,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         inner class HeaderHolder(v: View) : RecyclerView.ViewHolder(v) { val nameInput: EditText = v.findViewById(R.id.layout_name); val btnSave: View = v.findViewById(R.id.btn_save_profile); val btnExtinguish: View = v.findViewById(R.id.btn_extinguish_item) }
         inner class ActionHolder(v: View) : RecyclerView.ViewHolder(v) { val nameInput: EditText = v.findViewById(R.id.layout_name); val btnSave: View = v.findViewById(R.id.btn_save_profile); val btnExtinguish: View = v.findViewById(R.id.btn_extinguish_item) }
 
-        override fun getItemViewType(position: Int): Int { return when (displayList[position]) { is MainActivity.AppInfo -> 0; is LayoutOption -> 1; is ResolutionOption -> 1; is DpiOption -> 2; is ProfileOption -> 4; is FontSizeOption -> 3; is IconOption -> 5; is ToggleOption -> 1; is ActionOption -> 6; is HeightOption -> 7; is WidthOption -> 8;         is CustomResInputOption -> 9; is RefreshHeaderOption -> 10; is RefreshItemOption -> 11; is KeybindOption -> 12; is CustomModConfigOption -> 13; is MarginOption -> 14; else -> 0 } }
+        override fun getItemViewType(position: Int): Int { return when (displayList[position]) { is MainActivity.AppInfo -> 0; is LayoutOption -> 1; is ResolutionOption -> 1; is DpiOption -> 2; is ProfileOption -> 4; is FontSizeOption -> 3; is IconOption -> 5; is ToggleOption -> 1; is ActionOption -> 6; is HeightOption -> 7; is BubbleSizeOption -> 7; is WidthOption -> 8;         is CustomResInputOption -> 9; is RefreshHeaderOption -> 10; is RefreshItemOption -> 11; is KeybindOption -> 12; is CustomModConfigOption -> 13; is MarginOption -> 14; else -> 0 } }
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder { return when (viewType) { 0 -> AppHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_app_rofi, parent, false)); 1 -> LayoutHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_layout_option, parent, false)); 2 -> DpiHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_dpi_custom, parent, false)); 3 -> FontSizeHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_font_size, parent, false)); 4 -> ProfileRichHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_profile_rich, parent, false)); 5 -> IconSettingHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_icon_setting, parent, false)); 6 -> LayoutHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_layout_option, parent, false)); 7 -> HeightHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_height_setting, parent, false)); 8 -> WidthHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_width_setting, parent, false));             9 -> CustomResInputHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_custom_resolution, parent, false));
             10 -> HeaderHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_layout_option, parent, false));
             11 -> ActionHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_layout_option, parent, false)); 12 -> KeybindHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_keybind, parent, false)); 
@@ -6005,6 +6037,16 @@ else -> AppHolder(View(parent.context)) } }
                 holder.textUnit.setScaledTextSize(currentFontSize, 0.75f) // "sp" unit (12sp)
                 holder.btnMinus.setOnClickListener { changeFontSize(item.currentSize - 1) }
                 holder.btnPlus.setOnClickListener { changeFontSize(item.currentSize + 1) } 
+            }
+            else if (holder is HeightHolder && item is BubbleSizeOption) {
+                holder.textLabel.text = "Bubble Size:"
+                holder.textLabel.setScaledTextSize(currentFontSize, 1.0f)
+                holder.textVal.text = item.currentPercent.toString()
+                holder.textVal.setScaledTextSize(currentFontSize, 1.125f)
+                holder.textUnit.text = "%"
+                holder.textUnit.setScaledTextSize(currentFontSize, 0.75f)
+                holder.btnMinus.setOnClickListener { changeBubbleSize(-10) }
+                holder.btnPlus.setOnClickListener { changeBubbleSize(10) }
             }
             else if (holder is HeightHolder && item is HeightOption) { 
                 holder.textLabel.setScaledTextSize(currentFontSize, 1.0f) // "Height:" (16sp)
