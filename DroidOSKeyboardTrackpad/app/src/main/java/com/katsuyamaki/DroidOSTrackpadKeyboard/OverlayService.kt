@@ -2440,6 +2440,10 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
              bubbleParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
         bubbleParams.gravity = Gravity.TOP or Gravity.START
+        if (prefs.prefBubbleX == -1 || prefs.prefBubbleY == -1) {
+            prefs.prefBubbleX = (uiScreenWidth / 2) + 80
+            prefs.prefBubbleY = uiScreenHeight / 2
+        }
         bubbleParams.x = prefs.prefBubbleX
         bubbleParams.y = prefs.prefBubbleY
         
@@ -3368,7 +3372,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
         updateScrollSize(); updateScrollPosition(); updateHandleSize(); updateLayoutSizes(); savePrefs(); showToast("Preset Applied")
     }
     
-    fun resetBubblePosition() { bubbleParams.x = 50; bubbleParams.y = uiScreenHeight / 2; try { windowManager?.updateViewLayout(bubbleView, bubbleParams) } catch(e: Exception){}; prefs.prefBubbleX = bubbleParams.x; prefs.prefBubbleY = bubbleParams.y; savePrefs(); showToast("Bubble Reset") }
+    fun resetBubblePosition() { bubbleParams.x = (uiScreenWidth / 2) + 80; bubbleParams.y = uiScreenHeight / 2; try { windowManager?.updateViewLayout(bubbleView, bubbleParams) } catch(e: Exception){}; prefs.prefBubbleX = bubbleParams.x; prefs.prefBubbleY = bubbleParams.y; savePrefs(); showToast("Bubble Reset") }
 
     private fun loadPrefs() { 
         val p = getSharedPreferences("TrackpadPrefs", Context.MODE_PRIVATE)
@@ -3392,8 +3396,8 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                 prefs.prefKeyScale = p.getInt("keyboard_key_scale", 69) // Default 69 to match resetPosition
                 prefs.prefUseAltScreenOff = p.getBoolean("use_alt_screen_off", true)
                 prefs.prefAutomationEnabled = p.getBoolean("automation_enabled", false) 
-                prefs.prefBubbleX = p.getInt("bubble_x", 50)
-                prefs.prefBubbleY = p.getInt("bubble_y", 300)
+                prefs.prefBubbleX = p.getInt("bubble_x", -1)
+                prefs.prefBubbleY = p.getInt("bubble_y", -1)
                 prefs.prefBubbleSize = p.getInt("bubble_size", 100)
                 prefs.prefBubbleIconIndex = p.getInt("bubble_icon_index", 0)
                 prefs.prefBubbleAlpha = p.getInt("bubble_alpha", 255)

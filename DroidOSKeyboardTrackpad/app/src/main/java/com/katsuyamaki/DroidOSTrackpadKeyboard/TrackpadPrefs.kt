@@ -20,8 +20,8 @@ class TrackpadPrefs {
     var prefKeyScale = 135
     var prefUseAltScreenOff = true
     var prefAutomationEnabled = true
-    var prefBubbleX = 50
-    var prefBubbleY = 300
+    var prefBubbleX = -1
+    var prefBubbleY = -1
     var prefAnchored = false
     var prefBubbleSize = 100
     var prefBubbleIconIndex = 0

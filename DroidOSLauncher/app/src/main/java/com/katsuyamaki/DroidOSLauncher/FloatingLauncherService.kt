@@ -2039,7 +2039,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         // Absolute Y position = TopMargin + Half Effective Height
         val centerY = topPx + (effectiveH / 2)
         
-        bubbleParams.gravity = Gravity.TOP or Gravity.START; bubbleParams.x = 50; bubbleParams.y = centerY
+        val screenW = metrics.widthPixels
+        bubbleParams.gravity = Gravity.TOP or Gravity.START; bubbleParams.x = (screenW / 2) - 80; bubbleParams.y = centerY
         
         // ... (Keep existing OnTouchListener logic here) ...
         var velocityTracker: VelocityTracker? = null
