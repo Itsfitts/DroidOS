@@ -1007,15 +1007,15 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 return true
             }
 
-            // Arrow key navigation in visual queue
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+            // Arrow key navigation in visual queue (left/up = prev, right/down = next)
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                 if (vqCursorIndex > 0) {
                     vqCursorIndex--
                     showVisualQueue(visualQueueView?.findViewById<TextView>(R.id.visual_queue_prompt)?.text?.toString() ?: "", vqCursorIndex)
                 }
                 return true
             }
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                 if (vqCursorIndex < selectedAppsQueue.size - 1) {
                     vqCursorIndex++
                     showVisualQueue(visualQueueView?.findViewById<TextView>(R.id.visual_queue_prompt)?.text?.toString() ?: "", vqCursorIndex)
@@ -1103,15 +1103,15 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 return
             }
 
-            // Arrow key navigation in visual queue
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+            // Arrow key navigation in visual queue (left/up = prev, right/down = next)
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                 if (vqCursorIndex > 0) {
                     vqCursorIndex--
                     uiHandler.post { showVisualQueue(visualQueueView?.findViewById<TextView>(R.id.visual_queue_prompt)?.text?.toString() ?: "", vqCursorIndex) }
                 }
                 return
             }
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                 if (vqCursorIndex < selectedAppsQueue.size - 1) {
                     vqCursorIndex++
                     uiHandler.post { showVisualQueue(visualQueueView?.findViewById<TextView>(R.id.visual_queue_prompt)?.text?.toString() ?: "", vqCursorIndex) }
@@ -2963,7 +2963,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 val bg = GradientDrawable()
                 bg.setStroke(4, Color.WHITE)
                 bg.cornerRadius = 8f
-                bg.setColor(Color.parseColor("#44FFFFFF")) // Semi-transparent fill
+                bg.setColor(Color.TRANSPARENT)
                 holder.highlight.background = bg
             } else {
                 holder.highlight.visibility = View.GONE
