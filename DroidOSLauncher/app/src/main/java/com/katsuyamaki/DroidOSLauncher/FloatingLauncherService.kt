@@ -369,6 +369,8 @@ private var isSoftKeyboardSupport = false
     private val manualStateOverrides = java.util.concurrent.ConcurrentHashMap<String, Long>()
     // [FULLSCREEN] Track when tiled apps are auto-minimized for a full-screen app
     private var tiledAppsAutoMinimized = false
+    // [FULLSCREEN] Delayed re-check for apps that haven't finished expanding when first detected
+    private var pendingFullscreenCheckRunnable: Runnable? = null
     // [FULLSCREEN] Cooldown to prevent TYPE_WINDOWS_CHANGED from re-minimizing right after restore
     private var tiledAppsRestoredAt = 0L
     // [FULLSCREEN] Track when user explicitly launched tiled apps - skip auto-minimize during cooldown
@@ -572,6 +574,25 @@ private var isSoftKeyboardSupport = false
                             uiHandler.postDelayed(runnable, imeRetileCooldownUntil - now + 50)
                         }
                     }
+                }
+            } else if (action == "com.katsuyamaki.DroidOSLauncher.FULLSCREEN_APP_OPENING") {
+                // [FULLSCREEN] External request to minimize tiled apps (e.g. keyboard opening Settings).
+                // Freeform/resized tiled windows float above regular fullscreen activities,
+                // so the accessibility-based auto-minimize never triggers — the fullscreen app
+                // opens behind the tiled windows and never gains focus.
+                if (selectedAppsQueue.any { !it.isMinimized } && !tiledAppsAutoMinimized) {
+                    tiledAppsAutoMinimized = true
+                    Thread {
+                        try {
+                            for (app in selectedAppsQueue) {
+                                if (!app.isMinimized) {
+                                    val tid = shellService?.getTaskId(app.getBasePackage(), null) ?: -1
+                                    if (tid != -1) shellService?.moveTaskToBack(tid)
+                                }
+                            }
+                        } catch (e: Exception) { Log.e(TAG, "FULLSCREEN_APP_OPENING: Auto-minimize failed", e) }
+                    }.start()
+                    Log.d(TAG, "FULLSCREEN_APP_OPENING: Minimized tiled apps for external fullscreen request")
                 }
             } else if (action == "com.katsuyamaki.DroidOSLauncher.SET_AUTO_ADJUST_MARGIN") {
                 val enabled = intent?.getBooleanExtra("ENABLED", false) ?: false
@@ -1434,6 +1455,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             } catch (e: Exception) { /* Don't auto-minimize on error - safer default */ }
 
                             if (coversScreen) {
+                            pendingFullscreenCheckRunnable?.let { uiHandler.removeCallbacks(it) }
+                            pendingFullscreenCheckRunnable = null
                             tiledAppsAutoMinimized = true
 
                             Thread {
@@ -1447,7 +1470,56 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                 } catch (e: Exception) { Log.e(TAG, "Auto-minimize failed", e) }
                             }.start()
                             Log.d(TAG, "FULLSCREEN: Auto-minimized tiled apps for $detectedPkg")
-                            } // end if (coversScreen)
+                            } else {
+                            // [FULLSCREEN] Window doesn't cover screen yet (may still be animating).
+                            // Schedule a delayed re-check to catch apps like Android Settings that
+                            // expand to fullscreen after the initial accessibility event fires.
+                            val recheckPkg = detectedPkg
+                            pendingFullscreenCheckRunnable?.let { uiHandler.removeCallbacks(it) }
+                            val recheckRunnable = Runnable {
+                                if (tiledAppsAutoMinimized || selectedAppsQueue.none { !it.isMinimized }) return@Runnable
+                                var nowCoversScreen = false
+                                try {
+                                    val dm = android.util.DisplayMetrics()
+                                    windowManager.defaultDisplay.getRealMetrics(dm)
+                                    val screenArea = dm.widthPixels.toLong() * dm.heightPixels.toLong()
+                                    val screenHeight = dm.heightPixels
+                                    val boundsRect = android.graphics.Rect()
+                                    for (window in windows) {
+                                        if (window.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                                        val node = window.root ?: continue
+                                        val windowPkg = node.packageName?.toString()
+                                        node.recycle()
+                                        if (windowPkg == recheckPkg) {
+                                            window.getBoundsInScreen(boundsRect)
+                                            val windowArea = boundsRect.width().toLong() * boundsRect.height().toLong()
+                                            val startsAtTop = boundsRect.top < screenHeight * 5 / 100
+                                            if (windowArea >= screenArea * 85 / 100 && startsAtTop) {
+                                                nowCoversScreen = true
+                                            }
+                                            break
+                                        }
+                                    }
+                                } catch (e: Exception) { /* ignore */ }
+                                if (nowCoversScreen) {
+                                    tiledAppsAutoMinimized = true
+                                    Thread {
+                                        try {
+                                            for (app in selectedAppsQueue) {
+                                                if (!app.isMinimized) {
+                                                    val tid = shellService?.getTaskId(app.getBasePackage(), null) ?: -1
+                                                    if (tid != -1) shellService?.moveTaskToBack(tid)
+                                                }
+                                            }
+                                        } catch (e: Exception) { Log.e(TAG, "Auto-minimize (delayed) failed", e) }
+                                    }.start()
+                                    Log.d(TAG, "FULLSCREEN: Auto-minimized tiled apps for $recheckPkg (delayed re-check)")
+                                }
+                                pendingFullscreenCheckRunnable = null
+                            }
+                            pendingFullscreenCheckRunnable = recheckRunnable
+                            uiHandler.postDelayed(recheckRunnable, 500)
+                            } // end if (coversScreen) else
                         } else if (isManagedApp && !isTiledApp && tiledAppsAutoMinimized) {
                             // [FULLSCREEN] Managed app gained focus while tiled apps were auto-minimized.
                             // This means user opened a tiled app via hotkey/sidebar while fullscreen was active.
@@ -1653,7 +1725,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             addAction("com.katsuyamaki.DroidOSLauncher.SET_MARGIN_BOTTOM") // [FIX] Sync Margin
             addAction("com.katsuyamaki.DroidOSLauncher.IME_VISIBILITY") // Auto-adjust margin
             addAction("com.katsuyamaki.DroidOSLauncher.SET_AUTO_ADJUST_MARGIN") // Sync from DockIME
-
+            addAction("com.katsuyamaki.DroidOSLauncher.FULLSCREEN_APP_OPENING") // Auto-minimize tiled apps
 
         }
 

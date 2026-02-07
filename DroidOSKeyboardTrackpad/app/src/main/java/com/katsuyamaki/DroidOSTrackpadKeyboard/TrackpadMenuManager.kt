@@ -322,6 +322,11 @@ class TrackpadMenuManager(
                 // IME not enabled — redirect to Android keyboard settings
                 android.widget.Toast.makeText(context, "Please enable 'DroidOS Keyboard Toolbar' first", android.widget.Toast.LENGTH_LONG).show()
                 try {
+                    // [FIX] Tell launcher to minimize tiled apps first — Settings opens as a regular
+                    // fullscreen activity which goes behind freeform/resized tiled windows, so the
+                    // accessibility-based auto-minimize never triggers.
+                    context.sendBroadcast(android.content.Intent("com.katsuyamaki.DroidOSLauncher.FULLSCREEN_APP_OPENING")
+                        .setPackage("com.katsuyamaki.DroidOSLauncher"))
                     val intent = android.content.Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS)
                     intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(intent)
