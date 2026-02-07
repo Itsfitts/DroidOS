@@ -2649,8 +2649,25 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     }
 
     private fun showVisualQueue(prompt: String, highlightSlot0Based: Int = -1) {
-        // DEFENSIVE CLEANUP: Force-remove any lingering visual queue views before showing
-        if (visualQueueView != null && isVisualQueueVisible) {
+        // FAST PATH: If already visible, just update adapter & prompt without removing/re-adding the window.
+        // This prevents the blink caused by the remove+add cycle during arrow key navigation.
+        if (isVisualQueueVisible && visualQueueView != null) {
+            val promptView = visualQueueView?.findViewById<TextView>(R.id.visual_queue_prompt)
+            promptView?.text = prompt
+            val recycler = visualQueueView?.findViewById<RecyclerView>(R.id.visual_queue_recycler)
+            recycler?.adapter = VisualQueueAdapter(highlightSlot0Based)
+            // Background thread to sync visible packages (same as full path)
+            Thread {
+                val visible = shellService?.getVisiblePackages(currentDisplayId) ?: emptyList()
+                uiHandler.post {
+                    (recycler?.adapter as? VisualQueueAdapter)?.updateVisibility(visible)
+                }
+            }.start()
+            return
+        }
+
+        // DEFENSIVE CLEANUP: Force-remove orphaned views that are flagged invisible but still attached
+        if (visualQueueView != null) {
             Log.w(TAG, "Visual Queue cleanup: removing stale view before showing new one")
             try { visualQueueWindowManager?.removeView(visualQueueView) } catch (e: Exception) {}
             try { (displayContext?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)?.removeView(visualQueueView) } catch (e: Exception) {}
