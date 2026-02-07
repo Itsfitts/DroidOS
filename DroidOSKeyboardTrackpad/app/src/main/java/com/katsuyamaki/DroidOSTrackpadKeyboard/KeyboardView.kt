@@ -222,6 +222,14 @@ private var customModKeyCode = 0
     private var capsLockPending = false
     private var lastShiftTapTime = 0L
 
+    // Modifier Lock Logic (same pattern as Shift)
+    private var ctrlLockPending = false
+    private var lastCtrlTapTime = 0L
+    private var altLockPending = false
+    private var lastAltTapTime = 0L
+    private var metaLockPending = false
+    private var lastMetaTapTime = 0L
+
     private val capsHandler = Handler(Looper.getMainLooper())
 
     private val repeatRunnable = object : Runnable {
@@ -238,6 +246,24 @@ private var customModKeyCode = 0
     private val capsLockRunnable = Runnable {
         capsLockPending = true
         toggleCapsLock()
+    }
+
+    private val ctrlLockRunnable = Runnable {
+        ctrlLockPending = true
+        isCtrlActive = true; isCtrlLocked = true
+        buildKeyboard()
+    }
+
+    private val altLockRunnable = Runnable {
+        altLockPending = true
+        isAltActive = true; isAltLocked = true
+        buildKeyboard()
+    }
+
+    private val metaLockRunnable = Runnable {
+        metaLockPending = true
+        isMetaActive = true; isMetaLocked = true
+        buildKeyboard()
     }
 
     // UI Elements for Suggestions
@@ -1915,6 +1941,20 @@ private fun buildKeyboard() {
             capsLockPending = false
             capsHandler.postDelayed(capsLockRunnable, 500)
         }
+
+        // SPECIAL: CTRL/ALT/META Lock Timers (same logic as SHIFT)
+        if (key == "CTRL") {
+            ctrlLockPending = false
+            capsHandler.postDelayed(ctrlLockRunnable, 500)
+        }
+        if (key == "ALT") {
+            altLockPending = false
+            capsHandler.postDelayed(altLockRunnable, 500)
+        }
+        if (key == "META") {
+            metaLockPending = false
+            capsHandler.postDelayed(metaLockRunnable, 500)
+        }
     }
     // =================================================================================
     // END BLOCK: onKeyDown
@@ -1952,6 +1992,9 @@ private fun buildKeyboard() {
                 capsHandler.removeCallbacks(capsLockRunnable)
                 capsLockPending = false
             }
+            if (key == "CTRL") { capsHandler.removeCallbacks(ctrlLockRunnable); ctrlLockPending = false }
+            if (key == "ALT") { capsHandler.removeCallbacks(altLockRunnable); altLockPending = false }
+            if (key == "META") { capsHandler.removeCallbacks(metaLockRunnable); metaLockPending = false }
             return
         }
 
@@ -1967,7 +2010,7 @@ private fun buildKeyboard() {
         // These are skipped in onKeyDown to prevent rebuild loops.
         // We must fire them here on release.
         val isDeferred = deferredKeys.contains(key)
-        if (isDeferred && key != "SHIFT") {
+        if (isDeferred && key != "SHIFT" && key != "CTRL" && key != "ALT" && key != "META") {
              handleKeyPress(key, fromRepeat = false)
         }
 
@@ -1984,6 +2027,66 @@ private fun buildKeyboard() {
                 lastShiftTapTime = now
             }
             capsLockPending = false
+        }
+
+        // CTRL toggle handling — double-press for lock (same as SHIFT)
+        if (key == "CTRL") {
+            capsHandler.removeCallbacks(ctrlLockRunnable)
+            if (!ctrlLockPending) {
+                val now = System.currentTimeMillis()
+                if (now - lastCtrlTapTime < 400 && isCtrlActive && !isCtrlLocked) {
+                    isCtrlLocked = true
+                } else if (isCtrlLocked) {
+                    isCtrlActive = false; isCtrlLocked = false
+                } else if (isCtrlActive) {
+                    isCtrlActive = false
+                } else {
+                    isCtrlActive = true
+                }
+                lastCtrlTapTime = now
+                buildKeyboard()
+            }
+            ctrlLockPending = false
+        }
+
+        // ALT toggle handling — double-press for lock (same as SHIFT)
+        if (key == "ALT") {
+            capsHandler.removeCallbacks(altLockRunnable)
+            if (!altLockPending) {
+                val now = System.currentTimeMillis()
+                if (now - lastAltTapTime < 400 && isAltActive && !isAltLocked) {
+                    isAltLocked = true
+                } else if (isAltLocked) {
+                    isAltActive = false; isAltLocked = false
+                } else if (isAltActive) {
+                    isAltActive = false
+                } else {
+                    isAltActive = true
+                }
+                lastAltTapTime = now
+                buildKeyboard()
+            }
+            altLockPending = false
+        }
+
+        // META toggle handling — double-press for lock (same as SHIFT)
+        if (key == "META") {
+            capsHandler.removeCallbacks(metaLockRunnable)
+            if (!metaLockPending) {
+                val now = System.currentTimeMillis()
+                if (now - lastMetaTapTime < 400 && isMetaActive && !isMetaLocked) {
+                    isMetaLocked = true
+                } else if (isMetaLocked) {
+                    isMetaActive = false; isMetaLocked = false
+                } else if (isMetaActive) {
+                    isMetaActive = false
+                } else {
+                    isMetaActive = true
+                }
+                lastMetaTapTime = now
+                buildKeyboard()
+            }
+            metaLockPending = false
         }
     }
 
@@ -2249,11 +2352,12 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                         }
 
                         // Reset unlocked modifiers (One-shot). Locked modifiers stay active.
+                        val ctrlWas = isCtrlActive; val altWas = isAltActive; val metaWas = isMetaActive
                         if (!isCtrlLocked) isCtrlActive = false
                         if (!isAltLocked) isAltActive = false
                         if (!isMetaLocked) isMetaActive = false
                         isCustomModLatchedLocal = false
-                        buildKeyboard()
+                        if (isCtrlActive != ctrlWas || isAltActive != altWas || isMetaActive != metaWas) buildKeyboard()
 
 
                         // Always block key from reaching app if it's a registered DroidOS shortcut.
@@ -2270,25 +2374,10 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
             // 5. INTERNAL KEY LOGIC (Toggles)
             // ... (Keep existing switch(key) logic) ...
             when (key) {
-                "CTRL" -> { if (!fromRepeat) {
-                    if (isCtrlActive && !isCtrlLocked) { isCtrlLocked = true }
-                    else if (isCtrlLocked) { isCtrlActive = false; isCtrlLocked = false }
-                    else { isCtrlActive = true }
-                    buildKeyboard()
-                } }
-                "ALT" -> { if (!fromRepeat) {
-                    if (isAltActive && !isAltLocked) { isAltLocked = true }
-                    else if (isAltLocked) { isAltActive = false; isAltLocked = false }
-                    else { isAltActive = true }
-                    buildKeyboard()
-                } }
-                
-                "META" -> { if (!fromRepeat) {
-                    if (isMetaActive && !isMetaLocked) { isMetaLocked = true }
-                    else if (isMetaLocked) { isMetaActive = false; isMetaLocked = false }
-                    else { isMetaActive = true }
-                    buildKeyboard()
-                } }            "SHIFT" -> { /* Handled in onKeyUp/Down */ }
+                "CTRL" -> { /* Handled in onKeyUp/Down */ }
+                "ALT" -> { /* Handled in onKeyUp/Down */ }
+                "META" -> { /* Handled in onKeyUp/Down */ }
+                "SHIFT" -> { /* Handled in onKeyUp/Down */ }
 
                 
                 "BKSP" -> listener?.onSpecialKey(SpecialKey.BACKSPACE, meta)
@@ -2375,8 +2464,11 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
     
             if (!fromRepeat && key != "CTRL" && key != "ALT" && key != "SHIFT" && key != "META") {
                 if (isCtrlActive || isAltActive || isMetaActive) {
-                    isCtrlActive = false; isCtrlLocked = false; isAltActive = false; isAltLocked = false; isMetaActive = false; isMetaLocked = false; buildKeyboard()
-
+                    val ctrlWas = isCtrlActive; val altWas = isAltActive; val metaWas = isMetaActive
+                    if (!isCtrlLocked) isCtrlActive = false
+                    if (!isAltLocked) isAltActive = false
+                    if (!isMetaLocked) isMetaActive = false
+                    if (isCtrlActive != ctrlWas || isAltActive != altWas || isMetaActive != metaWas) buildKeyboard()
                 }
             }
         }
