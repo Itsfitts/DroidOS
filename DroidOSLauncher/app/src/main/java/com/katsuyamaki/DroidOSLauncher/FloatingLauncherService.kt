@@ -2680,64 +2680,18 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         
         if (visualQueueView == null) setupVisualQueue()
 
-        // Ensure list is sorted active-first before showing
-        sortAppQueue()
-
-        // [FULLSCREEN] Detect any app covering >90% screen and ensure it's at slot 1 (position 0)
-        ensureFullscreenAppAtSlot1()
-
-        // FAST SYNC CHECK: Get visible packages for THIS display immediately
-        // This ensures the HUD reflects reality even if the background poller hasn't run.
-        val visiblePkgs = if (shellService != null) {
-            try {
-                // Determine if we should block or use cached. 
-                // Since this is user-initiated HUD, we want accuracy.
-                // We'll spawn a quick thread to get it and update the adapter.
-                emptyList<String>() 
-            } catch (e: Exception) { emptyList() }
+        // [FIX] Use same queue sync logic as drawer (fetchRunningApps) instead of separate detection.
+        // This ensures visual queue and drawer queue always show the same data.
+        if (shellService != null) {
+            fetchRunningApps()  // Syncs queue with actual visible apps, adds new visible apps, etc.
         } else {
-            emptyList()
+            sortAppQueue()  // Fallback: just sort existing queue
         }
-        
-        // [FIX] Sync visible packages for adapter WITHOUT reordering queue.
-        // Queue order defines tiling position (queue[0] = rects[0]).
-        // Do NOT move apps to position 0 just because they're visible/focused.
-        // Only add truly fullscreen apps (single visible app not in queue).
+
+        // Background thread to update adapter with visibility info
         Thread {
             val visible = shellService?.getVisiblePackages(currentDisplayId) ?: emptyList()
-
-            val userVisibleApps = visible.mapNotNull { pkgName ->
-                val pkg = if (pkgName.contains(":")) pkgName.substringBefore(":") else pkgName
-                if (pkg == packageName || pkg == PACKAGE_TRACKPAD ||
-                    pkg.contains("DroidOS") || pkg.contains("katsuyamaki") ||
-                    pkg.contains("systemui") || pkg.contains("inputmethod") ||
-                    pkg.contains("ThumbsUp") || pkg.contains("NavigationBar") ||
-                    pkg.contains("Wallpaper") || pkg.contains("wallpaper") ||
-                    pkg.startsWith("com.android.") || pkg.startsWith("com.samsung.") ||
-                    !pkg.contains(".")) {
-                    null
-                } else {
-                    pkg
-                }
-            }
-
             uiHandler.post {
-                // Only add app if exactly ONE visible (truly fullscreen) and NOT in queue
-                if (userVisibleApps.size == 1) {
-                    val fullscreenPkg = userVisibleApps.first()
-                    val existingIndex = selectedAppsQueue.indexOfFirst { it.getBasePackage() == fullscreenPkg }
-                    if (existingIndex == -1) {
-                        var appInfo = allAppsList.find { it.getBasePackage() == fullscreenPkg }
-                        if (appInfo == null) {
-                            val label = try {
-                                packageManager.getApplicationLabel(packageManager.getApplicationInfo(fullscreenPkg, 0)).toString()
-                            } catch (e: Exception) { fullscreenPkg }
-                            appInfo = MainActivity.AppInfo(label, fullscreenPkg, null, false, false)
-                        }
-                        selectedAppsQueue.add(0, appInfo.copy())
-                    }
-                }
-
                 val recycler = visualQueueView?.findViewById<RecyclerView>(R.id.visual_queue_recycler)
                 recycler?.adapter = VisualQueueAdapter(highlightSlot0Based)
                 (recycler?.adapter as? VisualQueueAdapter)?.updateVisibility(visible)
@@ -5298,6 +5252,31 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         Log.d(TAG, "WM Command: Auto-minimize state synced, restoring ${app.label} to slot 1")
                         // Now retile to launch only this app in slot 1
                         refreshQueueAndLayout("Restored ${app.label}", forceRetile = true, retileDelayMs = 300L)
+                        return
+                    }
+
+                    // [FIX] If UNMINIMIZE is called but app.isMinimized is already false,
+                    // still launch the app to bring it to front. This handles cases where
+                    // the app was closed/crashed/covered without updating minimized state.
+                    if ((cmd == "UNMINIMIZE" || cmd == "TOGGLE_MINIMIZE") && !app.isMinimized) {
+                        Log.d(TAG, "WM Command: ${app.label} already not minimized, forcing bring-to-front")
+                        lastExplicitTiledLaunchAt = System.currentTimeMillis()
+                        val basePkg = app.getBasePackage()
+                        val cls = app.className
+                        Thread {
+                            try {
+                                val component = if (!cls.isNullOrEmpty() && cls != "null" && cls != "default") "$basePkg/$cls" else null
+                                val cmd = if (component != null) {
+                                    "am start -n $component --display $currentDisplayId --windowingMode 5 --user 0"
+                                } else {
+                                    "am start -p $basePkg -a android.intent.action.MAIN -c android.intent.category.LAUNCHER --display $currentDisplayId --windowingMode 5 --user 0"
+                                }
+                                shellService?.runCommand(cmd)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Force bring-to-front failed", e)
+                            }
+                        }.start()
+                        refreshQueueAndLayout("Restored ${app.label}", forceRetile = true, retileDelayMs = 350L)
                         return
                     }
 
