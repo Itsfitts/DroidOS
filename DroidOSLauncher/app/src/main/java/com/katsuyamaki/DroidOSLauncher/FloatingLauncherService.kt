@@ -2926,10 +2926,14 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 holder.icon.alpha = if (isActuallyActive) 1.0f else 0.4f
             }
 
-            // Highlight logic
+            // Highlight logic - White outline to match launcher app queue
             if (position == highlightIndex) {
                 holder.highlight.visibility = View.VISIBLE
-                holder.highlight.setBackgroundResource(R.drawable.bg_item_active)
+                val bg = GradientDrawable()
+                bg.setStroke(4, Color.WHITE)
+                bg.cornerRadius = 8f
+                bg.setColor(Color.parseColor("#44FFFFFF")) // Semi-transparent fill
+                holder.highlight.background = bg
             } else {
                 holder.highlight.visibility = View.GONE
             }
