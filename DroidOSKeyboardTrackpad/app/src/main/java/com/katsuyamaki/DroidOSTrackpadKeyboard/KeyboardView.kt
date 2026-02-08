@@ -2411,44 +2411,48 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                 }
                 
                 "←" -> { 
-                    listener?.onSpecialKey(SpecialKey.ARROW_LEFT, meta)
-                    // [FIX] Also broadcast for drawer queue navigation on all displays
+                    // [FIX] Send REMOTE_KEY OR inject, not both, to prevent duplication
                     if (launcherKeybindKeycodes.isNotEmpty()) {
                         val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
                         intent.setPackage("com.katsuyamaki.DroidOSLauncher")
                         intent.putExtra("keyCode", KeyEvent.KEYCODE_DPAD_LEFT)
                         intent.putExtra("metaState", meta)
                         context.sendBroadcast(intent)
+                    } else {
+                        listener?.onSpecialKey(SpecialKey.ARROW_LEFT, meta)
                     }
                 }
                 "→" -> { 
-                    listener?.onSpecialKey(SpecialKey.ARROW_RIGHT, meta)
                     if (launcherKeybindKeycodes.isNotEmpty()) {
                         val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
                         intent.setPackage("com.katsuyamaki.DroidOSLauncher")
                         intent.putExtra("keyCode", KeyEvent.KEYCODE_DPAD_RIGHT)
                         intent.putExtra("metaState", meta)
                         context.sendBroadcast(intent)
+                    } else {
+                        listener?.onSpecialKey(SpecialKey.ARROW_RIGHT, meta)
                     }
                 }
                 "↑" -> { 
-                    listener?.onSpecialKey(SpecialKey.ARROW_UP, meta)
                     if (launcherKeybindKeycodes.isNotEmpty()) {
                         val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
                         intent.setPackage("com.katsuyamaki.DroidOSLauncher")
                         intent.putExtra("keyCode", KeyEvent.KEYCODE_DPAD_UP)
                         intent.putExtra("metaState", meta)
                         context.sendBroadcast(intent)
+                    } else {
+                        listener?.onSpecialKey(SpecialKey.ARROW_UP, meta)
                     }
                 }
                 "↓" -> { 
-                    listener?.onSpecialKey(SpecialKey.ARROW_DOWN, meta)
                     if (launcherKeybindKeycodes.isNotEmpty()) {
                         val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
                         intent.setPackage("com.katsuyamaki.DroidOSLauncher")
                         intent.putExtra("keyCode", KeyEvent.KEYCODE_DPAD_DOWN)
                         intent.putExtra("metaState", meta)
                         context.sendBroadcast(intent)
+                    } else {
+                        listener?.onSpecialKey(SpecialKey.ARROW_DOWN, meta)
                     }
                 }
                 

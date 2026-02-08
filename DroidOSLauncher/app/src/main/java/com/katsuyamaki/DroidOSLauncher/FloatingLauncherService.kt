@@ -161,6 +161,7 @@ class FloatingLauncherService : AccessibilityService() {
     // Command State Machine
     private var pendingCommandId: String? = null
     private var vqCursorIndex: Int = 0  // Arrow-key cursor for visual queue HUD
+    private var lastQueueNavTime: Long = 0L  // [FIX] Dedup timestamp for queue navigation
     private var vqTextWatcher: android.text.TextWatcher? = null
 
 // Custom Modifier State
@@ -1118,8 +1119,43 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         val metaStr = if (metaState != 0) "Meta($metaState)" else "None"
         Log.d("DroidOS_Keys", "REMOTE INPUT: Key=$keyName($keyCode) Meta=$metaStr($metaState)")
 
-        // 0. DRAWER QUEUE NAVIGATION (via REMOTE_KEY for soft keyboard support on all displays)
+        // 0. DRAWER SEARCH NAVIGATION (via REMOTE_KEY - transition to queue/list)
+        if (isExpanded && currentFocusArea == FOCUS_SEARCH) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                val selectedRecycler = drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)
+                if (selectedAppsQueue.isNotEmpty()) {
+                    currentFocusArea = FOCUS_QUEUE
+                    queueSelectedIndex = 0
+                    uiHandler.post {
+                        selectedRecycler?.adapter?.notifyDataSetChanged()
+                        debugStatusView?.visibility = View.VISIBLE
+                        debugStatusView?.text = "Queue Navigation: Use Arrows / Hotkeys"
+                    }
+                } else {
+                    currentFocusArea = FOCUS_LIST
+                    val mainRecycler = drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)
+                    uiHandler.post {
+                        if (displayList.isNotEmpty()) {
+                            if (selectedListIndex >= displayList.size) selectedListIndex = 0
+                            mainRecycler?.adapter?.notifyItemChanged(selectedListIndex)
+                            mainRecycler?.scrollToPosition(selectedListIndex)
+                        }
+                    }
+                }
+                return
+            }
+        }
+
+        // 0.1 DRAWER QUEUE NAVIGATION (via REMOTE_KEY for soft keyboard support on all displays)
         if (isExpanded && currentFocusArea == FOCUS_QUEUE) {
+            // [FIX] Dedup to prevent double-processing from View listener + REMOTE_KEY
+            val now = System.currentTimeMillis()
+            if (now - lastQueueNavTime < 80) {
+                Log.d(TAG, "Queue nav dedup: skipping duplicate key $keyCode")
+                return
+            }
+            lastQueueNavTime = now
+            
             val selectedRecycler = drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
@@ -1172,8 +1208,23 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     return
                 }
                 KeyEvent.KEYCODE_ENTER -> {
-                    val intent = Intent().putExtra("COMMAND", "TOGGLE_MINIMIZE").putExtra("INDEX", queueSelectedIndex + 1)
-                    handleWindowManagerCommand(intent)
+                    // [FIX] Complete pending 2-step command (like swap) if active
+                    if (queueCommandPending != null) {
+                        val intent = Intent()
+                            .putExtra("COMMAND", queueCommandPending!!.id)
+                            .putExtra("INDEX_A", queueCommandSourceIndex + 1)
+                            .putExtra("INDEX_B", queueSelectedIndex + 1)
+                        handleWindowManagerCommand(intent)
+                        queueCommandPending = null
+                        queueCommandSourceIndex = -1
+                        uiHandler.post {
+                            debugStatusView?.text = "Command Executed"
+                            selectedRecycler?.adapter?.notifyDataSetChanged()
+                        }
+                    } else {
+                        val intent = Intent().putExtra("COMMAND", "TOGGLE_MINIMIZE").putExtra("INDEX", queueSelectedIndex + 1)
+                        handleWindowManagerCommand(intent)
+                    }
                     return
                 }
                 KeyEvent.KEYCODE_ESCAPE -> {
@@ -1203,6 +1254,58 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             return
                         }
                     }
+                }
+            }
+        }
+
+        // 0.5 DRAWER LIST NAVIGATION (via REMOTE_KEY for soft keyboard support on all displays)
+        if (isExpanded && currentFocusArea == FOCUS_LIST) {
+            val mainRecycler = drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (selectedListIndex > 0) {
+                        val old = selectedListIndex
+                        selectedListIndex--
+                        uiHandler.post {
+                            mainRecycler?.adapter?.notifyItemChanged(old)
+                            mainRecycler?.adapter?.notifyItemChanged(selectedListIndex)
+                            mainRecycler?.scrollToPosition(selectedListIndex)
+                        }
+                    } else if (selectedAppsQueue.isNotEmpty()) {
+                        // Go to queue
+                        currentFocusArea = FOCUS_QUEUE
+                        queueSelectedIndex = 0
+                        uiHandler.post {
+                            drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)?.adapter?.notifyDataSetChanged()
+                            debugStatusView?.visibility = View.VISIBLE
+                            debugStatusView?.text = "Queue Navigation"
+                        }
+                    } else {
+                        currentFocusArea = FOCUS_SEARCH
+                        uiHandler.post {
+                            drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.requestFocus()
+                        }
+                    }
+                    return
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (selectedListIndex < displayList.size - 1) {
+                        val old = selectedListIndex
+                        selectedListIndex++
+                        uiHandler.post {
+                            mainRecycler?.adapter?.notifyItemChanged(old)
+                            mainRecycler?.adapter?.notifyItemChanged(selectedListIndex)
+                            mainRecycler?.scrollToPosition(selectedListIndex)
+                        }
+                    }
+                    return
+                }
+                KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_SPACE -> {
+                    uiHandler.post {
+                        val holder = mainRecycler?.findViewHolderForAdapterPosition(selectedListIndex)
+                        holder?.itemView?.performClick()
+                    }
+                    return
                 }
             }
         }
