@@ -6538,7 +6538,7 @@ else -> AppHolder(View(parent.context)) } }
             }
             else if (holder is HeightHolder && item is HeightOption) { 
                 holder.textLabel.setScaledTextSize(currentFontSize, 1.0f) // "Height:" (16sp)
-                holder.textVal.text = item.currentPercent.toString()
+                holder.textVal.text = currentDrawerHeightPercent.toString() // Use live value
                 holder.textVal.setScaledTextSize(currentFontSize, 1.125f) // Height value (18sp)
                 holder.textUnit.setScaledTextSize(currentFontSize, 0.75f) // "%" unit (12sp)
                 holder.btnMinus.setOnClickListener { changeDrawerHeight(-5) }
@@ -6546,7 +6546,7 @@ else -> AppHolder(View(parent.context)) } }
             }
             else if (holder is WidthHolder && item is WidthOption) { 
                 holder.textLabel.setScaledTextSize(currentFontSize, 1.0f) // "Width:" (16sp)
-                holder.textVal.text = item.currentPercent.toString()
+                holder.textVal.text = currentDrawerWidthPercent.toString() // Use live value
                 holder.textVal.setScaledTextSize(currentFontSize, 1.125f) // Width value (18sp)
                 holder.textUnit.setScaledTextSize(currentFontSize, 0.75f) // "%" unit (12sp)
                 holder.btnMinus.setOnClickListener { changeDrawerWidth(-5) }
