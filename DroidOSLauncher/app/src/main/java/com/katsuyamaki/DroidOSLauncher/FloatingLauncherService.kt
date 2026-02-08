@@ -2574,7 +2574,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 // [FIX] DOWN: Search -> Queue (if exists) -> List
                 // Skip if REMOTE_KEY handler already processed this
                 val now = System.currentTimeMillis()
-                if (now - lastQueueNavTime < 100) {
+                if (now - lastQueueNavTime < 150) {
                     return@setOnKeyListener true
                 }
                 if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -2603,7 +2603,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 // When focus stays on searchBar but currentFocusArea is FOCUS_QUEUE, handle queue keys here
                 if (currentFocusArea == FOCUS_QUEUE) {
                     // Skip if REMOTE_KEY handler already processed this
-                    if (System.currentTimeMillis() - lastQueueNavTime < 100) {
+                    if (System.currentTimeMillis() - lastQueueNavTime < 150) {
                         return@setOnKeyListener true
                     }
                     when (keyCode) {
@@ -2745,7 +2745,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 if (currentFocusArea == FOCUS_QUEUE) {
                     // [FIX] Skip if REMOTE_KEY handler already processed this key
                     val now = System.currentTimeMillis()
-                    if (now - lastQueueNavTime < 100) {
+                    if (now - lastQueueNavTime < 150) {
                         return@setOnKeyListener true // Already handled by REMOTE_KEY
                     }
                     
@@ -2869,6 +2869,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
                 // === LIST NAVIGATION MODE ===
                 if (currentFocusArea == FOCUS_LIST) {
+                    // [FIX] Skip if REMOTE_KEY handler already processed this key
+                    if (System.currentTimeMillis() - lastQueueNavTime < 150) {
+                        return@setOnKeyListener true
+                    }
                     when (keyCode) {
                         KeyEvent.KEYCODE_DPAD_UP -> {
                             if (selectedListIndex > 0) {
