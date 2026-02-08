@@ -5743,7 +5743,11 @@ if (isResize) {
             updateBorderColor(0x55FFFFFF.toInt())
             
             // 3. Load STANDARD Profile (Pref is now false, so this loads STD profile)
-            loadLayout() 
+            loadLayout()
+
+            // 4. Restore trackpad/keyboard visibility to pre-mirror state
+            if (isTrackpadVisible != preMirrorTrackpadVisible) toggleTrackpad()
+            if (isCustomKeyboardVisible != preMirrorKeyboardVisible) toggleCustomKeyboard(suppressAutomation = true)
 
             showToast("Mirror Mode OFF")
             
