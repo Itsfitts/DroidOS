@@ -5616,7 +5616,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     // [FIX] If UNMINIMIZE is called but app.isMinimized is already false,
                     // still launch the app to bring it to front. This handles cases where
                     // the app was closed/crashed/covered without updating minimized state.
-                    if ((cmd == "UNMINIMIZE" || cmd == "TOGGLE_MINIMIZE") && !app.isMinimized) {
+                    // NOTE: Only apply to explicit UNMINIMIZE, not TOGGLE_MINIMIZE (which should toggle)
+                    if (cmd == "UNMINIMIZE" && !app.isMinimized) {
                         Log.d(TAG, "WM Command: ${app.label} already not minimized, forcing bring-to-front")
                         lastExplicitTiledLaunchAt = System.currentTimeMillis()
                         val basePkg = app.getBasePackage()
