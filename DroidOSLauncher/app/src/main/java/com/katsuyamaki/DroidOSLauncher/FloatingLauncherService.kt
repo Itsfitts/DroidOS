@@ -1121,6 +1121,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
         // 0. DRAWER SEARCH NAVIGATION (via REMOTE_KEY - transition to queue/list)
         if (isExpanded && currentFocusArea == FOCUS_SEARCH) {
+            val now = System.currentTimeMillis()
+            if (now - lastQueueNavTime < 80) return
+            lastQueueNavTime = now
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                 val selectedRecycler = drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)
                 if (selectedAppsQueue.isNotEmpty()) {
@@ -1260,6 +1263,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
         // 0.5 DRAWER LIST NAVIGATION (via REMOTE_KEY for soft keyboard support on all displays)
         if (isExpanded && currentFocusArea == FOCUS_LIST) {
+            val now = System.currentTimeMillis()
+            if (now - lastQueueNavTime < 80) return
+            lastQueueNavTime = now
             val mainRecycler = drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> {
@@ -2566,6 +2572,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 }
 
                 // [FIX] DOWN: Search -> Queue (if exists) -> List
+                // Skip if REMOTE_KEY handler already processed this
+                val now = System.currentTimeMillis()
+                if (now - lastQueueNavTime < 100) {
+                    return@setOnKeyListener true
+                }
                 if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                     dismissKeyboardAndRestore()
                     drawerView?.requestFocus()
@@ -2591,6 +2602,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 // [FIX] Handle queue navigation from searchBar for soft keyboard support (display 1)
                 // When focus stays on searchBar but currentFocusArea is FOCUS_QUEUE, handle queue keys here
                 if (currentFocusArea == FOCUS_QUEUE) {
+                    // Skip if REMOTE_KEY handler already processed this
+                    if (System.currentTimeMillis() - lastQueueNavTime < 100) {
+                        return@setOnKeyListener true
+                    }
                     when (keyCode) {
                         KeyEvent.KEYCODE_DPAD_LEFT -> {
                             if (queueSelectedIndex > 0) {
@@ -2728,6 +2743,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
                 // === QUEUE NAVIGATION MODE ===
                 if (currentFocusArea == FOCUS_QUEUE) {
+                    // [FIX] Skip if REMOTE_KEY handler already processed this key
+                    val now = System.currentTimeMillis()
+                    if (now - lastQueueNavTime < 100) {
+                        return@setOnKeyListener true // Already handled by REMOTE_KEY
+                    }
                     
                     // 1. HOTKEY CHECK (Priority: Overrides Enter/Space defaults if bound)
                     // We check custom bindings first. If a key matches, execute it.
