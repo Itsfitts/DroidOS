@@ -517,7 +517,15 @@ private var isSoftKeyboardSupport = false
                 setKeepScreenOn(enable)
                 safeToast(if (enable) "Screen: Always On" else "Screen: Normal Timeout")
             } else if (action == "com.katsuyamaki.DroidOSLauncher.WINDOW_MANAGER") {
-                queueWindowManagerCommand(intent)
+                // [FIX] Copy intent extras to prevent recycling after onReceive returns
+                intent?.let {
+                    val cmd = it.getStringExtra("COMMAND") ?: return@let
+                    val copy = Intent().putExtra("COMMAND", cmd)
+                    if (it.hasExtra("INDEX")) copy.putExtra("INDEX", it.getIntExtra("INDEX", -1))
+                    if (it.hasExtra("INDEX_A")) copy.putExtra("INDEX_A", it.getIntExtra("INDEX_A", -1))
+                    if (it.hasExtra("INDEX_B")) copy.putExtra("INDEX_B", it.getIntExtra("INDEX_B", -1))
+                    queueWindowManagerCommand(copy)
+                }
 } else if (action == "com.katsuyamaki.DroidOSLauncher.REQUEST_CUSTOM_MOD_SYNC") {
                 // Trackpad is asking for the key, send it
                 if (customModKey != 0) {
@@ -2900,10 +2908,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                 queueCommandSourceIndex = -1
                                 debugStatusView?.text = "Command Executed"
                             } else {
-                                // [FIX] Smart toggle based on app's isMinimized state
+                                // [FIX] Determine command by queue position (active apps first, then minimized)
                                 if (queueSelectedIndex in selectedAppsQueue.indices) {
-                                    val app = selectedAppsQueue[queueSelectedIndex]
-                                    val cmd = if (app.isMinimized) "UNMINIMIZE" else "MINIMIZE"
+                                    val activeCount = selectedAppsQueue.count { !it.isMinimized }
+                                    val cmd = if (queueSelectedIndex >= activeCount) "UNMINIMIZE" else "MINIMIZE"
                                     val intent = Intent().putExtra("COMMAND", cmd).putExtra("INDEX", queueSelectedIndex + 1)
                                     queueWindowManagerCommand(intent)
                                 }
