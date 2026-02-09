@@ -758,8 +758,6 @@ private var customModKeyCode = 0
         val keyTag = touchedView?.tag as? String
 
         if (touchedView != null && keyTag != null) {
-            Log.w("DroidOS_KeyFlow", "DEFERRED_TAP: key=$keyTag -> calling onKeyDown/onKeyUp")
-
             if (keyTag == "SPACE") {
                 // =================================================================================
                 // DEFERRED SPACEBAR TAP - ROUTE THROUGH handleKeyPress
@@ -1986,7 +1984,6 @@ private fun buildKeyboard() {
     // =================================================================================
 
     private fun onKeyUp(key: String, view: View) {
-        Log.w("DroidOS_KeyFlow", "ON_KEY_UP: key=$key isOrientMode=$isOrientationModeActive")
         setKeyVisual(view, false, key)
 
         // Stop any active key repeat
@@ -2242,7 +2239,6 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
     }
 
         private fun handleKeyPress(key: String, fromRepeat: Boolean = false) {
-            Log.w("DroidOS_KeyFlow", "HANDLE_KEY: key=$key fromRepeat=$fromRepeat isMirrorMode=$isMirrorMode isOrientMode=$isOrientationModeActive")
             if (isMirrorMode) return // STOP Ghost Typing
             var meta = getMetaState()
 
@@ -2392,27 +2388,33 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                 "BKSP" -> listener?.onSpecialKey(SpecialKey.BACKSPACE, meta)
                 "ENTER" -> { 
                     if (!fromRepeat) {
-                        // [FIX] Send REMOTE_KEY FIRST so Launcher handles it before focus changes
+                        listener?.onSpecialKey(SpecialKey.ENTER, meta)
+                        // Broadcast to Launcher for drawer app selection
                         val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
                         intent.setPackage("com.katsuyamaki.DroidOSLauncher")
                         intent.putExtra("keyCode", KeyEvent.KEYCODE_ENTER)
                         intent.putExtra("metaState", meta)
                         context.sendBroadcast(intent)
-                        // Then inject to text field
-                        listener?.onSpecialKey(SpecialKey.ENTER, meta)
                     }
                 }
-                "SPACE" -> listener?.onSpecialKey(SpecialKey.SPACE, meta)
+                "SPACE" -> {
+                    listener?.onSpecialKey(SpecialKey.SPACE, meta)
+                    // Broadcast to Launcher for queue focus toggle
+                    val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
+                    intent.setPackage("com.katsuyamaki.DroidOSLauncher")
+                    intent.putExtra("keyCode", KeyEvent.KEYCODE_SPACE)
+                    intent.putExtra("metaState", meta)
+                    context.sendBroadcast(intent)
+                }
                 "ESC" -> { 
                     if (!fromRepeat) {
                         listener?.onSpecialKey(SpecialKey.ESCAPE, meta)
-                        if (launcherKeybindKeycodes.isNotEmpty()) {
-                            val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
-                            intent.setPackage("com.katsuyamaki.DroidOSLauncher")
-                            intent.putExtra("keyCode", KeyEvent.KEYCODE_ESCAPE)
-                            intent.putExtra("metaState", meta)
-                            context.sendBroadcast(intent)
-                        }
+                        // Always broadcast to Launcher for drawer close
+                        val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
+                        intent.setPackage("com.katsuyamaki.DroidOSLauncher")
+                        intent.putExtra("keyCode", KeyEvent.KEYCODE_ESCAPE)
+                        intent.putExtra("metaState", meta)
+                        context.sendBroadcast(intent)
                     }
                 }
                 
@@ -2493,7 +2495,6 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                         val code = pair.first
                         val shiftNeeded = pair.second
                         if (shiftNeeded) meta = meta or KeyEvent.META_SHIFT_ON
-                        Log.w("DroidOS_KeyFlow", "SEND_KEY: key=$key code=$code char=$char meta=$meta")
                         listener?.onKeyPress(code, char, meta)
                         // [FIX] Only broadcast REMOTE_KEY for registered keybinds when a modifier is active
                         // This prevents drawer navigation from consuming j/k/x when typing in search bar

@@ -1252,6 +1252,26 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     }
                     return
                 }
+                KeyEvent.KEYCODE_SPACE -> {
+                    // [FIX] SPACE: Toggle Internal Focus (Green Underline) - same as hardware keyboard
+                    if (queueCommandPending == null && queueSelectedIndex in selectedAppsQueue.indices) {
+                        val app = selectedAppsQueue[queueSelectedIndex]
+                        if (app.packageName != PACKAGE_BLANK) {
+                            val pkg = app.packageName
+                            val isGemini = pkg == "com.google.android.apps.bard"
+                            val activeIsGoogle = activePackageName == "com.google.android.googlequicksearchbox"
+                            val isActive = (activePackageName == pkg) || (isGemini && activeIsGoogle)
+                            if (isActive) {
+                                activePackageName = null
+                            } else {
+                                if (activePackageName != null) lastValidPackageName = activePackageName
+                                activePackageName = pkg
+                            }
+                            uiHandler.post { updateAllUIs() }
+                        }
+                    }
+                    return
+                }
                 else -> {
                     for (cmd in AVAILABLE_COMMANDS) {
                         val bind = AppPreferences.getKeybind(this, cmd.id)
