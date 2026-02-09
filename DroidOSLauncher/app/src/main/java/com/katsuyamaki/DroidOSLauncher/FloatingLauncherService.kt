@@ -535,7 +535,6 @@ private var isSoftKeyboardSupport = false
             } else if (action == "com.katsuyamaki.DroidOSLauncher.REMOTE_KEY") {
                 val keyCode = intent?.getIntExtra("keyCode", 0) ?: 0
                 val metaState = intent?.getIntExtra("metaState", 0) ?: 0
-                Log.w("DroidOS_Queue", "REMOTE_KEY: keyCode=$keyCode meta=$metaState focus=$currentFocusArea expanded=$isExpanded")
                 if (keyCode != 0) {
                     // Simulate the event passing through the same logic as hardware keys
                     handleRemoteKeyEvent(keyCode, metaState)
@@ -1313,11 +1312,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     return
                 }
                 else -> {
-                    Log.w("DroidOS_Queue", "KEYBIND_CHECK: keyCode=$keyCode in FOCUS_QUEUE")
                     for (cmd in AVAILABLE_COMMANDS) {
                         val bind = AppPreferences.getKeybind(this, cmd.id)
                         if (bind.second == keyCode && keyCode != KeyEvent.KEYCODE_SPACE) {
-                            Log.w("DroidOS_Queue", "KEYBIND_MATCH: ${cmd.id}")
                             if (cmd.argCount == 2) {
                                 queueCommandPending = cmd
                                 queueCommandSourceIndex = queueSelectedIndex
@@ -1659,7 +1656,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             detectedPkg.contains("edge") ||
                             detectedPkg.contains("samsung.android.app.routines") ||
                             detectedPkg.contains("android.providers") ||
-                            detectedPkg.contains("permissioncontroller")
+                            detectedPkg.contains("permissioncontroller") ||
+                            detectedPkg.contains("DroidOSTrackpadKeyboard")
                         // [FIX] Managed state: if app is in queue and not minimized, DroidOS is managing its bounds.
                         // We notify the IME to suppress insets for ANY managed app (even single apps) 
                         // to prevent double-resizing/pushing.
@@ -3261,20 +3259,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     
     // [FIX] Queue commands for sequential execution to avoid race conditions
     private fun queueWindowManagerCommand(intent: Intent) {
-        val cmd = intent.getStringExtra("COMMAND") ?: "?"
-        Log.w("DroidOS_Queue", "QUEUE_ADD: $cmd isProcessing=$isProcessingWmCommand queueSize=${wmCommandQueue.size}")
         wmCommandQueue.offer(intent)
         processNextWmCommand()
     }
     
     private fun processNextWmCommand() {
-        if (isProcessingWmCommand) {
-            Log.w("DroidOS_Queue", "QUEUE_SKIP: already processing, queueSize=${wmCommandQueue.size}")
-            return
-        }
+        if (isProcessingWmCommand) return
         val intent = wmCommandQueue.poll() ?: return
-        val cmd = intent.getStringExtra("COMMAND") ?: "?"
-        Log.w("DroidOS_Queue", "QUEUE_EXEC: $cmd")
         
         isProcessingWmCommand = true
         handleWindowManagerCommand(intent)
