@@ -758,7 +758,7 @@ private var customModKeyCode = 0
         val keyTag = touchedView?.tag as? String
 
         if (touchedView != null && keyTag != null) {
-            Log.d("KeyboardView", "Deferred tap on key: $keyTag")
+            Log.w("DroidOS_KeyFlow", "DEFERRED_TAP: key=$keyTag -> calling onKeyDown/onKeyUp")
 
             if (keyTag == "SPACE") {
                 // =================================================================================
@@ -1986,6 +1986,7 @@ private fun buildKeyboard() {
     // =================================================================================
 
     private fun onKeyUp(key: String, view: View) {
+        Log.w("DroidOS_KeyFlow", "ON_KEY_UP: key=$key isOrientMode=$isOrientationModeActive")
         setKeyVisual(view, false, key)
 
         // Stop any active key repeat
@@ -2241,6 +2242,7 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
     }
 
         private fun handleKeyPress(key: String, fromRepeat: Boolean = false) {
+            Log.w("DroidOS_KeyFlow", "HANDLE_KEY: key=$key fromRepeat=$fromRepeat isMirrorMode=$isMirrorMode isOrientMode=$isOrientationModeActive")
             if (isMirrorMode) return // STOP Ghost Typing
             var meta = getMetaState()
 
@@ -2391,13 +2393,12 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                 "ENTER" -> { 
                     if (!fromRepeat) {
                         listener?.onSpecialKey(SpecialKey.ENTER, meta)
-                        if (launcherKeybindKeycodes.isNotEmpty()) {
-                            val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
-                            intent.setPackage("com.katsuyamaki.DroidOSLauncher")
-                            intent.putExtra("keyCode", KeyEvent.KEYCODE_ENTER)
-                            intent.putExtra("metaState", meta)
-                            context.sendBroadcast(intent)
-                        }
+                        // Always broadcast ENTER to Launcher for drawer app selection
+                        val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
+                        intent.setPackage("com.katsuyamaki.DroidOSLauncher")
+                        intent.putExtra("keyCode", KeyEvent.KEYCODE_ENTER)
+                        intent.putExtra("metaState", meta)
+                        context.sendBroadcast(intent)
                     }
                 }
                 "SPACE" -> listener?.onSpecialKey(SpecialKey.SPACE, meta)
@@ -2491,16 +2492,19 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                         val code = pair.first
                         val shiftNeeded = pair.second
                         if (shiftNeeded) meta = meta or KeyEvent.META_SHIFT_ON
+                        Log.w("DroidOS_KeyFlow", "SEND_KEY: key=$key code=$code char=$char meta=$meta")
                         listener?.onKeyPress(code, char, meta)
-                        // [FIX] Also broadcast REMOTE_KEY if this keyCode is a registered keybind
-                        // This enables drawer queue hotkeys (j/k/x etc.) to work on soft keyboard
-                        if (!fromRepeat && code != 0 && launcherKeybindKeycodes.contains(code)) {
+                        // [FIX] Only broadcast REMOTE_KEY for registered keybinds when a modifier is active
+                        // This prevents drawer navigation from consuming j/k/x when typing in search bar
+                        // Queue mode should use arrow keys or Ctrl+j/k combos instead
+                        val hasModifier = isAltActive || isCtrlActive || isMetaActive || isCustomModLatchedLocal
+                        if (!fromRepeat && code != 0 && hasModifier && launcherKeybindKeycodes.contains(code)) {
                             val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
                             intent.setPackage("com.katsuyamaki.DroidOSLauncher")
                             intent.putExtra("keyCode", code)
-                            intent.putExtra("metaState", 0) // No modifier for queue mode
+                            intent.putExtra("metaState", meta)
                             context.sendBroadcast(intent)
-                            android.util.Log.d(TAG, "Broadcasting keybind key: $key ($code) for queue mode")
+                            android.util.Log.d(TAG, "Broadcasting keybind key: $key ($code) with modifier")
                         }
                         if (!fromRepeat && currentState == KeyboardState.UPPERCASE) { 
                             currentState = KeyboardState.LOWERCASE

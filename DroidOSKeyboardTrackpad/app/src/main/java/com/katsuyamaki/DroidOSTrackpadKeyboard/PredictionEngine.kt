@@ -85,6 +85,26 @@ class PredictionEngine {
         private const val NORMALIZATION_SIZE = 100f
         private const val SEARCH_RADIUS = 70f
         
+        // Reference keyboard dimensions for scaling pixel values
+        private const val REFERENCE_KB_WIDTH = 1080f
+        private const val REFERENCE_KB_HEIGHT = 400f
+        
+        // Helper to calculate scale factor from keyMap (uses geometric mean of X and Y scales)
+        fun getKeyboardScale(keyMap: Map<String, PointF>): Float {
+            if (keyMap.isEmpty()) return 1f
+            val minX = keyMap.values.minOfOrNull { it.x } ?: 0f
+            val maxX = keyMap.values.maxOfOrNull { it.x } ?: REFERENCE_KB_WIDTH
+            val minY = keyMap.values.minOfOrNull { it.y } ?: 0f
+            val maxY = keyMap.values.maxOfOrNull { it.y } ?: REFERENCE_KB_HEIGHT
+            val kbWidth = maxX - minX
+            val kbHeight = maxY - minY
+            val scaleX = kbWidth / REFERENCE_KB_WIDTH
+            val scaleY = kbHeight / REFERENCE_KB_HEIGHT
+            // Use geometric mean to handle aspect ratio changes fairly
+            val scale = kotlin.math.sqrt(scaleX * scaleY).coerceIn(0.3f, 2.0f)
+            return scale
+        }
+        
         // Weights: 
         // Shape: 0.25 -> kept low to allow messy sizing
         // Location: 0.85 -> high trust in key hits
@@ -1010,9 +1030,10 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         // =======================================================================
         val candidates = HashSet<String>()
         
-        // 1. Neighbor Search (original)
-        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f)
-        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f)
+        // 1. Neighbor Search (scaled for keyboard size)
+        val scale = getKeyboardScale(keyMap)
+        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f * scale)
+        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f * scale)
         
         for (s in nearbyStart) {
             for (e in nearbyEnd) {
@@ -1299,7 +1320,9 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         val dwellTimes = HashMap<String, Long>()
         if (timedPath.size < 2) return dwellTimes
         
-        val KEY_PROXIMITY_RADIUS = 50f  // Pixels - consider "on key" if within this radius
+        // Scale radius based on keyboard size
+        val scale = getKeyboardScale(keyMap)
+        val KEY_PROXIMITY_RADIUS = 50f * scale  // Pixels - scaled for keyboard size
         
         for (i in 1 until timedPath.size) {
             val prev = timedPath[i - 1]
@@ -1409,8 +1432,9 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         // =======================================================================
         val candidates = HashSet<String>()
         
-        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f)
-        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 120f)
+        val scale = getKeyboardScale(keyMap)
+        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f * scale)
+        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 120f * scale)
         
         for (s in nearbyStart) {
             for (e in nearbyEnd) {
@@ -1851,9 +1875,10 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         // FAST CANDIDATE COLLECTION - fewer candidates for speed
         val candidates = HashSet<String>()
 
-        // 1. Neighbor Search (widened to match full algorithm - 60f missed adjacent-row keys)
-        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f)
-        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f)
+        // 1. Neighbor Search (scaled for keyboard size)
+        val scale = getKeyboardScale(keyMap)
+        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f * scale)
+        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f * scale)
 
         for (s in nearbyStart) {
             for (e in nearbyEnd) {
@@ -3018,8 +3043,9 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         
         // Candidate collection
         val candidates = HashSet<String>()
-        val nearbyStart = findNearbyKeys(startPoint, keyMap, 100f)
-        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 100f)
+        val scale = getKeyboardScale(keyMap)
+        val nearbyStart = findNearbyKeys(startPoint, keyMap, 100f * scale)
+        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 100f * scale)
         
         for (s in nearbyStart) {
             for (e in nearbyEnd) {
@@ -3380,8 +3406,9 @@ enum class POSTag { NOUN, VERB, ADJECTIVE, PRONOUN, DETERMINER, PREPOSITION, CON
         // FAST CANDIDATE COLLECTION - wider radius for shape tolerance
         val candidates = HashSet<String>()
 
-        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f)  // Wider than precise
-        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f)
+        val scale = getKeyboardScale(keyMap)
+        val nearbyStart = findNearbyKeys(startPoint, keyMap, 80f * scale)  // Wider than precise
+        val nearbyEnd = findNearbyKeys(endPoint, keyMap, 80f * scale)
 
         for (s in nearbyStart) {
             for (e in nearbyEnd) {
