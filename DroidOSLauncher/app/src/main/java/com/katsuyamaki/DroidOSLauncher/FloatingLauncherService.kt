@@ -1125,6 +1125,18 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             val now = System.currentTimeMillis()
             if (now - lastQueueNavTime < 80) return
             lastQueueNavTime = now
+            
+            // [FIX] ENTER: Launch top search result (same as hardware keyboard)
+            if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                if (displayList.isNotEmpty()) {
+                    val item = displayList[0]
+                    if (item is MainActivity.AppInfo) {
+                        addToSelection(item)
+                        return
+                    }
+                }
+            }
+            
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                 val selectedRecycler = drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)
                 if (selectedAppsQueue.isNotEmpty()) {

@@ -2392,13 +2392,14 @@ if (isMetaActive) meta = meta or 0x10000 // META_META_ON
                 "BKSP" -> listener?.onSpecialKey(SpecialKey.BACKSPACE, meta)
                 "ENTER" -> { 
                     if (!fromRepeat) {
-                        listener?.onSpecialKey(SpecialKey.ENTER, meta)
-                        // Always broadcast ENTER to Launcher for drawer app selection
+                        // [FIX] Send REMOTE_KEY FIRST so Launcher handles it before focus changes
                         val intent = android.content.Intent("com.katsuyamaki.DroidOSLauncher.REMOTE_KEY")
                         intent.setPackage("com.katsuyamaki.DroidOSLauncher")
                         intent.putExtra("keyCode", KeyEvent.KEYCODE_ENTER)
                         intent.putExtra("metaState", meta)
                         context.sendBroadcast(intent)
+                        // Then inject to text field
+                        listener?.onSpecialKey(SpecialKey.ENTER, meta)
                     }
                 }
                 "SPACE" -> listener?.onSpecialKey(SpecialKey.SPACE, meta)
