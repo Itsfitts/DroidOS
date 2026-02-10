@@ -1233,6 +1233,19 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                     if (x >= 0 && y >= 0) setCursorPosition(x, y)
                 }
                 action == "TOGGLE_DEBUG" -> toggleDebugMode()
+                action == "com.katsuyamaki.DroidOSTrackpadKeyboard.SWITCH_KEYBOARD" -> {
+                    val imeId = intent.getStringExtra("IME_ID") ?: return
+                    val imeName = intent.getStringExtra("IME_NAME") ?: "keyboard"
+                    Thread {
+                        try {
+                            shellService?.runCommand("settings put secure default_input_method $imeId")
+                            shellService?.runCommand("ime set $imeId")
+                            handler.post { showToast("Switched to $imeName") }
+                        } catch (e: Exception) {
+                            handler.post { showToast("Failed to switch keyboard") }
+                        }
+                    }.start()
+                }
                 action == "FORCE_KEYBOARD" || action == "TOGGLE_CUSTOM_KEYBOARD" -> {
                     val forceShow = intent.getBooleanExtra("FORCE_SHOW", false)
                     val forceHide = intent.getBooleanExtra("FORCE_HIDE", false)
@@ -1895,6 +1908,7 @@ class OverlayService : AccessibilityService(), DisplayManager.DisplayListener, I
                         addAction("TOGGLE_DEBUG")
                         addAction("FORCE_KEYBOARD")
                         addAction("TOGGLE_CUSTOM_KEYBOARD")
+                        addAction("com.katsuyamaki.DroidOSTrackpadKeyboard.SWITCH_KEYBOARD")
                         addAction("DOCK_PREF_CHANGED")
                         addAction("APPLY_DOCK_MODE")
                         addAction("DOCK_POPUP_VISIBLE")
