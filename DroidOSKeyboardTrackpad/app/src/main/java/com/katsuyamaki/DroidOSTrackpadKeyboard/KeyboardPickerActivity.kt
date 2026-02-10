@@ -160,6 +160,16 @@ class KeyboardPickerActivity : Activity() {
     }
     
     private fun openKeyboardSettings() {
+        // Send MINIMIZE_ALL to launcher so tiled apps don't block the settings menu
+        try {
+            val minimizeIntent = Intent("com.katsuyamaki.DroidOSLauncher.WINDOW_MANAGER")
+            minimizeIntent.setPackage("com.katsuyamaki.DroidOSLauncher")
+            minimizeIntent.putExtra("COMMAND", "MINIMIZE_ALL")
+            sendBroadcast(minimizeIntent)
+        } catch (e: Exception) {
+            // Launcher may not be running, continue anyway
+        }
+        
         try {
             val intent = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
