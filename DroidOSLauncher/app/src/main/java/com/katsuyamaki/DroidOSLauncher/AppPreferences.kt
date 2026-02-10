@@ -636,4 +636,15 @@ object AppPreferences {
         }
         editor.apply()
     }
+
+    // --- LAYOUT LEGEND TEXT ---
+    private const val DEFAULT_LEGEND = "R×C = Rows × Cols · [1:2:1] = Col ratio · [R 3:1] = Row ratio"
+    
+    fun saveLegendText(context: Context, text: String) {
+        getPrefs(context).edit().putString("LAYOUT_LEGEND_TEXT", text).apply()
+    }
+
+    fun getLegendText(context: Context): String {
+        return getPrefs(context).getString("LAYOUT_LEGEND_TEXT", DEFAULT_LEGEND) ?: DEFAULT_LEGEND
+    }
 }

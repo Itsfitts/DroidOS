@@ -3868,15 +3868,15 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         }
         
         return when(type) { 
-            LAYOUT_FULL -> "1 App - Full"
-            LAYOUT_SIDE_BY_SIDE -> "2 Apps - Even Row"
-            LAYOUT_TOP_BOTTOM -> "2 Apps - Even Column" // Corrected from "Even Column"
-            LAYOUT_TRI_EVEN -> "3 Apps - Even Row"
-            LAYOUT_CORNERS -> "4 Apps - Corners" // Corrected from "Corners"
-            LAYOUT_TRI_SIDE_MAIN_SIDE -> "3 Apps - Side/Main/Side"
-            LAYOUT_QUAD_ROW_EVEN -> "4 Apps - Even Row"
-            LAYOUT_QUAD_TALL_SHORT -> "4 Apps - 2 Tall / 2 Short"
-            LAYOUT_HEX_TALL_SHORT -> "6 Apps - 3 Tall / 3 Short"
+            LAYOUT_FULL -> "1 App - 1×1"
+            LAYOUT_SIDE_BY_SIDE -> "2 Apps - 1×2"
+            LAYOUT_TOP_BOTTOM -> "2 Apps - 2×1"
+            LAYOUT_TRI_EVEN -> "3 Apps - 1×3"
+            LAYOUT_CORNERS -> "4 Apps - 2×2"
+            LAYOUT_TRI_SIDE_MAIN_SIDE -> "3 Apps - 1×3 [1:2:1]"
+            LAYOUT_QUAD_ROW_EVEN -> "4 Apps - 1×4"
+            LAYOUT_QUAD_TALL_SHORT -> "4 Apps - 2×2 [R 3:1]"
+            LAYOUT_HEX_TALL_SHORT -> "6 Apps - 2×3 [R 3:1, C 1:2:1]"
             LAYOUT_CUSTOM_DYNAMIC -> "Custom"
             else -> "Unknown" 
         } 
@@ -5213,7 +5213,14 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             MODE_SEARCH -> { searchBar.hint = "Search apps..."; refreshSearchList() }
             MODE_LAYOUTS -> { 
                 searchBar.hint = "Select Layout"
+                isLayoutNameEditMode = false // Reset edit mode when entering tab
                 displayList.add(ActionOption("Save Current Arrangement") { saveCurrentAsCustom() })
+                
+                // Name Editor Mode toggle
+                displayList.add(ToggleOption("Name Editor Mode", isLayoutNameEditMode) { enabled ->
+                    isLayoutNameEditMode = enabled
+                    drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+                })
                 
                 // [FIX] Add Reset Button to fix corrupted names
                 displayList.add(ActionOption("Reset Default Names") { 
@@ -5250,7 +5257,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             displayList.add(LayoutOption(name, LAYOUT_CUSTOM_DYNAMIC, true, rects)) 
                         } catch(e: Exception) {} 
                     } 
-                } 
+                }
+                // Legend for grid notation (editable via Name Editor Mode)
+                displayList.add(LegendOption(AppPreferences.getLegendText(this)))
             }
             MODE_RESOLUTION -> {
                 searchBar.hint = "Select Resolution"; displayList.add(CustomResInputOption); val savedResNames = AppPreferences.getCustomResolutionNames(this).sorted(); for (name in savedResNames) { val value = AppPreferences.getCustomResolutionValue(this, name) ?: continue; displayList.add(ResolutionOption(name, "wm size  -d $currentDisplayId", 100 + savedResNames.indexOf(name))) }; displayList.add(ResolutionOption("Default (Reset)", "wm size reset -d $currentDisplayId", 0)); displayList.add(ResolutionOption("1:1 Square (1422x1500)", "wm size 1422x1500 -d $currentDisplayId", 1)); displayList.add(ResolutionOption("16:9 Landscape (1920x1080)", "wm size 1920x1080 -d $currentDisplayId", 2)); displayList.add(ResolutionOption("16:10 Landscape (1920x1200)", "wm size 1920x1200 -d $currentDisplayId", 4)); displayList.add(ResolutionOption("32:9 Ultrawide (3840x1080)", "wm size 3840x1080 -d $currentDisplayId", 3))
@@ -5468,6 +5477,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
     object CustomResInputOption
     data class RefreshHeaderOption(val text: String)
+    data class LegendOption(val text: String)
     // =================================================================================
     // DATA CLASS: RefreshItemOption
     // SUMMARY: Represents a refresh rate option in the menu. isAvailable indicates
@@ -5485,6 +5495,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     // =================================================================================
 
     data class LayoutOption(val name: String, val type: Int, val isCustomSaved: Boolean = false, val customRects: List<Rect>? = null)
+    private var isLayoutNameEditMode = false
     data class ResolutionOption(val name: String, val command: String, val index: Int)
     data class DpiOption(val currentDpi: Int)
     data class ProfileOption(val name: String, val isCurrent: Boolean, val layout: Int, val resIndex: Int, val dpi: Int, val apps: List<String>)
@@ -6427,10 +6438,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             val text: TextView = v.findViewById(R.id.text_margin_value)
         }
         // Reuse item_layout_option logic for simplicity
-        inner class HeaderHolder(v: View) : RecyclerView.ViewHolder(v) { val nameInput: EditText = v.findViewById(R.id.layout_name); val btnSave: View = v.findViewById(R.id.btn_save_profile); val btnExtinguish: View = v.findViewById(R.id.btn_extinguish_item) }
+        inner class HeaderHolder(v: View) : RecyclerView.ViewHolder(v) { val nameInput: EditText = v.findViewById(R.id.layout_name); val btnEdit: View = v.findViewById(R.id.btn_edit_layout_name); val btnSave: View = v.findViewById(R.id.btn_save_profile); val btnExtinguish: View = v.findViewById(R.id.btn_extinguish_item) }
         inner class ActionHolder(v: View) : RecyclerView.ViewHolder(v) { val nameInput: EditText = v.findViewById(R.id.layout_name); val btnSave: View = v.findViewById(R.id.btn_save_profile); val btnExtinguish: View = v.findViewById(R.id.btn_extinguish_item) }
 
-        override fun getItemViewType(position: Int): Int { return when (displayList[position]) { is MainActivity.AppInfo -> 0; is LayoutOption -> 1; is ResolutionOption -> 1; is DpiOption -> 2; is ProfileOption -> 4; is FontSizeOption -> 3; is IconOption -> 5; is ToggleOption -> 1; is ActionOption -> 6; is HeightOption -> 7; is BubbleSizeOption -> 7; is WidthOption -> 8;         is CustomResInputOption -> 9; is RefreshHeaderOption -> 10; is RefreshItemOption -> 11; is KeybindOption -> 12; is CustomModConfigOption -> 13; is MarginOption -> 14; else -> 0 } }
+        override fun getItemViewType(position: Int): Int { return when (displayList[position]) { is MainActivity.AppInfo -> 0; is LayoutOption -> 1; is ResolutionOption -> 1; is DpiOption -> 2; is ProfileOption -> 4; is FontSizeOption -> 3; is IconOption -> 5; is ToggleOption -> 1; is ActionOption -> 6; is HeightOption -> 7; is BubbleSizeOption -> 7; is WidthOption -> 8;         is CustomResInputOption -> 9; is RefreshHeaderOption -> 10; is LegendOption -> 10; is RefreshItemOption -> 11; is KeybindOption -> 12; is CustomModConfigOption -> 13; is MarginOption -> 14; else -> 0 } }
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder { return when (viewType) { 0 -> AppHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_app_rofi, parent, false)); 1 -> LayoutHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_layout_option, parent, false)); 2 -> DpiHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_dpi_custom, parent, false)); 3 -> FontSizeHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_font_size, parent, false)); 4 -> ProfileRichHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_profile_rich, parent, false)); 5 -> IconSettingHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_icon_setting, parent, false)); 6 -> LayoutHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_layout_option, parent, false)); 7 -> HeightHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_height_setting, parent, false)); 8 -> WidthHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_width_setting, parent, false));             9 -> CustomResInputHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_custom_resolution, parent, false));
             10 -> HeaderHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_layout_option, parent, false));
             11 -> ActionHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_layout_option, parent, false)); 12 -> KeybindHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_keybind, parent, false)); 
@@ -6522,11 +6533,6 @@ else -> AppHolder(View(parent.context)) } }
                                     if (isSelected || isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active) 
                                     else holder.itemView.setBackgroundResource(R.drawable.bg_item_press)
                                     
-                                    // SELECTION CLICK
-                                    val selectAction = View.OnClickListener { selectLayout(item) }
-                                    holder.itemView.setOnClickListener(selectAction)
-                                    holder.nameInput.setOnClickListener(selectAction)
-                                    
                                     // RESET STATE (Default)
                                     holder.nameInput.apply {
                                         isEnabled = true
@@ -6539,18 +6545,25 @@ else -> AppHolder(View(parent.context)) } }
                                         inputType = 0
                                     }
                                     
-                                    // EDIT BUTTON LOGIC (Renaming)
-                                    // Works for BOTH Custom and Default layouts now
-                                    holder.btnEdit.visibility = View.VISIBLE
-                                    holder.btnEdit.setOnClickListener {
-                                        // Enable Editing
-                                        holder.nameInput.isFocusable = true
-                                        holder.nameInput.isFocusableInTouchMode = true
-                                        holder.nameInput.isClickable = true
-                                        holder.nameInput.inputType = android.text.InputType.TYPE_CLASS_TEXT
-                                        
-                                        startRename(holder.nameInput)
+                                    // Hide edit button - use Name Editor Mode toggle instead
+                                    holder.btnEdit.visibility = View.GONE
+                                    
+                                    // CLICK BEHAVIOR: depends on Name Editor Mode
+                                    val clickAction = View.OnClickListener {
+                                        if (isLayoutNameEditMode) {
+                                            // Enable Editing
+                                            holder.nameInput.isFocusable = true
+                                            holder.nameInput.isFocusableInTouchMode = true
+                                            holder.nameInput.isClickable = true
+                                            holder.nameInput.inputType = android.text.InputType.TYPE_CLASS_TEXT
+                                            startRename(holder.nameInput)
+                                        } else {
+                                            // Select layout
+                                            selectLayout(item)
+                                        }
                                     }
+                                    holder.itemView.setOnClickListener(clickAction)
+                                    holder.nameInput.setOnClickListener(clickAction)
                                     // Ensure buttons also scale their text
                                     (holder.btnEdit as? TextView)?.setScaledTextSize(currentFontSize, 0.875f) // Adjust as needed
                                     (holder.btnSave as? TextView)?.setScaledTextSize(currentFontSize, 0.875f)
@@ -6621,8 +6634,56 @@ else -> AppHolder(View(parent.context)) } }
                 holder.nameInput.setScaledTextSize(currentFontSize, 1.0f) // Corresponds to 16sp
                 holder.nameInput.gravity = Gravity.CENTER
                 holder.itemView.setBackgroundResource(0)
+                holder.btnEdit.visibility = View.GONE
                 holder.btnSave.visibility = View.GONE
                 holder.btnExtinguish.visibility = View.GONE
+            }
+            else if (holder is HeaderHolder && item is LegendOption) {
+                holder.nameInput.setText(item.text)
+                holder.nameInput.setTextColor(Color.GRAY)
+                holder.nameInput.setScaledTextSize(currentFontSize, 0.75f) // Smaller text
+                holder.nameInput.gravity = Gravity.CENTER
+                holder.itemView.setBackgroundResource(0)
+                holder.btnEdit.visibility = View.GONE
+                holder.btnSave.visibility = View.GONE
+                holder.btnExtinguish.visibility = View.GONE
+                
+                // Reset state
+                holder.nameInput.apply {
+                    isEnabled = true
+                    background = null
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    isClickable = true
+                    inputType = 0
+                }
+                
+                // Click behavior based on Name Editor Mode
+                val clickAction = View.OnClickListener {
+                    if (isLayoutNameEditMode) {
+                        holder.nameInput.isFocusable = true
+                        holder.nameInput.isFocusableInTouchMode = true
+                        holder.nameInput.isClickable = true
+                        holder.nameInput.inputType = android.text.InputType.TYPE_CLASS_TEXT
+                        startRename(holder.nameInput)
+                    }
+                }
+                holder.itemView.setOnClickListener(clickAction)
+                holder.nameInput.setOnClickListener(clickAction)
+                
+                // Save on focus lost
+                holder.nameInput.setOnFocusChangeListener { _, hasFocus ->
+                    if (!hasFocus) {
+                        val newText = holder.nameInput.text.toString().trim()
+                        if (newText.isNotEmpty() && newText != item.text) {
+                            AppPreferences.saveLegendText(this@FloatingLauncherService, newText)
+                            safeToast("Legend updated")
+                        }
+                        endRename(holder.nameInput)
+                        holder.nameInput.isFocusable = false
+                        holder.nameInput.inputType = 0
+                    }
+                }
             }
 // =================================================================================
             // REFRESH ITEM OPTION BINDING
