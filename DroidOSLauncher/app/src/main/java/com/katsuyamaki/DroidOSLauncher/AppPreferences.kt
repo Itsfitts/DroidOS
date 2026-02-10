@@ -546,7 +546,7 @@ object AppPreferences {
         }
 
         // DEFAULTS (Alt = 2)
-        // O=43, H=36, L=40, I=37, J=38, K=39, X=52, Space=62, F=34, G=35
+        // O=43, H=36, L=40, I=37, J=38, K=39, X=52, Space=62, F=34, G=35, N=42, M=41
         return when (cmdId) {
             "SWAP" -> Pair(2, 43)              // Alt + O
             "SWAP_ACTIVE_LEFT" -> Pair(2, 36)  // Alt + H
@@ -558,6 +558,8 @@ object AppPreferences {
             "OPEN_DRAWER" -> Pair(2, 62)       // Alt + Space
             "SET_FOCUS" -> Pair(2, 34)         // Alt + F
             "FOCUS_LAST" -> Pair(2, 35)        // Alt + G
+            "MINIMIZE_ALL" -> Pair(2, 42)      // Alt + N
+            "RESTORE_ALL" -> Pair(2, 41)       // Alt + M
             else -> Pair(0, 0)
         }
     }

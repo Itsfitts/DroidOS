@@ -227,7 +227,9 @@ private var isSoftKeyboardSupport = false
         CommandDef("MINIMIZE", "Minimize", 1, "Minimize slot (shift others)"),
         CommandDef("UNMINIMIZE", "Restore", 1, "Restore app in slot"),
         CommandDef("HIDE", "Hide (Blank)", 1, "Replace slot with blank space"),
-        CommandDef("SWAP", "Swap Slots", 2, "Swap app in Slot A with Slot B")
+        CommandDef("SWAP", "Swap Slots", 2, "Swap app in Slot A with Slot B"),
+        CommandDef("MINIMIZE_ALL", "Minimize All", 0, "Minimize all tiled apps"),
+        CommandDef("RESTORE_ALL", "Restore All", 0, "Restore minimized apps to slots")
     )
 
     // Debounce for display switch to prevent flickering
@@ -5866,6 +5868,118 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 } else {
                     safeToast("Active app not in layout")
                 }
+            }
+            // =====================================================================
+            // MINIMIZE_ALL - Minimize all tiled (non-minimized) apps
+            // Leaves blank spaces as-is (minimized state) so layout can be restored
+            // =====================================================================
+            "MINIMIZE_ALL" -> {
+                val appsToMinimize = selectedAppsQueue.filter { 
+                    !it.isMinimized && it.packageName != PACKAGE_BLANK 
+                }
+                
+                if (appsToMinimize.isEmpty()) {
+                    safeToast("No active tiled apps")
+                    return
+                }
+                
+                // Clear active focus
+                activePackageName = null
+                
+                for (app in appsToMinimize) {
+                    app.isMinimized = true
+                    val basePkg = app.getBasePackage()
+                    manualStateOverrides[basePkg] = System.currentTimeMillis()
+                    minimizedAtTimestamps[basePkg] = System.currentTimeMillis()
+                }
+                
+                // Move all to back in background thread
+                Thread {
+                    try {
+                        for (app in appsToMinimize) {
+                            val basePkg = app.getBasePackage()
+                            val cls = app.className
+                            if (currentDisplayId >= 2) {
+                                val visibleCount = shellService?.getVisiblePackages(currentDisplayId)?.size ?: 0
+                                if (visibleCount <= 1) {
+                                    showWallpaper()
+                                } else {
+                                    val tid = shellService?.getTaskId(basePkg, cls) ?: -1
+                                    if (tid != -1) shellService?.moveTaskToBack(tid)
+                                }
+                            } else {
+                                val tid = shellService?.getTaskId(basePkg, cls) ?: -1
+                                if (tid != -1) shellService?.moveTaskToBack(tid)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "MINIMIZE_ALL failed", e)
+                    }
+                }.start()
+                
+                // Also mark blanks as minimized to preserve layout positions
+                for (app in selectedAppsQueue) {
+                    if (app.packageName == PACKAGE_BLANK && !app.isMinimized) {
+                        app.isMinimized = true
+                    }
+                }
+                
+                refreshQueueAndLayout("Minimized ${appsToMinimize.size} apps")
+            }
+            // =====================================================================
+            // RESTORE_ALL - Restore minimized apps up to available layout slots
+            // Respects current layout slot count (e.g., 2-app layout = max 2 restored)
+            // =====================================================================
+            "RESTORE_ALL" -> {
+                val layoutRects = getLayoutRects()
+                val maxSlots = layoutRects.size
+                
+                // Count currently active (non-minimized) apps and blanks
+                val currentActiveCount = selectedAppsQueue.count { !it.isMinimized }
+                val availableSlots = maxSlots - currentActiveCount
+                
+                if (availableSlots <= 0) {
+                    safeToast("No available slots (layout: $maxSlots)")
+                    return
+                }
+                
+                // Get minimized apps (excluding blanks), sorted by most recently minimized first
+                val minimizedApps = selectedAppsQueue.filter { 
+                    it.isMinimized && it.packageName != PACKAGE_BLANK 
+                }.sortedByDescending { minimizedAtTimestamps[it.getBasePackage()] ?: 0L }
+                
+                if (minimizedApps.isEmpty()) {
+                    safeToast("No minimized apps to restore")
+                    return
+                }
+                
+                // Restore up to available slots
+                val appsToRestore = minimizedApps.take(availableSlots)
+                
+                for (app in appsToRestore) {
+                    app.isMinimized = false
+                    val basePkg = app.getBasePackage()
+                    manualStateOverrides[basePkg] = System.currentTimeMillis()
+                    minimizedAtTimestamps.remove(basePkg)
+                }
+                
+                // Also restore minimized blanks up to remaining available slots
+                val remainingSlots = availableSlots - appsToRestore.size
+                if (remainingSlots > 0) {
+                    var blanksRestored = 0
+                    for (app in selectedAppsQueue) {
+                        if (app.packageName == PACKAGE_BLANK && app.isMinimized && blanksRestored < remainingSlots) {
+                            app.isMinimized = false
+                            blanksRestored++
+                        }
+                    }
+                }
+                
+                // Clear auto-minimized flag since we're explicitly restoring
+                tiledAppsAutoMinimized = false
+                lastExplicitTiledLaunchAt = System.currentTimeMillis()
+                
+                refreshQueueAndLayout("Restored ${appsToRestore.size} apps", forceRetile = true, retileDelayMs = 300L)
             }
             "KILL" -> {
                 if (index in selectedAppsQueue.indices) {
