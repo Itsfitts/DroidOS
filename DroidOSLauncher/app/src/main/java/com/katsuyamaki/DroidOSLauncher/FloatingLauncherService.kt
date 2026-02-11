@@ -749,14 +749,16 @@ private var isSoftKeyboardSupport = false
             if (pos != RecyclerView.NO_POSITION) { 
                 val app = selectedAppsQueue[pos]
                 if (app.packageName != PACKAGE_BLANK) { 
-                    removeFromFocusHistory(app.packageName) // Clean up history
-                    Thread { try { shellService?.forceStop(app.packageName) } catch(e: Exception) {} }.start()
-                    safeToast("Killed ${app.label}") 
+                    val basePkg = app.getBasePackage()
+                    // Record killed package to prevent re-adding as fullscreen app
+                    recentlyRemovedPackages[basePkg] = System.currentTimeMillis()
+                    removeFromFocusHistory(basePkg) // Clean up history
+                    Thread { try { shellService?.forceStop(basePkg) } catch(e: Exception) {} }.start()
                 }
                 selectedAppsQueue.removeAt(pos)
-                if (reorderSelectionIndex != -1) endReorderMode(false)
-                updateAllUIs()
-                if (isInstantMode) applyLayoutImmediate() 
+                if (reorderSelectionIndex == pos) reorderSelectionIndex = -1
+                else if (reorderSelectionIndex > pos) reorderSelectionIndex--
+                refreshQueueAndLayout("Closed ${app.label}")
             } 
         }
         override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) { super.clearView(recyclerView, viewHolder); val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveLastQueue(this@FloatingLauncherService, pkgs); if (isInstantMode) applyLayoutImmediate() }
