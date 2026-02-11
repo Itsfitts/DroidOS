@@ -1185,7 +1185,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     uiHandler.post {
                         selectedRecycler?.adapter?.notifyDataSetChanged()
                         debugStatusView?.visibility = View.VISIBLE
-                        debugStatusView?.text = "Queue Navigation: Use Arrows / Hotkeys"
+                        if (!isOpenMoveToMode) {
+                            debugStatusView?.text = "Queue Navigation: Use Arrows / Hotkeys"
+                        }
                     }
                 } else {
                     currentFocusArea = FOCUS_LIST
@@ -1437,7 +1439,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         uiHandler.post {
                             drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)?.adapter?.notifyDataSetChanged()
                             debugStatusView?.visibility = View.VISIBLE
-                            debugStatusView?.text = "Queue Navigation"
+                            if (!isOpenMoveToMode) {
+                                debugStatusView?.text = "Queue Navigation"
+                            }
                         }
                     } else {
                         currentFocusArea = FOCUS_SEARCH
@@ -2785,7 +2789,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         sendBroadcast(captureIntent)
                         selectedRecycler.adapter?.notifyDataSetChanged()
                         debugStatusView?.visibility = View.VISIBLE
-                        debugStatusView?.text = "Queue Navigation: Use Arrows / Hotkeys"
+                        if (!isOpenMoveToMode) {
+                            debugStatusView?.text = "Queue Navigation: Use Arrows / Hotkeys"
+                        }
                     } else {
                         // Go to List
                         currentFocusArea = FOCUS_LIST
@@ -3157,7 +3163,9 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                     sendBroadcast(captureIntent)
                                     selectedRecycler.adapter?.notifyDataSetChanged()
                                     debugStatusView?.visibility = View.VISIBLE
-                                    debugStatusView?.text = "Queue Navigation"
+                                    if (!isOpenMoveToMode) {
+                                        debugStatusView?.text = "Queue Navigation"
+                                    }
                                     
                                     // Clear list highlight
                                     val oldList = selectedListIndex
@@ -3894,8 +3902,10 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             
             updateSelectedAppsDock()
             
-            // Show current queue state in debug view when drawer opens
-            showQueueDebugState()
+            // Show current queue state in debug view when drawer opens (skip for OPEN_MOVE_TO)
+            if (!isOpenMoveToMode) {
+                showQueueDebugState()
+            }
             
             if (isInstantMode) fetchRunningApps() 
         }
