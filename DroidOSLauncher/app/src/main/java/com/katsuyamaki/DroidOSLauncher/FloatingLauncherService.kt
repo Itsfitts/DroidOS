@@ -5192,6 +5192,42 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 }
                 // === LAUNCH AND TILE APPS - END ===
 
+                // [FIX] Auto-minimize apps that exceed the slot count
+                // When switching from 4-slot to 2-slot layout, apps 3 and 4 should be minimized
+                if (activeApps.size > rects.size) {
+                    val packagesToMinimize = mutableListOf<String>()
+                    for (i in rects.size until activeApps.size) {
+                        val app = activeApps[i]
+                        if (app.packageName == PACKAGE_BLANK) continue
+                        val basePkg = app.getBasePackage()
+                        packagesToMinimize.add(basePkg)
+                        try {
+                            val tid = shellService?.getTaskId(basePkg, app.className) ?: -1
+                            if (tid != -1) shellService?.moveTaskToBack(tid)
+                        } catch (e: Exception) {}
+                        // Mark as minimized in the queue
+                        val queueIndex = selectedAppsQueue.indexOfFirst { 
+                            it.packageName == app.packageName && it.className == app.className 
+                        }
+                        if (queueIndex != -1) {
+                            selectedAppsQueue[queueIndex].isMinimized = true
+                        }
+                    }
+                    // Clear focus on UI thread to prevent apps from popping back
+                    uiHandler.post {
+                        for (pkg in packagesToMinimize) {
+                            val isGemini = pkg == "com.google.android.apps.bard"
+                            val activeIsGoogle = activePackageName == "com.google.android.googlequicksearchbox"
+                            if (activePackageName == pkg || (isGemini && activeIsGoogle)) {
+                                activePackageName = null
+                            }
+                            removeFromFocusHistory(pkg)
+                        }
+                        updateAllUIs()
+                    }
+                    Log.d(TAG, "executeLaunch: Auto-minimized ${activeApps.size - rects.size} apps exceeding slot count")
+                }
+
                 // === REFOCUS LOGIC ===
                 // After swapping/moving windows, re-launch the active app to bring it back to focus
                 if (focusPackage != null) {
