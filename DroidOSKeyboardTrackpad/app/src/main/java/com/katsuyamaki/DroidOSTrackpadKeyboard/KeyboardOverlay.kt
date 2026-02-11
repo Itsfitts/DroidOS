@@ -1044,27 +1044,13 @@ fun setCustomModKey(keyCode: Int) {
         // [FIX] Use custom FrameLayout to intercept ALL touches.
         keyboardContainer = object : FrameLayout(context) {
             
-            // SHIELD 1: Handle Mouse Hovers & Scroll (Enable Bluetooth Mouse)
+            // SHIELD 1: Handle Mouse Scroll (BT Mouse support)
+            // NOTE: Hover-to-cursor movement was removed - it was an old test feature
             override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
                 if (event.isFromSource(InputDevice.SOURCE_MOUSE) ||
                     event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
 
-                    if (event.actionMasked == MotionEvent.ACTION_HOVER_MOVE) {
-                        if (lastMouseX == 0f && lastMouseY == 0f) {
-                            lastMouseX = event.x
-                            lastMouseY = event.y
-                            return true
-                        }
-                        val dx = event.x - lastMouseX
-                        val dy = event.y - lastMouseY
-                        lastMouseX = event.x
-                        lastMouseY = event.y
-
-                        // Pass as Hover (isDragging=false)
-                        onCursorMove?.invoke(dx, dy, false)
-                        return true
-                    }
-
+                    // Handle mouse scroll wheel
                     if (event.actionMasked == MotionEvent.ACTION_SCROLL) {
                         val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
                         val h = event.getAxisValue(MotionEvent.AXIS_HSCROLL)
@@ -1072,6 +1058,7 @@ fun setCustomModKey(keyCode: Int) {
                         return true
                     }
 
+                    // Consume other mouse events to prevent interference
                     return true
                 }
                 return super.dispatchGenericMotionEvent(event)
