@@ -562,6 +562,7 @@ object AppPreferences {
             "RESTORE_ALL" -> Pair(2, 41)       // Alt + M
             "MOVE_TO" -> Pair(2, 44)           // Alt + P
             "OPEN_MOVE_TO" -> Pair(2, 54)      // Alt + Z
+            "OPEN_SWAP" -> Pair(2, 47)         // Alt + S
             else -> Pair(0, 0)
         }
     }

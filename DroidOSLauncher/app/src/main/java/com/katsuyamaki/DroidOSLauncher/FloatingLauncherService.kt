@@ -217,6 +217,89 @@ private var isSoftKeyboardSupport = false
         "F10" to KeyEvent.KEYCODE_F10, "F11" to KeyEvent.KEYCODE_F11, "F12" to KeyEvent.KEYCODE_F12
     )
 
+    // ===================================================================================
+    // BROADCAST COMMAND CHECKLIST - Adding a New Command
+    // ===================================================================================
+    // When creating a new broadcast command, update the following locations:
+    //
+    // 1. AVAILABLE_COMMANDS (below)
+    //    - Add CommandDef("CMD_ID", "Label", argCount, "Description")
+    //    - argCount: 0 = no args, 1 = single INDEX, 2 = INDEX_A + INDEX_B
+    //
+    // 2. AppPreferences.kt - getDefaultKeybind()
+    //    - Add default keybind: "CMD_ID" -> Pair(modifier, keyCode)
+    //    - Modifiers: 0=None, 2=Alt (matches META_ALT_ON), 1=Shift, etc.
+    //    - NOTE: Modifier values must match Android KeyEvent.META_* flags for HW keyboard
+    //
+    // 3. handleWindowManagerCommand() - Command Handler
+    //    - Add "CMD_ID" -> { ... } case in the when block
+    //    - For drawer-opening commands (like OPEN_MOVE_TO), call triggerCommand()
+    //
+    // 4. buildAdbCommand() - ADB Command String
+    //    - Add "CMD_ID" -> "adb shell am broadcast ..." for Settings display
+    //
+    // HARDWARE KEYBOARD FLOW:
+    //    - onKeyEvent() loops through AVAILABLE_COMMANDS and checks keybinds
+    //    - When matched, it calls triggerCommand(cmd)
+    //    - For argCount=0: executes immediately OR handles special cases
+    //    - For argCount>=1: enters visual queue input mode
+    //
+    // 5. FOR INTERACTIVE COMMANDS (like OPEN_MOVE_TO, OPEN_SWAP):
+    //    These require additional state management and UI handling:
+    //
+    //    a) State Variables (near line 378):
+    //       - Add isYourModeActive: Boolean = false
+    //       - Reuse openMoveToApp and showSlotNumbersInQueue if similar flow
+    //
+    //    b) triggerCommand() - Mode Initialization (CRITICAL FOR HW KEYBOARD):
+    //       - Add special case INSIDE the "if (cmd.argCount == 0)" block
+    //       - MUST include ALL of these steps:
+    //         1. Set your mode flag = true (reset other mode flags)
+    //         2. Reset openMoveToApp = null
+    //         3. Reset showSlotNumbersInQueue = false
+    //         4. Open drawer: if (!isExpanded) toggleDrawer()
+    //         5. Switch mode: switchMode(MODE_SEARCH)
+    //         6. Set focus: currentFocusArea = FOCUS_SEARCH
+    //         7. Setup search bar: et?.setText(""); et?.requestFocus()
+    //         8. Show prompt: debugStatusView?.text = "Your Mode: Select an app"
+    //         9. RETURN to prevent falling through to immediate execution
+    //
+    //    c) executeYourCommand() Function:
+    //       - Create function to execute the command after user selection
+    //       - Reset mode state, release keyboard capture, perform action
+    //
+    //    d) cancelOpenMoveToMode() - Mode Cancellation:
+    //       - Add your mode flag reset
+    //
+    //    e) handleRemoteKeyEvent() - FOCUS_QUEUE Section:
+    //       - DPAD_UP/DOWN: Add navigation block check for your mode
+    //       - ENTER: Add confirmation handler for your mode
+    //       - ESCAPE: Add cancellation handler for your mode
+    //       - SPACE: Add confirmation handler for your mode
+    //       - Number keys (else block): Add slot selection for your mode
+    //       - Update debugStatusView visibility checks
+    //
+    //    f) searchBar setOnKeyListener:
+    //       - DPAD_UP/DOWN in FOCUS_QUEUE: Add navigation block
+    //       - ESCAPE: Add cancellation handler
+    //       - Number keys section: Add slot selection
+    //       - Update debugStatusView visibility checks
+    //
+    //    g) drawerView setOnKeyListener - FOCUS_QUEUE Section:
+    //       - DPAD_UP/DOWN: Add navigation block
+    //       - ENTER/SPACE: Add confirmation handler
+    //       - Update debugStatusView visibility checks
+    //       - Queue navigation text: Add mode check
+    //
+    //    h) toggleDrawer():
+    //       - Add mode check to skip state reset when opening for your command
+    //       - Add mode check to skip showQueueDebugState()
+    //
+    //    i) addToSelection() - App Selection Intercept:
+    //       - Add your mode to the intercept condition
+    //
+    // REFERENCE: See OPEN_MOVE_TO and OPEN_SWAP implementations for examples
+    // ===================================================================================
     val AVAILABLE_COMMANDS = listOf(
         CommandDef("OPEN_DRAWER", "Toggle Drawer", 0, "Show/Hide Launcher"),
         CommandDef("SET_FOCUS", "Set Focus", 1, "Focus app in slot #"),
@@ -230,6 +313,7 @@ private var isSoftKeyboardSupport = false
         CommandDef("SWAP", "Swap Slots", 2, "Swap app in Slot A with Slot B"),
         CommandDef("MOVE_TO", "Move To", 2, "Move app to slot # (shifts others)"),
         CommandDef("OPEN_MOVE_TO", "Open & Move To", 0, "Open app and place in slot #"),
+        CommandDef("OPEN_SWAP", "Open & Swap", 0, "Open app and swap with slot #"),
         CommandDef("MINIMIZE_ALL", "Minimize All", 0, "Minimize all tiled apps"),
         CommandDef("RESTORE_ALL", "Restore All", 0, "Restore minimized apps to slots")
     )
@@ -375,9 +459,10 @@ private var isSoftKeyboardSupport = false
     private var queueCommandPending: CommandDef? = null
     private var queueCommandSourceIndex = -1
     
-    // OPEN_MOVE_TO State
+    // OPEN_MOVE_TO / OPEN_SWAP State
     private var isOpenMoveToMode = false
-    private var openMoveToApp: MainActivity.AppInfo? = null
+    private var isOpenSwapMode = false
+    private var openMoveToApp: MainActivity.AppInfo? = null  // Shared by both modes
     private var showSlotNumbersInQueue = false
     
     // [FIX] Map to track manual minimize toggles to prevent auto-refresh overwriting them
@@ -1187,7 +1272,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     uiHandler.post {
                         selectedRecycler?.adapter?.notifyDataSetChanged()
                         debugStatusView?.visibility = View.VISIBLE
-                        if (!isOpenMoveToMode) {
+                        if (!isOpenMoveToMode && !isOpenSwapMode) {
                             debugStatusView?.text = "Queue Navigation: Use Arrows / Hotkeys"
                         }
                     }
@@ -1243,8 +1328,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     return
                 }
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    // Block navigation away from queue during OPEN_MOVE_TO slot selection
-                    if (isOpenMoveToMode && openMoveToApp != null) {
+                    // Block navigation away from queue during OPEN_MOVE_TO/OPEN_SWAP slot selection
+                    if ((isOpenMoveToMode || isOpenSwapMode) && openMoveToApp != null) {
                         return
                     }
                     
@@ -1257,14 +1342,14 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     sendBroadcast(captureIntent)
                     uiHandler.post {
                         selectedRecycler?.adapter?.notifyDataSetChanged()
-                        if (!isOpenMoveToMode) debugStatusView?.visibility = View.GONE
+                        if (!isOpenMoveToMode && !isOpenSwapMode) debugStatusView?.visibility = View.GONE
                         drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.requestFocus()
                     }
                     return
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    // Block navigation away from queue during OPEN_MOVE_TO slot selection
-                    if (isOpenMoveToMode && openMoveToApp != null) {
+                    // Block navigation away from queue during OPEN_MOVE_TO/OPEN_SWAP slot selection
+                    if ((isOpenMoveToMode || isOpenSwapMode) && openMoveToApp != null) {
                         return
                     }
                     
@@ -1277,7 +1362,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     sendBroadcast(captureIntent)
                     uiHandler.post {
                         selectedRecycler?.adapter?.notifyDataSetChanged()
-                        if (!isOpenMoveToMode) debugStatusView?.visibility = View.GONE
+                        if (!isOpenMoveToMode && !isOpenSwapMode) debugStatusView?.visibility = View.GONE
                         val mainRecycler = drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)
                         if (displayList.isNotEmpty()) {
                             if (selectedListIndex >= displayList.size) selectedListIndex = 0
@@ -1288,9 +1373,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     return
                 }
                 KeyEvent.KEYCODE_ENTER -> {
-                    // OPEN_MOVE_TO: Enter confirms current selection
+                    // OPEN_MOVE_TO/OPEN_SWAP: Enter confirms current selection
                     if (isOpenMoveToMode && openMoveToApp != null && queueSelectedIndex >= 0) {
                         executeOpenMoveTo(queueSelectedIndex + 1)
+                        return
+                    }
+                    if (isOpenSwapMode && openMoveToApp != null && queueSelectedIndex >= 0) {
+                        executeOpenSwap(queueSelectedIndex + 1)
                         return
                     }
                     
@@ -1320,8 +1409,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     return
                 }
                 KeyEvent.KEYCODE_ESCAPE -> {
-                    // OPEN_MOVE_TO: Cancel mode
-                    if (isOpenMoveToMode) {
+                    // OPEN_MOVE_TO/OPEN_SWAP: Cancel mode
+                    if (isOpenMoveToMode || isOpenSwapMode) {
                         cancelOpenMoveToMode()
                         safeToast("Open & Move To cancelled")
                         // Release keyboard capture
@@ -1341,14 +1430,18 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     sendBroadcast(captureIntent)
                     uiHandler.post {
                         selectedRecycler?.adapter?.notifyDataSetChanged()
-                        if (!isOpenMoveToMode) debugStatusView?.visibility = View.GONE
+                        if (!isOpenMoveToMode && !isOpenSwapMode) debugStatusView?.visibility = View.GONE
                     }
                     return
                 }
                 KeyEvent.KEYCODE_SPACE -> {
-                    // OPEN_MOVE_TO: Space confirms current selection
+                    // OPEN_MOVE_TO/OPEN_SWAP: Space confirms current selection
                     if (isOpenMoveToMode && openMoveToApp != null && queueSelectedIndex >= 0) {
                         executeOpenMoveTo(queueSelectedIndex + 1)
+                        return
+                    }
+                    if (isOpenSwapMode && openMoveToApp != null && queueSelectedIndex >= 0) {
+                        executeOpenSwap(queueSelectedIndex + 1)
                         return
                     }
                     
@@ -1372,8 +1465,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     return
                 }
                 else -> {
-                    // OPEN_MOVE_TO: Handle number keys for slot selection
-                    if (isOpenMoveToMode && openMoveToApp != null) {
+                    // OPEN_MOVE_TO/OPEN_SWAP: Handle number keys for slot selection
+                    if ((isOpenMoveToMode || isOpenSwapMode) && openMoveToApp != null) {
                         val num = when (keyCode) {
                             KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_NUMPAD_1 -> 1
                             KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2 -> 2
@@ -1387,7 +1480,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             else -> -1
                         }
                         if (num in 1..(selectedAppsQueue.size + 1)) {
-                            executeOpenMoveTo(num)
+                            if (isOpenMoveToMode) executeOpenMoveTo(num) else executeOpenSwap(num)
                             return
                         }
                     }
@@ -1441,7 +1534,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         uiHandler.post {
                             drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)?.adapter?.notifyDataSetChanged()
                             debugStatusView?.visibility = View.VISIBLE
-                            if (!isOpenMoveToMode) {
+                            if (!isOpenMoveToMode && !isOpenSwapMode) {
                                 debugStatusView?.text = "Queue Navigation"
                             }
                         }
@@ -1580,6 +1673,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             if (cmd.id == "OPEN_MOVE_TO") {
                 Log.d("DroidOS_Keys", "OPEN_MOVE_TO: Opening drawer for app selection")
                 isOpenMoveToMode = true
+                isOpenSwapMode = false
                 openMoveToApp = null
                 showSlotNumbersInQueue = false
                 
@@ -1598,6 +1692,32 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 // Show prompt
                 debugStatusView?.visibility = View.VISIBLE
                 debugStatusView?.text = "Open & Move To: Select an app"
+                
+                return
+            
+            // Special case: OPEN_SWAP opens drawer in app selection mode
+            } else if (cmd.id == "OPEN_SWAP") {
+                Log.d("DroidOS_Keys", "OPEN_SWAP: Opening drawer for app selection")
+                isOpenSwapMode = true
+                isOpenMoveToMode = false
+                openMoveToApp = null
+                showSlotNumbersInQueue = false
+                
+                // Open drawer if not already open
+                if (!isExpanded) {
+                    toggleDrawer()
+                }
+                
+                // Switch to search mode and focus search bar
+                switchMode(MODE_SEARCH)
+                currentFocusArea = FOCUS_SEARCH
+                val et = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)
+                et?.setText("")
+                et?.requestFocus()
+                
+                // Show prompt
+                debugStatusView?.visibility = View.VISIBLE
+                debugStatusView?.text = "Open & Swap: Select an app"
                 
                 return
             }
@@ -2791,7 +2911,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         sendBroadcast(captureIntent)
                         selectedRecycler.adapter?.notifyDataSetChanged()
                         debugStatusView?.visibility = View.VISIBLE
-                        if (!isOpenMoveToMode) {
+                        if (!isOpenMoveToMode && !isOpenSwapMode) {
                             debugStatusView?.text = "Queue Navigation: Use Arrows / Hotkeys"
                         }
                     } else {
@@ -2834,20 +2954,20 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             return@setOnKeyListener true
                         }
                         KeyEvent.KEYCODE_DPAD_UP -> {
-                            // Block navigation during OPEN_MOVE_TO slot selection
-                            if (isOpenMoveToMode && openMoveToApp != null) {
+                            // Block navigation during OPEN_MOVE_TO/OPEN_SWAP slot selection
+                            if ((isOpenMoveToMode || isOpenSwapMode) && openMoveToApp != null) {
                                 return@setOnKeyListener true
                             }
                             // Exit queue back to search
                             currentFocusArea = FOCUS_SEARCH
                             queueSelectedIndex = -1
                             selectedRecycler.adapter?.notifyDataSetChanged()
-                            if (!isOpenMoveToMode) debugStatusView?.visibility = View.GONE
+                            if (!isOpenMoveToMode && !isOpenSwapMode) debugStatusView?.visibility = View.GONE
                             return@setOnKeyListener true
                         }
                         KeyEvent.KEYCODE_DPAD_DOWN -> {
-                            // Block navigation during OPEN_MOVE_TO slot selection
-                            if (isOpenMoveToMode && openMoveToApp != null) {
+                            // Block navigation during OPEN_MOVE_TO/OPEN_SWAP slot selection
+                            if ((isOpenMoveToMode || isOpenSwapMode) && openMoveToApp != null) {
                                 return@setOnKeyListener true
                             }
                             // Exit to list
@@ -2856,7 +2976,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             currentFocusArea = FOCUS_LIST
                             queueSelectedIndex = -1
                             selectedRecycler.adapter?.notifyDataSetChanged()
-                            if (!isOpenMoveToMode) debugStatusView?.visibility = View.GONE
+                            if (!isOpenMoveToMode && !isOpenSwapMode) debugStatusView?.visibility = View.GONE
                             if (displayList.isNotEmpty()) {
                                 if (selectedListIndex >= displayList.size) selectedListIndex = 0
                                 mainRecycler.adapter?.notifyItemChanged(selectedListIndex)
@@ -2870,10 +2990,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             return@setOnKeyListener true
                         }
                         KeyEvent.KEYCODE_ESCAPE -> {
-                            // Cancel OPEN_MOVE_TO if active
-                            if (isOpenMoveToMode) {
+                            // Cancel OPEN_MOVE_TO/OPEN_SWAP if active
+                            if (isOpenMoveToMode || isOpenSwapMode) {
+                                val wasSwap = isOpenSwapMode
                                 cancelOpenMoveToMode()
-                                safeToast("Open & Move To cancelled")
+                                safeToast(if (wasSwap) "Open & Swap cancelled" else "Open & Move To cancelled")
                                 return@setOnKeyListener true
                             }
                             // Exit queue
@@ -2961,8 +3082,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     return@setOnKeyListener true
                 }
                 
-                // OPEN_MOVE_TO: Handle number keys for slot selection
-                if (isOpenMoveToMode && openMoveToApp != null) {
+                // OPEN_MOVE_TO/OPEN_SWAP: Handle number keys for slot selection
+                if ((isOpenMoveToMode || isOpenSwapMode) && openMoveToApp != null) {
                     val num = when (keyCode) {
                         KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_NUMPAD_1 -> 1
                         KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2 -> 2
@@ -2976,7 +3097,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                         else -> -1
                     }
                     if (num in 1..(selectedAppsQueue.size + 1)) {
-                        executeOpenMoveTo(num)
+                        if (isOpenMoveToMode) executeOpenMoveTo(num) else executeOpenSwap(num)
                         return@setOnKeyListener true
                     }
                 }
@@ -3044,30 +3165,30 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             return@setOnKeyListener true
                         }
                         KeyEvent.KEYCODE_DPAD_UP -> {
-                            // Block navigation during OPEN_MOVE_TO slot selection
-                            if (isOpenMoveToMode && openMoveToApp != null) {
+                            // Block navigation during OPEN_MOVE_TO/OPEN_SWAP slot selection
+                            if ((isOpenMoveToMode || isOpenSwapMode) && openMoveToApp != null) {
                                 return@setOnKeyListener true
                             }
                             // Exit to Search
                             currentFocusArea = FOCUS_SEARCH
                             queueSelectedIndex = -1
                             selectedRecycler.adapter?.notifyDataSetChanged()
-                            if (!isOpenMoveToMode) debugStatusView?.visibility = View.GONE
+                            if (!isOpenMoveToMode && !isOpenSwapMode) debugStatusView?.visibility = View.GONE
                             searchBar.requestFocus()
                             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                             imm.showSoftInput(searchBar, InputMethodManager.SHOW_IMPLICIT)
                             return@setOnKeyListener true
                         }
                         KeyEvent.KEYCODE_DPAD_DOWN -> {
-                            // Block navigation during OPEN_MOVE_TO slot selection
-                            if (isOpenMoveToMode && openMoveToApp != null) {
+                            // Block navigation during OPEN_MOVE_TO/OPEN_SWAP slot selection
+                            if ((isOpenMoveToMode || isOpenSwapMode) && openMoveToApp != null) {
                                 return@setOnKeyListener true
                             }
                             // Exit to List
                             currentFocusArea = FOCUS_LIST
                             queueSelectedIndex = -1
                             selectedRecycler.adapter?.notifyDataSetChanged()
-                            if (!isOpenMoveToMode) debugStatusView?.visibility = View.GONE
+                            if (!isOpenMoveToMode && !isOpenSwapMode) debugStatusView?.visibility = View.GONE
                             if (displayList.isNotEmpty()) {
                                 if (selectedListIndex >= displayList.size) selectedListIndex = 0
                                 mainRecycler.adapter?.notifyItemChanged(selectedListIndex)
@@ -3076,9 +3197,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             return@setOnKeyListener true
                         }
                         KeyEvent.KEYCODE_ENTER -> {
-                            // OPEN_MOVE_TO: Enter confirms current selection
+                            // OPEN_MOVE_TO/OPEN_SWAP: Enter confirms current selection
                             if (isOpenMoveToMode && openMoveToApp != null && queueSelectedIndex >= 0) {
                                 executeOpenMoveTo(queueSelectedIndex + 1)
+                                return@setOnKeyListener true
+                            }
+                            if (isOpenSwapMode && openMoveToApp != null && queueSelectedIndex >= 0) {
+                                executeOpenSwap(queueSelectedIndex + 1)
                                 return@setOnKeyListener true
                             }
                             
@@ -3105,9 +3230,13 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                             return@setOnKeyListener true
                         }
                         KeyEvent.KEYCODE_SPACE -> {
-                            // OPEN_MOVE_TO: Space confirms current selection
+                            // OPEN_MOVE_TO/OPEN_SWAP: Space confirms current selection
                             if (isOpenMoveToMode && openMoveToApp != null && queueSelectedIndex >= 0) {
                                 executeOpenMoveTo(queueSelectedIndex + 1)
+                                return@setOnKeyListener true
+                            }
+                            if (isOpenSwapMode && openMoveToApp != null && queueSelectedIndex >= 0) {
+                                executeOpenSwap(queueSelectedIndex + 1)
                                 return@setOnKeyListener true
                             }
                             
@@ -3165,7 +3294,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                                     sendBroadcast(captureIntent)
                                     selectedRecycler.adapter?.notifyDataSetChanged()
                                     debugStatusView?.visibility = View.VISIBLE
-                                    if (!isOpenMoveToMode) {
+                                    if (!isOpenMoveToMode && !isOpenSwapMode) {
                                         debugStatusView?.text = "Queue Navigation"
                                     }
                                     
@@ -3422,6 +3551,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     
     private fun cancelOpenMoveToMode() {
         isOpenMoveToMode = false
+        isOpenSwapMode = false
         openMoveToApp = null
         showSlotNumbersInQueue = false
         currentFocusArea = FOCUS_SEARCH
@@ -3515,6 +3645,93 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         }
         
         safeToast("Opened ${savedApp.label} in slot $targetSlot")
+    }
+    
+    private fun executeOpenSwap(targetSlot: Int) {
+        val app = openMoveToApp ?: return
+        
+        // Reset mode state
+        isOpenSwapMode = false
+        isOpenMoveToMode = false
+        showSlotNumbersInQueue = false
+        val savedApp = app
+        openMoveToApp = null
+        
+        // Release keyboard capture
+        val captureIntent = Intent("com.katsuyamaki.DroidOSTrackpadKeyboard.SET_INPUT_CAPTURE")
+        captureIntent.setPackage(PACKAGE_TRACKPAD)
+        captureIntent.putExtra("CAPTURE", false)
+        sendBroadcast(captureIntent)
+        
+        // Get active slot count from current layout
+        val rects = getLayoutRects()
+        val activeSlotCount = rects.size
+        val targetIdx = targetSlot - 1  // Convert to 0-based index
+        val isTargetActive = targetIdx < activeSlotCount
+        
+        // Check if app is already in queue
+        val existingIdx = selectedAppsQueue.indexOfFirst { 
+            it.packageName == savedApp.packageName && it.className == savedApp.className 
+        }
+        
+        if (existingIdx != -1) {
+            // App already in queue - just do SWAP
+            val intent = Intent()
+                .putExtra("COMMAND", "SWAP")
+                .putExtra("INDEX_A", existingIdx + 1)
+                .putExtra("INDEX_B", targetSlot)
+            handleWindowManagerCommand(intent)
+        } else {
+            // App not in queue - add it first, then swap
+            savedApp.isMinimized = !isTargetActive
+            
+            // Launch the app
+            launchViaApi(savedApp.packageName, savedApp.className, null)
+            launchViaShell(savedApp.packageName, savedApp.className, null)
+            
+            // Add to end of queue first
+            selectedAppsQueue.add(savedApp)
+            val newIdx = selectedAppsQueue.size - 1
+            
+            // If target is different from where we added, do swap
+            if (newIdx != targetIdx && targetIdx in selectedAppsQueue.indices) {
+                val intent = Intent()
+                    .putExtra("COMMAND", "SWAP")
+                    .putExtra("INDEX_A", newIdx + 1)
+                    .putExtra("INDEX_B", targetSlot)
+                handleWindowManagerCommand(intent)
+            } else {
+                // Already in correct position or invalid target
+                updateSelectedAppsDock()
+                if (isTargetActive) {
+                    uiHandler.postDelayed({ applyLayoutImmediate() }, 300)
+                }
+            }
+            
+            // If minimized, move to back after launch
+            if (!isTargetActive) {
+                val basePkg = savedApp.getBasePackage()
+                val cls = savedApp.className
+                manualStateOverrides[basePkg] = System.currentTimeMillis()
+                minimizedAtTimestamps[basePkg] = System.currentTimeMillis()
+                uiHandler.postDelayed({
+                    Thread {
+                        try {
+                            val tid = shellService?.getTaskId(basePkg, cls) ?: -1
+                            if (tid != -1) shellService?.moveTaskToBack(tid)
+                        } catch (e: Exception) {}
+                    }.start()
+                }, 500)
+            }
+        }
+        
+        // Close drawer
+        debugStatusView?.visibility = View.GONE
+        if (isExpanded) {
+            toggleDrawer()
+        }
+        
+        safeToast("Opened ${savedApp.label} swapped to slot $targetSlot")
     }
     
     // [FIX] Queue commands for sequential execution to avoid race conditions
@@ -3892,8 +4109,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             queueCommandPending = null
             queueCommandSourceIndex = -1
             
-            // Reset OPEN_MOVE_TO state (unless we're opening for that purpose)
-            if (!isOpenMoveToMode) {
+            // Reset OPEN_MOVE_TO/OPEN_SWAP state (unless we're opening for that purpose)
+            if (!isOpenMoveToMode && !isOpenSwapMode) {
                 openMoveToApp = null
                 showSlotNumbersInQueue = false
                 debugStatusView?.visibility = View.GONE
@@ -3922,8 +4139,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             
             updateSelectedAppsDock()
             
-            // Show current queue state in debug view when drawer opens (skip for OPEN_MOVE_TO)
-            if (!isOpenMoveToMode) {
+            // Show current queue state in debug view when drawer opens (skip for OPEN_MOVE_TO/OPEN_SWAP)
+            if (!isOpenMoveToMode && !isOpenSwapMode) {
                 showQueueDebugState()
             }
             
@@ -4337,8 +4554,8 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         dismissKeyboardAndRestore()
         val et = drawerView!!.findViewById<EditText>(R.id.rofi_search_bar)
         
-        // OPEN_MOVE_TO MODE: Intercept app selection
-        if (isOpenMoveToMode && openMoveToApp == null) {
+        // OPEN_MOVE_TO/OPEN_SWAP MODE: Intercept app selection
+        if ((isOpenMoveToMode || isOpenSwapMode) && openMoveToApp == null) {
             if (app.packageName == PACKAGE_BLANK) {
                 safeToast("Cannot open a blank spacer")
                 return
@@ -5956,7 +6173,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             }
             // =====================================
             
-            // Show slot number badge when in OPEN_MOVE_TO slot selection mode
+            // Show slot number badge when in OPEN_MOVE_TO/OPEN_SWAP slot selection mode
             if (showSlotNumbersInQueue) {
                 holder.slotBadge.visibility = View.VISIBLE
                 holder.slotBadge.text = (position + 1).toString()
@@ -6047,6 +6264,11 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         Log.d(TAG, "WM Command: $cmd RawIdx: $rawIndex (Internal: $index)")
 
         when (cmd) {
+            "OPEN_SWAP" -> {
+                // Trigger the OPEN_SWAP flow via triggerCommand
+                val cmdDef = AVAILABLE_COMMANDS.find { it.id == "OPEN_SWAP" }
+                if (cmdDef != null) triggerCommand(cmdDef)
+            }
             "OPEN_MOVE_TO" -> {
                 // Trigger the OPEN_MOVE_TO flow via triggerCommand
                 val cmdDef = AVAILABLE_COMMANDS.find { it.id == "OPEN_MOVE_TO" }
@@ -7066,6 +7288,7 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             "SWAP" -> "adb shell am broadcast -a com.katsuyamaki.DroidOSLauncher.WINDOW_MANAGER --es COMMAND SWAP --ei INDEX_A 1 --ei INDEX_B 2"
             "MOVE_TO" -> "adb shell am broadcast -a com.katsuyamaki.DroidOSLauncher.WINDOW_MANAGER --es COMMAND MOVE_TO --ei INDEX_A 1 --ei INDEX_B 2"
             "OPEN_MOVE_TO" -> "adb shell am broadcast -a com.katsuyamaki.DroidOSLauncher.WINDOW_MANAGER --es COMMAND OPEN_MOVE_TO"
+            "OPEN_SWAP" -> "adb shell am broadcast -a com.katsuyamaki.DroidOSLauncher.WINDOW_MANAGER --es COMMAND OPEN_SWAP"
             "MINIMIZE_ALL" -> "adb shell am broadcast -a com.katsuyamaki.DroidOSLauncher.WINDOW_MANAGER --es COMMAND MINIMIZE_ALL"
             "RESTORE_ALL" -> "adb shell am broadcast -a com.katsuyamaki.DroidOSLauncher.WINDOW_MANAGER --es COMMAND RESTORE_ALL"
             else -> null
