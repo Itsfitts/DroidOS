@@ -3452,6 +3452,12 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
         captureIntent.putExtra("CAPTURE", false)
         sendBroadcast(captureIntent)
         
+        // Get active slot count from current layout
+        val rects = getLayoutRects()
+        val activeSlotCount = rects.size
+        val targetIdx = targetSlot - 1  // Convert to 0-based index
+        val isTargetActive = targetIdx < activeSlotCount
+        
         // Check if app is already in queue
         val existingIdx = selectedAppsQueue.indexOfFirst { 
             it.packageName == savedApp.packageName && it.className == savedApp.className 
@@ -3465,26 +3471,38 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                 .putExtra("INDEX_B", targetSlot)
             handleWindowManagerCommand(intent)
         } else {
-            // App not in queue - add it first, then move
-            savedApp.isMinimized = false
-            selectedAppsQueue.add(savedApp)
-            sortAppQueue()
+            // App not in queue - add it
+            // Set minimized state based on target position
+            savedApp.isMinimized = !isTargetActive
             
-            // Find where it landed after sort
-            val newIdx = selectedAppsQueue.indexOfFirst { 
-                it.packageName == savedApp.packageName && it.className == savedApp.className 
+            // Launch the app (using both API and Shell for reliability)
+            launchViaApi(savedApp.packageName, savedApp.className, null)
+            launchViaShell(savedApp.packageName, savedApp.className, null)
+            
+            // Insert directly at target position (clamped to valid range)
+            val insertIdx = targetIdx.coerceIn(0, selectedAppsQueue.size)
+            selectedAppsQueue.add(insertIdx, savedApp)
+            
+            // If minimized, move to back immediately after launch
+            if (!isTargetActive) {
+                val basePkg = savedApp.getBasePackage()
+                val cls = savedApp.className
+                manualStateOverrides[basePkg] = System.currentTimeMillis()
+                minimizedAtTimestamps[basePkg] = System.currentTimeMillis()
+                uiHandler.postDelayed({
+                    Thread {
+                        try {
+                            val tid = shellService?.getTaskId(basePkg, cls) ?: -1
+                            if (tid != -1) shellService?.moveTaskToBack(tid)
+                        } catch (e: Exception) {}
+                    }.start()
+                }, 500)  // Delay to let app start first
             }
             
-            if (newIdx != -1 && newIdx + 1 != targetSlot) {
-                // Move to target slot
-                val intent = Intent()
-                    .putExtra("COMMAND", "MOVE_TO")
-                    .putExtra("INDEX_A", newIdx + 1)
-                    .putExtra("INDEX_B", targetSlot)
-                handleWindowManagerCommand(intent)
-            } else {
-                // Already in correct position or couldn't find - just retile
-                refreshQueueAndLayout("Opened ${savedApp.label}", forceRetile = true, retileDelayMs = 300L)
+            // Update UI without triggering cascade restore
+            updateSelectedAppsDock()
+            if (isTargetActive) {
+                uiHandler.postDelayed({ applyLayoutImmediate() }, 300)
             }
         }
         
