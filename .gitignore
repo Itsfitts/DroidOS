@@ -41,6 +41,8 @@ log.md
 /*
 # Do NOT ignore directories (this allows Git to see your app folders)
 !/*/
+# Allow license file at repo root
+!/LICENSE.txt
 # Ignore specific log and backup files
 *.log
 *.bak

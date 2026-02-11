@@ -152,13 +152,15 @@ object AppPreferences {
         return getPrefs(context).getStringSet(KEY_PROFILES, mutableSetOf()) ?: mutableSetOf()
     }
 
-    fun saveProfile(context: Context, name: String, layout: Int, resIndex: Int, dpi: Int, apps: List<String>) {
+    fun saveProfile(context: Context, name: String, layout: Int, resIndex: Int, dpi: Int, apps: List<String>, profileType: Int = 0, topMargin: Int = 0, bottomMargin: Int = 0, autoAdjustMargin: Boolean = false) {
         val names = getProfileNames(context)
         val newNames = HashSet(names)
         newNames.add(name)
         getPrefs(context).edit().putStringSet(KEY_PROFILES, newNames).apply()
         val appString = apps.joinToString(",")
-        val data = "$layout|$resIndex|$dpi|$appString"
+        val autoMarginStr = if (autoAdjustMargin) "1" else "0"
+        // New format: type|layout|resIndex|dpi|topMargin|bottomMargin|autoAdjust|apps
+        val data = "$profileType|$layout|$resIndex|$dpi|$topMargin|$bottomMargin|$autoMarginStr|$appString"
         getPrefs(context).edit().putString("PROFILE_$name", data).apply()
     }
 

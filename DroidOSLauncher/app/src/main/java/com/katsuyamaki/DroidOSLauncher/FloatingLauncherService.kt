@@ -465,6 +465,9 @@ private var isSoftKeyboardSupport = false
     private var openMoveToApp: MainActivity.AppInfo? = null  // Shared by both modes
     private var showSlotNumbersInQueue = false
     
+    // Profile Save Mode State (0 = Layout + Apps, 1 = Layout Only, 2 = App Queue Only)
+    private var currentProfileSaveMode = 0
+    
     // [FIX] Map to track manual minimize toggles to prevent auto-refresh overwriting them
     private val manualStateOverrides = java.util.concurrent.ConcurrentHashMap<String, Long>()
     // [FULLSCREEN] Track when tiled apps are auto-minimized for a full-screen app
@@ -1241,6 +1244,17 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             val now = System.currentTimeMillis()
             if (now - lastQueueNavTime < 80) return
             lastQueueNavTime = now
+            
+            // [FIX] Skip Enter/DPAD handling when editing names - let EditText handle cursor/text
+            if ((isProfileNameEditMode || isLayoutNameEditMode) &&
+                (keyCode == KeyEvent.KEYCODE_ENTER ||
+                 keyCode == KeyEvent.KEYCODE_DEL ||
+                 keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+                 keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+                 keyCode == KeyEvent.KEYCODE_DPAD_UP ||
+                 keyCode == KeyEvent.KEYCODE_DPAD_DOWN)) {
+                return
+            }
             
             // [FIX] ENTER: Activate first filtered result (works for all menu types)
             if (keyCode == KeyEvent.KEYCODE_ENTER) {
@@ -3365,6 +3379,20 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
                     // [FIX] Skip if REMOTE_KEY handler already processed this key
                     if (System.currentTimeMillis() - lastQueueNavTime < 150) {
                         return@setOnKeyListener true
+                    }
+                    // [FIX] Let Enter/Space/DPAD/Backspace pass through to EditText when in name edit mode
+                    if ((isProfileNameEditMode || isLayoutNameEditMode) &&
+                        (keyCode == KeyEvent.KEYCODE_ENTER ||
+                         keyCode == KeyEvent.KEYCODE_SPACE ||
+                         keyCode == KeyEvent.KEYCODE_DEL ||
+                         keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+                         keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+                         keyCode == KeyEvent.KEYCODE_DPAD_UP ||
+                         keyCode == KeyEvent.KEYCODE_DPAD_DOWN)) {
+                        val focusedView = mainRecycler.findFocus()
+                        if (focusedView is EditText && focusedView.isFocusableInTouchMode) {
+                            return@setOnKeyListener false // Let EditText handle it
+                        }
                     }
                     when (keyCode) {
                         KeyEvent.KEYCODE_DPAD_UP -> {
@@ -5524,48 +5552,273 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
     private fun changeDrawerHeight(delta: Int) { currentDrawerHeightPercent = (currentDrawerHeightPercent + delta).coerceIn(30, 100); AppPreferences.setDrawerHeightPercentForConfig(this, currentDisplayId, currentAspectRatio, currentDrawerHeightPercent); AppPreferences.setDrawerHeightPercent(this, currentDrawerHeightPercent); updateDrawerHeight(false); if (currentMode == MODE_SETTINGS) { drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged() } }
     private fun changeDrawerWidth(delta: Int) { currentDrawerWidthPercent = (currentDrawerWidthPercent + delta).coerceIn(30, 100); AppPreferences.setDrawerWidthPercentForConfig(this, currentDisplayId, currentAspectRatio, currentDrawerWidthPercent); AppPreferences.setDrawerWidthPercent(this, currentDrawerWidthPercent); updateDrawerHeight(false); if (currentMode == MODE_SETTINGS) { drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged() } }
     private fun pickIcon() { toggleDrawer(); try { refreshDisplayId(); val intent = Intent(this, IconPickerActivity::class.java); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); val metrics = windowManager.maximumWindowMetrics; val w = 1000; val h = (metrics.bounds.height() * 0.7).toInt(); val x = (metrics.bounds.width() - w) / 2; val y = (metrics.bounds.height() - h) / 2; val options = android.app.ActivityOptions.makeBasic(); options.setLaunchDisplayId(currentDisplayId); options.setLaunchBounds(Rect(x, y, x+w, y+h)); startActivity(intent, options.toBundle()) } catch (e: Exception) { safeToast("Error launching picker: ${e.message}") } }
-    private fun saveProfile() { var name = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.text?.toString()?.trim(); if (name.isNullOrEmpty()) { val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()); name = "Profile_$timestamp" }; val pkgs = selectedAppsQueue.map { it.packageName }; AppPreferences.saveProfile(this, name, selectedLayoutType, selectedResolutionIndex, currentDpiSetting, pkgs); safeToast("Saved: $name"); drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText(""); switchMode(MODE_PROFILES) }
+    private fun saveProfile() { 
+        var name = drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.text?.toString()?.trim()
+        if (name.isNullOrEmpty()) { 
+            val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            val modePrefix = when (currentProfileSaveMode) {
+                1 -> "Layout_"
+                2 -> "Queue_"
+                else -> "Profile_"
+            }
+            name = "$modePrefix$timestamp" 
+        }
+        
+        when (currentProfileSaveMode) {
+            0 -> {
+                // Layout + Apps: Save everything including margins
+                val pkgs = selectedAppsQueue.map { it.packageName }
+                AppPreferences.saveProfile(this, name, selectedLayoutType, selectedResolutionIndex, currentDpiSetting, pkgs, 0, topMarginPercent, bottomMarginPercent, autoAdjustMarginForIME)
+            }
+            1 -> {
+                // Layout Only: Save settings including margins, no apps
+                AppPreferences.saveProfile(this, name, selectedLayoutType, selectedResolutionIndex, currentDpiSetting, emptyList(), 1, topMarginPercent, bottomMarginPercent, autoAdjustMarginForIME)
+            }
+            2 -> {
+                // App Queue Only: Save apps, use -1 for layout settings to indicate "don't change"
+                val pkgs = selectedAppsQueue.map { it.packageName }
+                AppPreferences.saveProfile(this, name, -1, -1, -1, pkgs, 2, -1, -1, false)
+            }
+        }
+        
+        val modeLabel = when (currentProfileSaveMode) {
+            1 -> "Layout"
+            2 -> "Queue"
+            else -> "Profile"
+        }
+        safeToast("Saved $modeLabel: $name")
+        drawerView?.findViewById<EditText>(R.id.rofi_search_bar)?.setText("")
+        switchMode(MODE_PROFILES) 
+    }
     private fun loadProfile(name: String) { 
         val data = AppPreferences.getProfileData(this, name) ?: return
         try { 
             val parts = data.split("|")
-            selectedLayoutType = parts[0].toInt()
-            selectedResolutionIndex = parts[1].toInt()
-            currentDpiSetting = parts[2].toInt()
-            val pkgList = parts[3].split(",")
-            selectedAppsQueue.clear()
-            for (pkg in pkgList) { 
-                if (pkg.isNotEmpty()) { 
-                    if (pkg == PACKAGE_BLANK) { 
-                        selectedAppsQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK, null)) 
-                    } else { 
-                        val app = allAppsList.find { it.packageName == pkg }
-                        if (app != null) selectedAppsQueue.add(app) 
-                    } 
-                } 
+            val profileType = parts[0].toInt()
+            val layoutType = parts[1].toInt()
+            val resIndex = parts[2].toInt()
+            val dpiSetting = parts[3].toInt()
+            
+            // Parse margin settings if available (new format has 8+ parts)
+            val topMar = if (parts.size >= 8) parts[4].toInt() else 0
+            val botMar = if (parts.size >= 8) parts[5].toInt() else 0
+            val autoMar = if (parts.size >= 8) parts[6] == "1" else false
+            val pkgList = if (parts.size >= 8) {
+                parts[7].split(",").filter { it.isNotEmpty() }
+            } else if (parts.size > 4) {
+                parts[4].split(",").filter { it.isNotEmpty() }
+            } else emptyList()
+            
+            when (profileType) {
+                0 -> loadProfileLayoutAndApps(name, layoutType, resIndex, dpiSetting, pkgList, topMar, botMar, autoMar)
+                1 -> loadProfileLayoutOnly(name, layoutType, resIndex, dpiSetting, topMar, botMar, autoMar)
+                2 -> loadProfileQueueOnly(name, pkgList)
+                else -> loadProfileLayoutAndApps(name, layoutType, resIndex, dpiSetting, pkgList, topMar, botMar, autoMar)
             }
-            // Save settings for CURRENT DISPLAY
-            AppPreferences.saveLastLayout(this, selectedLayoutType, currentDisplayId)
-            // Note: Profile loading doesn't inherently set a specific CUSTOM layout name unless we inferred it,
-            // so we might want to clear the custom layout name to avoid mismatches, or keep as is.
-            // For safety, let's clear custom layout name to prevent stale rects if profile used standard layout.
-            if (selectedLayoutType != LAYOUT_CUSTOM_DYNAMIC) {
-                activeCustomLayoutName = null
-                AppPreferences.saveLastCustomLayoutName(this, null, currentDisplayId)
-            }
-            
-            AppPreferences.saveDisplayResolution(this, currentDisplayId, selectedResolutionIndex)
-            AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting)
-            
-            activeProfileName = name
-            updateSelectedAppsDock()
-            safeToast("Loaded: $name")
-            drawerView!!.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
-            
-            if (isInstantMode) applyLayoutImmediate() 
         } catch (e: Exception) { 
-            Log.e(TAG, "Failed to load profile", e) 
+            // Fallback for old profile format (no type prefix)
+            try {
+                val parts = data.split("|")
+                val layoutType = parts[0].toInt()
+                val resIndex = parts[1].toInt()
+                val dpiSetting = parts[2].toInt()
+                val pkgList = parts[3].split(",").filter { it.isNotEmpty() }
+                loadProfileLayoutAndApps(name, layoutType, resIndex, dpiSetting, pkgList, 0, 0, false)
+            } catch (e2: Exception) {
+                Log.e(TAG, "Failed to load profile", e2) 
+            }
         } 
+    }
+    
+    // Profile Type 0: Layout + Apps - Opens apps from profile, minimizes others
+    private fun loadProfileLayoutAndApps(name: String, layoutType: Int, resIndex: Int, dpiSetting: Int, pkgList: List<String>, topMar: Int = 0, botMar: Int = 0, autoMar: Boolean = false) {
+        // Apply layout settings
+        selectedLayoutType = layoutType
+        selectedResolutionIndex = resIndex
+        currentDpiSetting = dpiSetting
+        
+        // Apply margin settings
+        topMarginPercent = topMar
+        bottomMarginPercent = botMar
+        autoAdjustMarginForIME = autoMar
+        AppPreferences.setTopMarginPercent(this, currentDisplayId, topMar)
+        AppPreferences.setBottomMarginPercent(this, currentDisplayId, botMar)
+        AppPreferences.setAutoAdjustMarginForIME(this, autoMar)
+        
+        AppPreferences.saveLastLayout(this, selectedLayoutType, currentDisplayId)
+        if (selectedLayoutType != LAYOUT_CUSTOM_DYNAMIC) {
+            activeCustomLayoutName = null
+            AppPreferences.saveLastCustomLayoutName(this, null, currentDisplayId)
+        }
+        AppPreferences.saveDisplayResolution(this, currentDisplayId, selectedResolutionIndex)
+        AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting)
+        
+        // Get current queue packages for comparison
+        val currentPkgs = selectedAppsQueue.map { it.packageName }.toSet()
+        val profilePkgs = pkgList.toSet()
+        
+        // Minimize apps not in profile (don't kill - preserve user work)
+        val appsToMinimize = selectedAppsQueue.filter { 
+            !it.isMinimized && it.packageName != PACKAGE_BLANK && it.packageName !in profilePkgs 
+        }
+        for (app in appsToMinimize) {
+            app.isMinimized = true
+        }
+        if (appsToMinimize.isNotEmpty()) {
+            Thread {
+                for (app in appsToMinimize) {
+                    try {
+                        val tid = shellService?.getTaskId(app.getBasePackage(), null) ?: -1
+                        if (tid != -1) shellService?.moveTaskToBack(tid)
+                    } catch (e: Exception) {}
+                }
+            }.start()
+        }
+        
+        // Build new queue from profile
+        val newQueue = mutableListOf<MainActivity.AppInfo>()
+        for (pkg in pkgList) {
+            if (pkg == PACKAGE_BLANK) {
+                newQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK, null))
+            } else {
+                // Check if app is already in queue
+                val existingApp = selectedAppsQueue.find { it.packageName == pkg }
+                if (existingApp != null) {
+                    existingApp.isMinimized = false
+                    newQueue.add(existingApp)
+                } else {
+                    // App not in queue - find in app list and add
+                    val app = allAppsList.find { it.packageName == pkg }
+                    if (app != null) {
+                        app.isMinimized = false
+                        newQueue.add(app)
+                    }
+                }
+            }
+        }
+        
+        selectedAppsQueue.clear()
+        selectedAppsQueue.addAll(newQueue)
+        
+        activeProfileName = name
+        updateSelectedAppsDock()
+        // Force refresh both recyclers to prevent visual duplicates
+        drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)?.adapter?.notifyDataSetChanged()
+        drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+        safeToast("Loaded: $name")
+        
+        if (isInstantMode) applyLayoutImmediate()
+    }
+    
+    // Profile Type 1: Layout Only - Applies layout settings, keeps current apps
+    private fun loadProfileLayoutOnly(name: String, layoutType: Int, resIndex: Int, dpiSetting: Int, topMar: Int = 0, botMar: Int = 0, autoMar: Boolean = false) {
+        // Apply layout settings
+        selectedLayoutType = layoutType
+        selectedResolutionIndex = resIndex
+        currentDpiSetting = dpiSetting
+        
+        // Apply margin settings
+        topMarginPercent = topMar
+        bottomMarginPercent = botMar
+        autoAdjustMarginForIME = autoMar
+        AppPreferences.setTopMarginPercent(this, currentDisplayId, topMar)
+        AppPreferences.setBottomMarginPercent(this, currentDisplayId, botMar)
+        AppPreferences.setAutoAdjustMarginForIME(this, autoMar)
+        
+        AppPreferences.saveLastLayout(this, selectedLayoutType, currentDisplayId)
+        if (selectedLayoutType != LAYOUT_CUSTOM_DYNAMIC) {
+            activeCustomLayoutName = null
+            AppPreferences.saveLastCustomLayoutName(this, null, currentDisplayId)
+        }
+        AppPreferences.saveDisplayResolution(this, currentDisplayId, selectedResolutionIndex)
+        AppPreferences.saveDisplayDpi(this, currentDisplayId, currentDpiSetting)
+        
+        // Get layout slot count
+        val layoutRects = getLayoutRects()
+        val maxSlots = layoutRects.size
+        
+        // If more active apps than slots, minimize excess
+        val activeApps = selectedAppsQueue.filter { !it.isMinimized && it.packageName != PACKAGE_BLANK }
+        if (activeApps.size > maxSlots) {
+            val appsToMinimize = activeApps.drop(maxSlots)
+            for (app in appsToMinimize) {
+                app.isMinimized = true
+            }
+            Thread {
+                for (app in appsToMinimize) {
+                    try {
+                        val tid = shellService?.getTaskId(app.getBasePackage(), null) ?: -1
+                        if (tid != -1) shellService?.moveTaskToBack(tid)
+                    } catch (e: Exception) {}
+                }
+            }.start()
+        }
+        
+        activeProfileName = name
+        updateSelectedAppsDock()
+        // Force refresh both recyclers
+        drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)?.adapter?.notifyDataSetChanged()
+        drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+        safeToast("Loaded Layout: $name")
+        
+        if (isInstantMode) applyLayoutImmediate()
+    }
+    
+    // Profile Type 2: App Queue Only - Applies app queue, keeps current layout settings
+    private fun loadProfileQueueOnly(name: String, pkgList: List<String>) {
+        val profilePkgs = pkgList.toSet()
+        
+        // Minimize apps not in profile (don't kill - preserve user work)
+        val appsToMinimize = selectedAppsQueue.filter { 
+            !it.isMinimized && it.packageName != PACKAGE_BLANK && it.packageName !in profilePkgs 
+        }
+        for (app in appsToMinimize) {
+            app.isMinimized = true
+        }
+        if (appsToMinimize.isNotEmpty()) {
+            Thread {
+                for (app in appsToMinimize) {
+                    try {
+                        val tid = shellService?.getTaskId(app.getBasePackage(), null) ?: -1
+                        if (tid != -1) shellService?.moveTaskToBack(tid)
+                    } catch (e: Exception) {}
+                }
+            }.start()
+        }
+        
+        // Build new queue from profile
+        val newQueue = mutableListOf<MainActivity.AppInfo>()
+        for (pkg in pkgList) {
+            if (pkg == PACKAGE_BLANK) {
+                newQueue.add(MainActivity.AppInfo(" (Blank Space)", PACKAGE_BLANK, null))
+            } else {
+                // Check if app is already in queue
+                val existingApp = selectedAppsQueue.find { it.packageName == pkg }
+                if (existingApp != null) {
+                    existingApp.isMinimized = false
+                    newQueue.add(existingApp)
+                } else {
+                    // App not in queue - find in app list and add
+                    val app = allAppsList.find { it.packageName == pkg }
+                    if (app != null) {
+                        app.isMinimized = false
+                        newQueue.add(app)
+                    }
+                }
+            }
+        }
+        
+        selectedAppsQueue.clear()
+        selectedAppsQueue.addAll(newQueue)
+        
+        activeProfileName = name
+        updateSelectedAppsDock()
+        // Force refresh both recyclers to prevent visual duplicates
+        drawerView?.findViewById<RecyclerView>(R.id.selected_apps_recycler)?.adapter?.notifyDataSetChanged()
+        drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+        safeToast("Loaded Queue: $name")
+        
+        if (isInstantMode) applyLayoutImmediate()
     }
     
 
@@ -6038,7 +6291,88 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
             // =================================================================================
             MODE_DPI -> { searchBar.hint = "Adjust Density (DPI)"; displayList.add(ActionOption("Reset Density (Default)") { selectDpi(-1) }); var savedDpi = currentDpiSetting; if (savedDpi <= 0) { savedDpi = displayContext?.resources?.configuration?.densityDpi ?: 160 }; displayList.add(DpiOption(savedDpi)) }
             MODE_BLACKLIST -> { searchBar.hint = "Blacklisted Apps"; loadBlacklistedApps(); executeBtn.visibility = View.GONE }
-            MODE_PROFILES -> { searchBar.hint = "Enter Profile Name..."; displayList.add(ProfileOption("Save Current as New", true, 0,0,0, emptyList())); val profileNames = AppPreferences.getProfileNames(this).sorted(); for (pName in profileNames) { val data = AppPreferences.getProfileData(this, pName); if (data != null) { try { val parts = data.split("|"); val lay = parts[0].toInt(); val res = parts[1].toInt(); val d = parts[2].toInt(); val pkgs = parts[3].split(",").filter { it.isNotEmpty() }; displayList.add(ProfileOption(pName, false, lay, res, d, pkgs)) } catch(e: Exception) {} } } }
+            MODE_PROFILES -> { 
+                isProfileNameEditMode = false // Reset edit mode when entering tab
+                val modeLabel = when (currentProfileSaveMode) {
+                    1 -> "Layout Only"
+                    2 -> "App Queue Only"
+                    else -> "Layout + Apps"
+                }
+                searchBar.hint = "Enter Profile Name..."
+                
+                // Mode toggle action
+                displayList.add(ActionOption("Mode: $modeLabel (tap to change)") {
+                    currentProfileSaveMode = (currentProfileSaveMode + 1) % 3
+                    switchMode(MODE_PROFILES)
+                })
+                
+                // Name Editor Mode toggle
+                displayList.add(ToggleOption("Name Editor Mode", isProfileNameEditMode) { enabled ->
+                    isProfileNameEditMode = enabled
+                    drawerView?.findViewById<RecyclerView>(R.id.rofi_recycler_view)?.adapter?.notifyDataSetChanged()
+                })
+                
+                // Save new profile option
+                val saveLabel = when (currentProfileSaveMode) {
+                    1 -> "Save Layout as New"
+                    2 -> "Save Queue as New"
+                    else -> "Save Profile as New"
+                }
+                displayList.add(ProfileOption(saveLabel, true, 0, 0, 0, emptyList(), currentProfileSaveMode))
+                
+                // Load existing profiles
+                val profileNames = AppPreferences.getProfileNames(this).sorted()
+                for (pName in profileNames) { 
+                    val data = AppPreferences.getProfileData(this, pName)
+                    if (data != null) { 
+                        try { 
+                            val parts = data.split("|")
+                            // Check format by size
+                            val profileType: Int
+                            val lay: Int
+                            val res: Int
+                            val d: Int
+                            val topMar: Int
+                            val botMar: Int
+                            val autoMar: Boolean
+                            val pkgs: List<String>
+                            
+                            if (parts.size >= 8) {
+                                // New format: type|layout|res|dpi|topMargin|bottomMargin|autoAdjust|apps
+                                profileType = parts[0].toInt()
+                                lay = parts[1].toInt()
+                                res = parts[2].toInt()
+                                d = parts[3].toInt()
+                                topMar = parts[4].toInt()
+                                botMar = parts[5].toInt()
+                                autoMar = parts[6] == "1"
+                                pkgs = parts[7].split(",").filter { it.isNotEmpty() }
+                            } else if (parts.size >= 5) {
+                                // Intermediate format: type|layout|res|dpi|apps
+                                profileType = parts[0].toInt()
+                                lay = parts[1].toInt()
+                                res = parts[2].toInt()
+                                d = parts[3].toInt()
+                                topMar = 0
+                                botMar = 0
+                                autoMar = false
+                                pkgs = parts[4].split(",").filter { it.isNotEmpty() }
+                            } else {
+                                // Old format: layout|res|dpi|apps
+                                profileType = 0
+                                lay = parts[0].toInt()
+                                res = parts[1].toInt()
+                                d = parts[2].toInt()
+                                topMar = 0
+                                botMar = 0
+                                autoMar = false
+                                pkgs = parts[3].split(",").filter { it.isNotEmpty() }
+                            }
+                            displayList.add(ProfileOption(pName, false, lay, res, d, pkgs, profileType, topMar, botMar, autoMar)) 
+                        } catch(e: Exception) {} 
+                    } 
+                } 
+            }
             MODE_KEYBINDS -> {
                 searchBar.hint = "Configure Hotkeys"
                 displayList.add(ActionOption("How to use: Set modifier + key. Press to trigger.") {})
@@ -6199,10 +6533,12 @@ Log.d(TAG, "SoftKey: Typed '$typedChar' -> Code $typedCode. CustomMod: $customMo
 
     data class LayoutOption(val name: String, val type: Int, val isCustomSaved: Boolean = false, val customRects: List<Rect>? = null)
     private var isLayoutNameEditMode = false
+    private var isProfileNameEditMode = false
     private val unfilteredDisplayList = mutableListOf<Any>() // Store full list for menu filtering
     data class ResolutionOption(val name: String, val command: String, val index: Int)
     data class DpiOption(val currentDpi: Int)
-    data class ProfileOption(val name: String, val isCurrent: Boolean, val layout: Int, val resIndex: Int, val dpi: Int, val apps: List<String>)
+    // profileType: 0 = Layout + Apps, 1 = Layout Only, 2 = App Queue Only
+    data class ProfileOption(val name: String, val isCurrent: Boolean, val layout: Int, val resIndex: Int, val dpi: Int, val apps: List<String>, val profileType: Int = 0, val topMargin: Int = 0, val bottomMargin: Int = 0, val autoAdjustMargin: Boolean = false)
     data class FontSizeOption(val currentSize: Float)
     data class HeightOption(val currentPercent: Int)
     data class WidthOption(val currentPercent: Int)
@@ -7475,7 +7811,138 @@ else -> AppHolder(View(parent.context)) } }
                 holder.itemView.setOnLongClickListener { toggleFavorite(item); refreshSearchList(); true }
             }
             // === APP HOLDER BINDING - END ===
-            else if (holder is ProfileRichHolder && item is ProfileOption) { holder.name.setText(item.name); holder.iconsContainer.removeAllViews(); if (!item.isCurrent) { for (pkg in item.apps.take(5)) { val iv = ImageView(holder.itemView.context); val lp = LinearLayout.LayoutParams(60, 60); lp.marginEnd = 8; iv.layoutParams = lp; if (pkg == PACKAGE_BLANK) { iv.setImageResource(R.drawable.ic_box_outline) } else { try { iv.setImageDrawable(packageManager.getApplicationIcon(pkg)) } catch (e: Exception) { iv.setImageResource(R.drawable.ic_launcher_bubble) } }; holder.iconsContainer.addView(iv) }; val info = "${getLayoutName(item.layout)} | ${getRatioName(item.resIndex)} | ${item.dpi}dpi"; holder.details.text = info; holder.details.visibility = View.VISIBLE; holder.btnSave.visibility = View.GONE; if (activeProfileName == item.name) { holder.itemView.setBackgroundResource(R.drawable.bg_item_active) } else { holder.itemView.setBackgroundResource(0) }; holder.itemView.setOnClickListener { dismissKeyboardAndRestore(); loadProfile(item.name) }; holder.itemView.setOnLongClickListener { startRename(holder.name); true }; val saveProfileName = { val newName = holder.name.text.toString().trim(); if (newName.isNotEmpty() && newName != item.name) { if (AppPreferences.renameProfile(holder.itemView.context, item.name, newName)) { safeToast("Renamed to $newName"); switchMode(MODE_PROFILES) } }; endRename(holder.name) }; holder.name.setOnEditorActionListener { v, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_DONE) { saveProfileName(); holder.name.clearFocus(); val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager; imm.hideSoftInputFromWindow(holder.name.windowToken, 0); updateDrawerHeight(false); true } else false }; holder.name.setOnFocusChangeListener { v, hasFocus -> if (autoResizeEnabled) updateDrawerHeight(hasFocus); if (!hasFocus) saveProfileName() } } else { holder.iconsContainer.removeAllViews(); holder.details.visibility = View.GONE; holder.btnSave.visibility = View.VISIBLE; holder.itemView.setBackgroundResource(0); holder.name.isEnabled = true; holder.name.isFocusable = true; holder.name.isFocusableInTouchMode = true; holder.itemView.setOnClickListener { saveProfile() }; holder.btnSave.setOnClickListener { saveProfile() } } }
+            else if (holder is ProfileRichHolder && item is ProfileOption) { 
+                holder.name.setText(item.name)
+                holder.iconsContainer.removeAllViews()
+                
+                if (!item.isCurrent) { 
+                    // Show app icons for profiles that have apps
+                    if (item.apps.isNotEmpty()) {
+                        for (pkg in item.apps.take(5)) { 
+                            val iv = ImageView(holder.itemView.context)
+                            val lp = LinearLayout.LayoutParams(60, 60)
+                            lp.marginEnd = 8
+                            iv.layoutParams = lp
+                            if (pkg == PACKAGE_BLANK) { 
+                                iv.setImageResource(R.drawable.ic_box_outline) 
+                            } else { 
+                                try { 
+                                    iv.setImageDrawable(packageManager.getApplicationIcon(pkg)) 
+                                } catch (e: Exception) { 
+                                    iv.setImageResource(R.drawable.ic_launcher_bubble) 
+                                } 
+                            }
+                            holder.iconsContainer.addView(iv) 
+                        }
+                    }
+                    
+                    // Build info string based on profile type
+                    val typeLabel = when (item.profileType) {
+                        1 -> "[Layout]"
+                        2 -> "[Queue]"
+                        else -> "[Full]"
+                    }
+                    val marginInfo = if (item.profileType != 2 && (item.topMargin != 0 || item.bottomMargin != 0 || item.autoAdjustMargin)) {
+                        " | M:${item.topMargin}/${item.bottomMargin}${if (item.autoAdjustMargin) "*" else ""}"
+                    } else ""
+                    val info = when (item.profileType) {
+                        1 -> "$typeLabel ${getLayoutName(item.layout)} | ${getRatioName(item.resIndex)} | ${item.dpi}dpi$marginInfo"
+                        2 -> "$typeLabel ${item.apps.size} apps"
+                        else -> "$typeLabel ${getLayoutName(item.layout)} | ${item.apps.size} apps$marginInfo"
+                    }
+                    holder.details.text = info
+                    holder.details.visibility = View.VISIBLE
+                    holder.btnSave.visibility = View.GONE
+                    
+                    if (activeProfileName == item.name) { 
+                        holder.itemView.setBackgroundResource(R.drawable.bg_item_active) 
+                    } else { 
+                        holder.itemView.setBackgroundResource(0) 
+                    }
+                    
+                    // Reset name input state
+                    holder.name.apply {
+                        isEnabled = true
+                        setTextColor(Color.WHITE)
+                        background = null
+                        isFocusable = false
+                        isFocusableInTouchMode = false
+                        isClickable = true
+                        isLongClickable = false
+                        inputType = 0
+                    }
+                    
+                    // Click behavior based on Name Editor Mode
+                    val clickAction = View.OnClickListener {
+                        if (isProfileNameEditMode) {
+                            holder.name.isFocusable = true
+                            holder.name.isFocusableInTouchMode = true
+                            holder.name.isClickable = true
+                            holder.name.inputType = android.text.InputType.TYPE_CLASS_TEXT
+                            startRename(holder.name)
+                        } else {
+                            dismissKeyboardAndRestore()
+                            loadProfile(item.name)
+                        }
+                    }
+                    holder.itemView.setOnClickListener(clickAction)
+                    holder.name.setOnClickListener(clickAction)
+                    holder.itemView.setOnLongClickListener(null) // Remove long-press rename
+
+                    var isSaving = false
+                    val saveProfileName = {
+                        if (!isSaving) {
+                            isSaving = true
+                            uiHandler.post {
+                                if (holder.name.windowToken == null) { isSaving = false; return@post }
+                                val newName = holder.name.text.toString().trim()
+                                var changed = false
+                                if (newName.isNotEmpty() && newName != item.name) {
+                                    if (AppPreferences.renameProfile(holder.itemView.context, item.name, newName)) {
+                                        safeToast("Renamed to $newName")
+                                        switchMode(MODE_PROFILES)
+                                        changed = true
+                                    }
+                                }
+                                if (!changed) {
+                                    endRename(holder.name)
+                                    holder.name.isEnabled = true
+                                    holder.name.isFocusable = false
+                                    holder.name.isClickable = true
+                                    holder.name.inputType = 0
+                                    isSaving = false
+                                }
+                            }
+                        }
+                    }
+
+                    holder.name.setOnEditorActionListener { v, actionId, _ ->
+                        if (actionId == EditorInfo.IME_ACTION_DONE) {
+                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                            imm.hideSoftInputFromWindow(holder.name.windowToken, 0)
+                            holder.name.clearFocus()
+                            updateDrawerHeight(false)
+                            saveProfileName()
+                            true
+                        } else false
+                    }
+
+                    holder.name.setOnFocusChangeListener { v, hasFocus ->
+                        if (autoResizeEnabled) updateDrawerHeight(hasFocus)
+                        if (!hasFocus && !isSaving) saveProfileName()
+                    } 
+                } else { 
+                    holder.iconsContainer.removeAllViews()
+                    holder.details.visibility = View.GONE
+                    holder.btnSave.visibility = View.VISIBLE
+                    holder.itemView.setBackgroundResource(0)
+                    holder.name.isEnabled = true
+                    holder.name.isFocusable = true
+                    holder.name.isFocusableInTouchMode = true
+                    holder.itemView.setOnClickListener { saveProfile() }
+                    holder.btnSave.setOnClickListener { saveProfile() } 
+                } 
+            }
             else if (holder is LayoutHolder) {
                 // --- APPLY KEYBOARD HIGHLIGHT ---
                 if (isKeyboardSelected) holder.itemView.setBackgroundResource(R.drawable.bg_item_active)
